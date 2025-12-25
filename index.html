@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cumbria Bienestar | Spa Manager</title>
+    <title>Zenith Manager | Spa & Wellness</title>
 
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -14,6 +14,7 @@
 
     <!-- Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="icon" type="image/png" href="zenith-icon.png">
 
     <!-- Styles -->
     <link rel="stylesheet" href="styles.css">
@@ -23,17 +24,20 @@
 
     <!-- Sidebar -->
     <div class="sidebar">
-        <div class="logo-container">
-            <img src="logo-spa.jpg" alt="Cumbria Bienestar" style="max-width: 80%; height: auto; margin-bottom: 20px;">
+        <div style="text-align: center; margin-bottom: 25px;">
+            <img src="logo-spa.jpg" alt="Cumbria Bienestar" style="max-width: 85%; height: auto;">
         </div>
 
         <ul class="nav-links">
-            <li><a href="#" class="nav-link" data-view="dashboard"><i class="fas fa-home"></i> Dashboard</a></li>
+            <li><a href="#" class="nav-link active" data-view="dashboard"><i class="fas fa-home"></i> Dashboard</a></li>
             <li><a href="#" class="nav-link" data-view="vouchers"><i class="fas fa-ticket-alt"></i> Bonos</a></li>
-            <li><a href="#" class="nav-link" data-view="circuitos"><i class="fas fa-water"></i> Circuitos</a></li>
-            <li><a href="#" class="nav-link" data-view="tratamientos"><i class="fas fa-spa"></i> Tratamientos</a></li>
+            <li><a href="reservas.html" class="nav-link"><i class="fas fa-calendar-alt"></i> Reservas Spa</a></li>
             <li><a href="#" class="nav-link" data-view="config"><i class="fas fa-cog"></i> Configuración</a></li>
         </ul>
+
+        <div style="text-align: center; margin-top: auto; padding: 10px 0; border-top: 1px solid var(--border);">
+            <img src="zenith-logo.png" alt="Zenith" style="max-width: 90px; height: auto; opacity: 0.85;">
+        </div>
     </div>
     </aside>
 
@@ -122,7 +126,7 @@
                         <i class="fas fa-list"></i> Ver Todos
                     </button>
 
-                    <button onclick="openLocalVoucherModal()" class="btn btn-accent" 
+                    <button onclick="openLocalVoucherModal()" class="btn btn-accent"
                         style="padding: 10px 15px; border-radius: 8px; white-space: nowrap;">
                         <i class="fas fa-plus-circle"></i> Nueva Venta Local
                     </button>
@@ -151,36 +155,24 @@
             </div>
         </section>
 
-        <!-- CIRCUITOS (MANAGEMENT) -->
-        <section id="circuitos-view" style="display:none">
-            <div class="section-header" style="margin-bottom: 20px; display: flex; justify-content: space-between;">
-                <h3>Gestión de Circuitos</h3>
-                <button class="btn btn-accent btn-sm">+ Añadir Circuito</button>
-            </div>
-            <div class="data-container" id="circuitos-container"></div>
-        </section>
 
-        <!-- TRATAMIENTOS (MANAGEMENT) -->
-        <section id="tratamientos-view" style="display:none">
-            <div class="section-header" style="margin-bottom: 20px; display: flex; justify-content: space-between;">
-                <h3>Catálogo de Tratamientos</h3>
-                <button class="btn btn-accent btn-sm">+ Añadir Tratamiento</button>
-            </div>
-            <div class="data-container" id="tratamientos-container"></div>
-        </section>
 
         <!-- CONFIGURACIÓN -->
         <section id="config-view" style="display:none">
             <div class="data-container">
-                <h3>Herramientas de Administrador</h3>
-                <div class="stat-card" style="margin-top: 20px;">
-                    <h4><i class="fas fa-database"></i> Gestión de Catálogo</h4>
-                    <p class="muted">Si no aparecen los servicios, pulsa este botón para restablecer o cargar el
-                        catálogo inicial de 2025.</p>
-                    <button class="btn btn-accent" onclick="importarCatalogo()" style="margin-top: 10px;">
-                        <i class="fas fa-cloud-upload-alt"></i> Importar Catálogo 2025
-                    </button>
-                    <p id="import-status" style="margin-top: 10px; color: var(--accent); display:none;"></p>
+                <h3>Ajustes de Sistema</h3>
+
+                <div class="stats-grid"
+                    style="grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); margin-top: 20px;">
+                    <!-- ACCESO AL CATÁLOGO -->
+                    <div class="stat-card">
+                        <h3 style="color: var(--accent);"><i class="fas fa-list"></i> Catálogo de Servicios</h3>
+                        <p class="muted" style="font-size: 0.85rem; margin-bottom: 15px;">Gestiona los circuitos,
+                            tratamientos, duraciones y precios que aparecen en la aplicación.</p>
+                        <a href="catalogo.html" class="btn btn-accent" style="width: 100%; justify-content: center;">
+                            <i class="fas fa-external-link-alt"></i> Abrir Editor de Catálogo
+                        </a>
+                    </div>
                 </div>
             </div>
         </section>
@@ -297,7 +289,7 @@
                     <label>Código de Bono</label>
                     <div style="display: flex; align-items: center; gap: 10px;">
                         <span style="font-weight: bold; font-size: 1.2rem; color: var(--accent);">BM-</span>
-                        <input type="number" id="lvm-num" placeholder="0001" required 
+                        <input type="number" id="lvm-num" placeholder="0001" required
                             style="flex: 1; font-size: 1.1rem; padding: 10px;" min="1">
                     </div>
                     <small class="muted">Introduce el número manual assignado. No se puede modificar después.</small>
@@ -318,7 +310,8 @@
                 <div class="form-group">
                     <label>Producto / Servicio</label>
                     <div style="display:flex; gap:5px;">
-                         <input type="text" id="lvm-producto" placeholder="Escribe o selecciona..." list="services-list" required style="flex:1;">
+                        <input type="text" id="lvm-producto" placeholder="Escribe o selecciona..." list="services-list"
+                            required style="flex:1;">
                     </div>
                     <!-- Datalist para autocompletado desde catálogo -->
                     <datalist id="services-list"></datalist>
@@ -334,7 +327,7 @@
                         <input type="date" id="lvm-fecha" required>
                     </div>
                 </div>
-                
+
                 <div class="form-group">
                     <label>Notas</label>
                     <textarea id="lvm-notas" rows="2" placeholder="Observaciones..."></textarea>
@@ -350,71 +343,12 @@
     <!-- Firebase SDK (Compat) -->
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
 
-    <!-- MODAL GESTIÓN DE SERVICIO -->
-    <div id="service-modal" class="modal">
-        <div class="modal-content" style="max-width: 500px;">
-            <span class="close-modal" onclick="closeServiceModal()">&times;</span>
-            <h2 id="sm-title">Gestión de Servicio</h2>
-            <form id="service-form" style="display:grid; gap:15px; margin-top:20px;">
-                <input type="hidden" id="sm-id">
-
-                <div class="form-group">
-                    <label>Nombre del Servicio</label>
-                    <input type="text" id="sm-nombre" class="param-input" required>
-                </div>
-
-                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
-                    <div class="form-group">
-                        <label>Precio (€)</label>
-                        <input type="number" step="0.01" id="sm-precio" class="param-input" required>
-                    </div>
-                    <div class="form-group">
-                        <label>Duración (min)</label>
-                        <input type="number" id="sm-duracion" class="param-input">
-                    </div>
-                </div>
-
-                <div class="form-group">
-                    <label>Categoría</label>
-                    <select id="sm-categoria" class="param-input">
-                        <option value="circuito">Circuito Spa</option>
-                        <option value="bono_circuito">Bono Circuito</option>
-                        <option value="masaje">Masaje</option>
-                        <option value="facial">Facial</option>
-                        <option value="corporal">Corporal</option>
-                        <option value="ritual">Ritual</option>
-                        <option value="envoltura">Envoltura</option>
-                        <option value="depilacion">Depilación</option>
-                        <option value="peluqueria">Peluquería</option>
-                        <option value="manicura">Manicura/Pedicura</option>
-                        <option value="maquillaje">Maquillaje</option>
-                        <option value="pack_pareja">Pack Pareja</option>
-                        <option value="complemento">Complemento</option>
-                    </select>
-                </div>
-
-                <div class="form-group">
-                    <label>Descripción</label>
-                    <textarea id="sm-descripcion" class="param-input" rows="10"
-                        style="min-height: 200px; resize: vertical;"></textarea>
-                </div>
-
-                <div class="form-actions" style="margin-top:10px; display:flex; justify-content:flex-end; gap:10px;">
-                    <button type="button" class="btn btn-outline" onclick="deleteService()"
-                        style="color:var(--error); border-color:var(--error); margin-right:auto;">Eliminar</button>
-                    <button type="button" class="btn btn-outline" onclick="closeServiceModal()">Cancelar</button>
-                    <button type="submit" class="btn btn-accent">Guardar Cambios</button>
-                </div>
-            </form>
-        </div>
-    </div>
 
     <!-- Scripts -->
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
 
     <script src="firebase-config.js"></script>
     <script src="app.js"></script>
-    <script src="catalogo_import.js"></script>
 </body>
 
 </html>

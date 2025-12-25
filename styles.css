@@ -42,9 +42,10 @@ body {
 
 /* Sidebar Estilizada */
 .sidebar {
-    width: 260px;
+    width: 210px;
     background: var(--secondary);
-    padding: 30px 20px;
+    padding: 20px 15px;
+    /* Reduced from 30 20 */
     border-right: 1px solid var(--border);
     display: flex;
     flex-direction: column;
@@ -106,9 +107,11 @@ body {
 
 /* Tablas */
 td {
-    padding: 10px 12px;
+    padding: 8px 12px;
+    /* Tightened from 10px */
     border-bottom: 1px solid var(--border);
-    font-size: 0.85rem;
+    font-size: 0.82rem;
+    /* Slightly smaller */
     vertical-align: middle;
     color: var(--text);
 }
@@ -143,7 +146,8 @@ tr:hover td {
     text-decoration: none;
     border-radius: 8px;
     transition: all 0.3s ease;
-    font-size: 0.9rem;
+    font-size: 0.85rem;
+    /* slightly smaller */
 }
 
 /* IMPORTANTE: Estilos de Vistas para Layout Fijo */
@@ -154,8 +158,8 @@ tr:hover td {
 #config-view {
     flex: 1;
     overflow: hidden;
-    /* El contenedor de datos manejará el scroll */
-    padding: 0 40px 20px 40px;
+    padding: 0 20px 10px 20px;
+    /* Even tighter */
     display: flex;
     flex-direction: column;
     height: 100%;
@@ -181,7 +185,7 @@ tr:hover td {
 /* Contenido Principal */
 .main-content {
     flex: 1;
-    margin-left: 260px;
+    margin-left: 210px;
     height: 100%;
     /* Ocupa toda la altura de la ventana */
     display: flex;
@@ -195,7 +199,8 @@ header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 40px;
+    margin-bottom: 25px;
+    /* Reduced from 40 */
 }
 
 header h2 {
@@ -208,29 +213,35 @@ header h2 {
 .stats-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 20px;
-    margin-bottom: 40px;
+    gap: 15px;
+    /* Reduced gap */
+    margin-bottom: 25px;
+    /* Reduced from 40 */
 }
 
 .stat-card {
     background: var(--card-bg);
-    padding: 25px;
-    border-radius: 15px;
+    padding: 20px;
+    /* Reduced from 25 */
+    border-radius: 12px;
+    /* Smoother corner */
     border: 1px solid var(--border);
     box-shadow: var(--shadow);
 }
 
 .stat-card h3 {
-    font-size: 0.8rem;
+    font-size: 0.7rem;
     color: var(--text-muted);
     text-transform: uppercase;
     letter-spacing: 1px;
-    margin-bottom: 15px;
+    margin-bottom: 10px;
+    /* Reduced from 15 */
 }
 
 .stat-value {
-    font-size: 2rem;
-    font-weight: 600;
+    font-size: 1.6rem;
+    /* Reduced from 2rem */
+    font-weight: 700;
     color: var(--accent);
 }
 
@@ -271,15 +282,14 @@ header h2 {
 /* Tablas Premium */
 .data-container {
     background: var(--card-bg);
-    border-radius: 15px;
     border-radius: 12px;
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.02);
     display: flex;
     flex-direction: column;
     height: 100%;
-    /* Ocupa el alto disponible */
     overflow: hidden;
-    padding: 20px;
+    padding: 15px;
+    /* Reduced from 20 */
 }
 
 /* Controles de Tabla (Fijos arriba) */
@@ -313,11 +323,13 @@ thead {
 }
 
 th {
-    padding: 15px;
+    padding: 10px 15px;
+    /* Tightened header */
     text-align: left;
     font-weight: 600;
     color: var(--text-muted);
-    font-size: 0.8rem;
+    font-size: 0.75rem;
+    /* Slightly smaller */
     letter-spacing: 1px;
     text-transform: uppercase;
     border-bottom: 2px solid var(--border);
@@ -438,8 +450,8 @@ tr:hover td {
     border-radius: 20px;
     border: 1px solid var(--border);
     box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
-    max-height: 85vh;
-    /* Límite de altura */
+    max-height: 95vh;
+    /* Límite de altura aumentado */
     overflow-y: auto;
     /* Scroll interno si excede */
     position: relative;

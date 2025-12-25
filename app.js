@@ -4,14 +4,8 @@ const ENDPOINT_BONOS = `https://api.allorigins.win/get?url=${encodeURIComponent(
 const state = {
     currentView: 'dashboard',
     bonos: [],
-    circuitos: [
-        { id: 1, nombre: 'Circuito Vitalidad 90\'', duracion: '90 min', aforo: 15, precio: '35€' },
-        { id: 2, nombre: 'Circuito Relax Nocturno', duracion: '60 min', aforo: 10, precio: '45€' }
-    ],
-    tratamientos: [
-        { id: 1, nombre: 'Masaje Descontracturante', duracion: '50 min', precio: '65€', cat: 'Masajes' },
-        { id: 2, nombre: 'Tratamiento Facial Oro', duracion: '45 min', precio: '85€', cat: 'Facial' }
-    ],
+    circuitos: [],
+    tratamientos: [],
     citas: [
         { hora: '10:00', cliente: 'Ana García', servicio: 'Circuito 90\'', estado: 'pending' },
         { hora: '11:30', cliente: 'Marc Soler', servicio: 'Masaje Oro', estado: 'completed' }
@@ -22,8 +16,6 @@ const state = {
 const views = {
     dashboard: document.getElementById("dashboard-view"),
     vouchers: document.getElementById("vouchers-view"),
-    circuitos: document.getElementById("circuitos-view"),
-    tratamientos: document.getElementById("tratamientos-view"),
     config: document.getElementById("config-view")
 };
 const syncBtn = document.getElementById("sync-vouchers-btn");
@@ -43,10 +35,6 @@ async function cargarCatalogoFirestore() {
         state.tratamientos = servicios.filter(s =>
             ['masaje', 'facial', 'corporal', 'ritual', 'envoltura', 'uva', 'complemento'].includes(s.categoria)
         );
-
-        // Renderizar si estamos en la vista
-        if (state.currentView === 'circuitos') renderCircuitos();
-        if (state.currentView === 'tratamientos') renderTratamientos();
 
         console.log("Catálogo cargado:", servicios.length, "servicios.");
     } catch (err) {
@@ -127,12 +115,15 @@ function setupEventListeners() {
 function setupNavigation() {
     document.querySelectorAll(".nav-link").forEach(link => {
         link.addEventListener("click", e => {
-            e.preventDefault();
             const viewKey = link.dataset.view;
-            switchView(viewKey);
+            if (viewKey) {
+                e.preventDefault();
+                switchView(viewKey);
 
-            document.querySelectorAll(".nav-link").forEach(l => l.classList.remove("active"));
-            link.classList.add("active");
+                document.querySelectorAll(".nav-link").forEach(l => l.classList.remove("active"));
+                link.classList.add("active");
+            }
+            // Si no hay viewKey, es un enlace real (ej: reservas.html) y se permite la navegación nativa
         });
     });
 }
@@ -144,14 +135,12 @@ function switchView(key) {
     Object.values(views).forEach(v => { if (v) v.style.display = "none"; });
 
     const titleMap = {
-        dashboard: "Dashboard",
-        vouchers: "Bonos WordPress",
-        circuitos: "Gestión de Circuitos",
-        tratamientos: "Catálogo de Tratamientos",
+        dashboard: "Zenith Dashboard",
+        vouchers: "Bonos Zenith",
         config: "Configuración"
     };
 
-    title.textContent = titleMap[key] || "Cumbria Bienestar";
+    title.textContent = titleMap[key] || "Zenith Manager";
 
     // Mostrar específica
     if (views[key]) views[key].style.display = "block";
@@ -160,14 +149,6 @@ function switchView(key) {
     syncBtn.style.display = (key === 'vouchers') ? "inline-flex" : "none";
 
     if (key === 'vouchers') cargarBonos();
-    if (key === 'circuitos') {
-        if (state.circuitos.length === 0) cargarCatalogoFirestore();
-        else renderCircuitos();
-    }
-    if (key === 'tratamientos') {
-        if (state.tratamientos.length === 0) cargarCatalogoFirestore();
-        else renderTratamientos();
-    }
 }
 
 /** MODALS **/
@@ -216,75 +197,10 @@ async function cargarCatalogoFirestore() {
                 'maquillaje', 'manicura', 'peluqueria'].includes(s.categoria)
         );
 
-        // Renderizar si estamos en la vista
-        if (state.currentView === 'circuitos') renderCircuitos();
-        if (state.currentView === 'tratamientos') renderTratamientos();
-
         console.log("Catálogo cargado:", servicios.length, "servicios.");
     } catch (err) {
         console.error("Error cargando catálogo:", err);
     }
-}
-
-function renderCircuitos() {
-    const container = document.getElementById("circuitos-container");
-    if (!container) return;
-
-    if (state.circuitos.length === 0) {
-        container.innerHTML = '<p class="muted">Cargando circuitos o no hay disponibles...</p>';
-        return;
-    }
-
-    container.innerHTML = `
-        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px;">
-            ${state.circuitos.map(item => `
-                <div class="stat-card" style="text-align: left;">
-                    <div style="display:flex; justify-content:space-between; align-items:start;">
-                        <h4 style="margin: 0; color: var(--accent);">${item.nombre}</h4>
-                        <span class="st-badge st-completed">${item.precio}€</span>
-                    </div>
-                    <p class="muted" style="font-size: 0.9rem; margin: 10px 0;">
-                        <i class="fas fa-clock"></i> ${item.duracion ? item.duracion + " min" : "Consultar"}
-                        ${item.descripcion ? `<br><br>${item.descripcion}` : ''}
-                    </p>
-                    <div style="text-align: right;">
-                        <button class="btn btn-outline btn-sm" onclick="openServiceModal('${item.id}')"><i class="fas fa-edit"></i> Editar</button>
-                    </div>
-                </div>
-            `).join('')}
-        </div>
-    `;
-}
-
-function renderTratamientos() {
-    const container = document.getElementById("tratamientos-container");
-    if (!container) return;
-
-    if (state.tratamientos.length === 0) {
-        container.innerHTML = '<p class="muted">Cargando tratamientos o no hay disponibles...</p>';
-        return;
-    }
-
-    // Agrupar por subcategoría para visualización más limpia
-    const categorias = [...new Set(state.tratamientos.map(t => t.categoria))];
-
-    container.innerHTML = categorias.map(cat => `
-        <h4 style="margin-top: 20px; text-transform: uppercase; color: var(--text-light); border-bottom: 1px solid var(--border); padding-bottom: 5px;">${cat}</h4>
-        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; margin-top: 15px;">
-            ${state.tratamientos.filter(t => t.categoria === cat).map(item => `
-                <div class="stat-card" style="text-align: left; cursor: pointer; transition: transform 0.2s;" onclick="openServiceModal('${item.id}')" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='translateY(0)'">
-                    <div style="display:flex; justify-content:space-between; align-items:start;">
-                        <h4 style="margin: 0; font-size: 1rem; color: var(--text-normal);">${item.nombre}</h4>
-                        <span class="st-badge st-info">${item.precio}€</span>
-                    </div>
-                    <p class="muted" style="font-size: 0.85rem; margin: 10px 0;">
-                        <i class="fas fa-clock"></i> ${item.duracion ? item.duracion + ' min' : ''}
-                    </p>
-                    ${item.descripcion ? `<p class="muted" style="font-size: 0.8rem; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">${item.descripcion}</p>` : ''}
-                </div>
-            `).join('')}
-        </div>
-    `).join('');
 }
 
 /** DASHBOARD **/
@@ -713,89 +629,7 @@ function checkVoucherExpiry(dateStr) {
 }
 
 
-/** GESTIÓN DE SERVICIOS (CATÁLOGO) **/
-const serviceModal = document.getElementById("service-modal");
 
-function openServiceModal(id) {
-    if (!id) {
-        // Modo CREAR
-        document.getElementById("sm-title").textContent = "Nuevo Servicio";
-        document.getElementById("sm-id").value = "";
-        document.getElementById("service-form").reset();
-    } else {
-        // Modo EDITAR
-        // Buscar en ambos arrays
-        const service = state.circuitos.find(s => s.id === id) || state.tratamientos.find(s => s.id === id);
-        if (!service) return;
-
-        document.getElementById("sm-title").textContent = "Editar Servicio";
-        document.getElementById("sm-id").value = service.id;
-        document.getElementById("sm-nombre").value = service.nombre;
-        document.getElementById("sm-precio").value = service.precio;
-        document.getElementById("sm-duracion").value = service.duracion || 0;
-        document.getElementById("sm-categoria").value = service.categoria;
-        document.getElementById("sm-descripcion").value = service.descripcion || "";
-    }
-    serviceModal.style.display = "flex";
-}
-
-function closeServiceModal() {
-    serviceModal.style.display = "none";
-}
-
-async function saveServiceChanges(e) {
-    e.preventDefault();
-    const idParam = document.getElementById("sm-id").value;
-    const nombre = document.getElementById("sm-nombre").value;
-
-    // Si no hay ID, generamos uno nuevo
-    const id = idParam || nombre.toLowerCase().replace(/[^a-z0-9]/g, '-');
-
-    const data = {
-        nombre: nombre,
-        precio: parseFloat(document.getElementById("sm-precio").value),
-        duracion: parseInt(document.getElementById("sm-duracion").value) || 0,
-        categoria: document.getElementById("sm-categoria").value,
-        descripcion: document.getElementById("sm-descripcion").value,
-        active: true,
-        last_updated: new Date().toISOString()
-    };
-
-    try {
-        await db.collection("spa_services").doc(id).set(data, { merge: true });
-        alert("Servicio guardado correctamente.");
-        closeServiceModal();
-        cargarCatalogoFirestore(); // Recargar UI
-    } catch (err) {
-        console.error("Error guardando servicio:", err);
-        alert("Error al guardar: " + err.message);
-    }
-}
-
-async function deleteService() {
-    const id = document.getElementById("sm-id").value;
-    if (!id) return; // Si es nuevo no hace falta borrar de BD
-
-    if (!confirm("¿Estás seguro de que quieres ELIMINAR este servicio del catálogo?")) return;
-
-    try {
-        await db.collection("spa_services").doc(id).update({ active: false });
-        alert("Servicio eliminado (archivado).");
-        closeServiceModal();
-        cargarCatalogoFirestore();
-    } catch (err) {
-        console.error("Error eliminando:", err);
-        // Si falla update (ej. reglas), intentamos delete
-        try {
-            await db.collection("spa_services").doc(id).delete();
-            alert("Servicio eliminado permanentemente.");
-            closeServiceModal();
-            cargarCatalogoFirestore();
-        } catch (e2) {
-            alert("Error al eliminar: " + e2.message);
-        }
-    }
-}
 
 /** UTILS **/
 function updateDate() {
