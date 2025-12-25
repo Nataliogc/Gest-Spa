@@ -103,6 +103,25 @@ function setupEventListeners() {
     // Guardar gestión de servicio
     const sForm = document.getElementById("service-form");
     if (sForm) sForm.addEventListener("submit", saveServiceChanges);
+
+    // Guardar Venta Local
+    const lvmForm = document.getElementById("local-voucher-form");
+    if (lvmForm) lvmForm.addEventListener("submit", handleLocalVoucherSubmit);
+
+    // Auto-precio en Venta Local
+    const lvmProdInput = document.getElementById("lvm-producto");
+    if (lvmProdInput) {
+        lvmProdInput.addEventListener("input", (e) => {
+            const val = e.target.value;
+            const allServices = [...state.circuitos, ...state.tratamientos];
+            const match = allServices.find(s => s.nombre === val);
+            if (match) {
+                // Limpiar precio: quitar símbolo € y otros caracteres, normalizar coma a punto
+                const cleanPrice = String(match.precio).replace(/[^\d.,]/g, '').replace(',', '.');
+                document.getElementById("lvm-precio").value = parseFloat(cleanPrice) || "";
+            }
+        });
+    }
 }
 
 function setupNavigation() {
@@ -286,97 +305,75 @@ function renderDashboard() {
 /** BONOS **/
 async function cargarBonos() {
     const tableBody = document.getElementById("vouchers-table-body");
-    tableBody.innerHTML = `<tr><td colspan="6" class="muted">Sincronizando con tienda y base de datos...</td></tr>`;
+    tableBody.innerHTML = `<tr><td colspan="7" class="muted">Sincronizando...</td></tr>`;
+
+    let shopVouchers = [];
+    let persistentData = {};
+    let syncError = false;
 
     try {
-        // 1. Obtener datos de la tienda (WooCommerce)
-        const res = await fetch(ENDPOINT_BONOS);
+        // 1. Intentar obtener datos de la tienda (WooCommerce)
+        const res = await fetch(ENDPOINT_BONOS).catch(e => { syncError = true; throw e; });
         const dataProxy = await res.json();
+        if (dataProxy.contents) {
+            shopVouchers = JSON.parse(dataProxy.contents);
+        }
+    } catch (err) {
+        console.warn("No se pudo sincronizar con WooCommerce (CORS/Red):", err);
+        syncError = true;
+    }
 
-        if (!dataProxy.contents) throw new Error("Tienda no disponible");
-        const shopVouchers = JSON.parse(dataProxy.contents);
-
-        // 2. Obtener estados persistentes de Firestore
+    try {
+        // 2. Obtener datos de Firestore (SIEMPRE se ejecuta)
         const snapshot = await db.collection("spa_vouchers").get();
-        const persistentData = {};
         snapshot.forEach(doc => persistentData[doc.id] = doc.data());
 
-        // 3. MEZCLAR Y GUARDAR EN FIREBASE (Sincronización Bidireccional)
         const batch = db.batch();
         let operationsCount = 0;
 
-        state.bonos = shopVouchers.map(b => {
+        // 3. Procesar bonos de la web (si existen)
+        const webVouchers = shopVouchers.map(b => {
             const persisted = persistentData[b.bono];
-
-            // LÓGICA DE ESTADOS MAESTRA
-            // En WooCommerce: 'completed' = Pagado (Para nosotros es 'pending' / Activo)
-            // En App: 'completed' = Canjeado (Servicio realizado)
-
-            let finalState = 'pending'; // Por defecto activo
+            let finalState = 'pending';
 
             if (persisted) {
-                // Si ya existe en nuestra BD, miramos si ha sido gestionado manualmente
                 const isManuallyManaged = persisted.notas_internas || persisted.fecha_validez || persisted.manual_update;
-
-                if (isManuallyManaged) {
-                    // Si lo hemos tocado nosotros, lo que diga la BD va a misa
-                    finalState = persisted.estado;
-                } else {
-                    // Si está en BD pero "virgen" (sin notas ni fechas manuales),
-                    // asumimos que es un registro automático y forzamos 'pending' 
-                    // para corregir posibles importaciones erróneas anteriores.
-                    finalState = 'pending';
-                }
+                finalState = isManuallyManaged ? persisted.estado : 'pending';
             } else {
-                // Si es nuevo de la tienda, nace como 'pending'
-                finalState = 'pending';
-
-                // Guardamos registro inicial correcto
+                // Nuevo bono de la web -> Guardar en Firestore
                 const docRef = db.collection("spa_vouchers").doc(b.bono);
-                batch.set(docRef, {
-                    ...b,
-                    estado: 'pending',
-                    synced_at: new Date().toISOString()
-                });
+                batch.set(docRef, { ...b, estado: 'pending', synced_at: new Date().toISOString() });
                 operationsCount++;
             }
 
-            // Si detectamos que en Firestore estaba mal ('completed' sin gestión) y ahora lo estamos viendo como 'pending',
-            // deberíamos actualizar Firestore para arreglarlo definitivamente.
-            if (persisted && persisted.estado === 'completed' && finalState === 'pending') {
-                const docRef = db.collection("spa_vouchers").doc(b.bono);
-                batch.update(docRef, { estado: 'pending', auto_fixed: true });
-                operationsCount++;
-            }
-
-            return {
-                ...b,
-                ...persisted, // Mantener otros datos persistidos
-                estado: finalState,
-                // Asegurar compatibilidad de tipos
-                precio: b.precio || b.importe
-            };
+            return { ...b, ...persisted, estado: finalState, precio: b.precio || b.importe };
         });
 
-        // Ejecutar guardado por lotes si hay cambios
-        if (operationsCount > 0) {
-            batch.commit()
-                .then(() => console.log(`Guardados ${operationsCount} nuevos bonos en Firebase.`))
-                .catch(err => console.error("Error guardando lote en Firebase:", err));
-        }
+        // 4. Unir con bonos locales (Firestore pero no en la web)
+        const webCodes = shopVouchers.map(x => x.bono);
+        const localVouchers = Object.values(persistentData)
+            .filter(p => !webCodes.includes(p.bono))
+            .map(p => ({ ...p, importe: p.importe || p.precio }));
+
+        state.bonos = [...webVouchers, ...localVouchers];
+        state.bonos.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
+
+        if (operationsCount > 0) await batch.commit();
 
         renderBonosFromState();
 
-        const pendingCount = state.bonos.filter(x => {
-            const isExpired = checkVoucherExpiry(x.fecha);
-            return !isExpired && x.estado !== 'completed';
-        }).length;
+        const pendingCount = state.bonos.filter(x => !checkVoucherExpiry(x.fecha) && x.estado !== 'completed').length;
+        const pendingEl = document.getElementById("stat-pending");
+        if (pendingEl) pendingEl.textContent = pendingCount;
 
-        document.getElementById("stat-pending").textContent = pendingCount;
+        if (syncError) {
+            // Mostrar aviso sutil si la tienda falló pero los locales funcionan
+            console.log("Sincronización parcial: Solo bonos locales y caché Firestore.");
+        }
 
     } catch (err) {
-        console.error("Error en sincronización:", err);
-        tableBody.innerHTML = `<tr><td colspan="6">Error de conexión: ${err.message}</td></tr>`;
+        console.error("Error crítico de base de datos:", err);
+        tableBody.innerHTML = `<tr><td colspan="7" class="error">Error al cargar base de datos: ${err.message}</td></tr>`;
     }
 }
 
@@ -596,6 +593,101 @@ async function saveVoucherChanges(e) {
         btn.disabled = false;
     }
 }
+
+/** NUVEA VENTA LOCAL **/
+const localVoucherModal = document.getElementById("local-voucher-modal");
+
+function openLocalVoucherModal() {
+    // Reset form
+    document.getElementById("local-voucher-form").reset();
+
+    // Set default date to today
+    document.getElementById("lvm-fecha").value = new Date().toISOString().split('T')[0];
+
+    // Populate services datalist
+    const dataList = document.getElementById("services-list");
+    if (dataList) {
+        const allServices = [...state.circuitos, ...state.tratamientos];
+        dataList.innerHTML = allServices.map(s => `<option value="${s.nombre}">`).join('');
+    }
+
+    localVoucherModal.style.display = 'flex';
+}
+
+function closeLocalVoucherModal() {
+    localVoucherModal.style.display = 'none';
+}
+
+async function handleLocalVoucherSubmit(e) {
+    e.preventDefault();
+
+    const num = document.getElementById("lvm-num").value;
+    const cliente = document.getElementById("lvm-cliente").value;
+    const email = document.getElementById("lvm-email").value;
+    const producto = document.getElementById("lvm-producto").value;
+    const precio = parseFloat(document.getElementById("lvm-precio").value);
+    const fecha = document.getElementById("lvm-fecha").value; // YYYY-MM-DD
+    const notas = document.getElementById("lvm-notas").value;
+
+    if (!num) return alert("Debes indicar un número de bono.");
+
+    const fullCode = `BM-${num}`;
+
+    // 1. Validar unicidad (Local check first for speed)
+    const exists = state.bonos.some(b => b.bono === fullCode);
+    if (exists) {
+        return alert(`El bono ${fullCode} YA EXISTE. Por favor revisa el número.`);
+    }
+
+    const btn = e.target.querySelector("button[type='submit']");
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creando...';
+    btn.disabled = true;
+
+    try {
+        // Double check in Firestore to be sure
+        const docRef = db.collection("spa_vouchers").doc(fullCode);
+        const docSnap = await docRef.get();
+
+        if (docSnap.exists) {
+            throw new Error(`El bono ${fullCode} ya existe en la base de datos.`);
+        }
+
+        const newVoucher = {
+            bono: fullCode,
+            cliente: cliente,
+            email: email || "vendedor_local@cumbriabienestar.es",
+            producto: producto,
+            importe: precio,
+            precio: precio,
+            fecha: fecha, // Guardamos solo YYYY-MM-DD para compatibilidad absoluta con filtros
+            estado: 'pending',
+            origen: 'local_manual',
+            notas_internas: notas,
+            created_at: new Date().toISOString(),
+            manual_update: true
+        };
+
+        console.log("Intentando guardar bono local:", newVoucher);
+        await docRef.set(newVoucher);
+        console.log("Bono guardado en Firestore con éxito");
+
+        // Update local state and UI
+        state.bonos.unshift(newVoucher); // Add to beginning
+        renderBonosFromState();
+
+        closeLocalVoucherModal();
+        alert(`Bono LOCAL ${fullCode} creado correctamente.`);
+
+    } catch (err) {
+        console.error("Error creando bono local:", err);
+        alert(err.message);
+    } finally {
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+    }
+}
+
 function checkVoucherExpiry(dateStr) {
     if (!dateStr) return false;
     const voucherDate = new Date(dateStr);
