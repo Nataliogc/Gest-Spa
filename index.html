@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cumbria Bienestar | Spa Manager</title>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@200;300;400;500;600;700&display=swap"
+        rel="stylesheet">
+
+    <!-- Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- Styles -->
+    <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+
+    <!-- Sidebar -->
+    <div class="sidebar">
+        <div class="logo-container">
+            <img src="logo-spa.jpg" alt="Cumbria Bienestar" style="max-width: 80%; height: auto; margin-bottom: 20px;">
+        </div>
+
+        <ul class="nav-links">
+            <li><a href="#" class="nav-link" data-view="dashboard"><i class="fas fa-home"></i> Dashboard</a></li>
+            <li><a href="#" class="nav-link" data-view="vouchers"><i class="fas fa-ticket-alt"></i> Bonos</a></li>
+            <li><a href="#" class="nav-link" data-view="circuitos"><i class="fas fa-water"></i> Circuitos</a></li>
+            <li><a href="#" class="nav-link" data-view="tratamientos"><i class="fas fa-spa"></i> Tratamientos</a></li>
+            <li><a href="#" class="nav-link" data-view="config"><i class="fas fa-cog"></i> Configuración</a></li>
+        </ul>
+    </div>
+    </aside>
+
+    <main class="main-content">
+        <header>
+            <div class="header-left">
+                <h2 id="view-title">Dashboard</h2>
+                <p id="current-date" class="muted" style="font-size: 0.8rem; margin-top: 5px;"></p>
+            </div>
+            <div class="header-actions">
+                <button class="btn btn-outline" id="new-booking-btn">
+                    <i class="fas fa-plus"></i> Nueva Cita
+                </button>
+                <button class="btn btn-accent" id="sync-vouchers-btn" style="display:none">
+                    <i class="fas fa-sync"></i> Sincronizar Tienda
+                </button>
+            </div>
+        </header>
+
+        <!-- DASHBOARD -->
+        <section id="dashboard-view">
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <h3>Ventas Hoy</h3>
+                    <div class="stat-value" id="stat-sales">480€</div>
+                </div>
+                <div class="stat-card">
+                    <h3>Ocupación</h3>
+                    <div class="stat-value" id="stat-occ">82%</div>
+                </div>
+                <div class="stat-card">
+                    <h3>Bonos Pendientes</h3>
+                    <div class="stat-value" id="stat-pending">14</div>
+                </div>
+            </div>
+
+            <div class="section-header" style="margin-bottom: 20px;">
+                <h3>Próximas Citas</h3>
+            </div>
+
+            <div class="data-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Hora</th>
+                            <th>Cliente</th>
+                            <th>Servicio</th>
+                            <th>Estado</th>
+                        </tr>
+                    </thead>
+                    <tbody id="dashboard-table-body">
+                        <tr>
+                            <td colspan="4" class="muted">No hay citas para hoy</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- BONOS -->
+        <section id="vouchers-view" style="display:none">
+            <div class="data-container">
+                <div class="table-controls" style="margin-bottom: 15px; display: flex; gap: 10px; align-items: center;">
+                    <div class="search-box"
+                        style="flex: 1; display: flex; align-items: center; background: var(--card-bg); padding: 10px 15px; border-radius: 8px; border: 1px solid var(--border);">
+                        <i class="fas fa-search" style="color: var(--text-muted); margin-right: 10px;"></i>
+                        <input type="text" id="voucher-search" oninput="renderBonosFromState()"
+                            placeholder="Buscar por bono, email, producto..."
+                            style="background: transparent; border: none; color: var(--text); width: 100%; outline: none; font-family: 'Montserrat', sans-serif;">
+                    </div>
+
+                    <input type="date" id="voucher-date" onchange="renderBonosFromState()"
+                        style="padding: 10px 15px; background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text); outline: none; font-family: 'Montserrat', sans-serif; cursor: pointer;">
+
+                    <select id="voucher-filter" onchange="renderBonosFromState()"
+                        style="padding: 10px 15px; background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text); outline: none; font-family: 'Montserrat', sans-serif; cursor: pointer;">
+                        <option value="all">Todos los Estados</option>
+                        <option value="pending">Activos (Pendientes)</option>
+                        <option value="partially">Canjeado Parcial</option>
+                        <option value="completed">Canjeados</option>
+                        <option value="expired">Caducados</option>
+                    </select>
+
+                    <button onclick="resetFilters()" class="btn btn-outline"
+                        style="padding: 10px 15px; border-radius: 8px;" title="Ver todos los bonos">
+                        <i class="fas fa-list"></i> Ver Todos
+                    </button>
+
+                    <span style="color: var(--text-muted); font-size: 0.9rem; white-space: nowrap;"><span
+                            id="voucher-count">0</span> bonos</span>
+                </div>
+                <div class="table-wrapper">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Bono</th>
+                                <th>Producto</th>
+                                <th>Email</th>
+                                <th>Fecha</th>
+                                <th>Precio</th>
+                                <th>Estado</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="vouchers-table-body">
+                            <!-- JS Render -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- CIRCUITOS (MANAGEMENT) -->
+        <section id="circuitos-view" style="display:none">
+            <div class="section-header" style="margin-bottom: 20px; display: flex; justify-content: space-between;">
+                <h3>Gestión de Circuitos</h3>
+                <button class="btn btn-accent btn-sm">+ Añadir Circuito</button>
+            </div>
+            <div class="data-container" id="circuitos-container"></div>
+        </section>
+
+        <!-- TRATAMIENTOS (MANAGEMENT) -->
+        <section id="tratamientos-view" style="display:none">
+            <div class="section-header" style="margin-bottom: 20px; display: flex; justify-content: space-between;">
+                <h3>Catálogo de Tratamientos</h3>
+                <button class="btn btn-accent btn-sm">+ Añadir Tratamiento</button>
+            </div>
+            <div class="data-container" id="tratamientos-container"></div>
+        </section>
+
+        <!-- CONFIGURACIÓN -->
+        <section id="config-view" style="display:none">
+            <div class="data-container">
+                <h3>Herramientas de Administrador</h3>
+                <div class="stat-card" style="margin-top: 20px;">
+                    <h4><i class="fas fa-database"></i> Gestión de Catálogo</h4>
+                    <p class="muted">Si no aparecen los servicios, pulsa este botón para restablecer o cargar el
+                        catálogo inicial de 2025.</p>
+                    <button class="btn btn-accent" onclick="importarCatalogo()" style="margin-top: 10px;">
+                        <i class="fas fa-cloud-upload-alt"></i> Importar Catálogo 2025
+                    </button>
+                    <p id="import-status" style="margin-top: 10px; color: var(--accent); display:none;"></p>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- MODAL NUEVA CITA -->
+    <div id="booking-modal" class="modal" style="display: none;">
+        <div class="modal-content glass">
+            <div class="modal-header">
+                <h3>Nueva Cita</h3>
+                <span class="close-modal">&times;</span>
+            </div>
+            <form id="booking-form">
+                <div class="form-group">
+                    <label>Cliente</label>
+                    <input type="text" id="m-cliente" placeholder="Nombre completo" required>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Servicio</label>
+                        <select id="m-servicio" required></select>
+                    </div>
+                    <div class="form-group">
+                        <label>Hora</label>
+                        <input type="time" id="m-hora" required>
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-accent" style="width: 100%; margin-top: 20px;">
+                    Confirmar Cita
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL GESTIÓN DE BONO -->
+    <div id="voucher-modal" class="modal" style="display: none;">
+        <div class="modal-content glass" style="max-width: 600px;">
+            <div class="modal-header">
+                <h3>Gestión de Bono <span id="vm-title-code" style="color: var(--accent);"></span></h3>
+                <span class="close-modal" onclick="closeVoucherModal()">&times;</span>
+            </div>
+            <form id="voucher-form">
+                <input type="hidden" id="vm-code">
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Cliente</label>
+                        <input type="text" id="vm-cliente" readonly style="background: rgba(255,255,255,0.05);">
+                    </div>
+                    <div class="form-group">
+                        <label>Email</label>
+                        <input type="text" id="vm-email" readonly style="background: rgba(255,255,255,0.05);">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Producto</label>
+                    <input type="text" id="vm-producto" readonly style="background: rgba(255,255,255,0.05);">
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Fecha de Compra</label>
+                        <input type="text" id="vm-fecha-compra" readonly
+                            style="background: rgba(255,255,255,0.05); color: var(--text-muted);">
+                    </div>
+                    <div class="form-group">
+                        <label>Fecha de Validez (1 Año)</label>
+                        <input type="date" id="vm-fecha-validez" class="param-input">
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Estado</label>
+                        <select id="vm-estado" required>
+                            <option value="pending">Pendiente (Activo)</option>
+                            <option value="partially">Canjeado Parcial</option>
+                            <option value="completed">Canjeado Total</option>
+                            <option value="expired">Caducado</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="display:flex; align-items:end;">
+                        <button type="button" class="btn btn-outline" id="vm-btn-reservar"
+                            style="width:100%; justify-content:center;">
+                            <i class="fas fa-calendar-plus"></i> Reservar Cita
+                        </button>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Notas Internas (No visible para cliente)</label>
+                    <textarea id="vm-notas" rows="4"
+                        placeholder="Escribe aquí observaciones sobre el canje, cliente, etc..."></textarea>
+                </div>
+
+                <button type="submit" class="btn btn-accent" style="width: 100%; margin-top: 20px;">
+                    <i class="fas fa-save"></i> Guardar Cambios
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Firebase SDK (Compat) -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+
+    <!-- MODAL GESTIÓN DE SERVICIO -->
+    <div id="service-modal" class="modal">
+        <div class="modal-content" style="max-width: 500px;">
+            <span class="close-modal" onclick="closeServiceModal()">&times;</span>
+            <h2 id="sm-title">Gestión de Servicio</h2>
+            <form id="service-form" style="display:grid; gap:15px; margin-top:20px;">
+                <input type="hidden" id="sm-id">
+
+                <div class="form-group">
+                    <label>Nombre del Servicio</label>
+                    <input type="text" id="sm-nombre" class="param-input" required>
+                </div>
+
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
+                    <div class="form-group">
+                        <label>Precio (€)</label>
+                        <input type="number" step="0.01" id="sm-precio" class="param-input" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Duración (min)</label>
+                        <input type="number" id="sm-duracion" class="param-input">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Categoría</label>
+                    <select id="sm-categoria" class="param-input">
+                        <option value="circuito">Circuito Spa</option>
+                        <option value="bono_circuito">Bono Circuito</option>
+                        <option value="masaje">Masaje</option>
+                        <option value="facial">Facial</option>
+                        <option value="corporal">Corporal</option>
+                        <option value="ritual">Ritual</option>
+                        <option value="envoltura">Envoltura</option>
+                        <option value="depilacion">Depilación</option>
+                        <option value="peluqueria">Peluquería</option>
+                        <option value="manicura">Manicura/Pedicura</option>
+                        <option value="maquillaje">Maquillaje</option>
+                        <option value="pack_pareja">Pack Pareja</option>
+                        <option value="complemento">Complemento</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Descripción</label>
+                    <textarea id="sm-descripcion" class="param-input" rows="10"
+                        style="min-height: 200px; resize: vertical;"></textarea>
+                </div>
+
+                <div class="form-actions" style="margin-top:10px; display:flex; justify-content:flex-end; gap:10px;">
+                    <button type="button" class="btn btn-outline" onclick="deleteService()"
+                        style="color:var(--error); border-color:var(--error); margin-right:auto;">Eliminar</button>
+                    <button type="button" class="btn btn-outline" onclick="closeServiceModal()">Cancelar</button>
+                    <button type="submit" class="btn btn-accent">Guardar Cambios</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+
+    <script src="firebase-config.js"></script>
+    <script src="app.js"></script>
+    <script src="catalogo_import.js"></script>
+</body>
+
+</html>
