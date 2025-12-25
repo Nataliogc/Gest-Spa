@@ -305,33 +305,53 @@ function renderDashboard() {
 /** BONOS **/
 async function cargarBonos() {
     const tableBody = document.getElementById("vouchers-table-body");
-    tableBody.innerHTML = `<tr><td colspan="7" class="muted">Sincronizando...</td></tr>`;
 
-    let shopVouchers = [];
-    let persistentData = {};
-    let syncError = false;
-
-    try {
-        // 1. Intentar obtener datos de la tienda (WooCommerce)
-        const res = await fetch(ENDPOINT_BONOS).catch(e => { syncError = true; throw e; });
-        const dataProxy = await res.json();
-        if (dataProxy.contents) {
-            shopVouchers = JSON.parse(dataProxy.contents);
-        }
-    } catch (err) {
-        console.warn("No se pudo sincronizar con WooCommerce (CORS/Red):", err);
-        syncError = true;
+    // Si ya tenemos bonos en el state, evitamos el "Sincronizando..." molesto y mostramos lo que hay
+    if (state.bonos.length === 0) {
+        tableBody.innerHTML = `<tr><td colspan="7" class="muted">Cargando bonos...</td></tr>`;
     }
 
+    let persistentData = {};
+
     try {
-        // 2. Obtener datos de Firestore (SIEMPRE se ejecuta)
+        // 1. CARGA INMEDIATA DESDE FIRESTORE (Datos locales + Cache de sincronizaciones previas)
         const snapshot = await db.collection("spa_vouchers").get();
         snapshot.forEach(doc => persistentData[doc.id] = doc.data());
+
+        // Mostrar lo que tenemos en Firestore de inmediato
+        state.bonos = Object.values(persistentData).map(p => ({
+            ...p,
+            importe: p.importe || p.precio
+        }));
+        state.bonos.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
+
+        renderBonosFromState();
+        actualizarContadorPendientes();
+
+        // 2. SINCRONIZACIÓN EN SEGUNDO PLANO (WooCommerce)
+        // No usamos 'await' aquí para no bloquear la UI
+        sincronizarConTienda(persistentData);
+
+    } catch (err) {
+        console.error("Error al cargar base de datos:", err);
+        if (state.bonos.length === 0) {
+            tableBody.innerHTML = `<tr><td colspan="7" class="error">Error local: ${err.message}</td></tr>`;
+        }
+    }
+}
+
+async function sincronizarConTienda(persistentData) {
+    console.log("Iniciando sincronización con tienda en segundo plano...");
+    try {
+        const res = await fetch(ENDPOINT_BONOS);
+        const dataProxy = await res.json();
+
+        if (!dataProxy.contents) return;
+        const shopVouchers = JSON.parse(dataProxy.contents);
 
         const batch = db.batch();
         let operationsCount = 0;
 
-        // 3. Procesar bonos de la web (si existen)
         const webVouchers = shopVouchers.map(b => {
             const persisted = persistentData[b.bono];
             let finalState = 'pending';
@@ -340,16 +360,14 @@ async function cargarBonos() {
                 const isManuallyManaged = persisted.notas_internas || persisted.fecha_validez || persisted.manual_update;
                 finalState = isManuallyManaged ? persisted.estado : 'pending';
             } else {
-                // Nuevo bono de la web -> Guardar en Firestore
                 const docRef = db.collection("spa_vouchers").doc(b.bono);
                 batch.set(docRef, { ...b, estado: 'pending', synced_at: new Date().toISOString() });
                 operationsCount++;
             }
-
             return { ...b, ...persisted, estado: finalState, precio: b.precio || b.importe };
         });
 
-        // 4. Unir con bonos locales (Firestore pero no en la web)
+        // Combinar de nuevo
         const webCodes = shopVouchers.map(x => x.bono);
         const localVouchers = Object.values(persistentData)
             .filter(p => !webCodes.includes(p.bono))
@@ -360,21 +378,19 @@ async function cargarBonos() {
 
         if (operationsCount > 0) await batch.commit();
 
+        console.log("Sincronización de fondo completada.");
         renderBonosFromState();
-
-        const pendingCount = state.bonos.filter(x => !checkVoucherExpiry(x.fecha) && x.estado !== 'completed').length;
-        const pendingEl = document.getElementById("stat-pending");
-        if (pendingEl) pendingEl.textContent = pendingCount;
-
-        if (syncError) {
-            // Mostrar aviso sutil si la tienda falló pero los locales funcionan
-            console.log("Sincronización parcial: Solo bonos locales y caché Firestore.");
-        }
+        actualizarContadorPendientes();
 
     } catch (err) {
-        console.error("Error crítico de base de datos:", err);
-        tableBody.innerHTML = `<tr><td colspan="7" class="error">Error al cargar base de datos: ${err.message}</td></tr>`;
+        console.warn("Sincronización de fondo fallida (WooCommerce offline):", err);
     }
+}
+
+function actualizarContadorPendientes() {
+    const pendingCount = state.bonos.filter(x => !checkVoucherExpiry(x.fecha) && x.estado !== 'completed').length;
+    const pendingEl = document.getElementById("stat-pending");
+    if (pendingEl) pendingEl.textContent = pendingCount;
 }
 
 function renderBonosFromState() {
