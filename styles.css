@@ -63,8 +63,6 @@ body {
     font-weight: 300;
 }
 
-/* ... (skip to inputs) ... */
-
 .stat-card {
     background: var(--card-bg);
     padding: 25px;
@@ -527,4 +525,63 @@ tr:hover td {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 20px;
+}
+
+/* Toast Notifications */
+#toast-container {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 10000;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.toast {
+    background: #fff;
+    border-left: 4px solid var(--accent);
+    padding: 15px 20px;
+    border-radius: 4px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 300px;
+    transform: translateX(120%);
+    transition: transform 0.3s ease-out;
+    font-size: 0.9rem;
+    color: var(--text);
+}
+
+.toast.show {
+    transform: translateX(0);
+}
+
+.toast.success {
+    border-left-color: #4caf50;
+}
+
+.toast.error {
+    border-left-color: #ff5252;
+}
+
+.toast.info {
+    border-left-color: #2196f3;
+}
+
+.toast i {
+    font-size: 1.2rem;
+}
+
+.toast.success i {
+    color: #4caf50;
+}
+
+.toast.error i {
+    color: #ff5252;
+}
+
+.toast.info i {
+    color: #2196f3;
 }

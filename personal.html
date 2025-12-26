@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestión de Personal | Zenith Manager</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@200;300;400;500;600;700&display=swap"
+        rel="stylesheet">
+    <!-- Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="icon" type="image/png" href="zenith-icon.png">
+    <!-- Styles -->
+    <link rel="stylesheet" href="styles.css">
+
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <!-- Config Local (Inits DB) -->
+    <script src="firebase-config.js"></script>
+
+    <style>
+        .staff-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 10px;
+            min-height: 40px;
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 8px;
+            border: 1px dashed var(--border);
+        }
+
+        .staff-chip {
+            background: var(--card-bg);
+            border: 1px solid var(--accent);
+            color: var(--text);
+            padding: 5px 12px;
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.9rem;
+            animation: popIn 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        .staff-chip i {
+            cursor: pointer;
+            color: #ff5252;
+            opacity: 0.7;
+            transition: 0.2s;
+        }
+
+        .staff-chip i:hover {
+            opacity: 1;
+            transform: scale(1.2);
+        }
+
+        @keyframes popIn {
+            from {
+                transform: scale(0.8);
+                opacity: 0;
+            }
+
+            to {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+
+        .add-staff-row {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .add-staff-row input {
+            flex: 1;
+            padding: 8px 12px;
+            border-radius: 6px;
+            border: 1px solid var(--border);
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text);
+            outline: none;
+        }
+
+        .add-staff-row button {
+            background: var(--accent);
+            color: white;
+            border: none;
+            padding: 0 15px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- Sidebar (Copiado de reservas.html para consistencia sin app.js) -->
+    <div class="sidebar">
+        <div style="text-align: center; margin-bottom: 25px;">
+            <img src="logo-spa.jpg" alt="Cumbria Bienestar" style="max-width: 85%; height: auto;">
+        </div>
+
+        <ul class="nav-links">
+            <li><a href="index.html" class="nav-link"><i class="fas fa-home"></i> Inicio</a></li>
+            <li><a href="index.html" class="nav-link"><i class="fas fa-ticket-alt"></i> Bonos</a></li>
+            <li><a href="reservas.html?type=spa" class="nav-link"><i class="fas fa-calendar-alt"></i> Panel General
+                    (Spa)</a></li>
+            <li><a href="reservas.html?type=suite" class="nav-link"><i class="fas fa-gem"></i> Suite Spa</a></li>
+            <li><a href="reservas.html?type=panacea" class="nav-link"><i class="fas fa-tint"></i> Sala Panacea</a></li>
+            <li><a href="reservas.html?type=vip" class="nav-link"><i class="fas fa-crown"></i> Sala VIP</a></li>
+            <li style="margin-top: 20px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 10px;">
+                <a href="personal.html" class="nav-link active"><i class="fas fa-users-cog"></i> Gestión Personal</a>
+            </li>
+        </ul>
+
+        <div style="text-align: center; margin-top: auto; padding: 10px 0; border-top: 1px solid var(--border);">
+            <img src="zenith-logo.png" alt="Zenith" style="max-width: 90px; height: auto; opacity: 0.85;">
+        </div>
+    </div>
+
+    <main class="main-content">
+        <header>
+            <div class="header-left" style="display: flex; align-items: center; gap: 15px;">
+                <img src="zenith-logo.png" alt="Zenith Logo" style="height: 45px; width: auto;">
+                <div>
+                    <h2 id="view-title" style="margin-bottom: 0; line-height: 1;">Gestión de Personal</h2>
+                    <p class="muted" style="font-size: 0.8rem; margin-top: 4px;">Configuración de equipo y turnos</p>
+                </div>
+            </div>
+        </header>
+
+        <section id="staff-config-card" style="max-width: 800px; margin: 40px auto;">
+            <div class="card"
+                style="background: var(--card-bg); padding: 30px; border-radius: 15px; border: 1px solid var(--border); box-shadow: 0 4px 20px rgba(0,0,0,0.2);">
+                <div
+                    style="display: flex; align-items: center; gap: 15px; margin-bottom: 25px; border-bottom: 1px solid var(--border); padding-bottom: 15px;">
+                    <div style="background: rgba(212, 175, 55, 0.1); padding: 12px; border-radius: 50%;">
+                        <i class="fas fa-user-md" style="font-size: 1.5rem; color: var(--accent);"></i>
+                    </div>
+                    <div>
+                        <h3 style="margin: 0; font-size: 1.2rem;">Equipo de Terapeutas</h3>
+                        <p class="muted" style="margin: 5px 0 0 0; font-size: 0.9rem;">Añade los nombres de los
+                            terapeutas activos en cada turno.</p>
+                    </div>
+                </div>
+
+                <!-- Turno Mañana -->
+                <div class="form-group" style="margin-bottom: 30px;">
+                    <div
+                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                        <label style="font-weight: 600; font-size: 1.1rem; color: #ff9800;"><i class="fas fa-sun"></i>
+                            Turno Mañana (10:00 - 16:00)</label>
+                        <span class="muted" style="font-size: 0.9rem;">Capacidad: <span id="count-morning"
+                                style="font-weight: bold; color: var(--text);">0</span></span>
+                    </div>
+                    <div id="list-morning" class="staff-list">
+                        <!-- Chips -->
+                    </div>
+                    <div class="add-staff-row">
+                        <input type="text" id="input-morning" placeholder="Nombre del terapeuta..."
+                            onkeypress="handleEnter(event, 'morning')">
+                        <button onclick="addStaff('morning')"><i class="fas fa-plus"></i> Añadir</button>
+                    </div>
+                </div>
+
+                <!-- Turno Tarde -->
+                <div class="form-group" style="margin-bottom: 30px;">
+                    <div
+                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                        <label style="font-weight: 600; font-size: 1.1rem; color: #673ab7;"><i class="fas fa-moon"></i>
+                            Turno Tarde (16:00 - 22:00)</label>
+                        <span class="muted" style="font-size: 0.9rem;">Capacidad: <span id="count-afternoon"
+                                style="font-weight: bold; color: var(--text);">0</span></span>
+                    </div>
+                    <div id="list-afternoon" class="staff-list">
+                        <!-- Chips -->
+                    </div>
+                    <div class="add-staff-row">
+                        <input type="text" id="input-afternoon" placeholder="Nombre del terapeuta..."
+                            onkeypress="handleEnter(event, 'afternoon')">
+                        <button onclick="addStaff('afternoon')"><i class="fas fa-plus"></i> Añadir</button>
+                    </div>
+                </div>
+
+                <div
+                    style="display: flex; gap: 10px; margin-top: 20px; background: rgba(255,152,0,0.1); padding: 15px; border-radius: 8px;">
+                    <i class="fas fa-info-circle" style="color: #ff9800; margin-top: 3px;"></i>
+                    <p style="margin: 0; font-size: 0.85rem; color: var(--text-muted); line-height: 1.4;">
+                        El sistema usará el número total de personas en la lista para calcular la disponibilidad. <br>
+                        Si borras un nombre, la capacidad del turno bajará automáticamente.
+                    </p>
+                </div>
+
+                <br>
+
+                <button id="save-staff-btn" onclick="saveStaffConfig()" class="btn btn-primary"
+                    style="width: 100%; padding: 15px; font-size: 1.1rem; display: flex; justify-content: center; align-items: center; gap: 10px;">
+                    <i class="fas fa-save"></i> Guardar Cambios
+                </button>
+            </div>
+        </section>
+
+    </main>
+
+    <div id="toast-container"
+        style="position: fixed; bottom: 20px; right: 20px; z-index: 10000; display: flex; flex-direction: column; gap: 10px;">
+    </div>
+
+    <script>
+        const CONFIG_DOC_ID = "main_staff_config";
+
+        let staffData = {
+            morning: [],
+            afternoon: []
+        };
+
+        // Init
+        document.addEventListener("DOMContentLoaded", () => {
+            // Verificar DB
+            if (!window.db) {
+                console.error("Firebase DB not initialized!");
+                alert("Error crítico: No se pudo conectar a la base de datos.");
+                return;
+            }
+            loadStaffConfig();
+        });
+
+        async function loadStaffConfig() {
+            try {
+                const doc = await db.collection("config_personal").doc(CONFIG_DOC_ID).get();
+                if (doc.exists) {
+                    const data = doc.data();
+                    // Retrocompatibilidad: Si solo hay counts numéricos, crear placeholders
+                    if (!data.morning_staff && data.morning_count) {
+                        staffData.morning = Array(data.morning_count).fill("Terapeuta Generico");
+                    } else {
+                        staffData.morning = data.morning_staff || [];
+                    }
+
+                    if (!data.afternoon_staff && data.afternoon_count) {
+                        staffData.afternoon = Array(data.afternoon_count).fill("Terapeuta Generico");
+                    } else {
+                        staffData.afternoon = data.afternoon_staff || [];
+                    }
+                }
+                renderLists();
+            } catch (error) {
+                console.error("Error cargando config:", error);
+                showToast("Error al cargar configuración", "error");
+            }
+        }
+
+        function renderLists() {
+            renderTurnList('morning', staffData.morning);
+            renderTurnList('afternoon', staffData.afternoon);
+        }
+
+        function renderTurnList(turn, list) {
+            const container = document.getElementById(`list-${turn}`);
+            const countEl = document.getElementById(`count-${turn}`);
+
+            container.innerHTML = "";
+            countEl.textContent = list.length;
+
+            if (list.length === 0) {
+                container.innerHTML = `<span class="muted" style="font-size:0.85rem; width:100%; text-align:center; padding:10px;">Ningún terapeuta asignado</span>`;
+                return;
+            }
+
+            list.forEach((name, index) => {
+                const chip = document.createElement("div");
+                chip.className = "staff-chip";
+                chip.innerHTML = `
+                    <i class="fas fa-user"></i> ${name}
+                    <i class="fas fa-times" onclick="removeStaff('${turn}', ${index})" title="Eliminar"></i>
+                `;
+                container.appendChild(chip);
+            });
+        }
+
+        function addStaff(turn) {
+            const input = document.getElementById(`input-${turn}`);
+            const name = input.value.trim();
+
+            if (!name) return;
+
+            staffData[turn].push(name);
+            input.value = "";
+            renderLists();
+        }
+
+        function removeStaff(turn, index) {
+            staffData[turn].splice(index, 1);
+            renderLists();
+        }
+
+        function handleEnter(e, turn) {
+            if (e.key === 'Enter') addStaff(turn);
+        }
+
+        async function saveStaffConfig() {
+            const btn = document.getElementById("save-staff-btn");
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Guardando...';
+            btn.disabled = true;
+
+            try {
+                // Guardar tanto las listas como los counts numéricos para que reservas.html siga funcionando rápido
+                await db.collection("config_personal").doc(CONFIG_DOC_ID).set({
+                    morning_staff: staffData.morning,
+                    afternoon_staff: staffData.afternoon,
+                    morning_count: staffData.morning.length,
+                    afternoon_count: staffData.afternoon.length,
+                    last_updated: new Date().toISOString()
+                }, { merge: true });
+
+                showToast("Configuración guardada correctamente", "success");
+            } catch (error) {
+                console.error("Error guardando:", error);
+                showToast("Error al guardar cambios", "error");
+            } finally {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
+        }
+
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = `toast toast-${type}`;
+            toast.style.background = type === 'success' ? 'var(--success-bg)' : 'var(--card-bg)';
+            toast.style.color = type === 'success' ? '#fff' : 'var(--text)';
+            toast.style.padding = '12px 20px';
+            toast.style.borderRadius = '8px';
+            toast.style.boxShadow = '0 4px 12px rgba(0,0,0,0.3)';
+            toast.style.display = 'flex';
+            toast.style.alignItems = 'center';
+            toast.style.gap = '10px';
+            toast.style.zIndex = '99999';
+
+            let icon = 'info-circle';
+            if (type === 'success') icon = 'check-circle';
+            if (type === 'error') icon = 'exclamation-circle';
+
+            toast.innerHTML = `<i class="fas fa-${icon}"></i> ${message}`;
+            container.appendChild(toast);
+
+            setTimeout(() => {
+                toast.style.transition = 'opacity 0.3s';
+                toast.style.opacity = '0';
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+    </script>
+</body>
+
+</html>

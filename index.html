@@ -29,27 +29,51 @@
         </div>
 
         <ul class="nav-links">
-            <li><a href="#" class="nav-link active" data-view="dashboard"><i class="fas fa-home"></i> Dashboard</a></li>
+            <li><a href="#" class="nav-link active" data-view="dashboard"><i class="fas fa-home"></i> Inicio</a></li>
             <li><a href="#" class="nav-link" data-view="vouchers"><i class="fas fa-ticket-alt"></i> Bonos</a></li>
-            <li><a href="reservas.html" class="nav-link"><i class="fas fa-calendar-alt"></i> Reservas Spa</a></li>
-            <li><a href="#" class="nav-link" data-view="config"><i class="fas fa-cog"></i> Configuración</a></li>
+            <li><a href="reservas.html?type=spa" class="nav-link"><i class="fas fa-calendar-alt"></i> Panel General
+                    (Spa)</a></li>
+            <li><a href="reservas.html?type=suite" class="nav-link"><i class="fas fa-gem"></i> Suite Spa</a></li>
+            <li><a href="reservas.html?type=panacea" class="nav-link"><i class="fas fa-tint"></i> Sala Panacea</a></li>
+            <li><a href="reservas.html?type=vip" class="nav-link"><i class="fas fa-crown"></i> Sala VIP</a></li>
+            <!-- <li><a href="reservas.html?type=peluqueria" class="nav-link"><i class="fas fa-cut"></i> Peluquería</a></li> -->
+            <li style="margin-top: 20px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 10px;">
+                <a href="personal.html" class="nav-link"><i class="fas fa-users-cog"></i> Gestión Personal</a>
+            </li>
         </ul>
 
         <div style="text-align: center; margin-top: auto; padding: 10px 0; border-top: 1px solid var(--border);">
             <img src="zenith-logo.png" alt="Zenith" style="max-width: 90px; height: auto; opacity: 0.85;">
         </div>
     </div>
-    </aside>
 
     <main class="main-content">
         <header>
-            <div class="header-left">
-                <h2 id="view-title">Dashboard</h2>
-                <p id="current-date" class="muted" style="font-size: 0.8rem; margin-top: 5px;"></p>
+            <div class="header-left" style="display: flex; align-items: center; gap: 15px;">
+                <img src="zenith-logo.png" alt="Zenith Logo" style="height: 45px; width: auto;">
+                <div>
+                    <h2 id="view-title" style="margin-bottom: 0; line-height: 1;">Inicio</h2>
+                    <p id="current-date" class="muted" style="font-size: 0.8rem; margin-top: 4px;"></p>
+                </div>
             </div>
             <div class="header-actions">
-                <button class="btn btn-outline" id="new-booking-btn">
-                    <i class="fas fa-plus"></i> Nueva Cita
+                <button id="config-btn" style="
+                    background: linear-gradient(135deg, var(--accent) 0%, #b8962e 100%);
+                    color: white;
+                    border: none;
+                    border-radius: 50px;
+                    padding: 10px 25px;
+                    box-shadow: 0 4px 15px rgba(212, 175, 55, 0.3);
+                    cursor: pointer;
+                    display: flex;
+                    align-items: center;
+                    gap: 10px;
+                    font-weight: 600;
+                    letter-spacing: 0.5px;
+                    transition: transform 0.2s, box-shadow 0.2s;
+                " onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 20px rgba(212, 175, 55, 0.4)'"
+                    onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 15px rgba(212, 175, 55, 0.3)'">
+                    <i class="fas fa-cog" style="font-size: 1.1em;"></i> Configuración
                 </button>
                 <button class="btn btn-accent" id="sync-vouchers-btn" style="display:none">
                     <i class="fas fa-sync"></i> Sincronizar Tienda
@@ -62,20 +86,28 @@
             <div class="stats-grid">
                 <div class="stat-card">
                     <h3>Ventas Hoy</h3>
-                    <div class="stat-value" id="stat-sales">480€</div>
+                    <div class="stat-value" id="stat-sales">--- €</div>
                 </div>
                 <div class="stat-card">
                     <h3>Ocupación</h3>
-                    <div class="stat-value" id="stat-occ">82%</div>
+                    <div class="stat-value" id="stat-occ">--- %</div>
                 </div>
                 <div class="stat-card">
                     <h3>Bonos Pendientes</h3>
-                    <div class="stat-value" id="stat-pending">14</div>
+                    <div class="stat-value" id="stat-pending">---</div>
                 </div>
             </div>
 
-            <div class="section-header" style="margin-bottom: 20px;">
+            <div class="section-header"
+                style="margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center;">
                 <h3>Próximas Citas</h3>
+                <div class="search-box"
+                    style="max-width: 300px; display: flex; align-items: center; background: var(--card-bg); padding: 8px 12px; border-radius: 8px; border: 1px solid var(--border);">
+                    <i class="fas fa-search"
+                        style="color: var(--text-muted); margin-right: 10px; font-size: 0.8rem;"></i>
+                    <input type="text" id="dashboard-search" oninput="renderDashboard()" placeholder="Buscar cliente..."
+                        style="background: transparent; border: none; color: var(--text); width: 100%; outline: none; font-size: 0.85rem; font-family: 'Montserrat', sans-serif;">
+                </div>
             </div>
 
             <div class="data-container">
@@ -86,6 +118,7 @@
                             <th>Cliente</th>
                             <th>Servicio</th>
                             <th>Estado</th>
+                            <th>Acciones</th>
                         </tr>
                     </thead>
                     <tbody id="dashboard-table-body">
@@ -173,6 +206,36 @@
                             <i class="fas fa-external-link-alt"></i> Abrir Editor de Catálogo
                         </a>
                     </div>
+
+                    <!-- REGLAS DE RESERVA -->
+                    <div class="stat-card">
+                        <h3 style="color: var(--accent);"><i class="fas fa-calendar-check"></i> Reglas de Reserva
+                            (Spa)
+                        </h3>
+                        <div class="form-group" style="margin-top: 15px;">
+                            <label style="font-size: 0.75rem;">Capacidad Máxima por Turno (Aforo)</label>
+                            <input type="number" id="cfg-spa-capacity" value="20" class="param-input"
+                                style="width: 100%;">
+                        </div>
+
+                        <div class="form-group" style="margin-top: 15px;">
+                            <label style="font-size: 0.75rem;">Días de Cierre (Días Especiales)</label>
+                            <div style="display: flex; gap: 5px; margin-bottom: 10px;">
+                                <input type="date" id="cfg-spa-closed-date" class="param-input" style="flex: 1;">
+                                <button onclick="addClosedDate()" class="btn btn-accent btn-sm"><i
+                                        class="fas fa-plus"></i></button>
+                            </div>
+                            <div id="cfg-closed-dates-list"
+                                style="max-height: 100px; overflow-y: auto; background: rgba(0,0,0,0.1); padding: 5px; border-radius: 4px; font-size: 0.8rem;">
+                                <!-- JS Render -->
+                            </div>
+                        </div>
+
+                        <button onclick="saveSpaSettings()" class="btn btn-outline"
+                            style="width: 100%; margin-top: 15px; border-color: var(--accent); color: var(--accent);">
+                            <i class="fas fa-save"></i> Guardar Configuración Spa
+                        </button>
+                    </div>
                 </div>
             </div>
         </section>
@@ -242,7 +305,54 @@
                     </div>
                     <div class="form-group">
                         <label>Fecha de Validez (1 Año)</label>
-                        <input type="date" id="vm-fecha-validez" class="param-input">
+                        <input type="date" id="vm-fecha-validez" readonly
+                            style="background: rgba(255,255,255,0.05); cursor: not-allowed;">
+                    </div>
+                </div>
+
+                <!-- Sección Informativa del Bono (No editable) -->
+                <div
+                    style="background: #fdfdfd; padding: 20px; border-radius: 12px; border: 1px solid #eee; margin-bottom: 25px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.02);">
+                    <div
+                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                        <div>
+                            <span
+                                style="font-size: 0.7rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">Saldo
+                                del Bono</span>
+                            <div style="display: flex; align-items: baseline; gap: 8px; margin-top: 4px;">
+                                <span id="vm-saldo-text"
+                                    style="font-size: 2rem; font-weight: 700; color: var(--accent);">0</span>
+                                <span style="font-size: 0.9rem; color: #999; font-weight: 500;">sesiones
+                                    disponibles</span>
+                            </div>
+                        </div>
+                        <div id="vm-progress-badge"
+                            style="background: rgba(212, 175, 55, 0.1); padding: 5px 12px; border-radius: 20px; border: 1px solid var(--accent); color: var(--accent); font-weight: 700; font-size: 0.8rem;">
+                            <span id="vm-progress-text">0%</span> USADO
+                        </div>
+                    </div>
+
+                    <div
+                        style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; background: rgba(0,0,0,0.02); padding: 12px; border-radius: 8px;">
+                        <div>
+                            <span
+                                style="font-size: 0.65rem; color: #999; display: block; margin-bottom: 4px; text-transform: uppercase;">Configuración
+                                del Pack</span>
+                            <div style="font-size: 0.9rem; font-weight: 600; color: #444;" id="vm-info-pack">10
+                                Sesiones
+                                Individuales</div>
+                            <input type="hidden" id="vm-sesiones-usadas">
+                            <input type="hidden" id="vm-sesiones-totales">
+                            <input type="hidden" id="vm-pax-por-sesion">
+                        </div>
+                        <div style="text-align: right;">
+                            <span
+                                style="font-size: 0.65rem; color: #999; display: block; margin-bottom: 4px; text-transform: uppercase;">Consumo
+                                total</span>
+                            <div style="font-size: 0.9rem; font-weight: 600; color: #444;" id="vm-info-consumo">0 de
+                                10
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -264,10 +374,22 @@
                     </div>
                 </div>
 
+                <!-- Historial de Reservas (Informativo) -->
+                <div style="margin-bottom: 25px;">
+                    <label
+                        style="display: block; margin-bottom: 10px; font-weight: 700; font-size: 0.75rem; color: #555; text-transform: uppercase; letter-spacing: 0.5px;">
+                        <i class="fas fa-history"></i> Historial de Reservas (Automático)
+                    </label>
+                    <div id="vm-booking-history"
+                        style="background: #fdfdfd; border: 1px solid #eee; border-radius: 8px; max-height: 150px; overflow-y: auto; padding: 10px; font-size: 0.8rem; color: #666;">
+                        <div class="muted" style="text-align: center; padding: 10px;">Cargando historial...</div>
+                    </div>
+                </div>
+
                 <div class="form-group">
-                    <label>Notas Internas (No visible para cliente)</label>
-                    <textarea id="vm-notas" rows="4"
-                        placeholder="Escribe aquí observaciones sobre el canje, cliente, etc..."></textarea>
+                    <label>Notas Internas (SÓLO Notas Manuales)</label>
+                    <textarea id="vm-notas" rows="3"
+                        placeholder="Escribe aquí observaciones manuales sobre este bono..."></textarea>
                 </div>
 
                 <button type="submit" class="btn btn-accent" style="width: 100%; margin-top: 20px;">
@@ -292,7 +414,8 @@
                         <input type="number" id="lvm-num" placeholder="0001" required
                             style="flex: 1; font-size: 1.1rem; padding: 10px;" min="1">
                     </div>
-                    <small class="muted">Introduce el número manual assignado. No se puede modificar después.</small>
+                    <small class="muted">Introduce el número manual assignado. No se puede modificar
+                        después.</small>
                 </div>
 
                 <div class="form-row">
@@ -339,6 +462,9 @@
             </form>
         </div>
     </div>
+
+    <!-- Toast Container -->
+    <div id="toast-container"></div>
 
     <!-- Firebase SDK (Compat) -->
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>

@@ -6,10 +6,12 @@ const state = {
     bonos: [],
     circuitos: [],
     tratamientos: [],
-    citas: [
-        { hora: '10:00', cliente: 'Ana García', servicio: 'Circuito 90\'', estado: 'pending' },
-        { hora: '11:30', cliente: 'Marc Soler', servicio: 'Masaje Oro', estado: 'completed' }
-    ]
+    citas: [],
+    spaConfig: {
+        capacity: 20,
+        closedDates: [],
+        blockedSlots: {} // Estructura: { 'YYYY-MM-DD': ['10:00', '13:30'] }
+    }
 };
 
 // Selectores
@@ -60,17 +62,147 @@ function init() {
         dateInput.value = new Date().toISOString().split('T')[0];
     }
 
-    renderDashboard();
+    cargarCitasHoy();
     setupEventListeners();
     cargarCatalogoFirestore();
+    cargarSpaConfig();
+}
+
+async function cargarSpaConfig() {
+    try {
+        const doc = await db.collection("spa_config").doc("settings").get();
+        if (doc.exists) {
+            state.spaConfig = { ...state.spaConfig, ...doc.data() };
+            // Actualizar UI
+            document.getElementById("cfg-spa-capacity").value = state.spaConfig.capacity;
+            renderClosedDates();
+        }
+    } catch (err) {
+        console.error("Error cargando spa_config:", err);
+    }
+}
+
+function renderClosedDates() {
+    const list = document.getElementById("cfg-closed-dates-list");
+    if (!list) return;
+
+    if (state.spaConfig.closedDates.length === 0) {
+        list.innerHTML = `<div class="muted" style="padding: 5px; text-align: center;">No hay días de cierre configurados</div>`;
+        return;
+    }
+
+    // Ordenar fechas
+    state.spaConfig.closedDates.sort();
+
+    list.innerHTML = state.spaConfig.closedDates.map(date => `
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 4px 8px; border-bottom: 1px solid rgba(255,255,255,0.05);">
+            <span>${formatDateES(date)}</span>
+            <button onclick="removeClosedDate('${date}')" style="background:none; border:none; color:#ff5252; cursor:pointer;"><i class="fas fa-trash-alt"></i></button>
+        </div>
+    `).join('');
+}
+
+function addClosedDate() {
+    const input = document.getElementById("cfg-spa-closed-date");
+    const date = input.value;
+    if (!date) return;
+
+    if (!state.spaConfig.closedDates.includes(date)) {
+        state.spaConfig.closedDates.push(date);
+        renderClosedDates();
+        input.value = "";
+    } else {
+        alert("Esa fecha ya está en la lista.");
+    }
+}
+
+function removeClosedDate(date) {
+    state.spaConfig.closedDates = state.spaConfig.closedDates.filter(d => d !== date);
+    renderClosedDates();
+}
+
+async function saveSpaSettings() {
+    const capacity = parseInt(document.getElementById("cfg-spa-capacity").value);
+    if (isNaN(capacity) || capacity < 1) {
+        alert("Por favor, introduce una capacidad válida.");
+        return;
+    }
+
+    state.spaConfig.capacity = capacity;
+
+    try {
+        // Enviar todo el objeto spaConfig que incluye closedDates y blockedSlots
+        await db.collection("spa_config").doc("settings").set(state.spaConfig);
+        alert("Configuración de Spa guardada correctamente.");
+    } catch (err) {
+        console.error("Error guardando settings:", err);
+        alert("Error al guardar configuración: " + err.message);
+    }
+}
+
+async function cargarCitasHoy() {
+    try {
+        const today = new Date().toISOString().split('T')[0];
+        const snapshot = await db.collection("reservas_spa")
+            .where("fecha", "==", today)
+            .get();
+
+        state.citas = [];
+        snapshot.forEach(doc => state.citas.push({ id: doc.id, ...doc.data() }));
+
+        // Ordenar por hora
+        state.citas.sort((a, b) => a.hora.localeCompare(b.hora));
+
+        renderDashboard();
+        actualizarStatsInicio();
+    } catch (err) {
+        console.error("Error cargando citas:", err);
+    }
+}
+
+function actualizarStatsInicio() {
+    // 1. VENTAS HOY
+    const confirmedCitas = state.citas.filter(c => c.status === 'confirmada');
+    const totalSales = confirmedCitas.reduce((sum, c) => sum + (parseFloat(c.precio_total) || 0), 0);
+    const salesEl = document.getElementById("stat-sales");
+    if (salesEl) salesEl.textContent = `${totalSales.toFixed(2)} €`;
+
+    // 2. OCUPACION (Solo Circuito Spa Base)
+    // Filtramos para que Suite, Peluquería, etc. no inflen el aforo del circuito general
+    const circuitReservations = confirmedCitas.filter(c => {
+        const s = (c.servicio || "").toLowerCase();
+        // Incluir: "circuito spa", "bono circuito", "pack pareja" (generalmente usan circuito)
+        // Excluir: "suite", "panacea", "vip", "peluquería", "masaje" (si va suelto)
+        if (s.includes("suite") || s.includes("panacea") || s.includes("vip") || s.includes("peluquería")) return false;
+        return true; // Por defecto asumimos que es circuito si no es uno de los módulos especiales
+    });
+
+    const totalPax = circuitReservations.reduce((sum, c) => sum + (parseInt(c.pax) || 0), 0);
+    const capacity = state.spaConfig.capacity || 20;
+
+    // Calcular turnos según día (L-S: 9, D: 4)
+    const day = new Date().getDay();
+    const turnosHoy = (day === 0) ? 4 : 9;
+
+    const totalPlazas = capacity * turnosHoy;
+    const occPercentage = totalPlazas > 0 ? Math.round((totalPax / totalPlazas) * 100) : 0;
+
+    const occEl = document.getElementById("stat-occ");
+    if (occEl) occEl.textContent = `${occPercentage}%`;
+
+    // 3. BONOS PENDIENTES
+    actualizarContadorPendientes();
 }
 
 function setupEventListeners() {
     // Sincronizar
     syncBtn.addEventListener("click", cargarBonos);
 
-    // Abrir Modal
-    document.getElementById("new-booking-btn").addEventListener("click", openModal);
+    // Ir a Configuración
+    const cfgBtn = document.getElementById("config-btn");
+    if (cfgBtn) {
+        cfgBtn.addEventListener("click", () => switchView('config'));
+    }
 
     // Cerrar Modal
     document.querySelector(".close-modal").addEventListener("click", closeModal);
@@ -86,7 +218,15 @@ function setupEventListeners() {
 
     // Guardar gestión de bono
     const vForm = document.getElementById("voucher-form");
-    if (vForm) vForm.addEventListener("submit", saveVoucherChanges);
+    if (vForm) {
+        vForm.addEventListener("submit", saveVoucherChanges);
+
+        // Listeners para actualizar balance visual
+        const usedInput = document.getElementById("vm-sesiones-usadas");
+        const totalInput = document.getElementById("vm-sesiones-totales");
+        if (usedInput) usedInput.addEventListener("input", updateVoucherBalanceUI);
+        if (totalInput) totalInput.addEventListener("input", updateVoucherBalanceUI);
+    }
 
     // Guardar gestión de servicio
     const sForm = document.getElementById("service-form");
@@ -146,7 +286,15 @@ function switchView(key) {
     if (views[key]) views[key].style.display = "block";
 
     // Acciones específicas
+    const cfgBtn = document.getElementById("config-btn");
+
+    // Botón Sincronizar solo en Bonos
     syncBtn.style.display = (key === 'vouchers') ? "inline-flex" : "none";
+
+    // Botón Configuración solo en Dashboard
+    if (cfgBtn) {
+        cfgBtn.style.display = (key === 'dashboard') ? "inline-flex" : "none";
+    }
 
     if (key === 'vouchers') cargarBonos();
 }
@@ -166,19 +314,48 @@ function closeModal() {
     bookingModal.style.display = "none";
 }
 
-function handleNewBooking(e) {
+async function handleNewBooking(e) {
     e.preventDefault();
+    const btn = e.target.querySelector("button[type='submit']");
+    const originalText = btn.innerHTML;
+
+    // Extraer datos
+    const clienteStr = document.getElementById("m-cliente").value;
+    const servicio = document.getElementById("m-servicio").value;
+    const hora = document.getElementById("m-hora").value;
+    const today = new Date().toISOString().split('T')[0];
+
     const nueva = {
-        hora: document.getElementById("m-hora").value,
-        cliente: document.getElementById("m-cliente").value,
-        servicio: document.getElementById("m-servicio").value,
-        estado: 'pending'
+        res_id: 'RS-' + Math.random().toString(36).substr(2, 4).toUpperCase(),
+        fecha: today,
+        hora: hora,
+        nombre: clienteStr,
+        servicio: servicio,
+        status: 'confirmada',
+        pax: 1, // Default por simplicidad en dashboard
+        origen: 'particular',
+        created_at: new Date().toISOString()
     };
 
-    state.citas.push(nueva);
-    renderDashboard();
-    closeModal();
-    bookingForm.reset();
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Guardando...';
+    btn.disabled = true;
+
+    try {
+        // Guardar Reserva
+        await db.collection("reservas_spa").add(nueva);
+
+        alert("Cita confirmada correctamente.");
+        await cargarCitasHoy();
+        closeModal();
+        bookingForm.reset();
+
+    } catch (err) {
+        console.error("Error al guardar reserva:", err);
+        alert("Error al guardar: " + err.message);
+    } finally {
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+    }
 }
 
 // --- CATÁLOGO ---
@@ -208,21 +385,79 @@ function renderDashboard() {
     const tbody = document.getElementById("dashboard-table-body");
     if (!tbody) return;
 
-    tbody.innerHTML = state.citas.map(c => `
+    const searchTerm = document.getElementById("dashboard-search")?.value.toLowerCase() || "";
+
+    // Obtener hora actual en formato HH:mm
+    const now = new Date();
+    const currentHourStr = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
+
+    const filteredCitas = state.citas.filter(c => {
+        const nombre = (c.nombre || c.cliente || "").toLowerCase();
+        // Filtro 1: Nombre
+        const matchesName = nombre.includes(searchTerm);
+
+        // Filtro 2: Hora (Solo futuras o actuales)
+        // Comparación de cadenas "HH:mm" funciona bien para orden cronológico (24h)
+        const isFuture = c.hora >= currentHourStr;
+
+        return matchesName && isFuture;
+    });
+
+    if (filteredCitas.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" class="muted">${searchTerm ? 'No se encontraron clientes' : 'No hay más citas próximas hoy'}</td></tr>`;
+        return;
+    }
+
+    tbody.innerHTML = filteredCitas.map(c => `
         <tr>
             <td>${c.hora}</td>
-            <td>${c.cliente}</td>
-            <td>${c.servicio}</td>
-            <td><span class="st-badge st-${c.estado}">${c.estado === 'pending' ? 'Pendiente' : 'Completado'}</span></td>
+            <td><div style="font-weight:600;">${c.nombre || c.cliente}</div></td>
+            <td>${c.servicio || '<span class="muted">Circuito Spa</span>'}</td>
+            <td><span class="st-badge st-${c.status === 'confirmada' ? 'completed' : (c.status === 'anulada' ? 'expired' : 'pending')}">${c.status === 'confirmada' ? 'Confirmada' : (c.status === 'anulada' ? 'Anulada' : 'Pendiente')}</span></td>
+            <td>
+                <button class="btn btn-outline" onclick="verDetalleCita('${c.id}')" style="padding: 5px 10px; border-radius: 50%; color: var(--accent); border-color: var(--accent);" title="Ver Detalles">
+                    <i class="fas fa-eye"></i>
+                </button>
+            </td>
         </tr>
     `).join('');
+}
+
+function verDetalleCita(id) {
+    const cita = state.citas.find(c => c.id === id);
+    if (!cita) return;
+
+    // Reutilizamos el modal de reservas pero en modo lectura (o simple alert si preferimos rápido)
+    // Para una mejor UX, vamos a mostrar un SweetAlert si disponible o un alert formateado, 
+    // o mejor aun, rellenamos el modal existente en modo solo lectura.
+    // Dado que el usuario pidió "un icono para visualizar", un simple alert formateado puede ser suficiente por ahora
+    // para no complicar con otro modal, o podemos usar el modal de "Nueva Cita" adaptado.
+
+    // Vamos a usar una alerta informativa simple y bonita
+    const info = `
+        Cliente: ${cita.nombre || cita.cliente}
+        Hora: ${cita.hora}
+        Servicio: ${cita.servicio || "Circuito Spa"}
+        Pax: ${cita.pax || 2}
+        Teléfono: ${cita.telefono || cita.tel || "No registrado"}
+        Importe: ${cita.total || cita.imp || "0"} €
+        Obs: ${cita.observaciones || cita.obs || "-"}
+    `;
+    alert("DETALLES DE LA RESERVA:\n" + info);
 }
 
 /** BONOS **/
 async function cargarBonos() {
     const tableBody = document.getElementById("vouchers-table-body");
 
-    // Si ya tenemos bonos en el state, evitamos el "Sincronizando..." molesto y mostramos lo que hay
+    // Feedback visual inmediato en el botón
+    const btn = document.getElementById("sync-vouchers-btn");
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-sync fa-spin"></i> Sincronizando...';
+    btn.disabled = true;
+    btn.style.opacity = "0.7";
+
+    // Si ya tenemos bonos en el state, mostramos lo que hay mientras carga
     if (state.bonos.length === 0) {
         tableBody.innerHTML = `<tr><td colspan="7" class="muted">Cargando bonos...</td></tr>`;
     }
@@ -230,7 +465,7 @@ async function cargarBonos() {
     let persistentData = {};
 
     try {
-        // 1. CARGA INMEDIATA DESDE FIRESTORE (Datos locales + Cache de sincronizaciones previas)
+        // 1. CARGA INMEDIATA DESDE FIRESTORE (Datos locales + Cache previas)
         const snapshot = await db.collection("spa_vouchers").get();
         snapshot.forEach(doc => persistentData[doc.id] = doc.data());
 
@@ -245,28 +480,44 @@ async function cargarBonos() {
         actualizarContadorPendientes();
 
         // 2. SINCRONIZACIÓN EN SEGUNDO PLANO (WooCommerce)
-        // No usamos 'await' aquí para no bloquear la UI
-        sincronizarConTienda(persistentData);
+        // Pasamos el botón para restaurarlo al finalizar
+        sincronizarConTienda(persistentData, btn, originalText);
 
     } catch (err) {
         console.error("Error al cargar base de datos:", err);
         if (state.bonos.length === 0) {
             tableBody.innerHTML = `<tr><td colspan="7" class="error">Error local: ${err.message}</td></tr>`;
         }
+        // Restaurar botón si falla la carga local
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+        btn.style.opacity = "1";
+        showToast("Error al cargar la base de datos local", "error");
     }
 }
 
-async function sincronizarConTienda(persistentData) {
+async function sincronizarConTienda(persistentData, btn, originalText) {
     console.log("Iniciando sincronización con tienda en segundo plano...");
     try {
         const res = await fetch(ENDPOINT_BONOS);
+
+        if (!res.ok) throw new Error("No se pudo conectar con la tienda");
+
         const dataProxy = await res.json();
 
-        if (!dataProxy.contents) return;
+        if (!dataProxy.contents) {
+            console.warn("Respuesta vacía del proxy");
+            throw new Error("Respuesta vacía del servidor");
+        }
+
         const shopVouchers = JSON.parse(dataProxy.contents);
+
+        // Log de depuración
+        console.log(`Recibidos ${shopVouchers.length} bonos de la tienda.`);
 
         const batch = db.batch();
         let operationsCount = 0;
+        let newVouchersCount = 0;
 
         const webVouchers = shopVouchers.map(b => {
             const persisted = persistentData[b.bono];
@@ -279,6 +530,7 @@ async function sincronizarConTienda(persistentData) {
                 const docRef = db.collection("spa_vouchers").doc(b.bono);
                 batch.set(docRef, { ...b, estado: 'pending', synced_at: new Date().toISOString() });
                 operationsCount++;
+                newVouchersCount++;
             }
             return { ...b, ...persisted, estado: finalState, precio: b.precio || b.importe };
         });
@@ -298,9 +550,51 @@ async function sincronizarConTienda(persistentData) {
         renderBonosFromState();
         actualizarContadorPendientes();
 
+        showToast(newVouchersCount > 0
+            ? `Sincronización Completada: ${newVouchersCount} bonos nuevos.`
+            : "Sincronización Completada: Todo actualizado.", "success");
+
     } catch (err) {
-        console.warn("Sincronización de fondo fallida (WooCommerce offline):", err);
+        console.warn("Sincronización de fondo fallida:", err);
+        showToast("No se pudo sincronizar con la tienda. Verificando caché local...", "error");
+    } finally {
+        // Siempre restaurar el botón
+        if (btn) {
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+            btn.style.opacity = "1";
+        }
     }
+}
+
+// Utilidad para Toast Notifications
+function showToast(message, type = 'info') {
+    const container = document.getElementById('toast-container');
+    if (!container) return;
+
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+
+    let icon = 'info-circle';
+    if (type === 'success') icon = 'check-circle';
+    if (type === 'error') icon = 'exclamation-circle';
+
+    toast.innerHTML = `<i class="fas fa-${icon}"></i> <span>${message}</span>`;
+
+    container.appendChild(toast);
+
+    // Trigger animation
+    requestAnimationFrame(() => {
+        toast.classList.add('show');
+    });
+
+    // Auto remove
+    setTimeout(() => {
+        toast.classList.remove('show');
+        setTimeout(() => {
+            toast.remove();
+        }, 300);
+    }, 4000);
 }
 
 function actualizarContadorPendientes() {
@@ -367,9 +661,18 @@ function renderBonosFromState() {
         let badgeClass = 'st-pending';
         let statusLabel = 'ACTIVO';
 
-        if (b.estado === 'completed') { badgeClass = 'st-completed'; statusLabel = 'CANJEADO'; }
-        else if (b.estado === 'expired') { badgeClass = 'st-expired'; statusLabel = 'CADUCADO'; }
-        else if (b.estado === 'partially') { badgeClass = 'st-partial'; statusLabel = 'PARCIAL'; }
+        if (b.estado === 'completed') {
+            badgeClass = 'st-completed';
+            statusLabel = 'CANJEADO';
+        }
+        else if (b.estado === 'expired') {
+            badgeClass = 'st-expired';
+            statusLabel = 'CADUCADO';
+        }
+        else if (b.estado === 'partially') {
+            badgeClass = 'st-partial';
+            statusLabel = `PARCIAL ${b.sesiones_usadas || 0}/${b.sesiones_totales || 1}`;
+        }
 
         if (b.estado === 'pending' && checkVoucherExpiry(b.fecha)) {
             badgeClass = 'st-expired';
@@ -416,15 +719,15 @@ function openVoucherManagement(code) {
     // Rellenar formulario
     document.getElementById("vm-title-code").textContent = code;
     document.getElementById("vm-code").value = code;
-    const clientName = voucher.cliente || voucher.email.split('@')[0];
+    const clientName = voucher.cliente || (voucher.email && voucher.email.split('@')[0]) || "Cliente";
     document.getElementById("vm-cliente").value = clientName;
-    document.getElementById("vm-email").value = voucher.email;
+    document.getElementById("vm-email").value = voucher.email || "";
     document.getElementById("vm-producto").value = voucher.producto;
 
     // Fechas
-    document.getElementById("vm-fecha-compra").value = voucher.fecha; // Fecha compra original
+    document.getElementById("vm-fecha-compra").value = voucher.fecha;
 
-    // Calcular validez (si no tiene una guardada ex profeso, calculamos +1 año)
+    // Calcular validez
     let valDate = "";
     if (voucher.fecha_validez) {
         valDate = voucher.fecha_validez;
@@ -435,48 +738,193 @@ function openVoucherManagement(code) {
     }
     document.getElementById("vm-fecha-validez").value = valDate;
 
+    // Sesiones y Pax
+    const used = voucher.sesiones_usadas || 0;
+    let total = voucher.sesiones_totales;
+    let paxPerSession = voucher.pax_por_sesion || 1;
+
+    // Auto-detección si no tiene totales guardados
+    if (!total) {
+        const detected = detectSessions(voucher.producto);
+        total = detected.total;
+        paxPerSession = detected.paxPerSession;
+    }
+
+    // Guardar en ocultos para salvar luego
+    document.getElementById("vm-sesiones-usadas").value = used;
+    document.getElementById("vm-sesiones-totales").value = total;
+    document.getElementById("vm-pax-por-sesion").value = paxPerSession;
+
+    // Actualizar labels informativos
+    const packLabel = document.getElementById("vm-info-pack");
+    if (packLabel) {
+        packLabel.textContent = `${total} Sesiones ${paxPerSession === 2 ? 'Dobles (Pareja)' : 'Individuales'}`;
+    }
+
+    updateVoucherBalanceUI();
+
     document.getElementById("vm-estado").value = checkVoucherExpiry(voucher.fecha) ? 'expired' : voucher.estado;
     document.getElementById("vm-notas").value = voucher.notas_internas || "";
+
+    // Cargar historial de reservas
+    loadVoucherHistory(code);
 
     // Configurar botón reservar
     const btnRes = document.getElementById("vm-btn-reservar");
     btnRes.onclick = () => {
-        closeVoucherModal();
-        openModal(); // Abrir modal de citas
-
-        // Pre-rellenar cita con lógica mejorada
-        setTimeout(() => {
-            // Nombre + Referencia al Bono
-            document.getElementById("m-cliente").value = `${clientName} (Bono: ${code})`;
-
-            // Selección inteligente de servicio
-            const servSelect = document.getElementById("m-servicio");
-            const voucherProd = voucher.producto.toLowerCase().trim();
-
-            let bestMatchIndex = -1;
-
-            for (let i = 0; i < servSelect.options.length; i++) {
-                const optVal = servSelect.options[i].value.toLowerCase().trim();
-
-                // 1. Coincidencia exacta
-                if (optVal === voucherProd) {
-                    bestMatchIndex = i;
-                    break;
-                }
-
-                // 2. Coincidencia parcial (uno contiene al otro)
-                if (voucherProd.includes(optVal) || optVal.includes(voucherProd)) {
-                    bestMatchIndex = i;
-                }
-            }
-
-            if (bestMatchIndex !== -1) {
-                servSelect.selectedIndex = bestMatchIndex;
-            }
-        }, 100);
+        const bookingData = {
+            bono: code,
+            cliente: clientName,
+            producto: voucher.producto,
+            pax_por_sesion: paxPerSession,
+            sesiones_restantes: (total - used)
+        };
+        sessionStorage.setItem('pendingVoucherBooking', JSON.stringify(bookingData));
+        window.location.href = 'reservas.html';
     };
 
     voucherModal.style.display = "flex";
+}
+
+async function loadVoucherHistory(code) {
+    const historySection = document.getElementById("vm-booking-history");
+    if (!historySection) return;
+
+    try {
+        const snapshot = await db.collection("reservas_spa")
+            .where("bono", "==", code)
+            .get();
+
+        if (snapshot.empty) {
+            historySection.innerHTML = '<div style="text-align:center; padding:10px; color:#999; font-style:italic;">No hay reservas registradas para este bono.</div>';
+            return;
+        }
+
+        let bookings = [];
+        snapshot.forEach(doc => bookings.push({ id: doc.id, ...doc.data() }));
+
+        // Ordenar por fecha desc en memoria para evitar error de índice
+        bookings.sort((a, b) => b.fecha.localeCompare(a.fecha));
+
+        let html = '<div style="display: flex; flex-direction: column; gap: 8px;">';
+        bookings.forEach(res => {
+            const dateStr = new Date(res.fecha).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' });
+            const statusClass = res.status === 'confirmada' ? 'st-completed' : 'st-pending';
+            const statusLabel = res.status === 'confirmada' ? 'OK' : 'ANULADA';
+
+            html += `
+                <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 10px; background: #fff; border: 1px solid #f0f0f0; border-radius: 6px;">
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <span style="font-weight: 700; color: #333;">${dateStr}</span>
+                        <span style="color: var(--text-muted); font-size: 0.75rem;">${res.hora}h</span>
+                        <span style="font-weight: 600; color: var(--accent);">${res.pax} pax</span>
+                        <span style="color: #999; font-size: 0.7rem;">(${res.sesiones_consumidas || 1} ses.)</span>
+                    </div>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <span class="st-badge ${statusClass}" style="font-size: 0.6rem; padding: 2px 6px;">${statusLabel}</span>
+                        <a href="reservas.html?date=${res.fecha}&res_id=${res.id}" class="btn-icon-sm" title="Ver en Reservas" style="color: var(--accent); font-size: 0.8rem;">
+                            <i class="fas fa-external-link-alt"></i>
+                        </a>
+                    </div>
+                </div>
+            `;
+        });
+        html += '</div>';
+        historySection.innerHTML = html;
+
+    } catch (err) {
+        console.error("Error cargando historial de bono:", err);
+        historySection.innerHTML = '<div style="color: #f44336; padding:10px;">Error al cargar historial.</div>';
+    }
+}
+
+function detectSessions(productName) {
+    const name = productName.toLowerCase();
+    let total = 1;
+    let paxPerSession = 1;
+
+    // Detectar número de sesiones
+    const sessionMatch = name.match(/(\d+)\s*(sesiones|circuitos|masajes|tratamientos)/i);
+    if (sessionMatch) {
+        total = parseInt(sessionMatch[1]);
+    } else if (name.includes("diez") || name.includes("10")) {
+        total = 10;
+    } else if (name.includes("cinco") || name.includes("5")) {
+        total = 5;
+    }
+
+    // Detectar si es para pareja
+    if (name.includes("pareja") || name.includes("duo") || name.includes(" 2 ") || name.includes("dos")) {
+        paxPerSession = 2;
+    }
+
+    return { total, paxPerSession };
+}
+
+function updateVoucherBalanceUI() {
+    const used = parseInt(document.getElementById("vm-sesiones-usadas").value) || 0;
+    const total = parseInt(document.getElementById("vm-sesiones-totales").value) || 1;
+    const saldo = total - used;
+
+    const saldoEl = document.getElementById("vm-saldo-text");
+    if (saldoEl) {
+        saldoEl.textContent = Math.max(0, saldo);
+        saldoEl.style.color = saldo <= 0 ? "#ff5252" : "var(--accent)";
+    }
+
+    const consumoLabel = document.getElementById("vm-info-consumo");
+    if (consumoLabel) {
+        consumoLabel.textContent = `${used} de ${total}`;
+    }
+
+    const progressText = document.getElementById("vm-progress-text");
+    const progressBadge = document.getElementById("vm-progress-badge");
+    const statusSelect = document.getElementById("vm-estado");
+    const btnRes = document.getElementById("vm-btn-reservar");
+
+    // Siempre bloquear el estado en bonos multi-sesión (la gestión es automática)
+    if (statusSelect) {
+        statusSelect.disabled = true;
+        statusSelect.style.background = "#f5f5f5";
+    }
+
+    if (progressText) {
+        const percent = Math.min(Math.round((used / total) * 100), 100);
+        progressText.textContent = percent + "%";
+
+        if (progressBadge) {
+            if (percent >= 100) {
+                progressBadge.style.background = "#ff5252";
+                progressBadge.style.color = "white";
+                progressBadge.style.borderColor = "#ff5252";
+                if (statusSelect) statusSelect.value = 'completed';
+
+                // Desactivar botón de reserva si no queda saldo
+                if (btnRes) {
+                    btnRes.style.opacity = "0.5";
+                    btnRes.style.pointerEvents = "none";
+                    btnRes.innerHTML = '<i class="fas fa-ban"></i> Sin saldo';
+                }
+            } else {
+                progressBadge.style.background = "rgba(212, 175, 55, 0.1)";
+                progressBadge.style.color = "var(--accent)";
+                progressBadge.style.borderColor = "var(--accent)";
+
+                // Lógica de estado determinista
+                if (statusSelect) {
+                    if (used > 0) statusSelect.value = 'partially';
+                    else statusSelect.value = 'pending';
+                }
+
+                // Activar botón de reserva si queda saldo
+                if (btnRes) {
+                    btnRes.style.opacity = "1";
+                    btnRes.style.pointerEvents = "auto";
+                    btnRes.innerHTML = '<i class="fas fa-calendar-plus"></i> Reservar Cita';
+                }
+            }
+        }
+    }
 }
 
 function closeVoucherModal() {
@@ -489,31 +937,47 @@ async function saveVoucherChanges(e) {
     const newStatus = document.getElementById("vm-estado").value;
     const notes = document.getElementById("vm-notas").value;
     const validUntil = document.getElementById("vm-fecha-validez").value;
-    const btn = e.target.querySelector("button[type='submit']");
 
+    const used = parseInt(document.getElementById("vm-sesiones-usadas").value);
+    const total = parseInt(document.getElementById("vm-sesiones-totales").value);
+    const paxPerSession = parseInt(document.getElementById("vm-pax-por-sesion").value);
+
+    const btn = e.target.querySelector("button[type='submit']");
     const originalText = btn.innerHTML;
     btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Guardando...';
     btn.disabled = true;
 
     try {
-        // Guardar en Firestore
-        await db.collection("spa_vouchers").doc(code).set({
+        const payload = {
             estado: newStatus,
             notas_internas: notes,
             fecha_validez: validUntil,
+            sesiones_usadas: used,
+            sesiones_totales: total,
+            pax_por_sesion: paxPerSession,
             last_updated: new Date().toISOString(),
-            manual_update: true // Marcar como gestionado manualmente
-        }, { merge: true });
+            manual_update: true
+        };
+
+        // Forzar estado correcto según consumo (Lógica Determinista)
+        if (used >= total) {
+            payload.estado = 'completed';
+        } else if (used > 0) {
+            payload.estado = 'partially';
+        } else {
+            // Solo resetemos a pending si no es expired
+            if (newStatus !== 'expired') payload.estado = 'pending';
+        }
+
+        await db.collection("spa_vouchers").doc(code).set(payload, { merge: true });
 
         // Actualizar localmente
         const voucher = state.bonos.find(b => b.bono === code);
         if (voucher) {
-            voucher.estado = newStatus;
-            voucher.notas_internas = notes;
-            voucher.fecha_validez = validUntil;
-            voucher.manual_update = true;
+            Object.assign(voucher, payload);
         }
 
+        updateVoucherBalanceUI(); // Sincronizar UI del modal antes de cerrar o renderizar lista
         renderBonosFromState();
         closeVoucherModal();
         alert("Bono actualizado correctamente.");
@@ -585,6 +1049,8 @@ async function handleLocalVoucherSubmit(e) {
             throw new Error(`El bono ${fullCode} ya existe en la base de datos.`);
         }
 
+        const sessionData = detectSessions(producto);
+
         const newVoucher = {
             bono: fullCode,
             cliente: cliente,
@@ -596,6 +1062,9 @@ async function handleLocalVoucherSubmit(e) {
             estado: 'pending',
             origen: 'local_manual',
             notas_internas: notas,
+            sesiones_usadas: 0,
+            sesiones_totales: sessionData.total,
+            pax_por_sesion: sessionData.paxPerSession,
             created_at: new Date().toISOString(),
             manual_update: true
         };
