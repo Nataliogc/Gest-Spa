@@ -5,362 +5,448 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gestión de Personal | Zenith Manager</title>
+
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@200;300;400;500;600;700&display=swap"
         rel="stylesheet">
+
     <!-- Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="icon" type="image/png" href="zenith-icon.png">
+
     <!-- Styles -->
     <link rel="stylesheet" href="styles.css">
 
-    <!-- Firebase SDKs -->
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
-    <!-- Config Local (Inits DB) -->
+    <!-- Firebase SDKs Compat -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+
+    <!-- Config -->
     <script src="firebase-config.js"></script>
+    <script src="js/app-core.js"></script>
 
     <style>
-        .staff-list {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10px;
-            margin-top: 10px;
-            min-height: 40px;
-            padding: 10px;
-            background: rgba(255, 255, 255, 0.03);
-            border-radius: 8px;
-            border: 1px dashed var(--border);
+        body {
+            overflow: hidden;
         }
 
-        .staff-chip {
+        .main-content {
+            flex: 1;
+            /* margin-left removed */
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .staff-card {
             background: var(--card-bg);
-            border: 1px solid var(--accent);
-            color: var(--text);
-            padding: 5px 12px;
-            border-radius: 20px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 12px;
+            box-shadow: var(--shadow);
+            transition: all 0.2s;
+        }
+
+        .staff-card:hover {
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.1);
+            transform: translateY(-2px);
+        }
+
+        .staff-status {
+            font-size: 0.7rem;
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .status-active {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .status-inactive {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .filter-group {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .filter-group label {
             display: flex;
             align-items: center;
             gap: 8px;
+            cursor: pointer;
             font-size: 0.9rem;
-            animation: popIn 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
         }
 
-        .staff-chip i {
-            cursor: pointer;
-            color: #ff5252;
-            opacity: 0.7;
-            transition: 0.2s;
+        #calendar-grid {
+            min-height: 300px;
         }
 
-        .staff-chip i:hover {
-            opacity: 1;
-            transform: scale(1.2);
-        }
-
-        @keyframes popIn {
-            from {
-                transform: scale(0.8);
-                opacity: 0;
-            }
-
-            to {
-                transform: scale(1);
-                opacity: 1;
-            }
-        }
-
-        .add-staff-row {
+        .schedule-day-row {
             display: flex;
+            align-items: center;
             gap: 10px;
-            margin-top: 10px;
+            margin-bottom: 10px;
+            padding: 10px;
+            background: #f8fafc;
+            border-radius: 6px;
         }
 
-        .add-staff-row input {
-            flex: 1;
-            padding: 8px 12px;
-            border-radius: 6px;
-            border: 1px solid var(--border);
-            background: rgba(255, 255, 255, 0.05);
-            color: var(--text);
-            outline: none;
-        }
-
-        .add-staff-row button {
-            background: var(--accent);
-            color: white;
-            border: none;
-            padding: 0 15px;
-            border-radius: 6px;
-            cursor: pointer;
+        .schedule-day-row label {
+            min-width: 80px;
             font-weight: 600;
+            font-size: 0.85rem;
         }
     </style>
 </head>
 
 <body>
-
-    <!-- Sidebar (Copiado de reservas.html para consistencia sin app.js) -->
+    <!-- Top Navbar -->
     <div class="sidebar">
-        <div style="text-align: center; margin-bottom: 25px;">
-            <img src="logo-spa.jpg" alt="Cumbria Bienestar" style="max-width: 85%; height: auto;">
+        <!-- LEFT: Cumbria Logo -->
+        <div style="display: flex; align-items: center; gap: 15px;">
+            <img src="logo-spa.jpg" alt="Cumbria Bienestar" style="height: 65px; width: auto; object-fit: contain;">
         </div>
 
-        <ul class="nav-links">
+        <ul class="nav-links" style="flex:1;">
             <li><a href="index.html" class="nav-link"><i class="fas fa-home"></i> Inicio</a></li>
-            <li><a href="index.html" class="nav-link"><i class="fas fa-ticket-alt"></i> Bonos</a></li>
-            <li><a href="reservas.html?type=spa" class="nav-link"><i class="fas fa-calendar-alt"></i> Panel General
-                    (Spa)</a></li>
-            <li><a href="reservas.html?type=suite" class="nav-link"><i class="fas fa-gem"></i> Suite Spa</a></li>
-            <li><a href="reservas.html?type=panacea" class="nav-link"><i class="fas fa-tint"></i> Sala Panacea</a></li>
-            <li><a href="reservas.html?type=vip" class="nav-link"><i class="fas fa-crown"></i> Sala VIP</a></li>
-            <li style="margin-top: 20px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 10px;">
-                <a href="personal.html" class="nav-link active"><i class="fas fa-users-cog"></i> Gestión Personal</a>
+            <li><a href="bonos.html" class="nav-link"><i class="fas fa-ticket-alt"></i> Bonos</a></li>
+
+            <li class="menu-header" style="display:none;">MÓDULOS</li>
+            <li><a href="reservas.html?type=spa" class="nav-link"><i class="fas fa-water"></i> Spa</a></li>
+            <li><a href="reservas.html?type=suite" class="nav-link"><i class="fas fa-gem"></i> Suite</a></li>
+            <li><a href="reservas.html?type=panacea" class="nav-link"><i class="fas fa-columns"></i> Panacea & VIP</a>
+            </li>
+            <li><a href="reservas.html?type=peluqueria" class="nav-link"><i class="fas fa-cut"></i> Peluquería</a></li>
+
+            <li class="dropdown">
+                <a href="#" class="nav-link dropdown-toggle active">
+                    <i class="fas fa-users-cog"></i> GESTIÓN <i class="fas fa-caret-down"
+                        style="font-size: 0.7em; margin-left: 2px;"></i>
+                </a>
+                <ul class="dropdown-menu">
+                    <li><a href="personal.html" class="active" style="color:var(--accent); font-weight:bold;"><i
+                                class="fas fa-user-tie"></i> Personal</a></li>
+                    <li><a href="catalogo.html"><i class="fas fa-book-open"></i> Catálogo</a></li>
+                    <li><a href="configuracion.html"><i class="fas fa-cogs"></i> Ajustes</a></li>
+                </ul>
             </li>
         </ul>
 
-        <div style="text-align: center; margin-top: auto; padding: 10px 0; border-top: 1px solid var(--border);">
-            <img src="zenith-logo.png" alt="Zenith" style="max-width: 90px; height: auto; opacity: 0.85;">
+        <!-- RIGHT: Zenith Branding -->
+        <div style="display: flex; align-items: center; gap: 10px;">
+            <div style="text-align: right; line-height: 1.2;">
+                <span style="font-size: 0.9rem; font-weight: 600; display: block; color: var(--text);">ZENITH</span>
+                <span style="font-size: 0.75rem; letter-spacing: 1px; color: var(--text-muted);">MANAGER</span>
+            </div>
+            <img src="zenith-logo.png" alt="Zenith" style="height: 35px; width: auto;">
         </div>
     </div>
 
     <main class="main-content">
-        <header>
-            <div class="header-left" style="display: flex; align-items: center; gap: 15px;">
-                <img src="zenith-logo.png" alt="Zenith Logo" style="height: 45px; width: auto;">
+        <section style="flex: 1; overflow-y: auto; padding: 25px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px;">
                 <div>
-                    <h2 id="view-title" style="margin-bottom: 0; line-height: 1;">Gestión de Personal</h2>
-                    <p class="muted" style="font-size: 0.8rem; margin-top: 4px;">Configuración de equipo y turnos</p>
+                    <h2 style="margin: 0; font-size: 1.8rem; color: var(--text);">Gestión de Personal</h2>
+                    <p class="muted" style="margin: 5px 0 0 0;">Administra terapeutas y su disponibilidad</p>
                 </div>
-            </div>
-        </header>
-
-        <section id="staff-config-card" style="max-width: 800px; margin: 40px auto;">
-            <div class="card"
-                style="background: var(--card-bg); padding: 30px; border-radius: 15px; border: 1px solid var(--border); box-shadow: 0 4px 20px rgba(0,0,0,0.2);">
-                <div
-                    style="display: flex; align-items: center; gap: 15px; margin-bottom: 25px; border-bottom: 1px solid var(--border); padding-bottom: 15px;">
-                    <div style="background: rgba(212, 175, 55, 0.1); padding: 12px; border-radius: 50%;">
-                        <i class="fas fa-user-md" style="font-size: 1.5rem; color: var(--accent);"></i>
-                    </div>
-                    <div>
-                        <h3 style="margin: 0; font-size: 1.2rem;">Equipo de Terapeutas</h3>
-                        <p class="muted" style="margin: 5px 0 0 0; font-size: 0.9rem;">Añade los nombres de los
-                            terapeutas activos en cada turno.</p>
-                    </div>
-                </div>
-
-                <!-- Turno Mañana -->
-                <div class="form-group" style="margin-bottom: 30px;">
-                    <div
-                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                        <label style="font-weight: 600; font-size: 1.1rem; color: #ff9800;"><i class="fas fa-sun"></i>
-                            Turno Mañana (10:00 - 16:00)</label>
-                        <span class="muted" style="font-size: 0.9rem;">Capacidad: <span id="count-morning"
-                                style="font-weight: bold; color: var(--text);">0</span></span>
-                    </div>
-                    <div id="list-morning" class="staff-list">
-                        <!-- Chips -->
-                    </div>
-                    <div class="add-staff-row">
-                        <input type="text" id="input-morning" placeholder="Nombre del terapeuta..."
-                            onkeypress="handleEnter(event, 'morning')">
-                        <button onclick="addStaff('morning')"><i class="fas fa-plus"></i> Añadir</button>
-                    </div>
-                </div>
-
-                <!-- Turno Tarde -->
-                <div class="form-group" style="margin-bottom: 30px;">
-                    <div
-                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                        <label style="font-weight: 600; font-size: 1.1rem; color: #673ab7;"><i class="fas fa-moon"></i>
-                            Turno Tarde (16:00 - 22:00)</label>
-                        <span class="muted" style="font-size: 0.9rem;">Capacidad: <span id="count-afternoon"
-                                style="font-weight: bold; color: var(--text);">0</span></span>
-                    </div>
-                    <div id="list-afternoon" class="staff-list">
-                        <!-- Chips -->
-                    </div>
-                    <div class="add-staff-row">
-                        <input type="text" id="input-afternoon" placeholder="Nombre del terapeuta..."
-                            onkeypress="handleEnter(event, 'afternoon')">
-                        <button onclick="addStaff('afternoon')"><i class="fas fa-plus"></i> Añadir</button>
-                    </div>
-                </div>
-
-                <div
-                    style="display: flex; gap: 10px; margin-top: 20px; background: rgba(255,152,0,0.1); padding: 15px; border-radius: 8px;">
-                    <i class="fas fa-info-circle" style="color: #ff9800; margin-top: 3px;"></i>
-                    <p style="margin: 0; font-size: 0.85rem; color: var(--text-muted); line-height: 1.4;">
-                        El sistema usará el número total de personas en la lista para calcular la disponibilidad. <br>
-                        Si borras un nombre, la capacidad del turno bajará automáticamente.
-                    </p>
-                </div>
-
-                <br>
-
-                <button id="save-staff-btn" onclick="saveStaffConfig()" class="btn btn-primary"
-                    style="width: 100%; padding: 15px; font-size: 1.1rem; display: flex; justify-content: center; align-items: center; gap: 10px;">
-                    <i class="fas fa-save"></i> Guardar Cambios
+                <button onclick="openStaffModal()" class="btn btn-accent">
+                    <i class="fas fa-user-plus"></i> Nuevo Personal
                 </button>
             </div>
-        </section>
 
+            <!-- Filters -->
+            <div class="filter-group">
+                <label>
+                    <input type="radio" name="staff-filter" value="active" checked>
+                    <span>Activos</span>
+                </label>
+                <label>
+                    <input type="radio" name="staff-filter" value="inactive">
+                    <span>Dados de Baja</span>
+                </label>
+                <label>
+                    <input type="radio" name="staff-filter" value="all">
+                    <span>Todos</span>
+                </label>
+            </div>
+
+            <!-- Staff List -->
+            <div id="staff-list">
+                <div style="padding: 40px; text-align: center; color: #94a3b8;">
+                    <i class="fas fa-spinner fa-spin" style="font-size: 2rem;"></i>
+                    <p style="margin: 10px 0 0 0;">Cargando personal...</p>
+                </div>
+            </div>
+        </section>
     </main>
 
-    <div id="toast-container"
-        style="position: fixed; bottom: 20px; right: 20px; z-index: 10000; display: flex; flex-direction: column; gap: 10px;">
+    <!-- MODAL: ADD/EDIT STAFF -->
+    <div id="staff-modal" class="modal" style="display: none;">
+        <div class="modal-content glass" style="max-width: 700px; max-height: 90vh; overflow-y: auto;">
+            <div class="modal-header">
+                <h3 id="staff-modal-title">Nuevo Personal</h3>
+                <span class="close-modal" onclick="closeStaffModal()">&times;</span>
+            </div>
+            <form id="staff-form" onsubmit="saveStaff(event)">
+                <input type="hidden" id="staff-id">
+
+                <!-- Basic Info -->
+                <div class="form-group">
+                    <label>Nombre Completo *</label>
+                    <input type="text" id="staff-name" placeholder="María García" required>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Email</label>
+                        <input type="email" id="staff-email" placeholder="maria@spa.com">
+                    </div>
+                    <div class="form-group">
+                        <label>Teléfono</label>
+                        <input type="tel" id="staff-phone" placeholder="+34 600 000 000">
+                    </div>
+                </div>
+
+                <!-- Assigned Rooms -->
+                <div class="form-group">
+                    <label>Espacios Asignados *</label>
+                    <div id="assigned-rooms-container"
+                        style="display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px;">
+                        <!-- JS Render -->
+                    </div>
+                </div>
+
+                <!-- Default Schedule -->
+                <div class="form-group">
+                    <label style="display: block; margin-bottom: 10px;">Horario Base</label>
+
+                    <!-- Monday -->
+                    <div class="schedule-day-row">
+                        <label><input type="checkbox" id="schedule-monday-enabled"> Lunes</label>
+                        <div id="schedule-monday-shifts" style="flex: 1;">
+                            <div style="display: flex; gap: 5px; align-items: center;">
+                                <input type="time" value="10:00" class="schedule-shift-start" style="flex: 1;">
+                                <span>-</span>
+                                <input type="time" value="18:00" class="schedule-shift-end" style="flex: 1;">
+                            </div>
+                        </div>
+                        <button type="button" onclick="addShift('monday')" class="btn btn-outline btn-sm"
+                            title="Añadir turno">
+                            <i class="fas fa-plus"></i>
+                        </button>
+                    </div>
+
+                    <!-- Tuesday -->
+                    <div class="schedule-day-row">
+                        <label><input type="checkbox" id="schedule-tuesday-enabled"> Martes</label>
+                        <div id="schedule-tuesday-shifts" style="flex: 1;">
+                            <div style="display: flex; gap: 5px; align-items: center;">
+                                <input type="time" value="10:00" class="schedule-shift-start" style="flex: 1;">
+                                <span>-</span>
+                                <input type="time" value="18:00" class="schedule-shift-end" style="flex: 1;">
+                            </div>
+                        </div>
+                        <button type="button" onclick="addShift('tuesday')" class="btn btn-outline btn-sm"
+                            title="Añadir turno">
+                            <i class="fas fa-plus"></i>
+                        </button>
+                    </div>
+
+                    <!-- Wednesday -->
+                    <div class="schedule-day-row">
+                        <label><input type="checkbox" id="schedule-wednesday-enabled"> Miércoles</label>
+                        <div id="schedule-wednesday-shifts" style="flex: 1;">
+                            <div style="display: flex; gap: 5px; align-items: center;">
+                                <input type="time" value="10:00" class="schedule-shift-start" style="flex: 1;">
+                                <span>-</span>
+                                <input type="time" value="18:00" class="schedule-shift-end" style="flex: 1;">
+                            </div>
+                        </div>
+                        <button type="button" onclick="addShift('wednesday')" class="btn btn-outline btn-sm"
+                            title="Añadir turno">
+                            <i class="fas fa-plus"></i>
+                        </button>
+                    </div>
+
+                    <!-- Thursday -->
+                    <div class="schedule-day-row">
+                        <label><input type="checkbox" id="schedule-thursday-enabled"> Jueves</label>
+                        <div id="schedule-thursday-shifts" style="flex: 1;">
+                            <div style="display: flex; gap: 5px; align-items: center;">
+                                <input type="time" value="10:00" class="schedule-shift-start" style="flex: 1;">
+                                <span>-</span>
+                                <input type="time" value="18:00" class="schedule-shift-end" style="flex: 1;">
+                            </div>
+                        </div>
+                        <button type="button" onclick="addShift('thursday')" class="btn btn-outline btn-sm"
+                            title="Añadir turno">
+                            <i class="fas fa-plus"></i>
+                        </button>
+                    </div>
+
+                    <!-- Friday -->
+                    <div class="schedule-day-row">
+                        <label><input type="checkbox" id="schedule-friday-enabled"> Viernes</label>
+                        <div id="schedule-friday-shifts" style="flex: 1;">
+                            <div style="display: flex; gap: 5px; align-items: center;">
+                                <input type="time" value="10:00" class="schedule-shift-start" style="flex: 1;">
+                                <span>-</span>
+                                <input type="time" value="18:00" class="schedule-shift-end" style="flex: 1;">
+                            </div>
+                        </div>
+                        <button type="button" onclick="addShift('friday')" class="btn btn-outline btn-sm"
+                            title="Añadir turno">
+                            <i class="fas fa-plus"></i>
+                        </button>
+                    </div>
+
+                    <!-- Saturday -->
+                    <div class="schedule-day-row">
+                        <label><input type="checkbox" id="schedule-saturday-enabled"> Sábado</label>
+                        <div id="schedule-saturday-shifts" style="flex: 1;">
+                            <div style="display: flex; gap: 5px; align-items: center;">
+                                <input type="time" value="10:00" class="schedule-shift-start" style="flex: 1;">
+                                <span>-</span>
+                                <input type="time" value="14:00" class="schedule-shift-end" style="flex: 1;">
+                            </div>
+                        </div>
+                        <button type="button" onclick="addShift('saturday')" class="btn btn-outline btn-sm"
+                            title="Añadir turno">
+                            <i class="fas fa-plus"></i>
+                        </button>
+                    </div>
+
+                    <!-- Sunday -->
+                    <div class="schedule-day-row">
+                        <label><input type="checkbox" id="schedule-sunday-enabled"> Domingo</label>
+                        <div id="schedule-sunday-shifts" style="flex: 1;">
+                            <div style="display: flex; gap: 5px; align-items: center;">
+                                <input type="time" value="10:00" class="schedule-shift-start" style="flex: 1;">
+                                <span>-</span>
+                                <input type="time" value="14:00" class="schedule-shift-end" style="flex: 1;">
+                            </div>
+                        </div>
+                        <button type="button" onclick="addShift('sunday')" class="btn btn-outline btn-sm"
+                            title="Añadir turno">
+                            <i class="fas fa-plus"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Status -->
+                <div class="form-group">
+                    <label>Estado</label>
+                    <select id="staff-status" required>
+                        <option value="active">Activo</option>
+                        <option value="inactive">Baja</option>
+                    </select>
+                </div>
+
+                <!-- Notes -->
+                <div class="form-group">
+                    <label>Notas</label>
+                    <textarea id="staff-notes" rows="3" placeholder="Especialidades, observaciones..."></textarea>
+                </div>
+
+                <button type="submit" class="btn btn-accent" style="width: 100%; margin-top: 20px;">
+                    <i class="fas fa-save"></i> Guardar Personal
+                </button>
+            </form>
+        </div>
     </div>
 
-    <script>
-        const CONFIG_DOC_ID = "main_staff_config";
+    <!-- MODAL: CALENDAR -->
+    <div id="calendar-modal" class="modal" style="display: none;">
+        <div class="modal-content glass" style="max-width: 600px;">
+            <div class="modal-header">
+                <h3>Calendario de Disponibilidad: <span id="calendar-staff-name"></span></h3>
+                <span class="close-modal" onclick="closeCalendarModal()">&times;</span>
+            </div>
 
-        let staffData = {
-            morning: [],
-            afternoon: []
-        };
+            <div style="padding: 20px;">
+                <!-- Month Navigation -->
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <button onclick="changeMonth(-1)" class="btn btn-outline btn-sm">
+                        <i class="fas fa-chevron-left"></i>
+                    </button>
+                    <h4 id="calendar-month-year" style="margin: 0;">Febrero 2025</h4>
+                    <button onclick="changeMonth(1)" class="btn btn-outline btn-sm">
+                        <i class="fas fa-chevron-right"></i>
+                    </button>
+                </div>
 
-        // Init
-        document.addEventListener("DOMContentLoaded", () => {
-            // Verificar DB
-            if (!window.db) {
-                console.error("Firebase DB not initialized!");
-                alert("Error crítico: No se pudo conectar a la base de datos.");
-                return;
-            }
-            loadStaffConfig();
-        });
+                <!-- Calendar Grid -->
+                <div id="calendar-grid"></div>
 
-        async function loadStaffConfig() {
-            try {
-                const doc = await db.collection("config_personal").doc(CONFIG_DOC_ID).get();
-                if (doc.exists) {
-                    const data = doc.data();
-                    // Retrocompatibilidad: Si solo hay counts numéricos, crear placeholders
-                    if (!data.morning_staff && data.morning_count) {
-                        staffData.morning = Array(data.morning_count).fill("Terapeuta Generico");
-                    } else {
-                        staffData.morning = data.morning_staff || [];
-                    }
+                <!-- Legend -->
+                <div style="display: flex; gap: 15px; justify-content: center; margin-top: 20px; font-size: 0.85rem;">
+                    <div><span>🟢</span> Disponible</div>
+                    <div><span>🔴</span> No disponible</div>
+                    <div><span>🟠</span> Horario personalizado</div>
+                </div>
+            </div>
+        </div>
+    </div>
 
-                    if (!data.afternoon_staff && data.afternoon_count) {
-                        staffData.afternoon = Array(data.afternoon_count).fill("Terapeuta Generico");
-                    } else {
-                        staffData.afternoon = data.afternoon_staff || [];
-                    }
-                }
-                renderLists();
-            } catch (error) {
-                console.error("Error cargando config:", error);
-                showToast("Error al cargar configuración", "error");
-            }
-        }
+    <!-- MODAL: DAY DETAIL -->
+    <div id="day-detail-modal" class="modal" style="display: none;">
+        <div class="modal-content glass" style="max-width: 500px;">
+            <div class="modal-header">
+                <h3 id="day-detail-date">Detalles del día</h3>
+                <span class="close-modal" onclick="closeDayDetailModal()">&times;</span>
+            </div>
+            <form id="day-detail-form" onsubmit="saveDayAvailability(event)">
+                <input type="hidden" id="day-detail-date-value">
 
-        function renderLists() {
-            renderTurnList('morning', staffData.morning);
-            renderTurnList('afternoon', staffData.afternoon);
-        }
+                <div class="form-group">
+                    <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px;">
+                        <input type="radio" name="day-status" value="available" checked>
+                        <span>🟢 Usar horario base (por defecto)</span>
+                    </label>
 
-        function renderTurnList(turn, list) {
-            const container = document.getElementById(`list-${turn}`);
-            const countEl = document.getElementById(`count-${turn}`);
+                    <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px;">
+                        <input type="radio" name="day-status" value="unavailable">
+                        <span>🔴 Marcar como no disponible</span>
+                    </label>
+                    <div id="unavailable-reason-container" style="margin-left: 30px; margin-bottom: 15px;">
+                        <input type="text" id="day-reason" placeholder="Motivo (opcional)" style="width: 100%;">
+                    </div>
 
-            container.innerHTML = "";
-            countEl.textContent = list.length;
+                    <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px;">
+                        <input type="radio" name="day-status" value="custom">
+                        <span>🟠 Definir horario personalizado</span>
+                    </label>
+                    <div id="custom-schedule-container" style="margin-left: 30px;">
+                        <div id="custom-shifts-container">
+                            <!-- JS Render -->
+                        </div>
+                        <button type="button" onclick="addCustomShift()" class="btn btn-outline btn-sm"
+                            style="margin-top: 5px;">
+                            <i class="fas fa-plus"></i> Añadir turno
+                        </button>
+                    </div>
+                </div>
 
-            if (list.length === 0) {
-                container.innerHTML = `<span class="muted" style="font-size:0.85rem; width:100%; text-align:center; padding:10px;">Ningún terapeuta asignado</span>`;
-                return;
-            }
+                <button type="submit" class="btn btn-accent" style="width: 100%; margin-top: 20px;">
+                    <i class="fas fa-save"></i> Guardar
+                </button>
+            </form>
+        </div>
+    </div>
 
-            list.forEach((name, index) => {
-                const chip = document.createElement("div");
-                chip.className = "staff-chip";
-                chip.innerHTML = `
-                    <i class="fas fa-user"></i> ${name}
-                    <i class="fas fa-times" onclick="removeStaff('${turn}', ${index})" title="Eliminar"></i>
-                `;
-                container.appendChild(chip);
-            });
-        }
-
-        function addStaff(turn) {
-            const input = document.getElementById(`input-${turn}`);
-            const name = input.value.trim();
-
-            if (!name) return;
-
-            staffData[turn].push(name);
-            input.value = "";
-            renderLists();
-        }
-
-        function removeStaff(turn, index) {
-            staffData[turn].splice(index, 1);
-            renderLists();
-        }
-
-        function handleEnter(e, turn) {
-            if (e.key === 'Enter') addStaff(turn);
-        }
-
-        async function saveStaffConfig() {
-            const btn = document.getElementById("save-staff-btn");
-            const originalText = btn.innerHTML;
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Guardando...';
-            btn.disabled = true;
-
-            try {
-                // Guardar tanto las listas como los counts numéricos para que reservas.html siga funcionando rápido
-                await db.collection("config_personal").doc(CONFIG_DOC_ID).set({
-                    morning_staff: staffData.morning,
-                    afternoon_staff: staffData.afternoon,
-                    morning_count: staffData.morning.length,
-                    afternoon_count: staffData.afternoon.length,
-                    last_updated: new Date().toISOString()
-                }, { merge: true });
-
-                showToast("Configuración guardada correctamente", "success");
-            } catch (error) {
-                console.error("Error guardando:", error);
-                showToast("Error al guardar cambios", "error");
-            } finally {
-                btn.innerHTML = originalText;
-                btn.disabled = false;
-            }
-        }
-
-        function showToast(message, type = 'info') {
-            const container = document.getElementById('toast-container');
-            const toast = document.createElement('div');
-            toast.className = `toast toast-${type}`;
-            toast.style.background = type === 'success' ? 'var(--success-bg)' : 'var(--card-bg)';
-            toast.style.color = type === 'success' ? '#fff' : 'var(--text)';
-            toast.style.padding = '12px 20px';
-            toast.style.borderRadius = '8px';
-            toast.style.boxShadow = '0 4px 12px rgba(0,0,0,0.3)';
-            toast.style.display = 'flex';
-            toast.style.alignItems = 'center';
-            toast.style.gap = '10px';
-            toast.style.zIndex = '99999';
-
-            let icon = 'info-circle';
-            if (type === 'success') icon = 'check-circle';
-            if (type === 'error') icon = 'exclamation-circle';
-
-            toast.innerHTML = `<i class="fas fa-${icon}"></i> ${message}`;
-            container.appendChild(toast);
-
-            setTimeout(() => {
-                toast.style.transition = 'opacity 0.3s';
-                toast.style.opacity = '0';
-                setTimeout(() => toast.remove(), 300);
-            }, 3000);
-        }
-    </script>
+    <!-- Scripts -->
+    <script src="personal.js"></script>
 </body>
 
 </html>

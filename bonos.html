@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bonos - Zenith Manager</title>
+    <link rel="icon" href="zenith-icon.png" type="image/png">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="styles.css">
+
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+
+    <!-- SheetJS for Excel import -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+</head>
+
+<body>
+
+    <!-- MENÚ LATERAL -->
+    <!-- MENÚ LATERAL (TOP NAVBAR) -->
+    <div class="sidebar">
+        <!-- LEFT: Cumbria Logo -->
+        <div style="display: flex; align-items: center; gap: 15px;">
+            <img src="logo-spa.jpg" alt="Cumbria Bienestar" style="height: 65px; width: auto; object-fit: contain;">
+        </div>
+
+        <ul class="nav-links" style="flex:1;">
+            <li><a href="index.html" class="nav-link"><i class="fas fa-home"></i> Inicio</a></li>
+            <li><a href="bonos.html" class="nav-link active" style="color: var(--accent); font-weight: bold;"><i
+                        class="fas fa-ticket-alt"></i> Bonos</a></li>
+
+            <li class="menu-header" style="font-size: 0.7rem; color: #aaa; margin: 10px 0 5px 10px; font-weight: 600;">
+                MÓDULOS</li>
+            <li><a href="reservas.html?type=spa" class="nav-link"><i class="fas fa-water"></i> Spa</a></li>
+            <li><a href="reservas.html?type=suite" class="nav-link"><i class="fas fa-gem"></i> Suite</a></li>
+            <li><a href="reservas.html?type=panacea" class="nav-link"><i class="fas fa-columns"></i> Panacea & VIP</a>
+            </li>
+            <li><a href="reservas.html?type=peluqueria" class="nav-link"><i class="fas fa-cut"></i> Peluquería</a></li>
+
+            <li class="dropdown">
+                <a href="#" class="nav-link dropdown-toggle">
+                    <i class="fas fa-users-cog"></i> GESTIÓN <i class="fas fa-caret-down"
+                        style="font-size: 0.7em; margin-left: 2px;"></i>
+                </a>
+                <ul class="dropdown-menu">
+                    <li><a href="personal.html"><i class="fas fa-user-tie"></i> Personal</a></li>
+                    <li><a href="catalogo.html"><i class="fas fa-book-open"></i> Catálogo</a></li>
+                    <li><a href="configuracion.html"><i class="fas fa-cogs"></i> Ajustes</a></li>
+                </ul>
+            </li>
+        </ul>
+
+        <!-- RIGHT: Zenith Branding -->
+        <div style="display: flex; align-items: center; gap: 10px;">
+            <div style="text-align: right; line-height: 1.2;">
+                <span style="font-size: 0.9rem; font-weight: 600; display: block; color: var(--text);">ZENITH</span>
+                <span style="font-size: 0.75rem; letter-spacing: 1px; color: var(--text-muted);">MANAGER</span>
+            </div>
+            <img src="zenith-logo.png" alt="Zenith" style="height: 35px; width: auto;">
+        </div>
+    </div>
+
+    <!-- CONTENIDO PRINCIPAL -->
+    <main class="main-content">
+        <section id="vouchers-view">
+            <div class="data-container">
+                <header>
+                    <div>
+                        <h2 id="view-title-vouchers">Bonos Zenith</h2>
+                        <p class="muted">Gestión centralizada de bonos WooCommerce + Locales</p>
+                    </div>
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <input type="file" id="excel-import-input" accept=".xlsx,.xls,.csv" style="display: none;"
+                            onchange="importExcelOrders(event)">
+                        <button onclick="document.getElementById('excel-import-input').click()" class="btn btn-outline"
+                            style="border-color: #15803d; color: #15803d;">
+                            <i class="fas fa-file-excel"></i> Importar Excel
+                        </button>
+                        <button id="sync-vouchers-btn" class="btn btn-accent"><i class="fas fa-sync"></i>
+                            Sincronizar</button>
+                    </div>
+                </header>
+
+                <!-- Filtros -->
+                <div style="display: flex; gap: 10px; align-items: center; margin-top: 20px; flex-wrap: wrap;">
+                    <input type="text" id="voucher-search" placeholder="Buscar bono, email o producto..."
+                        class="param-input" style="flex: 1; min-width: 200px;">
+
+                    <input type="date" id="voucher-date" class="param-input" style="width: 160px;">
+
+                    <select id="voucher-filter" class="param-input" style="width: 180px;">
+                        <option value="all">Todos los Estados</option>
+                        <option value="pending">Activos (Pendientes)</option>
+                        <option value="partially">Canjeado Parcial</option>
+                        <option value="completed">Canjeados</option>
+                        <option value="expired">Caducados</option>
+                    </select>
+
+                    <button onclick="resetFilters()" class="btn btn-outline"
+                        style="padding: 10px 15px; border-radius: 8px;" title="Ver todos los bonos">
+                        <i class="fas fa-list"></i> Ver Todos
+                    </button>
+
+                    <button onclick="openLocalVoucherModal()" class="btn btn-accent"
+                        style="padding: 10px 15px; border-radius: 8px; white-space: nowrap;">
+                        <i class="fas fa-plus-circle"></i> Nueva Venta Local
+                    </button>
+
+                    <span style="color: var(--text-muted); font-size: 0.9rem; white-space: nowrap;"><span
+                            id="voucher-count">0</span> bonos</span>
+                </div>
+                <div class="table-wrapper">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th style="width: 50px;"></th> <!-- Thumbnail -->
+                                <th>Bono</th>
+                                <th>Producto</th>
+                                <th>Email</th>
+                                <th>Fecha</th>
+                                <th>Precio</th>
+                                <th>Estado</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="vouchers-table-body">
+                            <tr>
+                                <td colspan="7" style="text-align: center; padding: 20px;">Cargando bonos...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Modal Gestión Bono -->
+    <div id="voucher-modal" class="modal" style="display: none;">
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header">
+                <h2 style="margin:0; font-size: 1.25rem;">Gestionar Bono <span id="vm-title-code"
+                        style="color: var(--accent);"></span></h2>
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <span id="vm-status-badge" class="st-badge st-pending">PENDIENTE</span>
+                    <span class="close-btn" onclick="closeVoucherModal()"
+                        style="font-size: 1.5rem; cursor: pointer;">&times;</span>
+                </div>
+            </div>
+
+            <div class="modal-body">
+                <div class="form-grid" style="grid-template-columns: 1fr 1fr; gap: 15px;">
+                    <div class="form-group">
+                        <label>Código Bono</label>
+                        <input type="text" id="vm-code" readonly class="param-input" style="background: #f1f5f9;">
+                    </div>
+                    <div class="form-group">
+                        <label>Cliente</label>
+                        <input type="text" id="vm-cliente" class="param-input">
+                    </div>
+                    <div class="form-group">
+                        <label>Email</label>
+                        <input type="email" id="vm-email" class="param-input" readonly
+                            style="background: #f1f5f9; color: #64748b;">
+                    </div>
+                    <div class="form-group">
+                        <label>Producto</label>
+                        <input type="text" id="vm-producto" class="param-input" readonly style="background: #f1f5f9;">
+                    </div>
+                    <div class="form-group">
+                        <label>Fecha Compra</label>
+                        <input type="text" id="vm-fecha-compra" readonly class="param-input"
+                            style="background: #f1f5f9;">
+                    </div>
+                    <div class="form-group">
+                        <label>Validez Hasta</label>
+                        <input type="date" id="vm-fecha-validez" class="param-input">
+                    </div>
+                </div>
+
+                <!-- Previsualización del Catálogo -->
+                <div id="vm-catalog-info"
+                    style="margin: 0 0 20px 0; padding: 15px; background: #f0f9ff; border-radius: 12px; border: 1px solid #bae6fd; display: none;">
+                    <div style="display: flex; gap: 15px; align-items: start;">
+                        <img id="vm-cat-img" src=""
+                            style="width: 80px; height: 80px; object-fit: cover; border-radius: 8px; border: 1px solid #bae6fd; background: #fff;">
+                        <div style="flex: 1;">
+                            <div
+                                style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 5px;">
+                                <h4 id="vm-cat-name"
+                                    style="margin: 0; font-size: 0.95rem; color: #0369a1; font-weight: 700;">Nombre
+                                    del
+                                    Producto</h4>
+                                <span id="vm-cat-price"
+                                    style="background: #15803d; color: white; font-weight: 700; font-size: 0.85rem; padding: 3px 10px; border-radius: 6px; white-space: nowrap;">0€</span>
+                            </div>
+                            <p id="vm-cat-desc"
+                                style="font-size: 0.75rem; color: #0c4a6e; margin: 0; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;">
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <div
+                    style="margin: 20px 0; padding: 15px; background: #f8fafc; border-radius: 8px; border: 1px solid var(--border);">
+                    <h3
+                        style="font-size: 0.9rem; text-transform: uppercase; color: var(--text-muted); margin-bottom: 10px;">
+                        Control de Sesiones</h3>
+                    <div style="display: flex; gap: 15px; align-items: center;">
+                        <div class="form-group" style="flex: 1;">
+                            <label>Sesiones Totales</label>
+                            <input type="number" id="vm-sesiones-total" class="param-input">
+                        </div>
+                        <div class="form-group" style="flex: 1;">
+                            <label>Sesiones Usadas</label>
+                            <input type="number" id="vm-sesiones-usadas" class="param-input">
+                        </div>
+                        <div class="form-group" style="flex: 1;">
+                            <label>Pax por Sesión</label>
+                            <input type="number" id="vm-pax-sesion" value="1" class="param-input">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Notas Internas</label>
+                    <textarea id="vm-notas" class="param-input" placeholder="Notas solo visibles para el personal..."
+                        rows="3"></textarea>
+                </div>
+
+            </div>
+        </div> <!-- End modal-body -->
+
+        <div class="modal-footer" style="flex-direction: column; gap: 10px;">
+            <div style="display: flex; gap: 10px; width: 100%;">
+                <button type="button" onclick="marcarCanjeado()" class="btn btn-primary"
+                    style="flex: 1; background: #2563eb; border-color: #2563eb; justify-content: center;">
+                    <i class="fas fa-check-circle"></i> Canjear 1
+                </button>
+                <button type="button" onclick="marcarCompleto()" class="btn btn-accent"
+                    style="flex: 1; justify-content: center;">
+                    <i class="fas fa-flag-checkered"></i> Total
+                </button>
+                <button type="button" id="vm-save-btn" onclick="saveVoucherChanges()" class="btn btn-outline"
+                    style="flex: 1; justify-content: center;">
+                    <i class="fas fa-save"></i> <span>Guardar</span>
+                </button>
+            </div>
+            <div style="display: flex; gap: 10px; width: 100%;">
+                <button type="button" onclick="reactivarBono()" class="btn btn-outline"
+                    style="flex: 1; border-color: #10b981; color: #10b981; justify-content: center;">
+                    <i class="fas fa-undo"></i> Reactivar
+                </button>
+                <button type="button" onclick="deleteVoucher()" class="btn btn-outline"
+                    style="flex: 1; border-color: #ef4444; color: #ef4444; justify-content: center;">
+                    <i class="fas fa-trash"></i> Eliminar
+                </button>
+            </div>
+        </div>
+    </div>
+    </div>
+
+    <!-- Modal Venta Local (Optimized) -->
+    <div id="local-voucher-modal" class="modal" style="display: none;">
+        <div class="modal-content glass" style="max-width: 700px;">
+            <div class="modal-header">
+                <h2 style="margin: 0; font-size: 1.25rem; color: var(--text);"><i class="fas fa-ticket-alt"
+                        style="color: var(--accent);"></i> Nueva Venta Local</h2>
+                <span class="close-btn" onclick="closeLocalVoucherModal()"
+                    style="font-size: 1.5rem; cursor: pointer;">&times;</span>
+            </div>
+
+            <div class="modal-body">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                    <!-- Columna Izquierda: Cliente -->
+                    <div
+                        style="background: #f8fafc; padding: 15px; border-radius: 8px; border: 1px solid var(--border);">
+                        <h3
+                            style="font-size: 0.9rem; margin: 0 0 15px 0; color: var(--text-muted); text-transform: uppercase; font-weight: 600;">
+                            <i class="fas fa-user"></i> Datos del Cliente
+                        </h3>
+
+                        <div class="form-group">
+                            <label style="font-size: 0.8rem;">Nombre Completo</label>
+                            <input type="text" id="lv-client" class="param-input" placeholder="Nombre completo"
+                                style="margin-top: 5px;">
+                        </div>
+
+                        <div class="form-group" style="margin-top: 10px;">
+                            <label style="font-size: 0.8rem;">Email</label>
+                            <input type="email" id="lv-email" class="param-input" placeholder="cliente@email.com"
+                                style="margin-top: 5px;">
+                        </div>
+
+                        <!-- Code is optional/auto -->
+                        <div class="form-group" style="margin-top: 10px;">
+                            <label style="font-size: 0.8rem;">Código Bono (Opcional)</label>
+                            <input type="text" id="lv-code" class="param-input"
+                                placeholder="Dejar vacío para auto-generar"
+                                style="margin-top: 5px; font-family: monospace;">
+                        </div>
+                    </div>
+
+                    <!-- Columna Derecha: Detalle -->
+                    <div style="background: #fff; padding: 15px; border-radius: 8px; border: 1px solid var(--border);">
+                        <h3
+                            style="font-size: 0.9rem; margin: 0 0 15px 0; color: var(--text-muted); text-transform: uppercase; font-weight: 600;">
+                            <i class="fas fa-info-circle"></i> Detalle del Bono
+                        </h3>
+
+                        <div class="form-group">
+                            <label style="font-size: 0.8rem;">Producto / Servicio</label>
+                            <select id="lv-product-select" class="param-input" onchange="checkCustomProduct(this)"
+                                style="margin-top: 5px;">
+                                <option value="">Seleccionar del catálogo...</option>
+                            </select>
+                            <input type="text" id="lv-product-custom" class="param-input"
+                                style="display: none; margin-top: 5px;" placeholder="Nombre personalizado">
+                            <div id="lv-product-details"
+                                style="font-size: 0.75rem; color: #1e40af; background: #eff6ff; padding: 10px; border-radius: 8px; border: 1px solid #bfdbfe; margin-top: 8px; display: none;">
+                                <div style="display: flex; gap: 10px; align-items: center;">
+                                    <img id="lv-img-preview" src=""
+                                        style="width: 50px; height: 50px; object-fit: cover; border-radius: 4px; display: none; border: 1px solid #bfdbfe;">
+                                    <div id="lv-details-text" style="line-height: 1.3; font-style: italic;"></div>
+                                </div>
+                            </div>
+
+                            <button type="button" class="btn btn-outline" onclick="addToCartLocal()"
+                                style="width: 100%; margin-top: 10px; font-size: 0.8rem;">
+                                <i class="fas fa-plus-circle"></i> Añadir Línea al Bono
+                            </button>
+                        </div>
+
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px;">
+                            <div class="form-group">
+                                <label style="font-size: 0.8rem;">Importe (€)</label>
+                                <div style="position: relative;">
+                                    <input type="number" id="lv-price" class="param-input" step="0.01"
+                                        style="padding-left: 20px; margin-top: 5px;">
+                                    <span style="position: absolute; left: 8px; top: 13px; color: #aaa;">€</span>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label style="font-size: 0.8rem;">Sesiones</label>
+                                <input type="number" id="lv-sessions" value="1" class="param-input"
+                                    style="margin-top: 5px;">
+                            </div>
+                        </div>
+
+                        <div
+                            style="grid-column: span 2; margin-top: 10px; border-top: 1px dashed #e2e8f0; padding-top: 10px;">
+                            <h4
+                                style="font-size: 0.8rem; text-transform: uppercase; color: #64748b; margin-bottom: 5px;">
+                                Contenido del Bono</h4>
+                            <div id="lv-cart-list"
+                                style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 10px; min-height: 50px;">
+                                <div style="text-align: center; color: #94a3b8; font-size: 0.75rem;">Ningún producto
+                                    añadido
+                                </div>
+                            </div>
+                            <div
+                                style="display: flex; justify-content: space-between; margin-top: 5px; font-weight: 600; font-size: 0.9rem;">
+                                <span>TOTAL:</span>
+                                <span id="lv-total-display">0.00€ (0 Sesiones)</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div> <!-- End modal-body -->
+
+        <div class="modal-footer">
+            <button onclick="closeLocalVoucherModal()" class="btn btn-outline"
+                style="flex:1; justify-content: center;">Cancelar</button>
+            <button id="lv-save-btn" onclick="createLocalVoucher()" class="btn btn-accent"
+                style="flex: 2; justify-content: center;">
+                <i class="fas fa-save"></i> <span>Crear Bono</span>
+            </button>
+        </div>
+    </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toast-container"></div>
+
+    <!-- Scripts -->
+    <script src="firebase-config.js"></script>
+    <script src="js/app-core.js"></script>
+    <script src="js/bonos.js"></script>
+</body>
+
+</html>

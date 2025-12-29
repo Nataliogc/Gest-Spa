@@ -59,6 +59,12 @@
             border-style: dashed;
         }
 
+        .slot-card.past {
+            background: #f8fafc;
+            opacity: 0.5;
+            border-style: dotted;
+        }
+
         .pax-badge {
             font-size: 1.2rem;
             font-weight: 700;
@@ -119,32 +125,235 @@
         .main-content {
             padding: 30px !important;
         }
+
+        /* Timeline Redesign */
+        .timeline-mode {
+            display: flex !important;
+            flex-direction: column !important;
+            gap: 0 !important;
+            background: #fff;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            box-shadow: var(--shadow);
+            max-height: calc(100vh - 160px);
+            overflow-y: auto !important;
+            flex-shrink: 0;
+        }
+
+        .timeline-row {
+            transition: background 0.2s;
+        }
+
+        .timeline-row:hover {
+            background: rgba(0, 0, 0, 0.01);
+        }
+
+        .time-col {
+            width: 80px;
+            padding: 15px;
+            border-right: 1px solid #f0f0f0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .time-bubble {
+            font-size: 0.85rem;
+            font-weight: 700;
+            color: var(--text);
+            background: #f7fafc;
+            padding: 4px 10px;
+            border-radius: 20px;
+            border: 1px solid #e2e8f0;
+        }
+
+        .content-col {
+            flex: 1;
+            padding: 12px 20px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            min-height: 70px;
+        }
+
+        .booking-card {
+            background: #fff;
+            border: 1px solid #e2e8f0;
+            border-left-width: 4px;
+            border-radius: 8px;
+            padding: 12px 15px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.04);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: transform 0.2s;
+        }
+
+        .booking-card:hover {
+            transform: translateX(4px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.08);
+        }
+
+        .booking-info h4 {
+            margin: 0;
+            font-size: 0.95rem;
+            font-weight: 700;
+            color: var(--text);
+        }
+
+        .booking-info p {
+            margin: 4px 0 0;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .booking-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .status-lock {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #a0aec0;
+            font-size: 0.8rem;
+            font-weight: 500;
+            font-style: italic;
+        }
+
+        /* Tooltip style for observations */
+        .tooltip {
+            position: relative;
+            display: inline-block;
+            cursor: pointer;
+        }
+
+        .tooltip .tooltiptext {
+            visibility: hidden;
+            min-width: 200px;
+            max-width: 350px;
+            width: max-content;
+            background-color: #1e293b;
+            color: #fff;
+            text-align: left;
+            border-radius: 8px;
+            padding: 12px;
+            position: absolute;
+            z-index: 9999;
+            /* Higher z-index to stay on top of everything */
+            bottom: 150%;
+            /* Moved up slightly */
+            left: 50%;
+            transform: translateX(-50%);
+            opacity: 0;
+            transition: all 0.3s ease;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+            font-size: 0.85rem;
+            line-height: 1.5;
+            pointer-events: none;
+            word-wrap: break-word;
+            word-break: break-all;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .tooltip .tooltiptext::after {
+            content: "";
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            margin-left: -5px;
+            border-width: 5px;
+            border-style: solid;
+            border-color: #1e293b transparent transparent transparent;
+        }
+
+        .tooltip:hover .tooltiptext {
+            visibility: visible;
+            opacity: 1;
+            bottom: 135%;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        /* Prevent table container from clipping tooltips */
+        .table-container {
+            overflow: visible !important;
+            margin-bottom: 20px;
+        }
+
+        table {
+            border-collapse: separate;
+            border-spacing: 0;
+            width: 100%;
+        }
+
+        thead th {
+            position: sticky;
+            top: 0;
+            background: #f8fafc;
+            z-index: 5;
+            /* Lower than tooltip z-index (9999) */
+            border-bottom: 2px solid #edf2f7;
+        }
     </style>
 </head>
 
 <body>
     <!-- Sidebar -->
+    <!-- Top Navbar -->
     <div class="sidebar">
-        <div style="text-align: center; margin-bottom: 25px;">
-            <img src="logo-spa.jpg" alt="Cumbria Bienestar" style="max-width: 85%; height: auto;">
+        <!-- LEFT: Cumbria Logo -->
+        <div style="display: flex; align-items: center; gap: 15px;">
+            <img src="logo-spa.jpg" alt="Cumbria Bienestar" style="height: 65px; width: auto; object-fit: contain;">
         </div>
 
-        <ul class="nav-links">
+        <ul class="nav-links" style="flex:1;">
             <li><a href="index.html" class="nav-link"><i class="fas fa-home"></i> Inicio</a></li>
-            <li><a href="index.html" class="nav-link"><i class="fas fa-ticket-alt"></i> Bonos</a></li>
-            <li><a href="reservas.html?type=spa" class="nav-link"><i class="fas fa-calendar-alt"></i> Panel General
-                    (Spa)</a></li>
-            <li><a href="reservas.html?type=suite" class="nav-link"><i class="fas fa-gem"></i> Suite Spa</a></li>
-            <li><a href="reservas.html?type=panacea" class="nav-link"><i class="fas fa-tint"></i> Sala Panacea</a></li>
-            <li><a href="reservas.html?type=vip" class="nav-link"><i class="fas fa-crown"></i> Sala VIP</a></li>
-            <!-- <li><a href="reservas.html?type=peluqueria" class="nav-link"><i class="fas fa-cut"></i> Peluquería</a></li> -->
-            <li style="margin-top: 20px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 10px;">
-                <a href="personal.html" class="nav-link"><i class="fas fa-users-cog"></i> Gestión Personal</a>
+            <li><a href="bonos.html" class="nav-link"><i class="fas fa-ticket-alt"></i> Bonos</a></li>
+
+            <li class="menu-header" style="font-size: 0.7rem; color: #aaa; margin: 10px 0 5px 10px; font-weight: 600;">
+                MÓDULOS</li>
+            <li><a href="reservas.html?type=spa" class="nav-link"><i class="fas fa-water"></i> Spa</a></li>
+            <li><a href="reservas.html?type=suite" class="nav-link"><i class="fas fa-gem"></i> Suite</a></li>
+            <li><a href="reservas.html?type=panacea" class="nav-link"><i class="fas fa-columns"></i> Panacea & VIP</a>
+            </li>
+            <li><a href="reservas.html?type=peluqueria" class="nav-link"><i class="fas fa-cut"></i> Peluquería</a></li>
+
+            <li class="dropdown">
+                <a href="#" class="nav-link dropdown-toggle">
+                    <i class="fas fa-users-cog"></i> GESTIÓN <i class="fas fa-caret-down"
+                        style="font-size: 0.7em; margin-left: 2px;"></i>
+                </a>
+                <ul class="dropdown-menu">
+                    <li><a href="personal.html"><i class="fas fa-user-tie"></i> Personal</a></li>
+                    <li><a href="catalogo.html"><i class="fas fa-book-open"></i> Catálogo</a></li>
+                    <li><a href="configuracion.html"><i class="fas fa-cogs"></i> Ajustes</a></li>
+                </ul>
             </li>
         </ul>
 
-        <div style="text-align: center; margin-top: auto; padding: 10px 0; border-top: 1px solid var(--border);">
-            <img src="zenith-logo.png" alt="Zenith" style="max-width: 90px; height: auto; opacity: 0.85;">
+        <!-- RIGHT: Zenith Branding -->
+        <div style="display: flex; align-items: center; gap: 10px;">
+            <div style="text-align: right; line-height: 1.2;">
+                <span style="font-size: 0.9rem; font-weight: 600; display: block; color: var(--text);">ZENITH</span>
+                <span style="font-size: 0.75rem; letter-spacing: 1px; color: var(--text-muted);">MANAGER</span>
+            </div>
+            <img src="zenith-logo.png" alt="Zenith" style="height: 35px; width: auto;">
         </div>
     </div>
 
@@ -153,14 +362,42 @@
         <header class="header-flex">
             <div style="display: flex; align-items: center; gap: 20px;">
                 <img src="zenith-logo.png" alt="Zenith Logo" style="height: 40px; width: auto; margin-right: -5px;">
-                <h2 style="margin: 0; line-height: 1;">PANEL DE TURNOS</h2>
-                <input type="date" id="main-date-picker" class="param-input" style="width: 180px;">
+                <h2 style="margin: 0; line-height: 1; white-space: nowrap; font-size: 1.5rem;">PANEL DE TURNOS <small
+                        style="font-weight: 400; font-size: 1rem; color: #64748b;">(SPA)</small></h2>
 
-                <label class="switch-container">
+                <div
+                    style="display: flex; align-items: center; background: #f1f5f9; padding: 6px 12px; border-radius: 8px; gap: 8px;">
+                    <button onclick="changeDate(-1)" class="btn-icon-only"
+                        style="border:none; background:transparent; cursor:pointer; color: #64748b;">
+                        <i class="fas fa-chevron-left"></i>
+                    </button>
+
+                    <div style="position: relative; display: flex; align-items: center; cursor: pointer;"
+                        onclick="openDatePicker()">
+                        <span id="date-display"
+                            style="font-weight: 600; color: #334155; font-size: 0.95rem; text-transform: capitalize; min-width: 180px; text-align: center; white-space: nowrap;">
+                            Cargando...
+                        </span>
+                        <!-- Hidden Input but clickable for picker -->
+                        <input type="date" id="main-date-picker" class="param-input"
+                            style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer;"
+                            onchange="handleDateChange(this.value)">
+                    </div>
+
+                    <button onclick="changeDate(1)" class="btn-icon-only"
+                        style="border:none; background:transparent; cursor:pointer; color: #64748b;">
+                        <i class="fas fa-chevron-right"></i>
+                    </button>
+                    <i class="fas fa-calendar-alt"
+                        style="color: #94a3b8; margin-left: 5px; font-size: 0.9rem; pointer-events: none;"></i>
+                </div>
+
+                <label class="switch-container"
+                    style="display: flex; align-items: center; gap: 6px; font-size: 0.8rem; color: #64748b; cursor: pointer;">
                     <input type="checkbox" id="show-cancelled"
                         onchange="loadReservas(document.getElementById('main-date-picker').value)"
-                        style="width: 14px; height: 14px; cursor:pointer;">
-                    Ver Anuladas
+                        style="cursor:pointer;">
+                    <span>Ver Anuladas</span>
                 </label>
             </div>
             <div id="status-legend" style="display: flex; gap: 15px; font-size: 0.75rem; color: var(--text-muted);">
@@ -171,8 +408,24 @@
         </header>
 
         <!-- Dynamic Grid of Slots -->
+        <!-- Dynamic Grid of Slots (Single View) -->
         <div id="slots-container" class="grid-7">
             <!-- Rendered by JS -->
+        </div>
+
+        <!-- Split View Container -->
+        <div id="split-view-container"
+            style="display: none; grid-template-columns: 1fr 1fr; gap: 20px; height: calc(100vh - 160px);">
+            <!-- Col 1 -->
+            <div id="split-col-1" style="display: flex; flex-direction: column; height: 100%;">
+                <h3 style="text-align: center; margin-bottom: 10px; color: var(--accent);">SALA PANACEA</h3>
+                <div id="timeline-container-panacea" class="timeline-mode" style="flex:1;"></div>
+            </div>
+            <!-- Col 2 -->
+            <div id="split-col-2" style="display: flex; flex-direction: column; height: 100%;">
+                <h3 style="text-align: center; margin-bottom: 10px; color: var(--accent);">SALA VIP</h3>
+                <div id="timeline-container-vip" class="timeline-mode" style="flex:1;"></div>
+            </div>
         </div>
 
         <!-- Hourly Details / Selected Slot -->
@@ -221,64 +474,142 @@
             <span class="close-modal" onclick="closeModal()"
                 style="top: 8px; right: 12px; font-size: 1.2rem;">&times;</span>
 
-            <div class="modal-header"
-                style="margin-bottom: 0px; border: none; display: flex; justify-content: space-between; align-items: baseline;">
-                <h3 id="modal-title" style="font-size: 1.3rem; font-weight: 300; color: var(--text); margin: 0;">Nueva
-                    Reserva</h3>
-                <span id="res-id-display" class="res-id-badge"
-                    style="background: none; color: #a0aec0; border: none; font-size: 0.8rem; letter-spacing: 1px; font-weight: 700;">NUEVA</span>
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px;">
+                <div>
+                    <h2 id="modal-title"
+                        style="margin: 0; font-size: 1.6rem; color: #1e293b; font-weight: 800; letter-spacing: -0.5px;">
+                        Editar Reserva</h2>
+                    <p id="modal-subtitle"
+                        style="margin: 5px 0 0; font-size: 0.9rem; color: #64748b; font-weight: 500;">
+                        Cargando turno...</p>
+                </div>
+                <div style="text-align: right; display: flex; flex-direction: column; gap: 4px;">
+                    <span id="res-id-display"
+                        style="font-size: 1.1rem; font-weight: 900; color: #cbd5e1; letter-spacing: 1px;">RS-XXXX</span>
+                    <div id="audit-info"
+                        style="font-size: 0.65rem; color: #94a3b8; line-height: 1.2; font-weight: 600;"></div>
+                </div>
             </div>
-
-            <p id="modal-subtitle" style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 10px;"></p>
-            <div id="audit-info"
-                style="position: absolute; top: 38px; right: 20px; font-size: 0.55rem; color: #bbb; text-align: right; line-height: 1;">
-            </div>
-
-            <form id="booking-form" style="display: flex; flex-direction: column; gap: 8px;">
+            <form id="booking-form" style="display: flex; flex-direction: column; gap: 15px; margin-top: 10px;">
                 <input type="hidden" id="form-id">
-                <input type="hidden" id="form-date">
-                <input type="hidden" id="form-time">
-
-                <!-- FILA 1: CLIENTE (GROW), PAX (FIXED), TELÉFONO (FIXED) -->
-                <div style="display: grid; grid-template-columns: 1fr 100px 180px; gap: 10px;">
-                    <div class="form-group" style="margin-bottom: 0;">
-                        <label
-                            style="text-transform: uppercase; font-size: 0.6rem; font-weight: 700; color: #a0aec0; letter-spacing: 0.5px; margin-bottom: 3px; display: flex; align-items: center; gap: 5px;">
-                            <i class="fas fa-user"></i> CLIENTE
-                        </label>
-                        <input type="text" id="res-nombre" required placeholder="Nombre completo"
-                            style="padding: 8px 10px; border-radius: 6px; border: 1px solid #e2e8f0; font-size: 0.85rem; height: 34px; background: #fff;">
-                    </div>
-
-                    <div class="form-group" style="margin-bottom: 0;">
-                        <label
-                            style="text-transform: uppercase; font-size: 0.6rem; font-weight: 700; color: #a0aec0; letter-spacing: 0.5px; margin-bottom: 3px; display: flex; align-items: center; gap: 5px;">
-                            <i class="fas fa-users"></i> PAX
-                        </label>
-                        <input type="number" id="res-pax" value="2" min="1" max="25" required
-                            style="padding: 8px 10px; border-radius: 6px; border: 1px solid #e2e8f0; font-size: 0.85rem; height: 34px; background: #fff;">
-                    </div>
-                    <div class="form-group" id="tel-group" style="margin-bottom: 0;">
-                        <label
-                            style="text-transform: uppercase; font-size: 0.6rem; font-weight: 700; color: #a0aec0; letter-spacing: 0.5px; margin-bottom: 3px; display: flex; align-items: center; gap: 5px;">
-                            <i class="fas fa-phone"></i> TELÉFONO
-                        </label>
-                        <input type="tel" id="res-tel" required placeholder="XXX XXX XXX" pattern="\d{3} \d{3} \d{3}"
-                            minlength="11" maxlength="11"
-                            style="padding: 8px 10px; border-radius: 6px; border: 1px solid #e2e8f0; font-size: 0.85rem; height: 34px; background: #fff;">
-                    </div>
+                <!-- Date and Time moved to visible grid below -->
+                <div id="duration-group" style="display:none;">
+                    <input type="hidden" id="inputDuration" value="60">
                 </div>
 
-                <!-- FILA 2: ORIGEN (50%), SERVICIO (50%) -->
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                <!-- MAIN FIELDS GRID -->
+                <div
+                    style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; background: #fff; padding: 15px; border-radius: 10px; border: 1px solid #edf2f7; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
+
+                    <!-- DATE / TIME (VISIBLE FOR RESCHEDULING) -->
+                    <div
+                        style="display: flex; gap: 10px; grid-column: 1 / -1; background: #eff6ff; padding: 10px 15px; border-radius: 8px; border: 1px solid #dbeafe; margin-bottom: 10px;">
+                        <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                            <label
+                                style="font-size: 0.65rem; font-weight: 800; color: #1e40af; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; display: block;">
+                                <i class="fas fa-calendar-day"></i> Fecha
+                            </label>
+                            <input type="date" id="form-date" required
+                                style="width: 100%; padding: 6px 10px; border-radius: 6px; border: 1px solid #bfdbfe; font-size: 0.95rem; font-weight: 700; color: #1e3a8a; background: #fff;">
+                        </div>
+                        <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                            <label
+                                style="font-size: 0.65rem; font-weight: 800; color: #1e40af; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; display: block;">
+                                <i class="fas fa-clock"></i> Hora
+                            </label>
+                            <select id="form-time" required
+                                style="width: 100%; padding: 6px 10px; border-radius: 6px; border: 1px solid #bfdbfe; font-size: 0.95rem; font-weight: 700; color: #1e3a8a; background: #fff;">
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- CLIENTE -->
                     <div class="form-group" style="margin-bottom: 0;">
                         <label
-                            style="text-transform: uppercase; font-size: 0.6rem; font-weight: 700; color: #a0aec0; letter-spacing: 0.5px; margin-bottom: 3px; display: flex; align-items: center; gap: 5px;">
-                            <i class="fas fa-tag"></i> ORIGEN
-                        </label>
+                            style="font-size: 0.7rem; font-weight: 800; color: #4a5568; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; display: block;">Datos
+                            del Cliente</label>
+                        <input type="text" id="res-nombre" required placeholder="Nombre Completo"
+                            style="width: 100%; padding: 8px 12px; border-radius: 6px; border: 1px solid #e2e8f0; font-size: 0.9rem; transition: border-color 0.2s; outline: none; background: #f8fafc;">
+                    </div>
+
+                    <!-- SERVICIO -->
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label
+                            style="font-size: 0.7rem; font-weight: 800; color: #4a5568; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; display: block;">Servicio
+                            y Categoria</label>
+                        <select id="res-servicio" required onchange="updatePackInfo(); updatePriceAutomation();"
+                            style="width: 100%; padding: 8px 10px; border-radius: 6px; border: 1px solid #e2e8f0; font-size: 0.9rem; background: #fff; cursor: pointer; font-weight: 600; color: var(--accent);">
+                            <option value="Circuito Spa">Circuito Spa</option>
+                        </select>
+                    </div>
+
+                    <!-- TEL / PAX -->
+                    <div style="display: flex; gap: 10px;">
+                        <div class="form-group" id="tel-group" style="flex: 1; margin-bottom: 0;">
+                            <label
+                                style="font-size: 0.65rem; font-weight: 700; color: #94a3b8; text-transform: uppercase;">Teléfono</label>
+                            <input type="tel" id="res-tel" placeholder="XXX XXX XXX" required
+                                style="width: 100%; padding: 6px 10px; border-radius: 6px; border: 1px solid #e2e8f0; font-size: 0.85rem; background: #f8fafc;">
+                        </div>
+                        <div class="form-group" style="width: 65px; margin-bottom: 0;">
+                            <label
+                                style="font-size: 0.65rem; font-weight: 700; color: #94a3b8; text-transform: uppercase;">Pax</label>
+                            <input type="number" id="res-pax" value="2" min="1" max="25" required
+                                style="width: 100%; padding: 6px; border-radius: 6px; border: 1px solid #e2e8f0; font-size: 0.85rem; text-align: center; background: #f8fafc;">
+                        </div>
+                    </div>
+
+                    <!-- HOTEL / HAB / BONO / STAFF -->
+                    <div style="display: flex; flex-direction: column; gap: 8px;">
+                        <!-- STAFF (Conditional) -->
+                        <div class="form-group" id="staff-selector-group" style="margin-bottom: 0; display: none;">
+                            <label
+                                style="font-size: 0.65rem; font-weight: 700; color: var(--accent); text-transform: uppercase;">Terapeuta</label>
+                            <select id="booking-staff"
+                                style="width: 100%; padding: 5px 8px; border-radius: 6px; border: 1px solid #e2e8f0; font-size: 0.8rem; background: #f0fdf4;">
+                                <option value="">Seleccione...</option>
+                            </select>
+                        </div>
+
+                        <div id="extra-fields-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                            <div class="form-group" id="hotel-group" style="display:none; margin-bottom: 0;">
+                                <label
+                                    style="font-size: 0.65rem; font-weight: 700; color: #94a3b8; text-transform: uppercase;">Hotel</label>
+                                <select id="res-hotel"
+                                    style="width: 100%; padding: 4px 8px; border-radius: 6px; border: 1px solid #e2e8f0; font-size: 0.8rem;">
+                                    <option value="Cumbria">Cumbria</option>
+                                    <option value="Guadiana">Guadiana</option>
+                                </select>
+                            </div>
+                            <div class="form-group" id="room-group" style="display:none; margin-bottom: 0;">
+                                <label
+                                    style="font-size: 0.65rem; font-weight: 700; color: #94a3b8; text-transform: uppercase;">Hab</label>
+                                <input type="text" id="res-hab" placeholder="Hab"
+                                    style="width: 100%; padding: 4px 8px; border-radius: 6px; border: 1px solid #e2e8f0; font-size: 0.8rem;">
+                            </div>
+                            <div class="form-group" id="bono-group" style="display:none; margin-bottom: 0;">
+                                <label
+                                    style="font-size: 0.65rem; font-weight: 700; color: #94a3b8; text-transform: uppercase;">Bono</label>
+                                <input type="text" id="res-bono" placeholder="ID Bono"
+                                    style="width: 100%; padding: 4px 8px; border-radius: 6px; border: 1px solid #e2e8f0; font-size: 0.8rem;">
+                            </div>
+                            <div class="form-group" id="sessions-group" style="display:none; margin-bottom: 0;">
+                                <label
+                                    style="font-size: 0.65rem; font-weight: 700; color: #94a3b8; text-transform: uppercase;">Sesiones</label>
+                                <input type="number" id="res-sesiones" value="1" min="1" max="10"
+                                    style="width: 100%; padding: 4px 8px; border-radius: 6px; border: 1px solid #e2e8f0; font-size: 0.8rem;">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ORIGEN -->
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label
+                            style="font-size: 0.65rem; font-weight: 800; color: #4a5568; text-transform: uppercase;">Origen
+                            de Reserva</label>
                         <select id="res-origen" onchange="toggleRoomField()"
-                            style="padding: 8px 10px; border-radius: 6px; border: 1px solid #e2e8f0; font-size: 0.85rem; background: #fff; height: 34px;">
-                            <option value="particular">Particular (Pago)</option>
+                            style="width: 100%; padding: 8px 10px; border-radius: 6px; border: 1px solid #e2e8f0; font-size: 0.9rem; background: #fff; cursor: pointer;">
+                            <option value="particular">Particular (Pago Directo)</option>
                             <option value="hotel_inc">Hotel - Incluido</option>
                             <option value="hotel_no_inc">Hotel - NO Incluidos</option>
                             <option value="bono">Bono Spa (Interno)</option>
@@ -287,102 +618,81 @@
                             <option value="ego">Ego Experiencias</option>
                         </select>
                     </div>
-                    <div class="form-group" style="margin-bottom: 0;">
-                        <label
-                            style="text-transform: uppercase; font-size: 0.6rem; font-weight: 700; color: #a0aec0; letter-spacing: 0.5px; margin-bottom: 3px; display: flex; align-items: center; gap: 5px;">
-                            <i class="fas fa-spa"></i> SERVICIO
-                        </label>
-                        <select id="res-servicio" required
-                            style="padding: 8px 10px; border-radius: 6px; border: 1px solid #e2e8f0; font-size: 0.85rem; background: #fff; height: 34px;">
-                            <option value="Circuito Spa">Circuito Spa</option>
-                        </select>
-                    </div>
-                </div>
 
-                <!-- FILA 3: CAMPOS DINÁMICOS -->
-                <div id="extra-fields-row" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;">
-                    <div class="form-group" id="hotel-group" style="display:none; margin-bottom: 0;">
+                    <!-- COMPLEMENTOS (NEW LOCATION) -->
+                    <div id="complementos-container"
+                        style="display: none; padding: 5px 8px; background: #f8fafc; border-radius: 8px; border: 1px solid #edf2f7; overflow-y: auto; max-height: 120px;">
                         <label
-                            style="text-transform: uppercase; font-size: 0.6rem; font-weight: 700; color: #a0aec0; letter-spacing: 0.5px; margin-bottom: 3px; display: flex; align-items: center; gap: 5px;">
-                            <i class="fas fa-hotel"></i> HOTEL
-                        </label>
-                        <select id="res-hotel"
-                            style="padding: 8px 10px; border-radius: 6px; border: 1px solid #e2e8f0; font-size: 0.85rem; background: #fff; height: 34px;">
-                            <option value="Cumbria">Cumbria</option>
-                            <option value="Guadiana">Guadiana</option>
-                        </select>
+                            style="font-size: 0.6rem; font-weight: 800; color: #64748b; text-transform: uppercase; margin-bottom: 4px; display: block;">Complementos</label>
+                        <div id="complementos-list" style="display: flex; flex-wrap: wrap; gap: 4px;"></div>
                     </div>
-                    <div class="form-group" id="room-group" style="display:none; margin-bottom: 0;">
-                        <label
-                            style="text-transform: uppercase; font-size: 0.6rem; font-weight: 700; color: #a0aec0; letter-spacing: 0.5px; margin-bottom: 3px; display: flex; align-items: center; gap: 5px;">
-                            <i class="fas fa-door-open"></i> HABITACIÓN
-                        </label>
-                        <input type="text" id="res-hab" placeholder="Nº"
-                            style="padding: 8px 10px; border-radius: 6px; border: 1px solid #e2e8f0; font-size: 0.85rem; height: 34px; background: #fff;">
-                    </div>
-                    <div class="form-group" id="bono-group" style="display:none; margin-bottom: 0;">
-                        <label
-                            style="text-transform: uppercase; font-size: 0.6rem; font-weight: 700; color: #a0aec0; letter-spacing: 0.5px; margin-bottom: 3px; display: flex; align-items: center; gap: 5px;">
-                            <i class="fas fa-ticket-alt"></i> ID BONO
-                        </label>
-                        <input type="text" id="res-bono" placeholder="Código"
-                            style="padding: 8px 10px; border-radius: 6px; border: 1px solid #e2e8f0; font-size: 0.85rem; height: 34px; background: #fff;">
-                    </div>
-                    <div class="form-group" id="sessions-group" style="display:none; margin-bottom: 0;">
-                        <label
-                            style="text-transform: uppercase; font-size: 0.6rem; font-weight: 700; color: #a0aec0; letter-spacing: 0.5px; margin-bottom: 3px; display: flex; align-items: center; gap: 5px;">
-                            <i class="fas fa-redo"></i> SESIONES
-                        </label>
-                        <input type="number" id="res-sesiones" value="1" min="1" max="10"
-                            style="padding: 8px 10px; border-radius: 6px; border: 1px solid #e2e8f0; font-size: 0.85rem; height: 34px; background: #fff;">
-                    </div>
-                </div>
 
-                <!-- FILA 4: OBSERVACIONES + PRECIOS -->
-                <div style="display: grid; grid-template-columns: 1.5fr 0.5fr 1fr; gap: 10px; align-items: end;">
-                    <div class="form-group" style="margin-bottom: 0;">
-                        <label
-                            style="text-transform: uppercase; font-size: 0.6rem; font-weight: 700; color: #a0aec0; letter-spacing: 0.5px; margin-bottom: 3px; display: flex; align-items: center; gap: 5px;">
-                            <i class="fas fa-comment-dots"></i> OBSERVACIONES
-                        </label>
-                        <textarea id="res-obs" placeholder="Notas internas..." rows="1"
-                            style="padding: 8px 10px; border-radius: 6px; border: 1px solid #e2e8f0; font-size: 0.85rem; width: 100%; height: 34px; resize: none; background: #fff;"></textarea>
-                    </div>
-                    <div class="form-group" id="price-group" style="margin-bottom: 0;">
-                        <label
-                            style="text-transform: uppercase; font-size: 0.6rem; font-weight: 700; color: #a0aec0; letter-spacing: 0.5px; margin-bottom: 3px; display: flex; align-items: center; gap: 5px;">
-                            <i class="fas fa-euro-sign"></i> P.PAX
-                        </label>
-                        <input type="number" id="res-precio-pax" step="0.01" value="0" required
-                            style="padding: 8px 10px; border-radius: 6px; border: 1px solid #e2e8f0; font-size: 0.85rem; width: 100%; height: 34px; background: #fff;">
-                    </div>
-                    <div class="form-group" style="margin-bottom: 0;">
-                        <label
-                            style="text-transform: uppercase; font-size: 0.6rem; font-weight: 700; color: #a0aec0; letter-spacing: 0.5px; margin-bottom: 3px;">TOTAL</label>
-                        <div id="res-total-display"
-                            style="font-size: 1rem; font-weight: 800; color: var(--accent); background: #fdfaf0; padding: 0 10px; border-radius: 6px; border: 1px solid #ffeeba; text-align: center; height: 34px; display: flex; align-items: center; justify-content: center;">
-                            <span id="res-total-text">0.00 €</span>
+                    <!-- PACK INFO (Merged inside grid) -->
+                    <div id="pack-includes-container"
+                        style="display: none; padding: 8px; background: #fff7ed; border-radius: 6px; font-size: 0.7rem; grid-column: 1 / -1; border: 1px dashed #fdba74;">
+                        <div id="pack-items-list"
+                            style="display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 5px;"></div>
+                        <div id="pack-reminder" style="display: none; color: #c2410c; font-weight: 700;">
+                            <i class="fas fa-utensils"></i> Recuerda reservar mesa en el restaurante si el servicio
+                            incluye comida.
                         </div>
-                        <input type="hidden" id="res-precio-total" value="0">
+                    </div>
+
+                    <!-- OBSERVACIONES -->
+                    <div class="form-group" style="grid-column: 1 / -1; margin-top: 5px;">
+                        <label
+                            style="font-size: 0.65rem; font-weight: 800; color: #4a5568; text-transform: uppercase;">Observaciones</label>
+                        <textarea id="res-obs" placeholder="Notas sobre alergias, preferencias o incidencias..."
+                            oninput="this.style.height = 'auto'; this.style.height = (this.scrollHeight) + 'px';"
+                            style="width: 100%; padding: 8px 12px; border-radius: 6px; border: 1px solid #e2e8f0; font-size: 0.85rem; background: #fdfdfd; resize: none; min-height: 40px; height: 40px; display: block; line-height: 1.4;"></textarea>
                     </div>
                 </div>
 
-                <!-- ACCIONES -->
-                <div class="form-actions" style="display: flex; gap: 8px; margin-top: 4px;">
-                    <button type="submit" class="btn btn-accent"
-                        style="flex: 2; padding: 0 10px; border-radius: 6px; font-weight: 700; font-size: 0.8rem; height: 36px;">
-                        <i class="fas fa-check"></i> GUARDAR RESERVA
-                    </button>
-                    <button type="button" id="btn-cancelar" class="btn btn-outline"
-                        style="flex: 1; border-color: #feb2b2; color: #f56565; display: none; padding: 0 10px; border-radius: 6px; font-weight: 700; font-size: 0.8rem; height: 36px;"
-                        onclick="cancelBookingFromModal()">
-                        <i class="fas fa-trash"></i> ANULAR
-                    </button>
-                    <button type="button" class="btn btn-outline"
-                        style="flex: 1; padding: 0 10px; border-radius: 6px; font-weight: 700; font-size: 0.8rem; height: 36px;"
-                        onclick="closeModal()">
-                        <i class="fas fa-times"></i> SALIR
-                    </button>
+                <!-- FOOTER: SUMMARY & ACTIONS -->
+                <div
+                    style="display: flex; justify-content: space-between; align-items: stretch; background: #1e293b; padding: 15px; border-radius: 12px; margin-top: 5px;">
+                    <!-- SUMMARY AREA -->
+                    <div style="display: flex; gap: 15px; align-items: center;">
+                        <div id="price-group" style="display: flex; flex-direction: column; gap: 2px;">
+                            <span
+                                style="font-size: 0.65rem; font-weight: 700; color: #94a3b8; text-transform: uppercase;">Precio/PAX</span>
+                            <div style="display: flex; align-items: baseline; gap: 2px;">
+                                <input type="number" id="res-precio-pax" step="0.01" value="0"
+                                    style="width: 65px; background: transparent; border: none; font-size: 1.1rem; color: #fff; font-weight: 700; padding: 0;">
+                                <span style="color: #94a3b8; font-size: 0.9rem;">€</span>
+                            </div>
+                        </div>
+
+                        <div style="height: 30px; width: 1px; background: #334155;"></div>
+
+                        <div style="display: flex; flex-direction: column; gap: 2px;">
+                            <span
+                                style="font-size: 0.65rem; font-weight: 700; color: #94a3b8; text-transform: uppercase;">Total
+                                Reserva</span>
+                            <div id="res-total-display"
+                                style="font-size: 1.5rem; font-weight: 800; color: var(--accent);">
+                                <span id="res-total-text">0.00 €</span>
+                            </div>
+                            <input type="hidden" id="res-precio-total" value="0">
+                        </div>
+                    </div>
+
+                    <!-- ACTIONS AREA -->
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <button type="button" id="btn-cancelar" class="btn btn-outline"
+                            style="height: 44px; padding: 0 20px; border-color: #ef4444; color: #ef4444; border-radius: 8px; font-weight: 700; display: none;"
+                            onclick="cancelBookingFromModal()">ANULAR</button>
+
+                        <button type="button" class="btn btn-outline"
+                            style="height: 44px; padding: 0 20px; border-color: #334155; color: #cbd5e1; border-radius: 8px; font-weight: 600;"
+                            onclick="closeModal()">CERRAR</button>
+
+                        <button type="button" id="btn-save-booking" class="btn btn-accent"
+                            style="height: 44px; padding: 0 30px; border-radius: 8px; font-weight: 800; font-size: 1rem; box-shadow: 0 4px 12px rgba(212, 175, 55, 0.3);"
+                            onclick="handleFormSubmit()">
+                            GUARDAR RESERVA
+                        </button>
+                    </div>
                 </div>
             </form>
         </div>
@@ -392,6 +702,7 @@
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
     <script src="firebase-config.js"></script>
+    <script src="js/app-core.js"></script>
 
     <script>
         const db = firebase.firestore();
@@ -412,6 +723,7 @@
 
         const MODULES = {
             'spa': {
+                code: 'spa',
                 name: 'PANEL DE TURNOS (SPA)',
                 collection: 'reservas_spa',
                 capacity: 20,
@@ -422,45 +734,54 @@
                 viewType: 'grid'
             },
             'suite': {
+                code: 'suite',
                 name: 'SUITE SPA',
                 collection: 'reservas_suite',
                 capacity: 1,
                 slotsWeek: SLOTS_15_MIN,
-                slotsSun: SLOTS_15_MIN, // Asumimos mismo horario por ahora
+                slotsSun: SLOTS_15_MIN,
                 isPrivate: true,
-                requiresStaff: false, // Auto-flag: Suite NO consume personal
-                viewType: 'timeline'
+                requiresStaff: false,
+                viewType: 'timeline' // Suite is now timeline based on user request
             },
             'panacea': {
+                code: 'panacea',
                 name: 'SALA SPA PANACEA',
                 collection: 'reservas_panacea',
                 capacity: 1,
                 isPrivate: true,
-                requiresStaff: true, // Consume personal
+                requiresStaff: true,
                 viewType: 'timeline'
             },
             'vip': {
+                code: 'vip',
                 name: 'SALA VIP',
                 collection: 'reservas_vip',
                 capacity: 1,
                 isPrivate: true,
-                requiresStaff: true, // Consume personal
+                requiresStaff: true,
                 viewType: 'timeline'
             },
             'peluqueria': {
+                code: 'peluqueria',
                 name: 'PELUQUERÍA',
                 collection: 'reservas_peluqueria',
                 capacity: 2,
+                slotsWeek: SLOTS_15_MIN,
+                slotsSun: SLOTS_15_MIN,
                 isPrivate: false,
                 requiresStaff: true,
-                viewType: 'grid' // O timeline, a definir
+                viewType: 'timeline'
             }
         };
 
         // Detectar módulo actual
         const urlParams = new URLSearchParams(window.location.search);
         const moduleType = urlParams.get('type') || 'spa';
-        const currentModule = MODULES[moduleType] || MODULES['spa'];
+        window.currentModule = MODULES[moduleType] || MODULES['spa'];
+        // Keep a local reference for easier typing if mostly used locally, 
+        // but remember to update window.currentModule when changing logical context.
+        let currentModule = window.currentModule;
 
         console.log("Módulo activo:", currentModule.name);
 
@@ -478,11 +799,16 @@
         }
 
         let currentData = [];
+        let currentStaffAvailability = {};
         let selectedTime = null;
         let baseCircuitoPrice = 0;
+        let currentServices = [];
+        let currentComplementos = [];
         let spaConfig = {
             capacity: currentModule.capacity,
-            closedDates: []
+            cleaningTime: 30, // Default 30 min
+            closedDates: [],
+            whatsappTemplate: "Hola {{nombre}}, le confirmamos su reserva en {{espacio}} para el día {{fecha}} a las {{hora}}h ({{servicio}}).\n\nRecordatorio: Si no puede acudir, rogamos nos informe con al menos 12 horas de antelación. Las cancelaciones fuera de este plazo pueden conllevar gastos de gestión. ¡Le esperamos!"
         };
 
         document.addEventListener("DOMContentLoaded", async () => {
@@ -494,9 +820,7 @@
             await cargarSpaConfig();
             await loadStaffConfig(); // Cargar capacidad de personal
 
-            if (currentModule.isPrivate) spaConfig.capacity = 1;
-
-            fetchBasePrice();
+            await fetchBasePrice();
             picker.addEventListener("change", () => loadReservas(picker.value));
 
             // Ajustar UI según modo
@@ -504,6 +828,11 @@
                 document.getElementById('slots-container').classList.add('timeline-view');
                 // Inyectar campo duración en modal si no existe
                 injectDurationField();
+
+                // Mostrar campo de terapeuta si el módulo lo requiere
+                if (currentModule.requiresStaff) {
+                    initStaffField();
+                }
             }
 
             await loadReservas(initialDate);
@@ -549,6 +878,7 @@
             // Price automation listeners
             document.getElementById("res-origen").addEventListener("change", updatePriceAutomation);
             document.getElementById("res-pax").addEventListener("input", updatePriceAutomation);
+            document.getElementById("res-servicio").addEventListener("change", updatePackInfo);
             document.getElementById("res-precio-pax").addEventListener("input", () => {
                 const pax = parseInt(document.getElementById("res-pax").value) || 1;
                 const pPax = parseFloat(document.getElementById("res-precio-pax").value) || 0;
@@ -587,7 +917,133 @@
 
             document.getElementById("res-origen").addEventListener("change", triggerBalanceCheck);
             document.getElementById("res-bono").addEventListener("blur", triggerBalanceCheck);
+
+            // Listeners para actualizar slots disponibles en el modal
+            document.getElementById("form-date").addEventListener("change", updateAvailableTimeSlots);
+            document.getElementById("res-servicio").addEventListener("change", updateAvailableTimeSlots);
+            // Si el campo de duración cambia (vía input manual inyectado)
+            document.addEventListener("change", (e) => {
+                if (e.target && e.target.id === "inputDuration") updateAvailableTimeSlots();
+            });
         });
+
+        async function updateAvailableTimeSlots() {
+            const timeSel = document.getElementById("form-time");
+            const date = document.getElementById("form-date").value;
+            const duration = parseInt(document.getElementById("inputDuration")?.value || 60);
+            const currentResId = document.getElementById("form-id").value;
+            const originalTime = timeSel.dataset.originalTime; // Guardado al abrir modal
+            const originalDate = document.getElementById("form-date").dataset.originalDate;
+
+            if (!date) return;
+
+            // 1. Mostrar estado de carga
+            const saveBtn = document.getElementById("btn-save-booking");
+            if (saveBtn) saveBtn.disabled = true;
+
+            const previousVal = timeSel.value;
+            timeSel.innerHTML = '<option value="">Calculando...</option>';
+
+            try {
+                // Si la fecha es distinta a la cargada actualmente, necesitamos los datos de esa fecha para checkSpaceSync
+                let bookingsToProcess = currentData;
+                const backgroundDate = document.getElementById("main-date-picker").value;
+                if (date !== backgroundDate) {
+                    const snap = await db.collection(currentModule.collection).where("fecha", "==", date).get();
+                    bookingsToProcess = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                }
+
+                // 2. Obtener slots base según módulo
+                let slots = [];
+                const dateObj = new Date(date + 'T00:00:00');
+                const isSun = dateObj.getDay() === 0;
+
+                if (currentModule.code === 'spa') {
+                    slots = isSun ? currentModule.slotsSun : currentModule.slotsWeek;
+                } else {
+                    // Generar slots de 15min hasta cierre
+                    const closingH = isSun ? 15 : 22;
+                    for (let h = 10; h < closingH; h++) {
+                        for (let m of [0, 15, 30, 45]) {
+                            if (h === 21 && m > 45) continue;
+                            slots.push(`${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`);
+                        }
+                    }
+                }
+
+                // 3. Obtener disponibilidad de personal si el módulo lo requiere
+                let staffAvailability = {};
+                if (currentModule.requiresStaff && typeof getDailyStaffAvailability === 'function') {
+                    staffAvailability = await getDailyStaffAvailability(date, currentModule.code);
+                }
+
+                // 4. Filtrar slots válidos
+                const validSlots = [];
+                const resPax = parseInt(document.getElementById("res-pax")?.value || 1);
+
+                // Detectar si es hoy para filtrar horas pasadas
+                const now = new Date();
+                const todayStr = now.toISOString().split('T')[0];
+                const currentMin = now.getHours() * 60 + now.getMinutes();
+
+                for (let time of slots) {
+                    // Siempre permitimos la hora original de la reserva que estamos editando SI no hemos cambiado de fecha
+                    if (time === originalTime && date === originalDate) {
+                        validSlots.push(time);
+                        continue;
+                    }
+
+                    // Si es hoy, filtrar slots pasados (con un margen de cortesía de 5 min si se prefiere, pero aquí estricto)
+                    if (date === todayStr) {
+                        const [sh, sm] = time.split(':').map(Number);
+                        if ((sh * 60 + sm) < currentMin) continue;
+                    }
+
+                    if (currentModule.viewType === 'timeline') {
+                        // Check Room Availability (Timeline)
+                        const roomFree = checkSpaceSync(time, duration, bookingsToProcess, currentResId);
+                        if (!roomFree) continue;
+                    } else {
+                        // Check Capacity (Slots)
+                        const dayReservations = bookingsToProcess.filter(r => r.hora === time && r.status !== 'anulada' && r.id !== currentResId);
+                        const paxOccupied = dayReservations.reduce((sum, r) => sum + (r.pax || 0), 0);
+                        const maxCapacity = currentModule.capacity || spaConfig.capacity || 20;
+                        if (paxOccupied + resPax > maxCapacity) continue;
+                    }
+
+                    // Check Staff Availability (si aplica)
+                    if (currentModule.requiresStaff) {
+                        const availCount = staffAvailability[time] || 0;
+                        if (availCount === 0) continue;
+                    }
+
+                    // Check Closing Time (Duplicate check for safety)
+                    const [sh, sm] = time.split(':').map(Number);
+                    const sEndTotal = (sh * 60 + sm) + duration + (parseInt(spaConfig.cleaningTime) || 0);
+                    const dayLimit = (isSun ? 15 : 22) * 60;
+                    if (sEndTotal > dayLimit) continue;
+
+                    validSlots.push(time);
+                }
+
+                // 5. Poblar el select
+                timeSel.innerHTML = validSlots.map(t => `<option value="${t}">${t}h</option>`).join('');
+
+                // Restaurar valor si es posible, o el original
+                if (originalTime && validSlots.includes(originalTime)) {
+                    timeSel.value = originalTime;
+                } else if (validSlots.includes(previousVal)) {
+                    timeSel.value = previousVal;
+                }
+
+            } catch (err) {
+                console.error("Error al calcular slots:", err);
+                timeSel.innerHTML = '<option value="">Error</option>';
+            } finally {
+                const saveBtn = document.getElementById("btn-save-booking");
+                if (saveBtn) saveBtn.disabled = false;
+            }
+        }
 
         async function validateBonoBalance(bonoId, currentResId = null) {
             try {
@@ -655,27 +1111,166 @@
 
         async function fetchBasePrice() {
             try {
-                // Buscamos el servicio "Circuito SPA" para sacar su precio base
-                const snapshot = await db.collection("spa_services")
-                    .where("nombre", ">=", "Circuito")
-                    .get();
+                // Si es Suite, buscar precio de Suite
+                if (moduleType === 'suite') {
+                    const snapshot = await db.collection("spa_services")
+                        .where("categoria", "==", "suite_privada")
+                        .get();
 
-                snapshot.forEach(doc => {
-                    const data = doc.data();
-                    if (data.nombre.toLowerCase().includes("circuito spa") || data.nombre.toLowerCase() === "circuito") {
-                        baseCircuitoPrice = parseFloat(data.precio) || 0;
-                        console.log("Precio base detectado:", baseCircuitoPrice);
-                    }
-                });
+                    snapshot.forEach(doc => {
+                        const data = doc.data();
+                        if (data.active) {
+                            baseCircuitoPrice = parseFloat(data.precio) || 100;
+                        }
+                    });
+                } else {
+                    // Buscamos el servicio "Circuito SPA" para sacar su precio base
+                    const snapshot = await db.collection("spa_services")
+                        .where("nombre", ">=", "Circuito")
+                        .get();
+
+                    snapshot.forEach(doc => {
+                        const data = doc.data();
+                        if (data.nombre.toLowerCase().includes("circuito spa") || data.nombre.toLowerCase() === "circuito") {
+                            baseCircuitoPrice = parseFloat(data.precio) || 0;
+                        }
+                    });
+                }
 
                 if (baseCircuitoPrice === 0) {
-                    // Fallback si no se encuentra
-                    baseCircuitoPrice = 30; // Precio por defecto razonable
+                    baseCircuitoPrice = (moduleType === 'suite') ? 100 : 25;
                 }
+
+                // Cargar todos los servicios para el selector dinámico
+                const allServicesSnapshot = await db.collection("spa_services").where("active", "==", true).get();
+                const all = [];
+                allServicesSnapshot.forEach(doc => all.push(doc.data()));
+
+                currentServices = all.filter(s => {
+                    const cat = (s.categoria || "").toLowerCase();
+                    if (moduleType === 'suite') return cat === 'suite_privada';
+                    if (moduleType === 'panacea' || moduleType === 'vip') {
+                        return ['tratamiento_sala', 'masaje', 'ritual', 'facial'].includes(cat) || cat.includes('tratamiento');
+                    }
+                    if (moduleType === 'spa') return ['circuito', 'bono_circuito', 'pack_pareja', 'pack_hotel', 'pack_comida'].includes(cat);
+                    if (moduleType === 'peluqueria') return ['peluqueria', 'estetica', 'maquillaje', 'manicura'].includes(cat);
+                    return true;
+                });
+
+                currentComplementos = all.filter(s => (s.categoria || "").toLowerCase() === 'complemento');
+
             } catch (err) {
                 console.error("Error fetching price:", err);
-                baseCircuitoPrice = 30;
+                baseCircuitoPrice = (moduleType === 'suite') ? 100 : 25;
             }
+        }
+
+        function populateServices() {
+            const sel = document.getElementById("res-servicio");
+            sel.innerHTML = "";
+            const currentVal = sel.value;
+
+            // Strict filtering for SPA module
+            let servicesToShow = currentServices;
+            if (currentModule.code === 'spa') {
+                servicesToShow = currentServices.filter(s => s.nombre === 'Circuito Spa');
+                if (servicesToShow.length === 0) {
+                    servicesToShow = [{ nombre: 'Circuito Spa', duration: 90, precio: 35 }];
+                }
+            } else if (moduleType === 'suite') {
+                if (servicesToShow.length === 0) {
+                    servicesToShow = [{ nombre: 'Suite Spa', duration: 60, precio: 100 }];
+                }
+            } else if (moduleType === 'peluqueria') {
+                if (servicesToShow.length === 0) {
+                    servicesToShow = [{ nombre: 'Servicio Peluquería', duration: 30, precio: 20 }];
+                }
+            }
+
+            // Populate options
+            servicesToShow.forEach(s => {
+                const opt = document.createElement("option");
+                opt.value = s.nombre;
+                opt.textContent = s.nombre;
+                sel.appendChild(opt);
+            });
+
+            // Auto-select if there's only one option (typical for SPA) or if previously selected
+            if (servicesToShow.length === 1) {
+                sel.value = servicesToShow[0].nombre;
+            } else if (currentVal && servicesToShow.some(s => s.nombre === currentVal)) {
+                sel.value = currentVal;
+            } else {
+                // Determine default selection logic if multiple options
+                const defaultService = (moduleType === 'suite') ? "Suite Spa" : "Circuito Spa";
+                if (servicesToShow.some(s => s.nombre === defaultService)) {
+                    sel.value = defaultService;
+                }
+            }
+
+            updatePackInfo();
+        }
+
+        function updatePackInfo() {
+            const serviceEl = document.getElementById("res-servicio");
+            if (!serviceEl) return;
+            const selService = serviceEl.value;
+            const service = currentServices.find(s => s.nombre === selService);
+            const container = document.getElementById("pack-includes-container");
+            const list = document.getElementById("pack-items-list");
+            const reminder = document.getElementById("pack-reminder");
+
+            if (!container || !list || !reminder) return;
+
+            if (!service || !service.items_incluidos || service.items_incluidos.length === 0) {
+                container.style.display = "none";
+                return;
+            }
+
+            container.style.display = "block";
+            list.innerHTML = service.items_incluidos.map(item => `
+                <div style="font-size: 0.75rem; color: #4a5568; display: flex; align-items: center; gap: 5px;">
+                    <i class="fas fa-check-circle" style="color: #48bb78;"></i> ${item}
+                </div>
+            `).join('');
+
+            // Detectar restaurante/menú
+            const needsRestaurant = service.items_incluidos.some(item =>
+                item.toLowerCase().includes("restaurante") || item.toLowerCase().includes("menú") || item.toLowerCase().includes("comida")
+            );
+            reminder.style.display = needsRestaurant ? "block" : "none";
+        }
+
+        function renderComplementos() {
+            const container = document.getElementById("complementos-container");
+            const list = document.getElementById("complementos-list");
+
+            if (!container || !list) return;
+
+            if (moduleType !== 'suite') {
+                container.style.display = "none";
+                return;
+            }
+
+            container.style.display = "block";
+            list.innerHTML = "";
+
+            currentComplementos.forEach(c => {
+                const div = document.createElement("div");
+                div.style = "display: flex; align-items: center; gap: 5px; font-size: 0.65rem; color: #4a5568; background: #fff; padding: 3px 8px; border-radius: 4px; border: 1px solid #edf2f7; cursor: pointer;";
+                div.innerHTML = `
+                    <input type="checkbox" class="comp-checkbox" data-nombre="${c.nombre}" data-precio="${c.precio}" onchange="updatePriceAutomation()" style="width: 12px; height: 12px;">
+                    <span style="white-space: nowrap;">${c.nombre} <small style="opacity: 0.6;">+${c.precio}€</small></span>
+                `;
+                div.onclick = (e) => {
+                    if (e.target.tagName !== 'INPUT') {
+                        const cb = div.querySelector('input');
+                        cb.checked = !cb.checked;
+                        updatePriceAutomation();
+                    }
+                };
+                list.appendChild(div);
+            });
         }
 
         function updatePriceAutomation() {
@@ -684,15 +1279,60 @@
             const pricePaxInput = document.getElementById("res-precio-pax");
             const priceTotalInput = document.getElementById("res-precio-total");
 
+            // Sumar complementos seleccionados
+            let complementosTotal = 0;
+            document.querySelectorAll(".comp-checkbox:checked").forEach(cb => {
+                complementosTotal += parseFloat(cb.dataset.precio || 0);
+            });
+
             if (origen === 'particular' || origen === 'hotel_no_inc') {
-                const total = baseCircuitoPrice * pax;
-                pricePaxInput.value = baseCircuitoPrice.toFixed(2);
+                let base = baseCircuitoPrice;
+
+                // Si el servicio seleccionado tiene un precio específico en el catálogo, usarlo
+                const selService = document.getElementById("res-servicio").value;
+                const serviceData = currentServices.find(s => s.nombre === selService);
+                if (serviceData) {
+                    base = parseFloat(serviceData.precio);
+
+                    // UPDATE DURATION IF SERVICE HAS ONE
+                    const durInput = document.getElementById("inputDuration");
+                    if (durInput && serviceData.duracion) {
+                        durInput.value = serviceData.duracion;
+                        // Trigger staff check because duration changed
+                        if (typeof window.handleStaffFieldsChange === 'function') {
+                            window.handleStaffFieldsChange();
+                        }
+                    }
+                }
+
+                let total;
+                if (moduleType === 'suite') {
+                    // Suite es precio cerrado independientemente de pax (1 o 2)
+                    total = base + complementosTotal;
+                    pricePaxInput.value = (total / pax).toFixed(2);
+                } else {
+                    total = (base * pax) + complementosTotal;
+                    pricePaxInput.value = base.toFixed(2);
+                }
                 priceTotalInput.value = total.toFixed(2);
                 document.getElementById("res-total-text").textContent = total.toFixed(2) + " €";
             } else {
                 pricePaxInput.value = (0).toFixed(2);
-                priceTotalInput.value = (0).toFixed(2);
-                document.getElementById("res-total-text").textContent = "0.00 €";
+                priceTotalInput.value = complementosTotal.toFixed(2);
+                document.getElementById("res-total-text").textContent = complementosTotal.toFixed(2) + " €";
+
+                // If not paying (bono/hotel), we still need to update duration/staff if service changed
+                const selService = document.getElementById("res-servicio").value;
+                const serviceData = currentServices.find(s => s.nombre === selService);
+                if (serviceData) {
+                    const durInput = document.getElementById("inputDuration");
+                    if (durInput && serviceData.duracion) {
+                        durInput.value = serviceData.duracion;
+                        if (typeof window.handleStaffFieldsChange === 'function') {
+                            window.handleStaffFieldsChange();
+                        }
+                    }
+                }
             }
         }
 
@@ -708,6 +1348,7 @@
         }
 
         async function loadReservas(date) {
+            updateDateDisplay(date);
             try {
                 // Verificar si el día está cerrado
                 if (spaConfig.closedDates.includes(date)) {
@@ -722,6 +1363,43 @@
                     return;
                 }
 
+                if (moduleType === 'combined') {
+                    document.getElementById("slots-container").style.display = 'none';
+                    document.getElementById("split-view-container").style.display = 'grid';
+
+                    // Parallel Fetch for Panacea and VIP
+                    // We need to fetch data AND staff availability for BOTH
+
+                    const [panaceaParams, vipParams] = [MODULES['panacea'], MODULES['vip']];
+
+                    try {
+                        const [snapPanacea, snapVip, availPanacea, availVip] = await Promise.all([
+                            db.collection(panaceaParams.collection).where("fecha", "==", date).get(),
+                            db.collection(vipParams.collection).where("fecha", "==", date).get(),
+                            (typeof window.getDailyStaffAvailability === 'function' ? window.getDailyStaffAvailability('panacea', date) : {}),
+                            (typeof window.getDailyStaffAvailability === 'function' ? window.getDailyStaffAvailability('vip', date) : {})
+                        ]);
+
+                        let dataPanacea = [];
+                        snapPanacea.forEach(doc => dataPanacea.push({ id: doc.id, ...doc.data() }));
+
+                        let dataVip = [];
+                        snapVip.forEach(doc => dataVip.push({ id: doc.id, ...doc.data() }));
+
+                        // Render both
+                        // Note: we pass specific module config and data to renderTimeline
+                        renderTimeline(date, 'timeline-container-panacea', panaceaParams, dataPanacea, availPanacea);
+                        renderTimeline(date, 'timeline-container-vip', vipParams, dataVip, availVip);
+
+                    } catch (err) {
+                        console.error("Error loading combined view:", err);
+                    }
+                    return; // Stop standard flow
+                } else {
+                    document.getElementById("slots-container").style.display = (currentModule.viewType === 'grid') ? 'grid' : 'block';
+                    document.getElementById("split-view-container").style.display = 'none';
+                }
+
                 const snapshot = await db.collection(currentModule.collection)
                     .where("fecha", "==", date)
                     .get();
@@ -729,8 +1407,33 @@
                 currentData = [];
                 snapshot.forEach(doc => currentData.push({ id: doc.id, ...doc.data() }));
 
+                // Load Staff Availability if module requires it
+                currentStaffAvailability = {};
+                if (currentModule.requiresStaff && typeof window.getDailyStaffAvailability === 'function') {
+                    try {
+                        // "panacea", "vip", "suite", etc. matches moduleType
+                        currentStaffAvailability = await window.getDailyStaffAvailability(moduleType, date);
+                        console.log("Disponibilidad personal cargada:", currentStaffAvailability);
+                    } catch (e) {
+                        console.error("Error cargando disponibilidad personal:", e);
+                    }
+                }
+
                 renderSlots(date);
                 if (selectedTime) updateDetails(selectedTime);
+
+                // Auto-open logic
+                const urlParams = new URLSearchParams(window.location.search);
+                const targetId = urlParams.get('id');
+                if (targetId) {
+                    const res = currentData.find(r => r.id === targetId);
+                    if (res) {
+                        selectSlot(res.hora, false, false);
+                        editBooking(targetId);
+                        // Clean URL to avoid reopening on refresh (optional, maybe keep it?)
+                        // window.history.replaceState({}, document.title, window.location.pathname + window.location.search.replace(/&id=[^&]+/, ''));
+                    }
+                }
             } catch (err) {
                 console.error("Error:", err);
             }
@@ -752,7 +1455,7 @@
             container.innerHTML = slots.map(time => {
                 const dayReservations = currentData.filter(r => r.hora === time && r.status !== 'anulada');
                 const paxTotal = dayReservations.reduce((sum, r) => sum + (r.pax || 0), 0);
-                const maxCapacity = spaConfig.capacity || 20;
+                const maxCapacity = currentModule.capacity || spaConfig.capacity || 20;
                 const isFull = paxTotal >= maxCapacity;
                 const isBlocked = dateBlockedSlots.includes(time);
 
@@ -762,16 +1465,23 @@
 
                 const percent = (paxTotal / maxCapacity) * 100;
 
+                // Lógica de turno pasado
+                const now = new Date();
+                const todayStr = now.toISOString().split('T')[0];
+                const currentMin = now.getHours() * 60 + now.getMinutes();
+                const [h, m] = time.split(':').map(Number);
+                const isPast = (dateString < todayStr) || (dateString === todayStr && (h * 60 + m) < currentMin);
+
                 return `
-                    <div class="slot-card ${isFull ? 'full' : ''} ${isBlocked ? 'blocked' : ''} ${selectedTime === time ? 'active' : ''}" 
-                         onclick="selectSlot('${time}', ${isFull}, ${isBlocked})">
+                    <div class="slot-card ${isFull ? 'full' : ''} ${isBlocked ? 'blocked' : ''} ${isPast ? 'past' : ''} ${selectedTime === time ? 'active' : ''}" 
+                         onclick="selectSlot('${time}', ${isFull}, ${isBlocked}, ${isPast})">
                         <div class="time-label">${time}</div>
                         ${isBlocked ?
                         '<div class="pax-badge" style="color: #666; font-size: 0.9rem; margin: 15px 0;">CERRADO</div>' :
                         `<div class="pax-badge" style="color: ${color}">${paxTotal}<span style="font-size: 0.8rem; color: #999; font-weight: 400;">/${maxCapacity}</span></div>`
                     }
                         <div style="font-size: 0.65rem; color: var(--text-muted); font-weight: 500;">
-                            ${isBlocked ? 'Turno no disponible' : (isFull ? 'COMPLETO' : (maxCapacity - paxTotal) + ' disponibles')}
+                            ${isBlocked ? 'Turno no disponible' : (isPast ? 'FUERA DE HORA' : (isFull ? 'COMPLETO' : (maxCapacity - paxTotal) + ' disponibles'))}
                         </div>
                         <div class="progress-mini">
                             <div class="progress-bar" style="width: ${isBlocked ? 100 : Math.min(percent, 100)}%; background: ${isBlocked ? '#ccc' : color}"></div>
@@ -781,8 +1491,10 @@
             }).join('');
         }
 
-        function selectSlot(time, isFull, isBlocked) {
+        function selectSlot(time, isFull, isBlocked, isPast = false) {
             selectedTime = time;
+            window.selectedTime = time;
+            window.isCurrentSlotPast = isPast;
             const dateStr = document.getElementById("main-date-picker").value;
             renderSlots(dateStr);
 
@@ -884,8 +1596,25 @@
                             </div>
                         ` : '-'}
                     </td>
-                    <td style="text-align: right;">
+                    <td style="text-align: right; display: flex; gap: 5px; justify-content: flex-end; align-items: center;">
                         <button class="btn btn-outline btn-sm" onclick="editBooking('${res.id}')" style="padding: 2px 8px;"><i class="fas fa-edit"></i></button>
+                        ${res.tel ? (() => {
+                        const cleanTel = res.tel.replace(/\s/g, '');
+                        const dateStr = new Date(res.fecha).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' });
+                        let msg = (spaConfig && spaConfig.whatsappTemplate) ? spaConfig.whatsappTemplate : "Hola {{nombre}}, confirmamos su cita para el {{fecha}} a las {{hora}}h.";
+                        msg = msg.replace(/{{nombre}}/g, res.nombre || "")
+                            .replace(/{{fecha}}/g, dateStr)
+                            .replace(/{{hora}}/g, res.hora || "")
+                            .replace(/{{espacio}}/g, currentModule.name || "")
+                            .replace(/{{servicio}}/g, res.servicio || "");
+
+                        return `
+                                <a href="whatsapp://send?phone=34${cleanTel}&text=${encodeURIComponent(msg)}" 
+                                   class="btn btn-outline btn-sm" 
+                                   style="padding: 4px 8px; color: #25d366; border-color: #25d366; height: 100%; display: inline-flex; align-items: center;">
+                                    <i class="fab fa-whatsapp"></i>
+                                </a>`;
+                    })() : ''}
                     </td>
                 </tr>
             `}).join('');
@@ -919,7 +1648,7 @@
             document.getElementById("res-hotel").required = (document.getElementById("hotel-group").style.display !== 'none');
             document.getElementById("res-hab").required = (document.getElementById("room-group").style.display !== 'none');
             document.getElementById("res-bono").required = (document.getElementById("bono-group").style.display !== 'none');
-            document.getElementById("res-tel").required = (document.getElementById("tel-group").style.display !== 'none');
+            document.getElementById("res-tel").required = false; // No es obligatorio capturar el teléfono si no lo tienen
 
             // Mostrar/Ocultar precios si es incluido o bono
             const isIncluded = (origen === 'hotel_inc' || isVoucher);
@@ -942,19 +1671,31 @@
             updateTotal();
         }
 
-        function showBookingForm() {
+        async function showBookingForm() {
             if (!selectedTime) return;
 
             const dateStr = document.getElementById("main-date-picker").value;
             const isBlocked = (spaConfig.blockedSlots && spaConfig.blockedSlots[dateStr] && spaConfig.blockedSlots[dateStr].includes(selectedTime));
+
+            // Bloquear creación en el pasado
+            const now = new Date();
+            const todayStr = now.toISOString().split('T')[0];
+            const currentMin = now.getHours() * 60 + now.getMinutes();
+            const [h, m] = selectedTime.split(':').map(Number);
+            const isPast = (dateStr < todayStr) || (dateStr === todayStr && (h * 60 + m) < currentMin);
+
+            if (isPast) {
+                alert("No se pueden crear reservas en turnos que ya han pasado.");
+                return;
+            }
 
             if (isBlocked) {
                 alert("Este turno está CERRADO manualmente. Ábrelo para añadir reservas.");
                 return;
             }
 
-            const paxActual = currentData.filter(r => r.hora === selectedTime && r.status !== 'anulada').reduce((s, r) => s + r.pax, 0);
-            const maxCapacity = spaConfig.capacity || 20;
+            const paxActual = currentData.filter(r => r.hora === selectedTime && r.status !== 'anulada').reduce((s, r) => s + (currentModule.isPrivate ? 1 : r.pax), 0);
+            const maxCapacity = (currentModule.code === 'spa') ? (spaConfig.capacity || 20) : (currentModule.capacity || 1);
 
             if (paxActual >= maxCapacity) {
                 alert("Este turno está completo.");
@@ -962,13 +1703,22 @@
             }
 
             document.getElementById("modal-title").textContent = "Nueva Reserva";
-            document.getElementById("modal-subtitle").textContent = `Turno: ${selectedTime}h - Disponibles: ${maxCapacity - paxActual} plazas`;
+            const disponibles = maxCapacity - paxActual;
+            document.getElementById("modal-subtitle").textContent = `Turno: ${selectedTime}h - ` + (currentModule.isPrivate ? (disponibles > 0 ? "Disponible" : "Ocupado") : `Disponibles: ${disponibles} plazas`);
             document.getElementById("res-id-display").textContent = "NUEVA";
             document.getElementById("audit-info").innerHTML = "";
             document.getElementById("form-id").value = "";
             document.getElementById("btn-cancelar").style.display = "none";
-            document.getElementById("form-date").value = document.getElementById("main-date-picker").value;
-            document.getElementById("form-time").value = selectedTime;
+            document.getElementById("form-date").value = dateStr;
+            document.getElementById("form-date").dataset.originalDate = dateStr;
+            const timeSel = document.getElementById("form-time");
+            timeSel.dataset.originalTime = selectedTime;
+
+            // Forzar actualización de slots disponibles
+            await updateAvailableTimeSlots();
+
+            // Intentar seleccionar la hora de la que venimos
+            timeSel.value = selectedTime;
 
             // Re-setup form classes
             // document.getElementById("booking-form").className = "form-grid-premium"; // Removed because we use inline styles for the modern wide layout
@@ -983,9 +1733,70 @@
             document.getElementById("res-pax").value = 2;
             document.getElementById("res-precio-pax").value = 0;
             document.getElementById("res-total-text").textContent = "0.00 €";
-            document.getElementById("res-obs").value = "";
-            document.getElementById("res-servicio").value = "Circuito Spa";
-            document.getElementById("res-sesiones").value = 1; // Default for sessions
+            const obsField = document.getElementById("res-obs");
+            obsField.value = "";
+            obsField.style.height = 'auto';
+            obsField.style.height = '36px'; // Set to min-height on reset
+            document.getElementById("res-sesiones").value = 1;
+
+            // Cargar Servicios y Complementos
+            populateServices();
+            renderComplementos();
+
+            // Default service logic
+            const resService = document.getElementById("res-servicio");
+            if (resService) {
+                if (currentModule.code === 'spa') {
+                    resService.value = "Circuito Spa";
+                } else if (moduleType === 'suite') {
+                    resService.value = "Suite Spa";
+                }
+            }
+
+            // Duration input visibility and value
+            const durInput = document.getElementById("inputDuration");
+            if (durInput) {
+                // If it's a private module, default is 60, otherwise 60 or based on service
+                // ...
+            }
+
+            // STAFF SELECTOR VISIBILITY
+            const staffGroup = document.getElementById("staff-selector-group");
+            if (currentModule.requiresStaff) {
+                staffGroup.style.display = "block";
+                document.getElementById("booking-staff").required = true;
+
+                // Trigger initial load of available staff
+                if (typeof window.handleStaffFieldsChange === 'function') {
+                    window.handleStaffFieldsChange();
+                }
+            } else {
+                staffGroup.style.display = "none";
+                document.getElementById("booking-staff").required = false;
+            }
+
+            // Filter Orígenes para Suite
+            const origenSel = document.getElementById("res-origen");
+            if (moduleType === 'suite') {
+                for (let i = 0; i < origenSel.options.length; i++) {
+                    const opt = origenSel.options[i];
+                    const valid = ['particular', 'hotel_inc', 'hotel_no_inc', 'bono'].includes(opt.value);
+                    opt.style.display = valid ? "block" : "none";
+                }
+                if (!['particular', 'hotel_inc', 'hotel_no_inc', 'bono'].includes(origenSel.value)) {
+                    origenSel.value = 'particular';
+                }
+            } else {
+                for (let i = 0; i < origenSel.options.length; i++) {
+                    origenSel.options[i].style.display = "block";
+                }
+            }
+
+            // Ocultar precio por persona en Suite
+            const pricePaxGroup = document.getElementById("price-group");
+            if (pricePaxGroup) {
+                pricePaxGroup.style.display = (moduleType === 'suite') ? "none" : "block";
+            }
 
             // AUTO-RELLENAR SI HAY BONO PENDIENTE
             const pending = sessionStorage.getItem('pendingVoucherBooking');
@@ -1010,7 +1821,8 @@
             // Habilitar todo (por si estaba bloqueado por una reserva pasada)
             const formInputs = document.getElementById("booking-form").querySelectorAll("input, select, textarea");
             formInputs.forEach(input => input.disabled = false);
-            document.querySelector("#booking-form button[type='submit']").style.display = "block";
+            const saveBtn = document.getElementById("btn-save-booking");
+            if (saveBtn) saveBtn.style.display = "block";
 
             document.getElementById("booking-modal").style.display = "flex";
 
@@ -1027,7 +1839,7 @@
             if (notice) notice.remove();
         }
 
-        function editBooking(id) {
+        async function editBooking(id) {
             const res = currentData.find(r => r.id === id);
             if (!res) return;
 
@@ -1038,7 +1850,14 @@
             document.getElementById("res-id-display").textContent = res.res_id || "SIN ID";
             document.getElementById("form-id").value = id;
             document.getElementById("form-date").value = res.fecha;
-            document.getElementById("form-time").value = res.hora;
+            document.getElementById("form-date").dataset.originalDate = res.fecha;
+
+            const timeSel = document.getElementById("form-time");
+            timeSel.dataset.originalTime = res.hora;
+
+            // Poblar slots disponibles para esta fecha/reserva
+            await updateAvailableTimeSlots();
+            timeSel.value = res.hora;
 
             // Verificar si la reserva es PASADA
             const now = new Date();
@@ -1060,7 +1879,7 @@
 
             // Bloquear si es pasada
             const formInputs = document.getElementById("booking-form").querySelectorAll("input, select, textarea");
-            const btnSave = document.querySelector("#booking-form button[type='submit']");
+            const btnSave = document.getElementById("btn-save-booking");
 
             if (isPast) {
                 document.getElementById("modal-title").innerHTML = '<i class="fas fa-lock" style="color:#ff5252"></i> Reserva Pasada (Solo Lectura)';
@@ -1070,7 +1889,7 @@
             } else {
                 document.getElementById("modal-title").textContent = "Editar Reserva";
                 formInputs.forEach(input => input.disabled = false);
-                btnSave.style.display = "block";
+                if (btnSave) btnSave.style.display = "block";
                 // btnCancel ya se maneja por su status
             }
 
@@ -1101,11 +1920,53 @@
             const total = res.precio_total || res.precio || 0;
             document.getElementById("res-precio-total").value = total;
             document.getElementById("res-total-text").textContent = parseFloat(total).toFixed(2) + " €";
-            document.getElementById("res-obs").value = res.obs || "";
+            const obsField = document.getElementById("res-obs");
+            obsField.value = res.obs || "";
+            // Auto-resize
+            obsField.style.height = 'auto';
+            obsField.style.height = obsField.scrollHeight + 'px';
+
+            // Cargar Servicios y Complementos antes de asignar valores
+            populateServices();
+            renderComplementos();
+
             document.getElementById("res-servicio").value = res.servicio || "Circuito Spa";
-            document.getElementById("res-sesiones").value = res.sesiones_consumidas || 1; // Load sessions consumed
+            document.getElementById("res-sesiones").value = res.sesiones_consumidas || 1;
+
+            // Marcar complementos guardados
+            if (res.complementos && Array.isArray(res.complementos)) {
+                res.complementos.forEach(compName => {
+                    const cb = document.querySelector(`.comp-checkbox[data-nombre="${compName}"]`);
+                    if (cb) cb.checked = true;
+                });
+            }
+
+            if (document.getElementById("inputDuration")) {
+                document.getElementById("inputDuration").value = res.duracion || 60;
+            }
 
             toggleRoomField();
+
+            // Filtrar Orígenes para Suite
+            const origenSel = document.getElementById("res-origen");
+            if (moduleType === 'suite') {
+                for (let i = 0; i < origenSel.options.length; i++) {
+                    const opt = origenSel.options[i];
+                    const valid = ['particular', 'hotel_inc', 'hotel_no_inc', 'bono'].includes(opt.value);
+                    opt.style.display = valid ? "block" : "none";
+                }
+            } else {
+                for (let i = 0; i < origenSel.options.length; i++) {
+                    origenSel.options[i].style.display = "block";
+                }
+            }
+
+            // Ocultar precio por persona en Suite
+            const pricePaxGroup = document.getElementById("price-group");
+            if (pricePaxGroup) {
+                pricePaxGroup.style.display = (moduleType === 'suite') ? "none" : "block";
+            }
+
             document.getElementById("booking-modal").style.display = "flex";
 
             // Trigger balance check if it's a bono
@@ -1123,7 +1984,7 @@
                 const resData = currentData.find(r => r.id === id);
                 if (!resData) throw new Error("No se encontró la reserva en memoria.");
 
-                await db.collection("reservas_spa").doc(id).update({
+                await db.collection(currentModule.collection).doc(id).update({
                     status: 'anulada',
                     cancelled_at: new Date().toISOString()
                 });
@@ -1161,7 +2022,7 @@
         async function deleteBooking(id) {
             if (!confirm("¿BORRAR PERMANENTEMENTE? Esta acción no se puede deshacer.")) return;
             try {
-                await db.collection("reservas_spa").doc(id).delete();
+                await db.collection(currentModule.collection).doc(id).delete();
                 loadReservas(document.getElementById("main-date-picker").value);
             } catch (err) { alert(err.message); }
         }
@@ -1170,79 +2031,100 @@
             document.getElementById("booking-modal").style.display = "none";
         }
 
-        document.getElementById("booking-form").addEventListener("submit", async (e) => {
-            e.preventDefault();
-            const id = document.getElementById("form-id").value;
-            const date = document.getElementById("form-date").value;
-            const time = document.getElementById("form-time").value;
-            const pax = parseInt(document.getElementById("res-pax").value);
-            const sesionesConsumidas = parseInt(document.getElementById("res-sesiones").value) || 1;
-            const duration = parseInt(document.getElementById("inputDuration")?.value || 60);
-
-            // 1. VALIDACIÓNES AVANZADAS (Solo Timeline / Módulos Privados)
-            if (currentModule.isPrivate) {
-                // Check Sala
-                const roomFree = await checkRoomAvailability(date, time, duration, id); // id is null on create, checkRoom handles it
-                if (!roomFree) {
-                    alert(`¡SALA OCUPADA! Ya existe una reserva en este rango de horario (${time} + ${duration}min).`);
-                    return;
-                }
-
-                // Check Personal
-                const staffFree = await checkStaffAvailability(date, time, duration, id);
-                if (!staffFree) {
-                    alert(`¡SIN PERSONAL DISPONIBLE! No hay terapeutas libres para este horario. Revisa la configuración en Gestión de Personal.`);
-                    return;
-                }
-            }
-
-            // Validar capacidad (solo confirmadas) - MANTENEMOS LOGICA ORIGINAL PARA SPA GENERAL
-            if (!currentModule.isPrivate) {
-                const totalOtros = currentData
-                    .filter(r => r.hora === time && r.id !== id && r.status !== 'anulada')
-                    .reduce((s, r) => s + (r.pax || 0), 0);
-
-                const maxCapacity = spaConfig.capacity || 20;
-
-                if (totalOtros + pax > maxCapacity) {
-                    const proceed = confirm(`¡Exceso de aforo! Solo quedan ${maxCapacity - totalOtros} plazas libres.\n\n¿Deseas confirmar la reserva de todas formas?`);
-                    if (!proceed) return;
-                }
-            }
-
-            // VALIDACIÓN EXTRA DE BONO (Límite de sesiones)
-            if (document.getElementById("res-origen").value === 'bono') {
-                const bonoId = document.getElementById("res-bono").value.trim();
-                const sesionesInput = document.getElementById("res-sesiones");
-                const maxAllowed = parseInt(sesionesInput.getAttribute("max"));
-
-                if (!isNaN(maxAllowed) && sesionesConsumidas > maxAllowed) {
-                    alert(`¡LIMITE EXCEDIDO! Este bono solo tiene ${maxAllowed} sesiones disponibles.`);
-                    sesionesInput.focus();
-                    return;
-                }
-            }
-
-            const payload = {
-                nombre: document.getElementById("res-nombre").value,
-                tel: document.getElementById("res-tel").value,
-                origen: document.getElementById("res-origen").value,
-                hotel: document.getElementById("res-hotel").value,
-                hab: document.getElementById("res-hab").value,
-                bono: document.getElementById("res-bono").value,
-                fecha: date,
-                hora: time,
-                pax: pax,
-                sesiones_consumidas: sesionesConsumidas, // Save sessions consumed
-                precio_pax: parseFloat(document.getElementById("res-precio-pax").value) || 0,
-                precio_total: parseFloat(document.getElementById("res-precio-total").value) || 0,
-                servicio: document.getElementById("res-servicio").value,
-                duracion: duration, // Campo nuevo
-                obs: document.getElementById("res-obs").value,
-                updated_at: new Date().toISOString()
-            };
+        async function handleFormSubmit() {
+            const btn = document.getElementById("btn-save-booking");
+            const originalText = btn.innerHTML;
 
             try {
+                // 1. Validaciones Básicas de Navegador (Manual)
+                const nombreField = document.getElementById("res-nombre");
+                if (!nombreField.value.trim()) {
+                    alert("Por favor, introduce el nombre del cliente.");
+                    nombreField.focus();
+                    return;
+                }
+
+                const telField = document.getElementById("res-tel");
+                if (!telField.value.trim()) {
+                    alert("Por favor, introduce un teléfono de contacto.");
+                    telField.focus();
+                    return;
+                }
+
+                // 2. Cambiar estado del botón
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Guardando...';
+
+                console.log("Iniciando proceso de guardado...");
+                const id = document.getElementById("form-id").value;
+                const date = document.getElementById("form-date").value;
+                const time = document.getElementById("form-time").value;
+                const pax = parseInt(document.getElementById("res-pax").value) || 0;
+                const sesionesConsumidas = parseInt(document.getElementById("res-sesiones").value) || 1;
+                const duration = parseInt(document.getElementById("inputDuration")?.value || 60);
+
+                if (!date || !time) {
+                    throw new Error("Faltan datos de fecha u hora. Recarga la página.");
+                }
+
+                // 3. VALIDACIÓNES AVANZADAS (Solo Timeline / Módulos Privados)
+                if (currentModule.isPrivate) {
+                    console.log("Validando sala/personal para privado...");
+                    // Check Sala
+                    const collision = await checkRoomAvailability(date, time, duration, id);
+                    if (collision) {
+                        if (collision.nombre === "Aforo Máximo Superado") {
+                            alert(`¡AFORO COMPLETO!\n\nNo hay plazas suficientes para esta reserva a las ${time}h.\n\nPor favor, seleccione otro horario o reduzca el número de personas.`);
+                        } else {
+                            const clean = parseInt(spaConfig.cleaningTime || 0);
+                            alert(`¡SALA OCUPADA!\n\nConflicto detectado con:\n- Cliente: ${collision.nombre}\n- Horario: ${collision.hora} (${collision.duracion || 60} min)\n\nEl sistema reserva un margen de limpieza de ${clean} min entre citas.`);
+                        }
+                        btn.disabled = false;
+                        btn.innerHTML = originalText;
+                        return;
+                    }
+                }
+
+                // Check Personal (Solo si el módulo lo requiere)
+                if (currentModule.requiresStaff) {
+                    const staffFree = await checkStaffAvailability(date, time, duration, id);
+                    if (!staffFree) {
+                        alert(`¡SIN PERSONAL DISPONIBLE! No hay terapeutas libres para este horario.`);
+                        btn.disabled = false;
+                        btn.innerHTML = originalText;
+                        return;
+                    }
+                }
+
+
+                // Extraer complementos seleccionados
+                const complementos = [];
+                document.querySelectorAll(".comp-checkbox:checked").forEach(cb => {
+                    complementos.push(cb.dataset.nombre || cb.dataset.name);
+                });
+
+                const payload = {
+                    complementos: complementos,
+                    nombre: nombreField.value.trim(),
+                    tel: document.getElementById("res-tel").value,
+                    origen: document.getElementById("res-origen").value,
+                    hotel: document.getElementById("res-hotel").value,
+                    hab: document.getElementById("res-hab").value,
+                    bono: document.getElementById("res-bono").value,
+                    fecha: date,
+                    hora: time,
+                    pax: pax,
+                    sesiones_consumidas: sesionesConsumidas,
+                    precio_pax: parseFloat(document.getElementById("res-precio-pax").value) || 0,
+                    precio_total: parseFloat(document.getElementById("res-precio-total").value) || 0,
+                    servicio: document.getElementById("res-servicio").value,
+                    duracion: duration,
+                    obs: document.getElementById("res-obs").value,
+                    updated_at: new Date().toISOString()
+                };
+
+                console.log("Payload preparado:", payload);
+
                 if (id) {
                     await db.collection(currentModule.collection).doc(id).update(payload);
                     showToast("Reserva actualizada", "success");
@@ -1253,207 +2135,538 @@
                     const docRef = await db.collection(currentModule.collection).add(payload);
                     showToast("Reserva creada correctamente", "success");
 
-                    // Si se creó desde un bono pendiente, limparlo
-                    if (sessionStorage.getItem('pendingVoucherBooking')) {
-                        clearPendingVoucher();
-                    }
-
                     // SI ES UN BONO, ACTUALIZAR SESIONES USADAS
                     if (payload.origen === 'bono' && payload.bono) {
-                        try {
-                            const vDoc = await db.collection("spa_vouchers").doc(payload.bono).get();
-                            if (vDoc.exists) {
-                                const vData = vDoc.data();
-                                const usedSessions = vData.sesiones_usadas || 0;
-                                const paxPerSession = vData.pax_por_sesion || 1;
-                                const totalSessions = vData.sesiones_totales || 1;
-
-                                // Usar el valor manual del formulario si existe, sino calcular
-                                const manualSessions = parseInt(document.getElementById("res-sesiones").value);
-                                const consumed = !isNaN(manualSessions) ? manualSessions : Math.ceil(payload.pax / paxPerSession);
-
-                                const newUsed = usedSessions + consumed;
-
-                                const update = {
-                                    sesiones_usadas: newUsed,
-                                    last_updated: new Date().toISOString(),
-                                    manual_update: true
-                                };
-
-                                if (newUsed >= totalSessions) {
-                                    update.estado = 'completed';
-                                } else {
-                                    update.estado = 'partially';
-                                }
-
-                                await db.collection("spa_vouchers").doc(payload.bono).update(update);
-                                console.log(`Bono actualizado: ${newUsed}/${totalSessions} sesiones.`);
-                            }
-                        } catch (vErr) {
-                            console.warn("No se pudo actualizar el estado del bono:", vErr);
-                        }
+                        await updateVoucherSessions(payload.bono, sesionesConsumidas);
                     }
                 }
 
-                // Limpiar bono pendiente si existía
+                // Limpieza final
                 clearPendingVoucher();
-
                 closeModal();
                 loadReservas(date);
-            } catch (err) { alert(err.message); }
-        });
 
-        // ------------------- TIMELINE & LOGICA NOVEDOSA -------------------
+            } catch (err) {
+                console.error("ERROR AL GUARDAR RESERVA:", err);
+                alert("Error crítico al guardar: " + err.message + "\n\nIntenta recargar la página.");
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            }
 
-        function renderTimeline(dateString) {
-            const container = document.getElementById("slots-container");
-            container.innerHTML = "";
-            const dateBlockedSlots = (spaConfig.blockedSlots && spaConfig.blockedSlots[dateString]) || [];
-
-            // Generar horas de 10:00 a 22:00
-            for (let h = 10; h < 22; h++) {
-                const hourLabel = `${h.toString().padStart(2, '0')}:00`;
-                const row = document.createElement("div");
-                row.className = "timeline-row";
-                row.style.borderBottom = "1px solid var(--border)";
-                row.style.minHeight = "60px";
-                row.style.display = "flex";
-                row.style.alignItems = "flex-start";
-                row.style.padding = "10px";
-                row.style.position = "relative";
-
-                // Etiqueta de hora
-                const label = document.createElement("div");
-                label.style.width = "60px";
-                label.style.fontWeight = "bold";
-                label.style.color = "var(--text-muted)";
-                label.textContent = hourLabel;
-                row.appendChild(label);
-
-                // Área de contenido
-                const content = document.createElement("div");
-                content.style.flex = "1";
-                content.style.position = "relative";
-
-                // Botón + para añadir reserva en esta hora
-                const addBtn = document.createElement("button");
-                addBtn.className = "btn-slot available";
-                addBtn.style.width = "auto";
-                addBtn.style.padding = "5px 15px";
-                addBtn.style.fontSize = "0.9rem";
-                addBtn.innerHTML = "<i class='fas fa-plus'></i> Reservar";
-                addBtn.onclick = () => selectSlot(hourLabel, false, false); // Slot por defecto, duración a elegir en modal
-
-                // Buscar reservas que COMIENZEN en esta hora (simple view)
-                // Para una vista real tipo Gantt requeriría más CSS absoluto, pero esto es funcional
-                const bookingsInHour = currentData.filter(r => r.hora.startsWith(hourLabel.substring(0, 2))); // Ej: "10:00", "10:30"
-
-                if (bookingsInHour.length > 0) {
-                    bookingsInHour.forEach(booking => {
-                        const card = createBookingCardTimeline(booking);
-                        content.appendChild(card);
-                    });
-                    // Ocultar botón si ta ocupado (simplificación, idealmente checkear hueco)
-                    if (bookingsInHour.some(b => b.status === 'confirmada')) addBtn.style.display = 'none';
-                }
-
-                content.appendChild(addBtn);
-                row.appendChild(content);
-                container.appendChild(row);
+            // Helper para actualizar bono si es necesario
+            async function updateVoucherSessions(bonoId, consumed) {
+                try {
+                    const vDoc = await db.collection("spa_vouchers").doc(bonoId).get();
+                    if (vDoc.exists) {
+                        const vData = vDoc.data();
+                        const newUsed = (vData.sesiones_usadas || 0) + consumed;
+                        await db.collection("spa_vouchers").doc(bonoId).update({
+                            sesiones_usadas: newUsed,
+                            estado: (newUsed >= (vData.sesiones_totales || 1)) ? 'completed' : 'partially',
+                            last_updated: new Date().toISOString()
+                        });
+                    }
+                } catch (vErr) { console.warn("Error bono:", vErr); }
             }
         }
 
-        function createBookingCardTimeline(booking) {
-            const div = document.createElement("div");
-            div.className = "booking-card";
-            div.innerHTML = `
-                <div style="font-weight:600">${booking.cliente}</div>
-                <div style="font-size:0.85rem">${booking.servicio} (${booking.duracion || 60} min)</div>
-                <div style="font-size:0.8rem; margin-top:5px">
-                    <button onclick="editBooking('${booking.id}')" class="btn-xs"><i class="fas fa-edit"></i></button>
-                    ${booking.tel ? `<a href="tel:${booking.tel}" class="btn-xs"><i class="fas fa-phone"></i></a>` : ''}
-                </div>
-            `;
-            // Color según estado
-            div.style.background = booking.status === 'confirmada' ? 'rgba(76, 175, 80, 0.2)' : 'rgba(244, 67, 54, 0.2)';
-            div.style.borderLeft = booking.status === 'confirmada' ? '4px solid var(--success)' : '4px solid var(--danger)';
-            div.style.padding = "8px";
-            div.style.marginBottom = "5px";
-            return div;
+        // Antiguo listener para prevenir el submit normal del formulario
+        document.getElementById("booking-form").addEventListener("submit", (e) => e.preventDefault());
+
+
+        // ------------------- TIMELINE & LOGICA NOVEDOSA -------------------
+
+        function renderTimeline(dateString, containerId = "slots-container", moduleConfig = currentModule, data = currentData, availability = currentStaffAvailability) {
+            const container = document.getElementById(containerId);
+            container.innerHTML = "";
+            container.className = "timeline-mode"; // Switch to timeline specific styles
+
+            // Intervalo dinámico según módulo: 15min para privados, 30min para otros
+            const step = moduleConfig.isPrivate ? 15 : 30;
+
+            const dateObj = new Date(dateString + 'T00:00:00');
+            const isSunday = dateObj.getDay() === 0;
+            const closingHour = isSunday ? 15 : 22;
+
+            for (let h = 10; h < closingHour; h++) {
+                const intervals = (step === 15) ? [0, 15, 30, 45] : [0, 30];
+                for (let m of intervals) {
+                    if (h === 21 && m > 45) continue;
+                    if (h === 21 && step === 30 && m === 30) continue;
+
+                    const timeLabel = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+                    const row = document.createElement("div");
+                    row.className = "timeline-row";
+                    row.style.display = "flex";
+                    row.style.borderBottom = "1px solid #f0f0f0";
+
+                    // Columna de hora
+                    const timeCol = document.createElement("div");
+                    timeCol.className = "time-col";
+                    timeCol.innerHTML = `<span class="time-bubble">${timeLabel}</span>`;
+                    row.appendChild(timeCol);
+
+                    // Columna de contenido
+                    const contentCol = document.createElement("div");
+                    contentCol.className = "content-col";
+
+                    // Lógica de ocupación
+                    // Lógica de ocupación
+                    const currentSlotMin = h * 60 + m;
+                    const nextSlotMin = currentSlotMin + step;
+
+                    const bookingsInSlot = data.filter(r => {
+                        if (r.status === 'anulada') return false;
+                        const [rh, rm] = r.hora.split(':').map(Number);
+                        const rStart = rh * 60 + rm;
+                        const rDuration = parseInt(r.duracion) || 60;
+                        const cleaningTime = parseInt(spaConfig.cleaningTime || 0);
+                        const rEndTotal = rStart + rDuration + cleaningTime;
+                        return (currentSlotMin < rEndTotal && nextSlotMin > rStart);
+                    });
+
+                    const isOccupied = bookingsInSlot.length > 0;
+                    const maxCapacity = moduleConfig.capacity || 1;
+                    const bookingsCount = bookingsInSlot.length;
+
+                    // 1. Mostrar reservas existentes
+                    if (isOccupied) {
+                        bookingsInSlot.forEach(booking => {
+                            const [bh, bm] = booking.hora.split(':').map(Number);
+                            const bStart = bh * 60 + bm;
+                            const bDuration = parseInt(booking.duracion || 60);
+                            const bEnd = bStart + bDuration;
+                            const isCleaning = currentSlotMin >= bEnd;
+
+                            if (booking.hora === timeLabel) {
+                                contentCol.appendChild(createBookingCardTimeline(booking));
+                            } else {
+                                const lock = document.createElement("div");
+                                lock.className = "status-lock";
+                                if (isCleaning) {
+                                    lock.style.color = "#ed8936";
+                                    lock.innerHTML = `<i class="fas fa-broom"></i> Limpieza / Preparación`;
+                                } else {
+                                    lock.innerHTML = `<i class="fas fa-lock"></i> Ocupado por ${booking.nombre}`;
+                                }
+                                contentCol.appendChild(lock);
+                            }
+                        });
+                    }
+
+                    // 2. Lógica de botón "Reservar" o Avisos
+                    const now = new Date();
+                    const isToday = (dateString === now.toISOString().split('T')[0]);
+                    const [currH, currM] = [now.getHours(), now.getMinutes()];
+                    const isPast = isToday && (h < currH || (h === currH && m < currM));
+
+                    if (isPast) {
+                        if (!isOccupied) {
+                            contentCol.innerHTML = '<span style="color:#cbd5e1; font-size:0.75rem; font-weight:600; text-transform:uppercase;">Fuera de hora</span>';
+                        }
+                    } else {
+                        // Check Staff
+                        let staffFreeCount = moduleConfig.requiresStaff ? (availability[timeLabel] || 0) : 99;
+
+                        // Check Space
+                        const defaultDur = 60;
+                        const hasSpace = moduleConfig.isPrivate ? checkSpaceSync(timeLabel, defaultDur, data) : (bookingsCount < maxCapacity);
+
+                        if (staffFreeCount > 0 && hasSpace) {
+                            // Mostrar botón Reservar si hay hueco físico y de personal
+                            const addBtn = document.createElement("button");
+                            addBtn.className = "btn btn-outline btn-sm";
+                            addBtn.style.width = "fit-content";
+                            addBtn.style.marginTop = isOccupied ? "10px" : "0";
+                            addBtn.innerHTML = "<i class='fas fa-plus'></i> Reservar";
+                            addBtn.onclick = () => {
+                                window.currentModule = moduleConfig;
+                                currentModule = moduleConfig;
+                                currentData = data;
+                                currentStaffAvailability = availability;
+                                selectedTime = timeLabel;
+                                showBookingForm();
+                            };
+                            contentCol.appendChild(addBtn);
+                        } else if (!isOccupied) {
+                            // Si no hay hueco y no hay reservas, mostrar por qué
+                            if (staffFreeCount === 0 && moduleConfig.requiresStaff) {
+                                contentCol.innerHTML = '<span style="color:#ef4444; font-size:0.75rem;"><i class="fas fa-user-slash"></i> Sin terapeuta</span>';
+                            } else if (!hasSpace) {
+                                contentCol.innerHTML = '<span style="color:#666; font-size:0.75rem;"><i class="fas fa-ban"></i> Sin espacio</span>';
+                            }
+                        }
+                    }
+
+                    row.appendChild(contentCol);
+                    container.appendChild(row);
+                }
+            }
         }
 
-        // --- VALIDACIONES AVANZADAS ---
-
-        async function checkRoomAvailability(date, start, duration, excludeId = null) {
-            // Calcular fin
+        // Helper centralizado para detectar colisiones en sala
+        function findCollision(start, duration, bookings, excludeId = null) {
             const [h, m] = start.split(':').map(Number);
             const startMin = h * 60 + m;
             const endMin = startMin + parseInt(duration);
+            const cleaningTime = parseInt(spaConfig.cleaningTime || 0);
+            const endMinTotal = endMin + cleaningTime;
 
-            // Fetch booking de este módulo y día si no están ya en currentData (ya están)
-            const colliding = currentData.some(b => {
+            return bookings.find(b => {
                 if (b.id === excludeId) return false;
                 if (b.status === 'anulada') return false;
 
                 const [bh, bm] = b.hora.split(':').map(Number);
                 const bStart = bh * 60 + bm;
                 const bDuration = parseInt(b.duracion || 60);
-                const bEnd = bStart + bDuration;
+                const bEndTotal = bStart + bDuration + cleaningTime;
 
-                // Check overlap
-                return (startMin < bEnd && endMin > bStart);
+                // Overlap: [startMin, endMinTotal] vs [bStart, bEndTotal]
+                return (startMin < bEndTotal && endMinTotal > bStart);
             });
-
-            return !colliding;
         }
 
-        async function checkStaffAvailability(date, start, duration, excludeId = null) {
-            if (!currentModule.requiresStaff) return true; // Suite no consume
+        // Helper síncrono para verificar hueco en renderTimeline y updateAvailableTimeSlots
+        function checkSpaceSync(start, duration, customData = null, excludeId = null) {
+            const bookingsToCheck = customData || currentData;
+            const collision = findCollision(start, duration, bookingsToCheck, excludeId);
+            return !collision;
+        }
 
-            const [h, m] = start.split(':').map(Number);
-            const startMin = h * 60 + m; // Minutos desde 00:00 (ej: 10:00 = 600)
-            const endMin = startMin + parseInt(duration);
-
-            // Determinar turno (Mañana < 16:00, Tarde >= 16:00)
-            // Usamos starttime para definir turno principal
-            const staffLimit = (h < 16) ? staffConfig.morning : staffConfig.afternoon;
-
-            // Consultar reservas activas en OTROS módulos que consumen personal (Panacea, VIP)
-            // (Idealmente esto sería una Cloud Function para ser atómico, pero haremos client-side check)
-
-            let activeStaffBookings = 0;
-
-            // Array de colecciones que consumen personal
-            const staffCollections = ['reservas_panacea', 'reservas_vip', 'reservas_peluqueria']; // Agregar masajes si hubiera
-
-            for (const col of staffCollections) {
-                const snapshot = await db.collection(col).where("fecha", "==", date).get();
-                snapshot.forEach(doc => {
-                    if (doc.id === excludeId) return; // Propia reserva editándose
-                    const data = doc.data();
-                    if (data.status === 'anulada') return;
-
-                    const [bh, bm] = data.hora.split(':').map(Number);
-                    const bStart = bh * 60 + bm;
-                    const bDuration = parseInt(data.duracion || 60);
-                    const bEnd = bStart + bDuration;
-
-                    // Overlap check
-                    if (startMin < bEnd && endMin > bStart) {
-                        activeStaffBookings++;
-                    }
-                });
+        async function checkRoomAvailability(date, start, duration, excludeId = null) {
+            // Si la fecha es distinta a la cargada actualmente, necesitamos los datos de esa fecha
+            let bookings;
+            const activeDate = document.getElementById("main-date-picker").value;
+            if (date === activeDate) {
+                bookings = currentData;
+            } else {
+                const snap = await db.collection(currentModule.collection).where("fecha", "==", date).get();
+                bookings = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             }
 
-            console.log(`Staff Check: ${activeStaffBookings} activos vs Limite ${staffLimit}`);
-            return activeStaffBookings < staffLimit;
+            if (currentModule.viewType === 'timeline') {
+                return findCollision(start, duration, bookings, excludeId);
+            } else {
+                // Modo Capacity
+                const dayReservations = bookings.filter(r => r.hora === start && r.status !== 'anulada' && r.id !== excludeId);
+                const paxOccupied = dayReservations.reduce((sum, r) => sum + (r.pax || 0), 0);
+                const newPax = parseInt(document.getElementById("res-pax")?.value || 1);
+                const maxCapacity = currentModule.capacity || spaConfig.capacity || 20;
+
+                if (paxOccupied + newPax > maxCapacity) {
+                    return { nombre: "Aforo Máximo Superado", hora: start, duracion: 0 }; // Mock collision info
+                }
+                return null;
+            }
         }
 
-        // Inject in window for debugging
-        window.loadStaffConfig = loadStaffConfig;
+        async function checkStaffAvailability(date, time, duration, id) {
+            if (typeof window.getAvailableStaffForRoom === 'function') {
+                try {
+                    const roomCode = currentModule.code;
+                    const availableStaff = await window.getAvailableStaffForRoom(roomCode, date, time, duration);
+                    return availableStaff && availableStaff.length > 0;
+                } catch (e) {
+                    console.error("Error calling getAvailableStaffForRoom:", e);
+                    return false;
+                }
+            }
+            return true;
+        }
 
-        // ------------------------- FIN NUEVA LÓGICA -------------------------
+        function createBookingCardTimeline(booking) {
+            const div = document.createElement("div");
+            div.className = "booking-card";
+
+            // Color según estado
+            const color = booking.status === 'confirmada' ? '#4caf50' : '#f44336';
+            const bgColor = booking.status === 'confirmada' ? 'rgba(76, 175, 80, 0.05)' : 'rgba(244, 67, 54, 0.05)';
+
+            div.style.borderColor = "#e2e8f0";
+            div.style.borderLeftColor = color;
+            div.style.background = bgColor;
+
+            div.innerHTML = `
+                <div class="booking-info">
+                    <h4>${booking.nombre}</h4>
+                    <p>
+                        <span><i class="fas fa-spa"></i> ${booking.servicio}</span>
+                        <span><i class="fas fa-clock"></i> ${booking.duracion || 60} min</span>
+                        ${booking.tel ? `<span><i class="fas fa-phone"></i> ${booking.tel}</span>` : ''}
+                    </p>
+                </div>
+                <div class="booking-actions">
+                    <button onclick="editBooking('${booking.id}')" class="btn btn-outline btn-xs" style="padding: 4px 8px;">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    ${booking.tel ? (() => {
+                    const cleanTel = booking.tel.replace(/\s/g, '');
+                    const dateStr = new Date(booking.fecha).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' });
+
+                    let msg = spaConfig.whatsappTemplate || "Hola {{nombre}}, confirmamos su cita para el {{fecha}} a las {{hora}}h.";
+                    msg = msg.replace(/{{nombre}}/g, booking.nombre || "")
+                        .replace(/{{fecha}}/g, dateStr)
+                        .replace(/{{hora}}/g, booking.hora || "")
+                        .replace(/{{espacio}}/g, currentModule.name || "")
+                        .replace(/{{servicio}}/g, booking.servicio || "")
+                        .replace(/{{telefono}}/g, booking.tel || "")
+                        .replace(/{{pax}}/g, booking.pax || "")
+                        .replace(/{{total}}/g, (booking.precio_total || booking.precio || 0) + "€")
+                        .replace(/{{notas}}/g, booking.obs || "");
+
+                    return `
+                            <a href="whatsapp://send?phone=34${cleanTel}&text=${encodeURIComponent(msg)}" 
+                               class="btn btn-outline btn-xs" 
+                               style="padding: 4px 8px; color: #25d366; border-color: #25d366;">
+                                <i class="fab fa-whatsapp"></i>
+                            </a>`;
+                })() : ''}
+                </div>
+            `;
+            return div;
+        }
+
+        function toggleRoomField() {
+            const origen = document.getElementById("res-origen").value;
+            const hotelGroup = document.getElementById("hotel-group");
+            const roomGroup = document.getElementById("room-group");
+            const bonoGroup = document.getElementById("bono-group");
+            const sessionsGroup = document.getElementById("sessions-group");
+            const durationGroup = document.getElementById("duration-group");
+
+            // Visibilidad Hotel/Habitación
+            const isHotel = (origen === 'hotel_inc' || origen === 'hotel_no_inc');
+            if (hotelGroup) hotelGroup.style.display = isHotel ? "block" : "none";
+            if (roomGroup) roomGroup.style.display = isHotel ? "block" : "none";
+
+            // Visibilidad ID Bono / Cupones externos
+            const isBono = ['bono', 'smartbox', 'wonderbox', 'ego'].includes(origen);
+            if (bonoGroup) bonoGroup.style.display = isBono ? "block" : "none";
+
+            // Visibilidad Control de Sesiones (Solo para bonos internos)
+            if (sessionsGroup) sessionsGroup.style.display = (origen === 'bono') ? "block" : "none";
+
+            // Visibilidad Duración (Normalmente oculto si no se usa)
+            if (durationGroup) durationGroup.style.display = "none";
+
+            // Ajustar el grid layout según campos visibles
+            const row = document.getElementById("extra-fields-row");
+            let visibleCount = 0;
+            if (isHotel) visibleCount += 2;
+            if (isBono) visibleCount += 1;
+            if (origen === 'bono') visibleCount += 1;
+
+            // Adjust grid columns
+            if (row) row.style.gridTemplateColumns = visibleCount > 1 ? "1fr 1fr" : "1fr";
+        }
+
+        function injectDurationField() {
+            if (document.getElementById("duration-group")) return;
+
+            const row = document.getElementById("extra-fields-row");
+            const group = document.createElement("div");
+            group.id = "duration-group";
+            group.className = "form-group";
+            group.style.marginBottom = "0";
+
+            group.innerHTML = `
+                <label style="text-transform: uppercase; font-size: 0.6rem; font-weight: 700; color: #a0aec0; letter-spacing: 0.5px; margin-bottom: 3px; display: flex; align-items: center; gap: 5px;">
+                    <i class="fas fa-clock"></i> DURACIÓN
+                </label>
+                <select id="inputDuration" style="padding: 8px 10px; border-radius: 6px; border: 1px solid #e2e8f0; font-size: 0.85rem; background: #fff; height: 34px; width: 100%;">
+                    <option value="30">30 min</option>
+                    <option value="45">45 min</option>
+                    <option value="60">60 min</option>
+                    <option value="90">90 min</option>
+                    <option value="120">120 min</option>
+                </select>
+            `;
+            if (row) row.appendChild(group);
+        }
+
+        function initStaffField() {
+            // Mostrar el campo de terapeuta
+            const staffGroup = document.getElementById("staff-selector-group");
+            if (staffGroup) {
+                staffGroup.style.display = "block";
+
+                // Hacer required el campo
+                const staffSelect = document.getElementById("booking-staff");
+                if (staffSelect) {
+                    staffSelect.required = true;
+                }
+            }
+
+            // Añadir event listeners a los campos que afectan disponibilidad
+            const dateField = document.getElementById("form-date");
+            const timeField = document.getElementById("form-time");
+            const durationField = document.getElementById("inputDuration");
+
+            // Observer para cuando se setean estos campos
+            const checkAndUpdateStaff = () => {
+                setTimeout(() => {
+                    if (typeof handleStaffFieldsChange === 'function') {
+                        const date = dateField ? dateField.value : null;
+                        const time = timeField ? timeField.value : null;
+                        const duration = durationField ? durationField.value : 60;
+
+                        if (date && time) {
+                            handleStaffFieldsChange();
+                        }
+                    }
+                }, 100);
+            };
+
+            if (dateField) dateField.addEventListener('change', checkAndUpdateStaff);
+            if (timeField) timeField.addEventListener('change', checkAndUpdateStaff);
+            if (durationField) durationField.addEventListener('change', checkAndUpdateStaff);
+        }
+
+        async function loadStaffConfig() {
+            try {
+                const doc = await db.collection("config_personal").doc("main_staff_config").get();
+                if (doc.exists) {
+                    const data = doc.data();
+                    staffConfig.morning = data.morning_count || 1;
+                    staffConfig.afternoon = data.afternoon_count || 1;
+                }
+            } catch (err) {
+                console.error("Error cargando staffConfig:", err);
+            }
+        }
+
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toast-container');
+            if (!container) return;
+
+            const toast = document.createElement('div');
+            toast.className = `toast toast-${type}`;
+
+            const colors = {
+                'success': '#10b981',
+                'error': '#ef4444',
+                'info': '#3b82f6'
+            };
+
+            toast.style.background = colors[type] || colors.info;
+            toast.style.color = '#fff';
+            toast.style.padding = '16px 24px';
+            toast.style.borderRadius = '12px';
+            toast.style.boxShadow = '0 20px 25px -5px rgba(0, 0, 0, 0.1)';
+            toast.style.display = 'flex';
+            toast.style.alignItems = 'center';
+            toast.style.gap = '12px';
+            toast.style.zIndex = '999999';
+            toast.style.marginBottom = '15px';
+            toast.style.fontSize = '1rem';
+            toast.style.fontWeight = '600';
+            toast.style.minWidth = '300px';
+            toast.style.animation = 'slideIn 0.3s ease-out forwards';
+
+            let icon = 'info-circle';
+            if (type === 'success') icon = 'check-circle';
+            if (type === 'error') icon = 'exclamation-circle';
+
+            toast.innerHTML = `<i class="fas fa-${icon}"></i> <span>${message}</span>`;
+            container.appendChild(toast);
+
+            setTimeout(() => {
+                toast.style.transition = 'all 0.5s ease-in';
+                toast.style.opacity = '0';
+                toast.style.transform = 'translateY(-20px)';
+                setTimeout(() => toast.remove(), 500);
+            }, 4000);
+        }
+
+        // ===== LOAD COMPLEMENTOS FOR RESERVATION =====
+        async function loadComplementosForReservation() {
+            try {
+                const snapshot = await db.collection("spa_complementos")
+                    .where("enabled", "==", true)
+                    .get();
+
+                const complementos = [];
+                snapshot.forEach(doc => complementos.push({ id: doc.id, ...doc.data() }));
+
+                complementos.sort((a, b) => {
+                    if (a.category !== b.category) {
+                        return a.category.localeCompare(b.category);
+                    }
+                    return a.name.localeCompare(b.name);
+                });
+
+                const container = document.getElementById("complementos-list");
+                if (!container) return;
+
+                if (complementos.length === 0) {
+                    container.innerHTML = '<small style="color: #94a3b8; grid-column: 1/-1;">No hay complementos disponibles</small>';
+                    return;
+                }
+
+                container.innerHTML = complementos.map(comp => `
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.75rem;">
+                        <input type="checkbox" name="complemento" value="${comp.id}" 
+                            data-price="${comp.price}" data-name="${comp.name}"
+                            onchange="updateTotalPrice()">
+                        <span>${comp.name}</span>
+                    </label>
+                `).join('');
+            } catch (err) {
+                console.error("Error cargando complementos:", err);
+            }
+        }
+
+        // Initialize Date Display
+        document.addEventListener('DOMContentLoaded', () => {
+            const picker = document.getElementById('main-date-picker');
+            if (picker && picker.value) {
+                updateDateDisplay(picker.value);
+            }
+        });
+
+        function handleDateChange(val) {
+            updateDateDisplay(val);
+            loadReservas(val);
+        }
+
+        function updateDateDisplay(dateStr) {
+            if (!dateStr) return;
+            const date = new Date(dateStr);
+            const options = { weekday: 'long', year: 'numeric', month: '2-digit', day: '2-digit' };
+            const formatted = date.toLocaleDateString('es-ES', options);
+            if (document.getElementById('date-display')) {
+                document.getElementById('date-display').textContent = formatted.charAt(0).toUpperCase() + formatted.slice(1);
+            }
+        }
+
+        function openDatePicker() {
+            try {
+                document.getElementById('main-date-picker').showPicker();
+            } catch (e) {
+                console.log("showPicker not supported");
+            }
+        }
+
+        function changeDate(days) {
+            const dateInput = document.getElementById('main-date-picker');
+            const currentDate = new Date(dateInput.value);
+            currentDate.setDate(currentDate.getDate() + days);
+            const year = currentDate.getFullYear();
+            const month = String(currentDate.getMonth() + 1).padStart(2, '0');
+            const day = String(currentDate.getDate()).padStart(2, '0');
+            const newVal = `${year}-${month}-${day}`;
+            dateInput.value = newVal;
+            handleDateChange(newVal);
+        }
     </script>
+
+    <!-- Staff Management Integration -->
+    <script src="reservas-staff.js"></script>
+
+    <div id="toast-container"
+        style="position: fixed; top: 20px; right: 20px; z-index: 99999; display: flex; flex-direction: column; align-items: flex-end;">
+    </div>
 </body>
 
 </html>

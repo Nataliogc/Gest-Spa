@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Configuración - Zenith Manager</title>
+    <link rel="icon" href="zenith-pwa-icon.png" type="image/png">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="styles.css">
+
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+</head>
+
+<body>
+
+    <!-- MENÚ LATERAL -->
+    <!-- Top Navbar -->
+    <div class="sidebar">
+        <!-- LEFT: Cumbria Logo -->
+        <div style="display: flex; align-items: center; gap: 15px;">
+            <img src="logo-spa.jpg" alt="Cumbria Bienestar" style="height: 65px; width: auto; object-fit: contain;">
+        </div>
+
+        <ul class="nav-links" style="flex:1;">
+            <li><a href="index.html" class="nav-link"><i class="fas fa-home"></i> Inicio</a></li>
+            <li><a href="bonos.html" class="nav-link"><i class="fas fa-ticket-alt"></i> Bonos</a></li>
+
+            <li class="menu-header" style="display:none;">MÓDULOS</li>
+            <li><a href="reservas.html?type=spa" class="nav-link"><i class="fas fa-water"></i> Spa</a></li>
+            <li><a href="reservas.html?type=suite" class="nav-link"><i class="fas fa-gem"></i> Suite</a></li>
+            <li><a href="reservas.html?type=panacea" class="nav-link"><i class="fas fa-columns"></i> Panacea & VIP</a>
+            </li>
+            <li><a href="reservas.html?type=peluqueria" class="nav-link"><i class="fas fa-cut"></i> Peluquería</a></li>
+
+            <li class="dropdown">
+                <a href="#" class="nav-link dropdown-toggle active">
+                    <i class="fas fa-users-cog"></i> GESTIÓN <i class="fas fa-caret-down"
+                        style="font-size: 0.7em; margin-left: 2px;"></i>
+                </a>
+                <ul class="dropdown-menu">
+                    <li><a href="personal.html"><i class="fas fa-user-tie"></i> Personal</a></li>
+                    <li><a href="catalogo.html"><i class="fas fa-book-open"></i> Catálogo</a></li>
+                    <li><a href="configuracion.html" class="active" style="color:var(--accent); font-weight:bold;"><i
+                                class="fas fa-cogs"></i> Ajustes</a></li>
+                </ul>
+            </li>
+        </ul>
+
+        <!-- RIGHT: Zenith Branding -->
+        <div style="display: flex; align-items: center; gap: 10px;">
+            <div style="text-align: right; line-height: 1.2;">
+                <span style="font-size: 0.9rem; font-weight: 600; display: block; color: var(--text);">ZENITH</span>
+                <span style="font-size: 0.75rem; letter-spacing: 1px; color: var(--text-muted);">MANAGER</span>
+            </div>
+            <img src="zenith-logo.png" alt="Zenith" style="height: 35px; width: auto;">
+        </div>
+    </div>
+
+    <!-- CONTENIDO PRINCIPAL -->
+    <main class="main-content">
+        <section id="config-view" style="padding: 25px; height: 100%;">
+            <div style="flex: 1; overflow-y: auto; padding-right: 10px; padding-bottom: 80px;">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 30px;">
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <div
+                            style="width: 45px; height: 45px; background: var(--accent); border-radius: 12px; display: flex; align-items: center; justify-content: center; color: white; font-size: 1.5rem; box-shadow: 0 4px 10px rgba(212, 175, 55, 0.3);">
+                            <i class="fas fa-cogs"></i>
+                        </div>
+                        <div>
+                            <h2 style="margin: 0; font-size: 1.5rem; font-weight: 700; color: var(--text);">Ajustes de
+                                Sistema</h2>
+                            <p class="muted" style="margin: 0; font-size: 0.85rem;">Configura el funcionamiento global y
+                                las reglas del Spa</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SUB-NAVEGACIÓN POR TABS -->
+                <div
+                    style="display: flex; gap: 10px; margin-bottom: 25px; border-bottom: 1px solid var(--border); padding-bottom: 10px;">
+                    <button class="config-tab btn active" onclick="switchConfigTab('tab-general', this)">
+                        <i class="fas fa-tools"></i> General
+                    </button>
+                    <button class="config-tab btn" onclick="switchConfigTab('tab-spa', this)">
+                        <i class="fas fa-spa"></i> Módulo Spa
+                    </button>
+                    <button class="config-tab btn" onclick="switchConfigTab('tab-catalogo', this)">
+                        <i class="fas fa-layer-group"></i> Catálogo
+                    </button>
+                </div>
+
+                <!-- CONTENIDO TABS -->
+                <div id="config-tabs-content">
+
+                    <!-- TAB GENERAL -->
+                    <div id="tab-general" class="config-tab-content">
+                        <div style="max-width: 800px;">
+                            <div class="stat-card" style="border-left: 4px solid #25D366; padding: 20px;">
+                                <h3
+                                    style="margin: 0 0 15px 0; font-size: 1.1rem; display: flex; align-items: center; gap: 10px; color: #25D366;">
+                                    <i class="fab fa-whatsapp"></i> Recordatorios WhatsApp
+                                </h3>
+                                <div
+                                    style="background: #f0fdf4; border-radius: 8px; padding: 12px; margin-bottom: 15px; border: 1px solid #dcfce7;">
+                                    <p style="margin: 0; font-size: 0.75rem; color: #166534; line-height: 1.4;">
+                                        El mensaje usa etiquetas inteligentes que se rellenan solas:<br>
+                                        <b>{{nombre}}</b>, <b>{{fecha}}</b>, <b>{{hora}}</b>, <b>{{espacio}}</b>,
+                                        <b>{{servicio}}</b>, <b>{{telefono}}</b>, <b>{{pax}}</b>, <b>{{total}}</b>,
+                                        <b>{{notas}}</b>.
+                                    </p>
+                                </div>
+                                <textarea id="cfg-whatsapp-template" placeholder="Escribe tu plantilla aquí..."
+                                    style="width: 100%; height: 180px; border-radius: 8px; border: 1px solid #e2e8f0; font-size: 0.9rem; padding: 12px; resize: vertical; background: #fff;"></textarea>
+
+                                <button onclick="saveSpaSettings()" class="btn btn-accent"
+                                    style="width: 100%; margin-top: 20px; background: #25D366; border-color: #25D366; justify-content: center; height: 45px; font-weight: 600;">
+                                    <i class="fas fa-save"></i> Guardar Plantilla de Mensaje
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- TAB SPA -->
+                    <div id="tab-spa" class="config-tab-content" style="display: none;">
+                        <div style="max-width: 800px;">
+                            <div class="stat-card">
+                                <h3 style="margin: 0 0 15px 0; font-size: 1rem; color: var(--text);">
+                                    <i class="fas fa-swimming-pool"></i> Configuración del Circuito Spa
+                                </h3>
+                                <div class="form-group" style="margin-top: 15px;">
+                                    <label style="font-size: 0.8rem; font-weight: 600;">Capacidad Máxima por Turno
+                                        (Aforo)</label>
+                                    <input type="number" id="cfg-spa-capacity" value="20" class="param-input"
+                                        style="width: 100%; margin-top: 5px;">
+                                </div>
+
+                                <div class="form-group" style="margin-top: 15px;">
+                                    <label style="font-size: 0.8rem; font-weight: 600;">Tiempo de Limpieza/Preparación
+                                        (minutos)</label>
+                                    <input type="number" id="cfg-spa-cleaning" value="30" class="param-input"
+                                        style="width: 100%; margin-top: 5px;">
+                                </div>
+
+                                <div class="form-group" style="margin-top: 25px;">
+                                    <label style="font-size: 0.8rem; font-weight: 600;">Días de Cierre
+                                        (Especiales)</label>
+                                    <div style="display: flex; gap: 8px; margin-top: 8px;">
+                                        <input type="date" id="cfg-spa-closed-date" class="param-input"
+                                            style="flex: 1;">
+                                        <button onclick="addClosedDate()" class="btn btn-accent btn-sm">
+                                            <i class="fas fa-plus"></i> Añadir
+                                        </button>
+                                    </div>
+                                    <div id="cfg-closed-dates-list"
+                                        style="max-height: 140px; overflow-y: auto; background: #f8fafc; padding: 10px; border-radius: 6px; font-size: 0.8rem; margin-top: 10px; border: 1px solid var(--border);">
+                                        <!-- JS Render -->
+                                    </div>
+                                </div>
+
+                                <button onclick="saveSpaSettings()" class="btn btn-accent"
+                                    style="width: 100%; margin-top: 25px; justify-content: center; height: 45px; font-weight: 600;">
+                                    <i class="fas fa-save"></i> Guardar Configuración Spa
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- TAB CATÁLOGO -->
+                    <div id="tab-catalogo" class="config-tab-content" style="display: none;">
+                        <div style="max-width: 1200px; margin: 0 auto;">
+
+                            <!-- Editor Acceso -->
+                            <div class="stat-card" style="border-left: 4px solid var(--accent); margin-bottom: 30px;">
+                                <div style="display: flex; align-items: flex-start; gap: 20px;">
+                                    <div
+                                        style="font-size: 2rem; color: var(--accent); background: rgba(212,175,55,0.05); width: 60px; height: 60px; border-radius: 12px; display: flex; align-items: center; justify-content: center;">
+                                        <i class="fas fa-layer-group"></i>
+                                    </div>
+                                    <div style="flex: 1;">
+                                        <h3 style="margin: 0; font-size: 1.2rem; color: var(--text);">Editor de Catálogo
+                                        </h3>
+                                        <p class="muted"
+                                            style="font-size: 0.85rem; margin: 10px 0 20px 0; line-height: 1.5;">
+                                            Gestiona todos tus servicios y precios. Los cambios se aplican en todo el
+                                            sistema.
+                                        </p>
+                                        <a href="catalogo.html" class="btn btn-accent"
+                                            style="width: 100%; max-width: 300px; justify-content: center; height: 45px; font-weight: 600;">
+                                            <i class="fas fa-external-link-alt"></i> Abrir Editor Full Screen
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Items Maestros (Desglose) -->
+                            <div class="stat-card" style="border-top: 4px solid #4a5568; margin-bottom: 30px;">
+                                <div
+                                    style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                                    <h3
+                                        style="margin: 0; font-size: 1rem; display: flex; align-items: center; gap: 10px; color: #4a5568;">
+                                        <i class="fas fa-list-ul"></i> Items de Compra / Pack
+                                    </h3>
+                                    <div style="display: flex; gap: 10px;">
+                                        <button onclick="syncExistingItemsToMaster()" class="btn btn-outline btn-sm"
+                                            title="Extraer items de servicios existentes"
+                                            style="padding: 2px 8px; font-size: 0.65rem;">
+                                            <i class="fas fa-sync-alt"></i> Sincronizar
+                                        </button>
+                                        <button onclick="addMasterItem()" class="btn btn-accent btn-sm"
+                                            style="padding: 2px 12px; font-size: 0.7rem;">
+                                            <i class="fas fa-plus"></i> Nuevo Item
+                                        </button>
+                                    </div>
+                                </div>
+                                <p class="muted" style="font-size: 0.75rem; margin-bottom: 20px;">Configura la duración
+                                    y el espacio por defecto para cada elemento del catálogo.</p>
+
+                                <div id="master-items-table-container"
+                                    style="max-height: 400px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.02); background: #fff;">
+                                    <table style="width: 100%; border-collapse: collapse; font-size: 0.8rem;">
+                                        <thead
+                                            style="background: #f8fafc; border-bottom: 2px solid var(--border); position: sticky; top: 0; z-index: 10;">
+                                            <tr>
+                                                <th
+                                                    style="padding: 12px; text-align: left; color: #475569; font-weight: 700; width: 45%;">
+                                                    ITEM / NOMBRE</th>
+                                                <th
+                                                    style="padding: 12px; text-align: center; color: #475569; font-weight: 700; width: 15%;">
+                                                    DUR (MIN)</th>
+                                                <th
+                                                    style="padding: 12px; text-align: left; color: #475569; font-weight: 700; width: 30%;">
+                                                    ESPACIO</th>
+                                                <th style="padding: 12px; text-align: center; width: 10%;"></th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="master-items-tbody">
+                                            <tr>
+                                                <td colspan="4"
+                                                    style="padding: 30px; text-align: center; color: #94a3b8;">Cargando
+                                                    configuración de items...</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <!-- Salas y Espacios -->
+                            <div class="stat-card" style="border-top: 4px solid #8b5cf6;">
+                                <div
+                                    style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                                    <h3
+                                        style="margin: 0; font-size: 1rem; display: flex; align-items: center; gap: 10px; color: #8b5cf6;">
+                                        <i class="fas fa-door-open"></i> Salas y Espacios
+                                    </h3>
+                                    <button onclick="openSpaceModal()" class="btn btn-accent btn-sm"
+                                        style="padding: 2px 12px; font-size: 0.7rem; background: #8b5cf6; border-color: #8b5cf6;">
+                                        <i class="fas fa-plus"></i> Nueva Sala
+                                    </button>
+                                </div>
+                                <p class="muted" style="font-size: 0.75rem; margin-bottom: 20px;">Configura las salas
+                                    disponibles del spa con su capacidad y tipo.</p>
+
+                                <div id="spaces-grid"
+                                    style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 15px;">
+                                    <div
+                                        style="grid-column: 1/-1; padding: 30px; text-align: center; color: #94a3b8; background: #f8fafc; border-radius: 8px;">
+                                        Cargando salas...
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Complementos / Extras -->
+                            <div class="stat-card" style="border-top: 4px solid #10b981; margin-top: 30px;">
+                                <div
+                                    style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                                    <h3
+                                        style="margin: 0; font-size: 1rem; display: flex; align-items: center; gap: 10px; color: #10b981;">
+                                        <i class="fas fa-plus-circle"></i> Complementos / Extras
+                                    </h3>
+                                    <button onclick="openComplementoModal()" class="btn btn-accent btn-sm"
+                                        style="padding: 2px 12px; font-size: 0.7rem; background: #10b981; border-color: #10b981;">
+                                        <i class="fas fa-plus"></i> Nuevo Complemento
+                                    </button>
+                                </div>
+                                <p class="muted" style="font-size: 0.75rem; margin-bottom: 20px;">
+                                    Gestiona los extras y complementos disponibles para las reservas.
+                                </p>
+
+                                <div
+                                    style="max-height: 400px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; background: #fff;">
+                                    <table style="width: 100%; border-collapse: collapse; font-size: 0.8rem;">
+                                        <thead
+                                            style="background: #f8fafc; border-bottom: 2px solid var(--border); position: sticky; top: 0; z-index: 10;">
+                                            <tr>
+                                                <th style="padding: 12px; text-align: left; width: 40%;">NOMBRE</th>
+                                                <th style="padding: 12px; text-align: left; width: 25%;">CATEGORÍA</th>
+                                                <th style="padding: 12px; text-align: center; width: 15%;">PRECIO</th>
+                                                <th style="padding: 12px; text-align: center; width: 10%;">ESTADO</th>
+                                                <th style="padding: 12px; text-align: center; width: 10%;"></th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="complementos-tbody">
+                                            <tr>
+                                                <td colspan="5"
+                                                    style="padding: 30px; text-align: center; color: #94a3b8;">Cargando
+                                                    complementos...</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- MODAL EDITAR SALA/ESPACIO -->
+    <div id="space-modal" class="modal" style="display: none;">
+        <div class="modal-content glass" style="max-width: 500px;">
+            <div class="modal-header">
+                <h3><span id="space-modal-title">Nueva Sala</span></h3>
+                <span class="close-modal" onclick="closeSpaceModal()">&times;</span>
+            </div>
+            <form id="space-form" onsubmit="saveSpace(event)">
+                <input type="hidden" id="space-id">
+
+                <div class="form-group">
+                    <label>Nombre de la Sala</label>
+                    <input type="text" id="space-name" placeholder="Ej: Suite Spa, Sala VIP..." required>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Código (ID)</label>
+                        <input type="text" id="space-code" placeholder="suite, vip..." required pattern="[a-z_]+"
+                            title="Solo minúsculas y guiones bajos">
+                        <small class="muted">Solo minúsculas sin espacios (Ej: suite_spa, vip)</small>
+                    </div>
+                    <div class="form-group">
+                        <label>Capacidad</label>
+                        <input type="number" id="space-capacity" placeholder="1" min="1" required>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Tipo</label>
+                        <select id="space-type" required>
+                            <option value="private">Privada (1 reserva simultánea)</option>
+                            <option value="circuit">Circuito (múltiples)</option>
+                            <option value="service">Servicios (cabinas)</option>
+                            <option value="other">Otro</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Color</label>
+                        <input type="color" id="space-color" value="#8b5cf6" required>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Descripción (Opcional)</label>
+                    <textarea id="space-description" rows="2" placeholder="Breve descripción de la sala..."></textarea>
+                </div>
+
+                <button type="submit" class="btn btn-accent" style="width: 100%; margin-top: 20px;">
+                    <i class="fas fa-save"></i> Guardar Sala
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL: COMPLEMENTO -->
+    <div id="complemento-modal" class="modal" style="display: none;">
+        <div class="modal-content glass" style="max-width: 500px;">
+            <div class="modal-header">
+                <h3 id="complemento-modal-title">Nuevo Complemento</h3>
+                <span class="close-modal" onclick="closeComplementoModal()">&times;</span>
+            </div>
+            <form id="complemento-form" onsubmit="saveComplemento(event)">
+                <input type="hidden" id="complemento-id">
+
+                <div class="form-group">
+                    <label>Nombre del Complemento *</label>
+                    <input type="text" id="complemento-name" placeholder="Ej: Benjamin (+30€)" required>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Categoría *</label>
+                        <select id="complemento-category" required>
+                            <option value="complemento">Complemento</option>
+                            <option value="estetica">Estética/Peluquería</option>
+                            <option value="bebida">Bebida</option>
+                            <option value="otro">Otro</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Precio (€) *</label>
+                        <input type="number" id="complemento-price" step="0.01" min="0" value="0" required>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Estado</label>
+                    <select id="complemento-enabled">
+                        <option value="true">Activo</option>
+                        <option value="false">Inactivo</option>
+                    </select>
+                </div>
+
+                <button type="submit" class="btn btn-accent" style="width: 100%; margin-top: 20px;">
+                    <i class="fas fa-save"></i> Guardar Complemento
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toast-container"></div>
+
+    <!-- Scripts -->
+    <script src="firebase-config.js"></script>
+    <script src="js/app-core.js"></script>
+    <script src="js/config.js"></script>
+
+</body>
+
+</html>

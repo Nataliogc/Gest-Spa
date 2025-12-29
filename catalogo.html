@@ -20,236 +20,419 @@
     <link rel="stylesheet" href="styles.css">
     <style>
         .catalogo-container {
-            padding: 10px 15px;
-            /* Minimal */
-            max-width: 99%;
-            margin: 0 auto;
-            overflow-y: auto;
+            flex: 1;
+            /* margin-left removed for topbar layout */
+            padding: 25px;
             height: 100vh;
+            display: flex;
+            flex-direction: column;
+            background: var(--bg);
         }
 
         .header-flex {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 12px;
-            /* Tight */
-            padding-bottom: 10px;
+            margin-bottom: 25px;
+            padding-bottom: 20px;
             border-bottom: 1px solid var(--border);
         }
 
         .tab-container {
             display: flex;
-            gap: 15px;
+            gap: 8px;
+            flex-wrap: wrap;
         }
 
         .tab {
-            padding: 10px 25px;
+            padding: 8px 16px;
             cursor: pointer;
             color: var(--text-muted);
             font-weight: 600;
-            transition: all 0.3s;
+            transition: all 0.2s;
             border-radius: 8px;
-            background: rgba(255, 255, 255, 0.5);
+            background: #fff;
             border: 1px solid var(--border);
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 8px;
+            font-size: 0.8rem;
         }
 
         .tab.active {
-            color: var(--accent);
+            color: white;
             border-color: var(--accent);
-            background: #fff;
-            box-shadow: 0 4px 10px rgba(212, 175, 55, 0.1);
+            background: var(--accent);
+            box-shadow: 0 4px 10px rgba(212, 175, 55, 0.2);
+        }
+
+        .search-wrapper {
+            position: relative;
+            flex: 1;
+            max-width: 300px;
+        }
+
+        .search-wrapper i {
+            position: absolute;
+            left: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-muted);
+            font-size: 0.8rem;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 10px 10px 10px 35px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            outline: none;
+            font-size: 0.85rem;
+            transition: all 0.2s;
+        }
+
+        .search-input:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.1);
         }
 
         .grid-densidad {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-            gap: 10px;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
             width: 100%;
         }
 
-        .stat-card.service-card {
-            height: 100%;
+        .service-card {
+            background: #fff;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            padding: 18px;
             display: flex;
             flex-direction: column;
-            padding: 10px;
-            /* Extreme compact */
+            transition: all 0.2s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .service-card:hover {
+            border-color: var(--accent);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 15px rgba(0, 0, 0, 0.05);
+        }
+
+        .service-badge {
+            position: absolute;
+            top: 0;
+            right: 0;
+            background: var(--accent);
+            color: white;
+            padding: 4px 12px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            border-bottom-left-radius: 12px;
         }
     </style>
 </head>
 
 <body>
     <!-- Sidebar -->
+    <!-- Top Navbar -->
     <div class="sidebar">
-        <div style="text-align: center; margin-bottom: 25px;">
-            <img src="logo-spa.jpg" alt="Cumbria Bienestar" style="max-width: 85%; height: auto;">
+        <!-- LEFT: Cumbria Logo -->
+        <div style="display: flex; align-items: center; gap: 15px;">
+            <img src="logo-spa.jpg" alt="Cumbria Bienestar" style="height: 65px; width: auto; object-fit: contain;">
         </div>
 
-        <ul class="nav-links">
+        <ul class="nav-links" style="flex:1;">
             <li><a href="index.html" class="nav-link"><i class="fas fa-home"></i> Inicio</a></li>
-            <li><a href="index.html" class="nav-link"><i class="fas fa-ticket-alt"></i> Bonos</a></li>
-            <li><a href="reservas.html?type=spa" class="nav-link"><i class="fas fa-calendar-alt"></i> Panel General
-                    (Spa)</a></li>
-            <li><a href="reservas.html?type=suite" class="nav-link"><i class="fas fa-gem"></i> Suite Spa</a></li>
-            <li><a href="reservas.html?type=panacea" class="nav-link"><i class="fas fa-tint"></i> Sala Panacea</a></li>
-            <li><a href="reservas.html?type=vip" class="nav-link"><i class="fas fa-crown"></i> Sala VIP</a></li>
-            <li style="margin-top: 20px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 10px;">
-                <a href="personal.html" class="nav-link"><i class="fas fa-users-cog"></i> Gestión Personal</a>
+            <li><a href="bonos.html" class="nav-link"><i class="fas fa-ticket-alt"></i> Bonos</a></li>
+
+            <li class="menu-header" style="display:none;">MÓDULOS</li> <!-- Hidden in topbar compact mode -->
+            <li><a href="reservas.html?type=spa" class="nav-link"><i class="fas fa-water"></i> Spa</a></li>
+            <li><a href="reservas.html?type=suite" class="nav-link"><i class="fas fa-gem"></i> Suite</a></li>
+            <li><a href="reservas.html?type=panacea" class="nav-link"><i class="fas fa-columns"></i> Panacea & VIP</a>
+            </li>
+            <li><a href="reservas.html?type=peluqueria" class="nav-link"><i class="fas fa-cut"></i> Peluquería</a></li>
+
+            <li class="dropdown">
+                <a href="#" class="nav-link dropdown-toggle active">
+                    <i class="fas fa-users-cog"></i> GESTIÓN <i class="fas fa-caret-down"
+                        style="font-size: 0.7em; margin-left: 2px;"></i>
+                </a>
+                <ul class="dropdown-menu">
+                    <li><a href="personal.html"><i class="fas fa-user-tie"></i> Personal</a></li>
+                    <li><a href="catalogo.html" class="active" style="color:var(--accent); font-weight:bold;"><i
+                                class="fas fa-book-open"></i> Catálogo</a></li>
+                    <li><a href="configuracion.html"><i class="fas fa-cogs"></i> Ajustes</a></li>
+                </ul>
             </li>
         </ul>
 
-        <div style="text-align: center; margin-top: auto; padding: 10px 0; border-top: 1px solid var(--border);">
-            <img src="zenith-logo.png" alt="Zenith" style="max-width: 90px; height: auto; opacity: 0.85;">
+        <!-- RIGHT: Zenith Branding -->
+        <div style="display: flex; align-items: center; gap: 10px;">
+            <div style="text-align: right; line-height: 1.2;">
+                <span style="font-size: 0.9rem; font-weight: 600; display: block; color: var(--text);">ZENITH</span>
+                <span style="font-size: 0.75rem; letter-spacing: 1px; color: var(--text-muted);">MANAGER</span>
+            </div>
+            <img src="zenith-logo.png" alt="Zenith" style="height: 35px; width: auto;">
         </div>
     </div>
 
-    <div class="catalogo-container" style="flex: 1;">
+
+
+    <div class="catalogo-container" style="margin-top: 100px; padding: 20px;">
         <!-- Integrated Header -->
-        <div class="header-flex" style="margin-bottom: 15px; padding-bottom: 10px;">
-            <div style="display: flex; align-items: center; gap: 15px;">
-                <a href="index.html" class="btn btn-outline" style="padding: 6px 12px; font-size: 0.8rem;">
-                    <i class="fas fa-arrow-left"></i> Volver
-                </a>
-                <h2 style="font-weight: 300; letter-spacing: 2px; margin: 0; font-size: 1.1rem;">CATÁLOGO</h2>
-                <div class="tab-container" style="margin-left: 20px; gap: 10px;">
-                    <div class="tab active" onclick="switchTab('circuitos', this)"
-                        style="padding: 8px 15px; font-size: 0.82rem;"><i class="fas fa-water"></i> Circuitos</div>
-                    <div class="tab" onclick="switchTab('tratamientos', this)"
-                        style="padding: 8px 15px; font-size: 0.82rem;">
-                        <i class="fas fa-spa"></i> Tratamientos
-                    </div>
+        <div class="header-flex"
+            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; padding-top: 10px;">
+            <div style="display: flex; flex-direction: column; gap: 5px;">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <a href="index.html" class="btn btn-outline btn-sm">
+                        <i class="fas fa-arrow-left"></i>
+                    </a>
+                    <h2 style="font-weight: 700; margin: 0; font-size: 1.4rem; color: var(--text);">Gestión de Catálogo
+                    </h2>
                 </div>
+                <p class="muted" style="margin: 0; font-size: 0.85rem;">Organiza tus servicios, packs y precios</p>
             </div>
+
             <div style="display: flex; align-items: center; gap: 15px;">
-                <button class="btn btn-accent" onclick="openServiceModal()"
-                    style="box-shadow: 0 4px 10px rgba(212, 175, 55, 0.2); padding: 8px 20px; font-size: 0.8rem;">
+                <div class="search-wrapper">
+                    <i class="fas fa-search"></i>
+                    <input type="text" id="catalog-search" class="search-input" placeholder="Buscar servicio..."
+                        onkeyup="handleSearch(this.value)">
+                </div>
+                <button id="btn-auto-config" class="btn btn-warning me-2" onclick="autoAssignSpaces()"
+                    style="height: 40px; font-weight: 600; margin-right: 10px;">
+                    <i class="fas fa-magic"></i> Auto-Configurar
+                </button>
+                <button id="btn-import-wc" class="btn btn-outline" onclick="triggerWCImport()"
+                    style="border-color: #2563eb; color: #2563eb;">
+                    <i class="fab fa-wordpress"></i> Importar WC
+                </button>
+                <button id="btn-clear-catalog" class="btn btn-outline" onclick="clearCatalog()"
+                    style="border-color: #ef4444; color: #ef4444;">
+                    <i class="fas fa-trash-sweep"></i> Limpiar Catálogo
+                </button>
+                <input type="file" id="wc-csv-input" style="display: none;" accept=".csv" onchange="handleWCFile(this)">
+                <button class="btn btn-accent" onclick="openServiceModal()" style="height: 40px; font-weight: 600;">
                     <i class="fas fa-plus"></i> Añadir Nuevo
                 </button>
-                <img src="zenith-logo.png" alt="Zenith" style="max-width: 50px;">
             </div>
         </div>
 
-        <!-- VISTAS -->
-        <section id="circuitos-view">
-            <div id="circuitos-container" class="grid-densidad">
-                <p class="muted">Cargando...</p>
+        <!-- TABS INTELIGENTES -->
+        <div class="tab-container" style="margin-bottom: 25px;">
+            <div class="tab active" onclick="switchCatalogTab('todos', this)"><i class="fas fa-th-large"></i> Todos
             </div>
-        </section>
+            <div class="tab" onclick="switchCatalogTab('spa', this)"><i class="fas fa-water"></i> Spa</div>
+            <div class="tab" onclick="switchCatalogTab('masajes', this)"><i class="fas fa-spa"></i> Masajes</div>
+            <div class="tab" onclick="switchCatalogTab('packs', this)"><i class="fas fa-box-open"></i> Packs & Suite
+            </div>
+            <div class="tab" onclick="switchCatalogTab('bonos', this)"><i class="fas fa-ticket-alt"></i> Bonos
+            </div>
+            <div class="tab" onclick="switchCatalogTab('estetica', this)"><i class="fas fa-magic"></i> Estética/Pelu
+            </div>
+            <div class="tab" onclick="switchCatalogTab('complementos', this)"><i class="fas fa-plus-circle"></i>
+                Complementos</div>
+        </div>
 
-        <section id="tratamientos-view" style="display:none">
-            <div id="tratamientos-container">
-                <p class="muted">Cargando...</p>
+        <!-- LISTA DE SERVICIOS -->
+        <div style="flex: 1; overflow-y: auto; padding-bottom: 30px;">
+            <div id="services-grid" class="grid-densidad">
+                <!-- JS Render -->
+                <p class="muted">Cargando catálogo...</p>
             </div>
-        </section>
+        </div>
     </div>
 
     <!-- MODAL GESTIÓN SERVICIO -->
     <div id="service-modal" class="modal" style="display: none;">
-        <div class="modal-content glass" style="max-width: 500px;">
+        <div class="modal-content" style="max-width: 850px; width: 95%;">
             <div class="modal-header">
-                <h3 id="sm-title">Nuevo Servicio</h3>
+                <h3 id="sm-title" style="margin: 0; font-size: 1.5rem; color: var(--text);">Nuevo Servicio</h3>
                 <span class="close-modal" onclick="closeServiceModal()">&times;</span>
             </div>
-            <form id="service-form" onsubmit="saveServiceChanges(e)">
-                <input type="hidden" id="sm-id">
 
-                <div class="form-group">
-                    <label>Nombre del Servicio / Producto</label>
-                    <input type="text" id="sm-nombre" required>
-                </div>
+            <form id="service-form" style="display: contents;">
+                <div class="modal-body">
+                    <input type="hidden" id="sm-id">
 
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>Precio (€)</label>
-                        <input type="number" step="0.01" id="sm-precio" required>
+                    <!-- ULTRA COMPACT LAYOUT (No Duplicates) -->
+                    <div style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 15px;">
+
+                        <!-- Row 1: Nombre (Grow), Precio, Duracion -->
+                        <div style="display: flex; gap: 10px; align-items: flex-end;">
+                            <div style="flex: 4;">
+                                <label
+                                    style="font-size: 0.65rem; font-weight: 700; text-transform: uppercase; color: #a0aec0; display: block; margin-bottom: 2px;">Nombre
+                                    del Servicio</label>
+                                <input type="text" id="sm-nombre" required class="param-input form-control"
+                                    placeholder="Ej: Masaje..."
+                                    style="font-size: 0.9rem; padding: 4px 8px; height: 32px; width: 100%;">
+                            </div>
+                            <div style="flex: 1;">
+                                <label
+                                    style="font-size: 0.65rem; font-weight: 700; text-transform: uppercase; color: #a0aec0; display: block; margin-bottom: 2px;">Precio
+                                    (€)</label>
+                                <input type="number" step="0.01" id="sm-precio" required
+                                    class="param-input form-control"
+                                    style="font-size: 0.9rem; padding: 4px 8px; height: 32px; width: 100%;">
+                            </div>
+                            <div style="flex: 1;">
+                                <label
+                                    style="font-size: 0.65rem; font-weight: 700; text-transform: uppercase; color: #a0aec0; display: block; margin-bottom: 2px;">Min</label>
+                                <input type="number" id="sm-duracion" placeholder="60" class="param-input form-control"
+                                    style="font-size: 0.9rem; padding: 4px 8px; height: 32px; width: 100%;">
+                            </div>
+                        </div>
+
+                        <!-- Row 2: Categoria, Espacio, Pax -->
+                        <div style="display: flex; gap: 10px; align-items: flex-end;">
+                            <div style="flex: 1.2;">
+                                <label
+                                    style="font-size: 0.65rem; font-weight: 700; text-transform: uppercase; color: #a0aec0; display: block; margin-bottom: 2px;">Categoría</label>
+                                <select id="sm-categoria" class="param-input form-control"
+                                    style="font-size: 0.9rem; padding: 4px 8px; height: 32px; width: 100%;">
+                                    <optgroup label="Spa y Bienestar">
+                                        <option value="circuito">Circuito Spa</option>
+                                        <option value="bono_circuito">Bono Circuito</option>
+                                        <option value="pack_pareja">Pack Pareja</option>
+                                        <option value="pack_hosteleria">Pack Hostelería</option>
+                                        <option value="suite_privada">Suite Privada</option>
+                                    </optgroup>
+                                    <optgroup label="Tratamientos">
+                                        <option value="masaje">Masaje</option>
+                                        <option value="bono_masaje">Bono Masaje</option>
+                                        <option value="facial">Facial</option>
+                                        <option value="bono_facial">Bono Facial</option>
+                                        <option value="corporal">Corporal</option>
+                                        <option value="bono_corporal">Bono Corporal</option>
+                                        <option value="ritual">Ritual</option>
+                                        <option value="envoltura">Envoltura</option>
+                                    </optgroup>
+                                    <optgroup label="Estética y Otros">
+                                        <option value="manicura">Manicura</option>
+                                        <option value="pedicura">Pedicura</option>
+                                        <option value="peluqueria">Peluquería</option>
+                                        <option value="depilacion">Depilación</option>
+                                        <option value="maquillaje">Maquillaje</option>
+                                        <option value="uva">UVA</option>
+                                        <option value="complemento">Complemento</option>
+                                    </optgroup>
+                                </select>
+                            </div>
+                            <div style="flex: 1.5;">
+                                <label
+                                    style="font-size: 0.65rem; font-weight: 700; text-transform: uppercase; color: #a0aec0; display: block; margin-bottom: 2px;">Espacio</label>
+                                <select id="sm-espacio" class="param-input form-control"
+                                    style="font-size: 0.9rem; padding: 4px 8px; height: 32px; width: 100%;">
+                                    <option value="spa">Automático (Spa)</option>
+                                    <option value="panacea">Panacea (Cabinas)</option>
+                                    <option value="suite">Suite (Privada)</option>
+                                    <option value="vip">Sala VIP</option>
+                                    <option value="peluqueria">Peluquería</option>
+                                </select>
+                            </div>
+                            <div style="flex: 0.6;">
+                                <label
+                                    style="font-size: 0.65rem; font-weight: 700; text-transform: uppercase; color: #a0aec0; display: block; margin-bottom: 2px;">Pax</label>
+                                <select id="sm-pax" class="param-input form-control"
+                                    style="font-size: 0.9rem; padding: 4px 8px; height: 32px; width: 100%;">
+                                    <option value="1">1</option>
+                                    <option value="2">2</option>
+                                </select>
+                            </div>
+                            <div style="flex: 0.6;">
+                                <label
+                                    style="font-size: 0.65rem; font-weight: 700; text-transform: uppercase; color: #a0aec0; display: block; margin-bottom: 2px;">Ses.</label>
+                                <input type="number" id="sm-sesiones" class="param-input form-control" placeholder="1"
+                                    style="font-size: 0.9rem; padding: 4px 8px; height: 32px; width: 100%;">
+                            </div>
+                        </div>
                     </div>
+
                     <div class="form-group">
-                        <label>Duración (min)</label>
-                        <input type="number" id="sm-duracion" placeholder="Ej: 60">
+                        <label
+                            style="font-size: 0.65rem; font-weight: 700; text-transform: uppercase; color: #a0aec0; display: block; margin-bottom: 2px;">URL
+                            Imagen (WooCommerce)</label>
+                        <div style="display: flex; gap: 10px; align-items: start;">
+                            <input type="text" id="sm-imagen" class="param-input form-control"
+                                style="font-size: 0.8rem; padding: 4px 8px; height: 32px; flex: 1;"
+                                placeholder="https://..." oninput="updateImagePreview(this.value)">
+                            <div id="sm-image-preview"
+                                style="width: 50px; height: 50px; border: 1px dashed #cbd5e1; border-radius: 6px; display: flex; align-items: center; justify-content: center; background: #f8fafc; overflow: hidden;">
+                                <i class="fas fa-image" style="color: #cbd5e1;"></i>
+                            </div>
+                        </div>
+                    </div>
+
+
+                    <div class="form-group">
+                        <label
+                            style="font-size: 0.7rem; font-weight: 700; text-transform: uppercase; color: #a0aec0; letter-spacing: 0.5px;">Descripción
+                            Corta</label>
+                        <textarea id="sm-descripcion" rows="4" style="min-height: 100px; resize: vertical;"
+                            class="param-input" placeholder="Describe brevemente el servicio..."></textarea>
                     </div>
                 </div>
 
-                <div class="form-group">
-                    <label>Capacidad / Pax</label>
-                    <select id="sm-pax" class="param-input">
-                        <option value="1">1 Persona (Individual)</option>
-                        <option value="2">2 Personas (Pareja / Pack)</option>
-                    </select>
-                </div>
-
-                <div class="form-group">
-                    <label>Categoría</label>
-                    <select id="sm-categoria" required>
-                        <optgroup label="Circuitos">
-                            <option value="circuito">Circuito Básico</option>
-                            <option value="bono_circuito">Bono Circuito</option>
-                            <option value="pack_pareja">Pack Pareja</option>
-                            <option value="suite_privada">Suite Privada</option>
-                            <option value="pack_hosteleria">Pack Spa & Sabores / Hotel</option>
-                        </optgroup>
-                        <optgroup label="Tratamientos Manuales">
-                            <option value="masaje">Masaje</option>
-                            <option value="facial">Facial</option>
-                            <option value="corporal">Corporal</option>
-                            <option value="ritual">Ritual</option>
-                            <option value="envoltura">Envoltura</option>
-                        </optgroup>
-                        <optgroup label="Estética y Otros">
-                            <option value="manicura">Manicura/Pedicura</option>
-                            <option value="peluqueria">Peluquería</option>
-                            <option value="depilacion">Depilación</option>
-                            <option value="maquillaje">Maquillaje</option>
-                            <option value="uva">UVA</option>
-                            <option value="complemento">Complemento</option>
-                        </optgroup>
-                    </select>
-                </div>
-
-                <div class="form-group">
-                    <label>Descripción Corta</label>
-                    <textarea id="sm-descripcion" rows="2" style="min-height: 60px;"></textarea>
-                </div>
-
-                <div class="form-group">
-                    <label style="display: flex; justify-content: space-between; align-items: center;">
-                        Desglose de Servicios (Incluye)
-                        <button type="button" class="btn btn-outline btn-sm" onclick="addItemToList()"
-                            style="padding: 2px 8px; font-size: 0.6rem;">
+                <!-- COLUMNA DERECHA: DESGLOSE -->
+                <div style="background: #f8fafc; border-radius: 12px; padding: 20px; border: 1px solid var(--border);">
+                    <div
+                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                        <h4
+                            style="margin: 0; font-size: 0.85rem; color: var(--text); font-weight: 700; text-transform: uppercase;">
+                            Desglose del Pack</h4>
+                        <button type="button" class="btn btn-accent btn-sm" onclick="addItemToList()"
+                            style="padding: 4px 10px; font-size: 0.7rem;">
                             <i class="fas fa-plus"></i> Añadir Item
                         </button>
-                    </label>
-                    <div id="sm-items-list" style="display: flex; flex-direction: column; gap: 5px; margin-top: 5px;">
+                    </div>
+                    <p class="muted" style="font-size: 0.75rem; margin-bottom: 15px;">Añade los elementos
+                        individuales que componen este servicio o pack.</p>
+
+                    <div id="sm-items-list" style="display: flex; flex-direction: column; gap: 10px;">
                         <!-- Dynamic items -->
                     </div>
                 </div>
-
-                <div style="display: flex; gap: 10px; margin-top: 10px;">
-                    <button type="submit" class="btn btn-accent" style="flex: 2;">
-                        <i class="fas fa-save"></i> Guardar Cambios
-                    </button>
-                    <button type="button" class="btn btn-outline"
-                        style="flex: 1; color: #ff5252; border-color: #ff5252;" onclick="deleteService()">
-                        <i class="fas fa-trash"></i>
-                    </button>
-                </div>
-            </form>
         </div>
+
+        <!-- Botones de Acción (dentro del contenido scrollable) -->
+        <div
+            style="display: flex; gap: 10px; margin-top: 20px; padding-top: 15px; border-top: 1px solid var(--border);">
+            <button type="submit" id="sm-save-btn" class="btn btn-accent"
+                style="flex: 1; height: 40px; font-size: 0.9rem; font-weight: 600; justify-content: center;">
+                <i class="fas fa-save"></i> <span>GUARDAR</span>
+            </button>
+            <button type="button" class="btn btn-outline"
+                style="width: 45px; height: 40px; color: #ff5252; border-color: #ff5252; justify-content: center;"
+                onclick="deleteService()">
+                <i class="fas fa-trash-alt"></i>
+            </button>
+        </div>
+
+    </div> <!-- End modal-body -->
+
+    </form>
+    </div>
     </div>
 
     <!-- Firebase -->
-    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+    <!-- Firebase SDKs Compat -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
     <script src="firebase-config.js"></script>
+    <script src="js/app-core.js"></script>
 
     <script>
         // State simplificado para esta página
         const state = {
-            circuitos: [],
-            tratamientos: [],
-            currentTab: 'circuitos'
+            services: [],
+            masterItems: [], // Listado maestro para el desglose
+            currentTab: 'todos',
+            searchTerm: ''
         };
 
         const db = firebase.firestore();
@@ -257,6 +440,7 @@
         // Inicialización
         window.onload = () => {
             cargarCatalogoFirestore();
+            cargarMasterItems();
 
             // Re-vincular submit del form
             document.getElementById("service-form").addEventListener("submit", (e) => {
@@ -265,128 +449,149 @@
             });
         };
 
-        function switchTab(tab, el) {
+        function switchCatalogTab(tab, el) {
             state.currentTab = tab;
             document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
             if (el) el.classList.add('active');
+            renderServices();
+        }
 
-            document.getElementById('circuitos-view').style.display = tab === 'circuitos' ? 'block' : 'none';
-            document.getElementById('tratamientos-view').style.display = tab === 'tratamientos' ? 'block' : 'none';
+        function handleSearch(val) {
+            state.searchTerm = val.toLowerCase().trim();
+            renderServices();
         }
 
         async function cargarCatalogoFirestore() {
             try {
                 const snapshot = await db.collection("spa_services").where("active", "==", true).get();
-                const servicios = [];
-                snapshot.forEach(doc => servicios.push({ id: doc.id, ...doc.data() }));
+                state.services = [];
+                snapshot.forEach(doc => state.services.push({ id: doc.id, ...doc.data() }));
 
-                // Separar por categorías
-                state.circuitos = servicios.filter(s => s.categoria === 'circuito' || s.categoria === 'bono_circuito' || s.categoria === 'pack_pareja' || s.categoria === 'suite_privada' || s.categoria === 'pack_hosteleria');
-                state.tratamientos = servicios.filter(s =>
-                    ['masaje', 'facial', 'corporal', 'ritual', 'envoltura', 'uva', 'complemento',
-                        'bono_masaje', 'bono_facial', 'bono_corporal',
-                        'depilacion', 'depilacion_pack', 'depilacion_cera',
-                        'maquillaje', 'manicura', 'peluqueria'].includes(s.categoria)
-                );
-
-                renderCircuitos();
-                renderTratamientos();
-                console.log("Catálogo cargado:", servicios.length);
+                renderServices();
+                console.log("Catálogo cargado:", state.services.length);
             } catch (err) {
                 console.error("Error cargando catálogo:", err);
             }
         }
 
-        function renderCircuitos() {
-            const container = document.getElementById("circuitos-container");
-            container.innerHTML = state.circuitos.map(item => `
-                <div class="stat-card service-card" style="text-align: left; transition: all 0.2s ease; border: 1px solid var(--border);" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'">
-                    <div style="display:flex; justify-content:space-between; align-items:start; margin-bottom: 5px;">
-                        <h4 style="margin: 0; color: var(--text); font-weight: 600; font-size: 0.95rem; line-height: 1.1;">
-                            ${item.nombre} 
-                            ${item.pax === 2 ? '<i class="fas fa-user-friends" title="Pack Pareja" style="color: var(--accent); font-size: 0.8rem; margin-left: 5px;"></i>' : ''}
+        async function cargarMasterItems() {
+            try {
+                const snapshot = await db.collection("spa_item_master").orderBy("name", "asc").get();
+                state.masterItems = [];
+                snapshot.forEach(doc => state.masterItems.push({ id: doc.id, ...doc.data() }));
+                updateMasterDatalist();
+            } catch (err) {
+                console.error("Error cargando items maestros:", err);
+            }
+        }
+
+        function updateMasterDatalist() {
+            let dl = document.getElementById("master-items-datalist");
+            if (!dl) {
+                dl = document.createElement("datalist");
+                dl.id = "master-items-datalist";
+                document.body.appendChild(dl);
+            }
+            dl.innerHTML = state.masterItems.map(i => `<option value="${i.name}">`).join('');
+        }
+
+        function renderServices() {
+            const container = document.getElementById("services-grid");
+
+            // 1. Filtrar por Tab
+            let filtered = state.services;
+            if (state.currentTab !== 'todos') {
+                filtered = state.services.filter(s => {
+                    const cat = s.categoria;
+                    const name = (s.nombre || '').toLowerCase();
+                    const isBono = cat.includes('bono') || name.includes('bono');
+
+                    if (state.currentTab === 'bonos') return isBono; // Show ALL bonos here
+
+                    // For other tabs, EXCLUDE bonos
+                    if (isBono) return false;
+
+                    if (state.currentTab === 'spa') return cat === 'circuito' || cat === 'pack_hotel';
+                    if (state.currentTab === 'masajes') return ['masaje', 'facial', 'corporal', 'ritual', 'envoltura'].includes(cat);
+                    if (state.currentTab === 'packs') return ['pack_pareja', 'suite_privada', 'pack_hosteleria', 'pack_comida'].includes(cat);
+                    if (state.currentTab === 'estetica') return ['manicura', 'peluqueria', 'depilacion', 'maquillaje', 'uva'].includes(cat);
+                    if (state.currentTab === 'complementos') return cat === 'complemento';
+                    return false;
+                });
+            }
+
+            // 2. Filtrar por Búsqueda (Multicampo: nombre, categoria, descripcion, espacio, precio, items, sku)
+            if (state.searchTerm) {
+                filtered = filtered.filter(s => {
+                    const priceStr = (s.precio || 0).toString();
+                    const includesStr = (s.items_incluidos || []).join(' ').toLowerCase();
+                    const catStr = (s.categoria || '').toLowerCase();
+                    const spaceStr = (s.espacio || '').toLowerCase();
+                    const descStr = (s.descripcion || '').toLowerCase();
+                    const nameStr = (s.nombre || '').toLowerCase();
+                    const skuStr = (s.wc_sku || '').toLowerCase();
+
+                    return nameStr.includes(state.searchTerm) ||
+                        descStr.includes(state.searchTerm) ||
+                        catStr.includes(state.searchTerm) ||
+                        spaceStr.includes(state.searchTerm) ||
+                        priceStr.includes(state.searchTerm) ||
+                        skuStr.includes(state.searchTerm) ||
+                        includesStr.includes(state.searchTerm);
+                });
+            }
+
+            if (filtered.length === 0) {
+                container.innerHTML = `<div style="grid-column: 1/-1; padding: 40px; text-align: center; color: var(--text-muted);">
+                    <i class="fas fa-search" style="font-size: 2rem; margin-bottom: 10px; opacity: 0.2;"></i>
+                    <p>No se encontraron servicios que coincidan.</p>
+                </div>`;
+                return;
+            }
+
+            container.innerHTML = filtered.map(item => {
+                const isPack = ['pack_pareja', 'pack_hosteleria', 'suite_privada', 'pack_comida'].includes(item.categoria);
+                return `
+                <div class="service-card">
+                    <img src="${item.imagen || 'zenith-icon.png'}" style="width: 100%; height: 160px; object-fit: ${item.imagen ? 'cover' : 'contain'}; background: ${item.imagen ? 'transparent' : '#f1f5f9'}; padding: ${item.imagen ? '0' : '30px'}; border-radius: 8px; margin-bottom: 12px; border: 1px solid #e2e8f0;">
+                    ${isPack ? `<div class="service-badge"><i class="fas fa-star"></i> PACK</div>` : ''}
+                    
+                    <div style="display:flex; justify-content:space-between; align-items:start; margin-bottom: 12px; gap: 10px;">
+                        <h4 style="margin: 0; color: var(--text); font-weight: 700; font-size: 1rem; line-height: 1.2;">
+                            ${item.nombre}
                         </h4>
-                        <span style="background: var(--accent); color: #fff; padding: 1px 8px; border-radius: 20px; font-weight: 700; font-size: 0.8rem; white-space: nowrap;">${item.precio}€</span>
+                        <span style="color: var(--accent); font-weight: 800; font-size: 1.1rem; white-space: nowrap;">${item.precio}€</span>
                     </div>
-                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; color: var(--text-muted); font-size: 0.75rem;">
-                        <span><i class="fas fa-clock" style="color: var(--accent);"></i> ${item.duracion ? item.duracion + " min" : "Consultar"}</span>
-                        ${item.pax === 2 ? '<span style="font-weight: 600; color: var(--accent);">2 Personas</span>' : ''}
+
+                    <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 12px; color: var(--text-muted); font-size: 0.75rem; font-weight: 500;">
+                        <span><i class="fas fa-clock" style="color: var(--accent); margin-right: 4px;"></i> ${item.duracion ? item.duracion + " min" : "Consultar"}</span>
+                        ${item.pax === 2 ? '<span style="color: var(--accent);"><i class="fas fa-user-friends"></i> 2 Pax</span>' : item.pax === 'group' ? '<span style="color: #64748b;"><i class="fas fa-users"></i> Grupo</span>' : '<span style="color: #64748b;"><i class="fas fa-user"></i> 1 Pax</span>'}
+                        ${item.sesiones && item.sesiones > 1 ? `<span style="background: #e0f2fe; color: #0369a1; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 0.65rem;"><i class="fas fa-layer-group"></i> ${item.sesiones} Ses.</span>` : ''}
                     </div>
                     
-                    <p class="muted" style="font-size: 0.7rem; margin-bottom: 8px; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.3;">
-                        ${item.descripcion || '-'}
+                    <p style="font-size: 0.8rem; color: var(--text-muted); margin: 0 0 15px 0; line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; height: 2.4rem;">
+                        ${item.descripcion || 'Sin descripción disponible.'}
                     </p>
 
                     ${item.items_incluidos && item.items_incluidos.length > 0 ? `
-                        <div style="background: rgba(0,0,0,0.03); border-radius: 6px; padding: 6px; margin-bottom: 10px;">
-                            <ul style="list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 3px;">
+                        <div style="background: #f8fafc; border: 1px solid #f1f5f9; border-radius: 8px; padding: 10px; margin-bottom: 15px;">
+                            <ul style="list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 4px;">
                                 ${item.items_incluidos.map(inc => `
-                                    <li style="font-size: 0.65rem; color: var(--text); display: flex; align-items: center; gap: 5px;">
-                                        <i class="fas fa-check-circle" style="color: #4caf50; font-size: 0.6rem;"></i> ${inc}
+                                    <li style="font-size: 0.7rem; color: #475569; display: flex; align-items: center; gap: 8px;">
+                                        <i class="fas fa-check-circle" style="color: #10b981; font-size: 0.7rem;"></i> ${inc}
                                     </li>
                                 `).join('')}
                             </ul>
                         </div>
                     ` : ''}
 
-                    <div style="text-align: right; border-top: 1px solid rgba(0,0,0,0.05); padding-top: 8px; margin-top: auto;">
-                        <button class="btn btn-outline btn-sm" onclick="openServiceModal('${item.id}')" style="border-color: #eee; color: var(--text-muted); font-size: 0.7rem; padding: 2px 8px;">
+                    <div style="text-align: right; border-top: 1px solid #f1f5f9; padding-top: 12px; margin-top: auto;">
+                        <button class="btn btn-outline btn-sm" onclick="openServiceModal('${item.id}')" style="font-weight: 600;">
                             <i class="fas fa-edit"></i> Editar
                         </button>
                     </div>
                 </div>
-            `).join('');
-        }
-
-        function renderTratamientos() {
-            const container = document.getElementById("tratamientos-container");
-            const categorias = [...new Set(state.tratamientos.map(t => t.categoria))];
-
-            container.innerHTML = categorias.map(cat => `
-                <div style="grid-column: 1 / -1; margin-top: 15px; margin-bottom: 8px; display: flex; align-items: center; gap: 10px;">
-                    <h4 style="text-transform: uppercase; color: var(--accent); font-size: 0.7rem; letter-spacing: 2px; font-weight: 700; margin: 0;">${cat.replace(/_/g, ' ')}</h4>
-                    <div style="flex: 1; height: 1px; background: var(--border-light); opacity: 0.3;"></div>
-                </div>
-                <div class="grid-densidad">
-                    ${state.tratamientos.filter(t => t.categoria === cat).map(item => `
-                        <div class="stat-card service-card" style="text-align: left; transition: all 0.2s ease; border: 1px solid var(--border);" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'">
-                            <div style="display:flex; justify-content:space-between; align-items:start; margin-bottom: 5px;">
-                                <h4 style="margin: 0; color: var(--text); font-weight: 600; font-size: 0.95rem; line-height: 1.1;">
-                                    ${item.nombre}
-                                    ${item.pax === 2 ? '<i class="fas fa-user-friends" title="Pack Pareja" style="color: var(--accent); font-size: 0.8rem; margin-left: 5px;"></i>' : ''}
-                                </h4>
-                                <span style="background: var(--accent); color: #fff; padding: 1px 8px; border-radius: 20px; font-weight: 700; font-size: 0.8rem; white-space: nowrap;">${item.precio}€</span>
-                            </div>
-                            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; color: var(--text-muted); font-size: 0.75rem;">
-                                <span><i class="fas fa-clock" style="color: var(--accent);"></i> ${item.duracion ? item.duracion + " min" : "Consultar"}</span>
-                                ${item.pax === 2 ? '<span style="font-weight: 600; color: var(--accent);">2 Personas</span>' : ''}
-                            </div>
-                            
-                            <p class="muted" style="font-size: 0.7rem; margin-bottom: 8px; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.3;">
-                                ${item.descripcion || '-'}
-                            </p>
-
-                            ${item.items_incluidos && item.items_incluidos.length > 0 ? `
-                                <div style="background: rgba(0,0,0,0.03); border-radius: 6px; padding: 6px; margin-bottom: 10px;">
-                                    <ul style="list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 3px;">
-                                        ${item.items_incluidos.map(inc => `
-                                            <li style="font-size: 0.65rem; color: var(--text); display: flex; align-items: center; gap: 5px;">
-                                                <i class="fas fa-check-circle" style="color: #4caf50; font-size: 0.6rem;"></i> ${inc}
-                                            </li>
-                                        `).join('')}
-                                    </ul>
-                                </div>
-                            ` : ''}
-
-                            <div style="text-align: right; border-top: 1px solid rgba(0,0,0,0.05); padding-top: 8px; margin-top: auto;">
-                                <button class="btn btn-outline btn-sm" onclick="openServiceModal('${item.id}')" style="border-color: #eee; color: var(--text-muted); font-size: 0.7rem; padding: 2px 8px;">
-                                    <i class="fas fa-edit"></i> Editar
-                                </button>
-                            </div>
-                        </div>
-                    `).join('')}
-                </div>
-            `).join('');
+            `}).join('');
         }
 
         function openServiceModal(id) {
@@ -397,7 +602,7 @@
                 document.getElementById("service-form").reset();
                 document.getElementById("sm-items-list").innerHTML = "";
             } else {
-                const service = state.circuitos.find(s => s.id === id) || state.tratamientos.find(s => s.id === id);
+                const service = state.services.find(s => s.id === id);
                 if (!service) return;
                 document.getElementById("sm-title").textContent = "Editar Servicio";
                 document.getElementById("sm-id").value = service.id;
@@ -405,8 +610,12 @@
                 document.getElementById("sm-precio").value = service.precio;
                 document.getElementById("sm-duracion").value = service.duracion || "";
                 document.getElementById("sm-pax").value = service.pax || "1";
+                document.getElementById("sm-sesiones").value = service.sesiones || "1";
                 document.getElementById("sm-categoria").value = service.categoria;
                 document.getElementById("sm-descripcion").value = service.descripcion || "";
+                document.getElementById("sm-espacio").value = service.espacio || "";
+                document.getElementById("sm-imagen").value = service.imagen || "";
+                updateImagePreview(service.imagen || "");
 
                 // Cargar items incluidos
                 const list = document.getElementById("sm-items-list");
@@ -423,18 +632,51 @@
         }
 
         async function saveServiceChanges() {
+            const btn = document.getElementById("sm-save-btn");
+            const btnText = btn.querySelector("span");
+            const originalText = btnText.textContent;
+
             const idParam = document.getElementById("sm-id").value;
             const nombre = document.getElementById("sm-nombre").value;
+
+            if (!nombre) {
+                showToast("El nombre es obligatorio", "error");
+                return;
+            }
+
+            // Loading state
+            btn.disabled = true;
+            btnText.textContent = "GUARDANDO...";
+
             const id = idParam || nombre.toLowerCase().replace(/[^a-z0-9]/g, '-');
 
-            const items = Array.from(document.querySelectorAll(".sm-item-input")).map(i => i.value).filter(v => v);
+            const items = Array.from(document.querySelectorAll(".sm-item-input")).map(i => i.value.trim()).filter(v => v);
+
+            // AUTO-GUARDAR NUEVOS ITEMS EN EL MAESTRO
+            for (const itemName of items) {
+                const exists = state.masterItems.some(mi => mi.name.toLowerCase() === itemName.toLowerCase());
+                if (!exists) {
+                    try {
+                        await db.collection("spa_item_master").add({
+                            name: itemName,
+                            created_at: new Date().toISOString()
+                        });
+                        console.log("Nuevo item añadido al maestro:", itemName);
+                    } catch (e) {
+                        console.warn("No se pudo auto-guardar item en el maestro:", itemName);
+                    }
+                }
+            }
 
             const data = {
                 nombre: nombre,
                 precio: parseFloat(document.getElementById("sm-precio").value),
                 duracion: parseInt(document.getElementById("sm-duracion").value) || 0,
                 pax: parseInt(document.getElementById("sm-pax").value) || 1,
+                sesiones: parseInt(document.getElementById("sm-sesiones").value) || 1,
+                imagen: document.getElementById("sm-imagen").value.trim(),
                 categoria: document.getElementById("sm-categoria").value,
+                espacio: document.getElementById("sm-espacio").value,
                 descripcion: document.getElementById("sm-descripcion").value,
                 items_incluidos: items,
                 active: true,
@@ -443,11 +685,15 @@
 
             try {
                 await db.collection("spa_services").doc(id).set(data, { merge: true });
-                alert("Servicio guardado.");
+                showToast("Servicio guardado correctamente", "success");
                 closeServiceModal();
                 cargarCatalogoFirestore();
             } catch (err) {
-                alert("Error: " + err.message);
+                console.error("Error saving service:", err);
+                showToast("Error al guardar: " + err.message, "error");
+            } finally {
+                btn.disabled = false;
+                btnText.textContent = originalText;
             }
         }
 
@@ -470,12 +716,443 @@
             div.style.display = "flex";
             div.style.gap = "5px";
             div.innerHTML = `
-                <input type="text" class="param-input sm-item-input" value="${text}" placeholder="Ej: Suite SPA Privada 60'" style="padding: 5px 10px; font-size: 0.8rem;">
-                <button type="button" class="btn btn-outline btn-sm" onclick="this.parentElement.remove()" style="padding: 5px; color: #ff5252; border-color: #eee;">
+                <input type="text" class="param-input sm-item-input" value="${text}" 
+                    list="master-items-datalist"
+                    placeholder="Escribe o selecciona item..." 
+                    style="padding: 8px 12px; font-size: 0.85rem; flex: 1;">
+                <button type="button" class="btn btn-outline btn-sm" onclick="this.parentElement.remove()" 
+                    style="padding: 5px 10px; color: #ff5252; border-color: #eee; background: #fff;">
                     <i class="fas fa-times"></i>
                 </button>
             `;
             list.appendChild(div);
+        }
+    </script>
+    <script>
+        // --- NUEVA LÓGICA DE INFERENCIA DE METADATOS (REUTILIZABLE) ---
+        function updateImagePreview(url) {
+            const preview = document.getElementById("sm-image-preview");
+            if (url && url.length > 10) {
+                preview.innerHTML = `<img src="${url}" style="width: 100%; height: 100%; object-fit: cover;">`;
+            } else {
+                preview.innerHTML = `<i class="fas fa-image" style="color: #cbd5e1;"></i>`;
+            }
+        }
+
+        async function clearCatalog() {
+            if (!confirm("⚠️ ¿Estás seguro de que deseas eliminar TODO el catálogo actual?\nEsta acción es irreversible y se recomienda si vas a realizar una importación limpia.")) return;
+
+            const btn = document.getElementById('btn-clear-catalog');
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Borrando...';
+            btn.disabled = true;
+
+            try {
+                const snapshot = await db.collection("spa_services").get();
+                const batch = db.batch();
+                snapshot.forEach(doc => batch.delete(doc.ref));
+                await batch.commit();
+
+                alert("✅ Catálogo eliminado correctamente.");
+                cargarCatalogoFirestore();
+            } catch (err) {
+                alert("Error al eliminar catálogo: " + err.message);
+            } finally {
+                btn.innerHTML = '<i class="fas fa-trash-sweep"></i> Limpiar Catálogo';
+                btn.disabled = false;
+            }
+        }
+
+        function inferServiceMetadata(name, cat, sku, desc) {
+            const lowerName = (name || '').toLowerCase();
+            const lowerCat = (cat || '').toLowerCase();
+            const lowerSku = (sku || '').toLowerCase();
+            const lowerDesc = (desc || '').toLowerCase();
+
+            let updates = {};
+
+            // --- 1. LÓGICA DE ESPACIO (Detección por palabra clave) ---
+            let newSpace = '';
+            if (lowerCat.includes('suite') || lowerName.includes('suite')) {
+                newSpace = 'suite';
+            } else if (
+                lowerCat.includes('peluqueria') || lowerName.includes('peluqueria') ||
+                lowerName.includes('manicura') || lowerName.includes('pedicura') ||
+                lowerName.includes('depilacion') || lowerName.includes('corte') ||
+                lowerName.includes('peinado') || lowerName.includes('mechas') ||
+                lowerName.includes('tinte') || lowerName.includes('cejas') ||
+                lowerName.includes('labio') || lowerName.includes('maquillaje')
+            ) {
+                newSpace = 'peluqueria';
+            } else if (
+                lowerCat.includes('masaje') || lowerName.includes('masaje') ||
+                lowerCat.includes('facial') || lowerName.includes('facial') ||
+                lowerCat.includes('corporal') || lowerName.includes('corporal') ||
+                lowerCat.includes('ritual') || lowerName.includes('ritual') ||
+                lowerName.includes('maderoterapia') || lowerName.includes('presoterapia') ||
+                lowerName.includes('radiofrecuencia') || lowerName.includes('envoltura') ||
+                lowerName.includes('peeling') || lowerName.includes('indiba') ||
+                lowerName.includes('higien') || lowerName.includes('lifting')
+            ) {
+                newSpace = 'panacea';
+            } else if (
+                lowerCat.includes('circuito') || lowerName.includes('circuito') ||
+                lowerName.includes('spa') || lowerName.includes('piscina')
+            ) {
+                newSpace = 'spa';
+            }
+            if (newSpace) updates.espacio = newSpace;
+
+            // --- 2. LÓGICA DE CATEGORÍA INTERNA ---
+            let internalCat = '';
+            if (lowerCat.includes('masaje')) internalCat = 'masaje';
+            else if (lowerCat.includes('facial')) internalCat = 'facial';
+            else if (lowerCat.includes('corporal')) internalCat = 'corporal';
+            else if (lowerCat.includes('ritual')) internalCat = 'ritual';
+            else if (lowerCat.includes('circuito')) internalCat = 'circuito';
+            else if (lowerCat.includes('suite')) internalCat = 'suite_privada';
+            else if (lowerCat.includes('pareja')) internalCat = 'pack_pareja';
+            else if (lowerCat.includes('manicura') || lowerCat.includes('pedicura')) internalCat = 'manicura';
+            else if (lowerCat.includes('peluqueria')) internalCat = 'peluqueria';
+            else if (lowerCat.includes('depilacion')) internalCat = 'depilacion';
+
+            // Refinamiento por nombre si no se detectó por categoría
+            if (!internalCat) {
+                if (lowerName.includes('bono')) internalCat = 'bono_circuito'; // Default for bonuses if unknown
+                else if (lowerName.includes('suite')) internalCat = 'suite_privada';
+                else if (lowerName.includes('masaje')) internalCat = 'masaje';
+            }
+
+            // Especial para Bonos
+            if (lowerName.includes('bono') && !internalCat.startsWith('bono_')) {
+                if (internalCat === 'masaje') internalCat = 'bono_masaje';
+                else if (internalCat === 'facial') internalCat = 'bono_facial';
+                else internalCat = 'bono_circuito';
+            }
+
+            if (internalCat) updates.categoria = internalCat;
+
+            // --- 3. LÓGICA DE SESIONES (BONOS) ---
+            const isBono = lowerName.includes('bono') || lowerCat.includes('bono');
+            if (isBono) {
+                let quantity = 1;
+                const matchPlus = lowerName.match(/\((\d+)\+(\d+)\)/); // (5+1)
+                const matchVal = lowerName.match(/bono\s+(\d+)\s+/i); // Bono 10 X
+                const matchSes = lowerName.match(/(\d+)\s*sesiones/i); // 5 sesiones
+
+                if (matchPlus) quantity = parseInt(matchPlus[1]) + parseInt(matchPlus[2]);
+                else if (matchVal) quantity = parseInt(matchVal[1]);
+                else if (matchSes) quantity = parseInt(matchSes[1]);
+                else if (lowerSku.includes('b5')) quantity = 5;
+                else if (lowerSku.includes('b10')) quantity = 10;
+
+                updates.sesiones = quantity;
+            }
+
+            // --- 4. LÓGICA DE PAX (MEJORADA) ---
+            let pax = 1;
+            const combinedText = lowerName + ' ' + lowerDesc;
+
+            // Regex para detectar "para X persona(s)" - prioridad alta
+            const paxMatch = combinedText.match(/para\s*(\d+)\s*persona/i);
+            if (paxMatch) {
+                pax = parseInt(paxMatch[1]) || 1;
+            } else {
+                // Fallback a palabras clave
+                const paxPatterns = [
+                    'pareja', '2 personas', 'dos personas', 'doble',
+                    'ideal para compartir', 'para 1 o 2 personas',
+                    'especial romántico', 'para vosotros', '2 pax'
+                ];
+
+                if (paxPatterns.some(p => combinedText.includes(p))) {
+                    pax = 2;
+                }
+
+                // Si dice "(Individual)" o "1 persona", asegurar que sea 1
+                if (combinedText.includes('individual') || combinedText.includes('1 persona')) {
+                    pax = 1;
+                }
+            }
+            updates.pax = pax;
+
+            // --- 5. EXTRACCIÓN DE ITEMS (DESGLOSE) ---
+            let items = [];
+            // Si hay una sección de "Incluye" en la descripción, intentamos extraer los items
+            if (lowerDesc.includes('incluye')) {
+                const parts = lowerDesc.split(/incluye[:\s]*/i);
+                if (parts.length > 1) {
+                    const content = parts[1];
+                    // Dividir por saltos de línea o por tabulaciones literales
+                    const lines = content.split(/[\n\t]/);
+                    lines.forEach(line => {
+                        // Limpiar balas, guiones, asteriscos y espacios extra
+                        let trimmed = line.trim().replace(/^[\s·\-\*•\t\d\.]+\s*/, '');
+                        if (trimmed && trimmed.length > 3 && trimmed.length < 120) {
+                            // Si parece un item (no una frase larga o párrafo), lo añadimos
+                            // Filtramos frases que parecen párrafos narrativos
+                            if (!trimmed.includes('.') || trimmed.indexOf('.') > trimmed.length - 10) {
+                                // Capitalizar
+                                trimmed = trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
+                                if (!items.includes(trimmed)) items.push(trimmed);
+                            }
+                        }
+                    });
+                }
+            }
+            if (items.length > 0) updates.items_incluidos = items;
+
+            return updates;
+        }
+
+        async function autoAssignSpaces() {
+            if (!confirm("⚠️ ¿Estás seguro de que quieres analizar y corregir automáticamente el 'Espacio' y 'Categoría' de todos los servicios basado en su nombre?\n\nEsto sobrescribirá la configuración actual.")) return;
+
+            const btn = document.getElementById('btn-auto-config');
+            if (btn) btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Analizando...';
+
+            try {
+                const snapshot = await db.collection("spa_services").get();
+                let updatedCount = 0;
+                const batch = db.batch();
+                let batchCount = 0;
+
+                snapshot.forEach(doc => {
+                    const data = doc.data();
+                    const inferred = inferServiceMetadata(data.nombre, data.categoria_wc || data.categoria, data.wc_sku || "", data.descripcion || "");
+
+                    let updates = {};
+                    if (inferred.espacio && inferred.espacio !== data.espacio) updates.espacio = inferred.espacio;
+                    if (inferred.categoria && inferred.categoria !== data.categoria) updates.categoria = inferred.categoria;
+                    if (inferred.sesiones && inferred.sesiones !== data.sesiones) updates.sesiones = inferred.sesiones;
+                    if (inferred.pax && inferred.pax !== data.pax) updates.pax = inferred.pax;
+
+                    if (Object.keys(updates).length > 0) {
+                        batch.update(doc.ref, updates);
+                        batchCount++;
+                        updatedCount++;
+                    }
+                });
+
+                if (batchCount > 0) {
+                    await batch.commit();
+                    alert(`✅ Se han actualizado ${updatedCount} servicios correctamente.`);
+                    cargarCatalogoFirestore();
+                } else {
+                    alert("✨ Todos los servicios ya tienen la configuración correcta.");
+                }
+            } catch (error) {
+                console.error("Error en auto-asignación:", error);
+                alert("❌ Ocurrió un error: " + error.message);
+            } finally {
+                if (btn) btn.innerHTML = '<i class="fas fa-magic"></i> Auto-Configurar';
+            }
+        }
+
+        // --- IMPORTACIÓN WOOCOMMERCE ---
+        function triggerWCImport() {
+            document.getElementById('wc-csv-input').click();
+        }
+
+        function handleWCFile(input) {
+            const file = input.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                let text = e.target.result;
+                // Eliminar BOM de UTF-8 si existe
+                if (text.charCodeAt(0) === 0xFEFF) {
+                    text = text.substring(1);
+                }
+                const rows = parseCSV(text);
+                if (rows.length < 2) return alert("El archivo parece estar vacío.");
+
+                if (confirm(`Se han detectado ${rows.length - 1} productos. ¿Proceder con la sincronización?`)) {
+                    await syncWCProducts(rows);
+                }
+            };
+            reader.readAsText(file, 'UTF-8');
+        }
+
+        function parseCSV(text) {
+            const rows = [];
+            let currentLine = "";
+            let inQuotes = false;
+
+            for (let i = 0; i < text.length; i++) {
+                const char = text[i];
+                if (char === '"') inQuotes = !inQuotes;
+                if (char === '\n' && !inQuotes) {
+                    rows.push(splitCSVLine(currentLine));
+                    currentLine = "";
+                } else if (char !== '\r') {
+                    currentLine += char;
+                }
+            }
+            if (currentLine) rows.push(splitCSVLine(currentLine));
+            return rows;
+        }
+
+        function splitCSVLine(line) {
+            const result = [];
+            let currentField = "";
+            let inQuotes = false;
+
+            for (let i = 0; i < line.length; i++) {
+                const char = line[i];
+                if (char === '"') {
+                    if (inQuotes && line[i + 1] === '"') {
+                        currentField += '"';
+                        i++;
+                    } else {
+                        inQuotes = !inQuotes;
+                    }
+                } else if (char === ',' && !inQuotes) {
+                    result.push(currentField.trim());
+                    currentField = "";
+                } else {
+                    currentField += char;
+                }
+            }
+            result.push(currentField.trim());
+            return result;
+        }
+
+        async function syncWCProducts(rows) {
+            const headers = rows[0].map(h => h.trim());
+            console.log("CSV Headers detectados:", headers);
+
+            const nameIdx = headers.indexOf("Nombre");
+            const idIdx = headers.indexOf("ID");
+            const priceIdx = headers.indexOf("Precio normal");
+            const skuIdx = headers.indexOf("SKU");
+            const typeIdx = headers.indexOf("Tipo");
+            const descIdx = headers.indexOf("Descripción") !== -1 ? headers.indexOf("Descripción") : headers.indexOf("Descripción corta");
+            const imgIdx = headers.indexOf("Imágenes");
+            const catIdx = headers.indexOf("Categorías");
+
+            if (nameIdx === -1 || idIdx === -1) {
+                console.error("No se encontraron las columnas requeridas (Nombre o ID).", headers);
+                return alert("Formato de CSV no reconocido. Asegúrate de que las cabeceras incluyen 'ID' y 'Nombre'. Comprueba si las letras se ven bien en la consola.");
+            }
+
+            let syncCount = 0;
+            const batchSize = 100;
+            let currentBatch = db.batch();
+            let batchOps = 0;
+
+            for (let i = 1; i < rows.length; i++) {
+                const row = rows[i];
+                const wcId = row[idIdx];
+                const nombre = row[nameIdx] ? row[nameIdx].trim() : "";
+                if (!wcId || !nombre) continue;
+
+                const sku = row[skuIdx] ? row[skuIdx].trim() : "";
+                const precio = parseFloat(row[priceIdx]) || 0;
+                let desc = row[descIdx] || "";
+                const tipo = row[typeIdx] || "";
+                const wcCats = catIdx !== -1 ? (row[catIdx] || "") : "";
+
+                // Limpiar HTML y artefactos de la descripción
+                desc = desc.replace(/<[^>]*>?/gm, ''); // Quitar HTML
+                desc = desc.replace(/&nbsp;/g, ' ');   // Limpiar entidades HTML comunes
+                desc = desc.replace(/&amp;/g, '&');
+                desc = desc.replace(/\\r|\\t/g, ' ');  // Limpiar retornos y tabuladores literales
+                desc = desc.replace(/\\n/g, '\n');     // Convertir literal \n a salto real
+                desc = desc.replace(/\n\s*\n/g, '\n\n'); // Normalizar dobles saltos
+                desc = desc.replace(/[ ]{2,}/g, ' ');  // Limpiar espacios múltiples
+                desc = desc.trim();
+
+                // Inferencia inteligente de metadatos (AHORA PASAMOS LA DESC)
+                const metadata = inferServiceMetadata(nombre, wcCats, sku, desc);
+
+                // Imágenes: Cogemos la primera
+                let imgUrl = "";
+                if (imgIdx !== -1 && row[imgIdx]) {
+                    imgUrl = row[imgIdx].split(',')[0].trim();
+                }
+
+                const docId = `wc-${wcId}`;
+                const ref = db.collection("spa_services").doc(docId);
+
+                const data = {
+                    nombre: nombre,
+                    wc_id: wcId,
+                    wc_sku: sku,
+                    precio: precio,
+                    descripcion: desc,
+                    imagen: imgUrl,
+                    tipo_wc: tipo,
+                    categoria_wc: wcCats,
+                    // Datos inferidos
+                    categoria: metadata.categoria || 'circuito',
+                    espacio: metadata.espacio || 'spa',
+                    sesiones: metadata.sesiones || 1,
+                    pax: metadata.pax || 1,
+                    items_incluidos: metadata.items_incluidos || [],
+                    active: true,
+                    last_updated: new Date().toISOString(),
+                    origen: 'woocommerce_import'
+                };
+
+                currentBatch.set(ref, data, { merge: true });
+                batchOps++;
+                syncCount++;
+
+                if (batchOps >= batchSize) {
+                    await currentBatch.commit();
+                    currentBatch = db.batch();
+                    batchOps = 0;
+                }
+            }
+
+            if (batchOps > 0) await currentBatch.commit();
+
+            // --- SEGUNDA PASADA: Herencia de imágenes para variantes ---
+            // Recargamos los productos y buscamos variantes sin imagen
+            const allProducts = await db.collection("spa_services").get();
+            const productsMap = [];
+            allProducts.forEach(doc => {
+                productsMap.push({ id: doc.id, ...doc.data() });
+            });
+
+            const inheritBatch = db.batch();
+            let inheritCount = 0;
+
+            for (const prod of productsMap) {
+                // Si no tiene imagen, buscar un producto similar que sí la tenga
+                if (!prod.imagen || prod.imagen === '') {
+                    const baseName = prod.nombre
+                        .replace(/\(Individual\)/gi, '')
+                        .replace(/para\s*\d+\s*personas?/gi, '')
+                        .trim()
+                        .toLowerCase();
+
+                    // Buscar otro producto con nombre similar que SÍ tenga imagen
+                    const similar = productsMap.find(p =>
+                        p.id !== prod.id &&
+                        p.imagen &&
+                        p.imagen !== '' &&
+                        p.nombre.toLowerCase().includes(baseName.substring(0, 30)) // Match partial
+                    );
+
+                    if (similar) {
+                        const ref = db.collection("spa_services").doc(prod.id);
+                        inheritBatch.update(ref, { imagen: similar.imagen });
+                        inheritCount++;
+                        console.log(`Heredada imagen de "${similar.nombre}" -> "${prod.nombre}"`);
+                    }
+                }
+            }
+
+            if (inheritCount > 0) {
+                await inheritBatch.commit();
+                console.log(`✅ ${inheritCount} imágenes heredadas de productos similares.`);
+            }
+
+            alert(`✅ Sincronización completada: ${syncCount} productos procesados.` +
+                (inheritCount > 0 ? `\n📷 ${inheritCount} imágenes heredadas automáticamente.` : ''));
+            cargarCatalogoFirestore();
         }
     </script>
 </body>
