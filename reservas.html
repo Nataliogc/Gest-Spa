@@ -1424,14 +1424,48 @@
 
                 // Auto-open logic
                 const urlParams = new URLSearchParams(window.location.search);
-                const targetId = urlParams.get('id');
-                if (targetId) {
-                    const res = currentData.find(r => r.id === targetId);
-                    if (res) {
-                        selectSlot(res.hora, false, false);
-                        editBooking(targetId);
-                        // Clean URL to avoid reopening on refresh (optional, maybe keep it?)
-                        // window.history.replaceState({}, document.title, window.location.pathname + window.location.search.replace(/&id=[^&]+/, ''));
+                const action = urlParams.get('action');
+
+                if (action === 'new') {
+                    // Pre-fill logic for new reservation from Voucher
+                    const client = urlParams.get('client');
+                    const service = urlParams.get('service');
+                    const voucher = urlParams.get('voucher');
+
+                    if (client || service || voucher) {
+                        // Store in sessionStorage to be picked up by showBookingForm
+                        const pendingData = {
+                            cliente: client || '',
+                            producto: service || '',
+                            bono: voucher || ''
+                        };
+
+                        // Intentar sacar pax del producto si fuera posible (simple heuristic)
+                        if (pendingData.producto.toLowerCase().includes('pareja') || pendingData.producto.toLowerCase().includes('duo')) {
+                            pendingData.pax_por_sesion = 2;
+                        }
+
+                        sessionStorage.setItem('pendingVoucherBooking', JSON.stringify(pendingData));
+
+                        // Open modal (defaulting to current time slot or next available)
+                        // Si no hay hora seleccionada, buscamos la primera libre
+                        if (!selectedTime) {
+                            // Find first slot that is not full/blocked
+                            // ... implementation handled by user manually clicking a slot?
+                            // Better: Just show toast asking user to select a slot
+                            showToast("Selecciona una hora para completar la reserva del bono", "info");
+                        } else {
+                            showBookingForm();
+                        }
+                    }
+                } else {
+                    const targetId = urlParams.get('id');
+                    if (targetId) {
+                        const res = currentData.find(r => r.id === targetId);
+                        if (res) {
+                            selectSlot(res.hora, false, false);
+                            editBooking(targetId);
+                        }
                     }
                 }
             } catch (err) {

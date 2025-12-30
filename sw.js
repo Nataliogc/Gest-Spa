@@ -1,5 +1,5 @@
 // Service Worker for Zenith Manager PWA
-const CACHE_NAME = 'zenith-manager-v4';
+const CACHE_NAME = 'zenith-manager-v5';
 const urlsToCache = [
     './',
     './index.html',

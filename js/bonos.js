@@ -100,29 +100,39 @@ function findCatalogProduct(voucher) {
     const voucherPrice = parseFloat(voucher.importe) || parseFloat(voucher.precio) || 0;
     if (!productName) return null;
 
-    // 2a. Exact name match
-    let match = state.catalogProducts.find(p =>
-        p.nombre.toLowerCase() === productName
+    // Exact name match (Highest priority)
+    let match = state.catalogProducts.find(p => p.nombre.toLowerCase() === productName);
+    if (match) return match;
+
+    // Partial match candidates
+    const candidates = state.catalogProducts.filter(p =>
+        productName.includes(p.nombre.toLowerCase()) ||
+        p.nombre.toLowerCase().includes(productName)
     );
 
-    // 2b. Partial match - collect all candidates
-    if (!match) {
-        const candidates = state.catalogProducts.filter(p =>
-            productName.includes(p.nombre.toLowerCase()) ||
-            p.nombre.toLowerCase().includes(productName)
-        );
+    if (candidates.length === 0) return null;
 
-        if (candidates.length === 1) {
-            match = candidates[0];
-        } else if (candidates.length > 1 && voucherPrice > 0) {
-            // Multiple candidates: prioritize by price match
-            match = candidates.find(p => Math.abs(p.precio - voucherPrice) < 1) || candidates[0];
-        } else if (candidates.length > 1) {
-            match = candidates[0];
-        }
+    // 3. PRIORIDAD: Buscar un producto "Base" que sea divisor del precio del bono
+    // (Ej: Bono de 50€ para "Circuito SPA" que vale 25€ -> El producto base es mejor que un pack aleatorio)
+    const nameParts = productName.split("-").map(s => s.trim());
+    const baseCandidates = candidates.filter(p =>
+        nameParts.some(part => part === p.nombre.toLowerCase())
+    );
+
+    if (baseCandidates.length > 0 && voucherPrice > 0) {
+        // Buscar el que sea un divisor exacto (o casi exacto)
+        const divisorMatch = baseCandidates.find(p =>
+            p.precio > 0 && (voucherPrice % p.precio) < 2
+        );
+        if (divisorMatch) return divisorMatch;
     }
 
-    return match;
+    // 4. Último recurso: Match por precio más cercano entre los candidatos
+    if (voucherPrice > 0) {
+        return candidates.find(p => Math.abs(p.precio - voucherPrice) < 1) || candidates[0];
+    }
+
+    return candidates[0];
 }
 
 // --- CARGA DE DATOS ---
@@ -195,6 +205,7 @@ async function cargarCatalogoSimple() {
                 sesiones: data.sesiones || null,
                 incluye: itemsStr || desc,  // Prefer items list, fallback to description  
                 descripcion: desc || itemsStr,  // Prefer description, fallback to items
+                items_incluidos: Array.isArray(data.items_incluidos) ? data.items_incluidos : [], // Preservar array original
                 categoria: data.categoria || '',
                 espacio: data.espacio || '',
                 pax: data.pax || 1,
@@ -369,45 +380,148 @@ function getDaysRemaining(v) {
     return diffDays;
 }
 
-function detectSessions(productName) {
-    if (!productName) return { total: 1, paxPerSession: 1 };
+function detectSessions(voucher) {
+    if (!voucher) return { total: 1, paxPerSession: 1 };
+    const productName = voucher.producto || '';
+    const productId = voucher.product_id || null;
+    const voucherPrice = parseFloat(voucher.importe) || parseFloat(voucher.precio) || 0;
+
+    if (!productName && !productId) return { total: 1, paxPerSession: 1 };
     const lower = productName.toLowerCase().trim();
 
     // 1. Intentar buscar en el catálogo (state.catalogProducts)
-    // El catálogo ahora tiene 'sesiones' y 'pax' bien definidos desde la importación
-    const catalogMatch = state.catalogProducts.find(p =>
-        p.nombre.toLowerCase() === lower ||
-        lower.includes(p.nombre.toLowerCase())
-    );
+    let catalogMatch = null;
+    if (productId) {
+        const idStr = String(productId);
+        catalogMatch = state.catalogProducts.find(p =>
+            p.wc_id === idStr || p.id === `wc-${idStr}` || String(p.id) === idStr
+        );
+    }
+
+    if (!catalogMatch && lower) {
+        catalogMatch = state.catalogProducts.find(p =>
+            p.nombre.toLowerCase() === lower ||
+            lower.includes(p.nombre.toLowerCase())
+        );
+    }
+
+    let detectedTotal = 1;
+    let textDetected = false;
+
+    // 2. Detección por texto (Regex más flexible)
+    if (lower) {
+        const matchPlus = lower.match(/\((\d+)\s*\+\s*(\d+)\)/); // (5+1) o (5 + 1)
+        const matchBono = lower.match(/bono\s*(\d+)/i); // Bono 10, Bono10
+        const matchSes = lower.match(/(\d+)\s*sesiones/i); // 10 sesiones
+        const matchX = lower.match(/(\d+)\s*x\s+/i); // 10 x circuito
+
+        if (matchPlus) {
+            detectedTotal = parseInt(matchPlus[1]) + parseInt(matchPlus[2]);
+            textDetected = true;
+        } else if (matchBono) {
+            detectedTotal = parseInt(matchBono[1]);
+            textDetected = true;
+        } else if (matchSes) {
+            detectedTotal = parseInt(matchSes[1]);
+            textDetected = true;
+        } else if (matchX) {
+            detectedTotal = parseInt(matchX[1]);
+            textDetected = true;
+        } else {
+            if (lower.includes("b5")) { detectedTotal = 5; textDetected = true; }
+            else if (lower.includes("b10")) { detectedTotal = 10; textDetected = true; }
+        }
+    }
+
+    // 3. Consolidar resultados
+    let total = 1;
+    let pax = 1;
 
     if (catalogMatch) {
-        let total = catalogMatch.sesiones || 1;
-        let pax = catalogMatch.pax || 1;
+        total = catalogMatch.sesiones || 1;
+        pax = catalogMatch.pax || 1;
 
-        // Si el nombre del bono específico sobreescribe el pax (ej: "Bono Masaje Pareja")
-        if (lower.includes("pareja") || lower.includes("2 personas") || lower.includes("doble")) pax = 2;
+        // --- LÓGICA DE RATIO POR PRECIO (MEJORA) ---
+        // Si el precio del bono es múltiplo del precio del catálogo, 
+        // ajustamos sesiones o pax según el nombre.
+        if (catalogMatch.precio > 0 && voucherPrice > 0) {
+            const catalogPrice = parseFloat(catalogMatch.precio);
+            const ratio = Math.round(voucherPrice / catalogPrice);
 
-        return { total, paxPerSession: pax };
+            // Solo aplicamos multiplicador si el ratio es un múltiplo claro (> 1.1 para evitar redondeos)
+            // y si el precio del bono es significativamente mayor.
+            if (ratio > 1 && Math.abs((catalogPrice * ratio) - voucherPrice) < 2) {
+                const isBono = lower.includes("bono") || lower.includes("sesion") || lower.includes("pack");
+
+                if (isBono || ratio > 3) {
+                    // Si parece un bono o son muchas unidades, multiplicamos sesiones
+                    total = (catalogMatch.sesiones || 1) * ratio;
+                } else {
+                    // Si son pocas unidades (2 o 3) y no dice "bono", suele ser PAX (Dúo/Trío)
+                    pax = (catalogMatch.pax || 1) * ratio;
+                }
+            }
+        }
+
+        // Si el catálogo dice 1 pero el nombre dice más explícitamente (ej: "Bono 10"), priorizamos el nombre
+        if (total === 1 && detectedTotal > 1) {
+            total = detectedTotal;
+        }
+    } else {
+        total = detectedTotal;
     }
 
-    // 2. Fallback a detección por texto estándar si no hay match en catálogo
-    let total = 1;
-    const matchPlus = lower.match(/\((\d+)\+(\d+)\)/); // (5+1)
-    const matchVal = lower.match(/bono\s+(\d+)\s+/i); // Bono 10 X
-    const matchSes = lower.match(/(\d+)\s*sesiones/i); // 5 sesiones
-
-    if (matchPlus) total = parseInt(matchPlus[1]) + parseInt(matchPlus[2]);
-    else if (matchVal) total = parseInt(matchVal[1]);
-    else if (matchSes) total = parseInt(matchSes[1]);
-    else {
-        if (lower.includes("b5")) total = 5;
-        if (lower.includes("b10")) total = 10;
+    // Detección de PAX por palabras clave (sobreescribe si es explícito)
+    if (lower && (lower.includes("pareja") || lower.includes("2 personas") || lower.includes("doble") || lower.includes("duo") || lower.includes("2 pax"))) {
+        pax = 2;
     }
-
-    let pax = 1;
-    if (lower.includes("pareja") || lower.includes("2 personas") || lower.includes("doble") || lower.includes("duo")) pax = 2;
 
     return { total, paxPerSession: pax };
+}
+
+async function autoFixVoucherSessions() {
+    const toFix = state.bonos.filter(b => {
+        const det = detectSessions(b);
+        const dbTotal = b.sesiones_totales || b.sesiones_total || 1;
+        const dbPax = b.pax_por_sesion || b.pax_sesion || 1;
+        return ((dbTotal === 1 && det.total > 1) || (dbPax === 1 && det.paxPerSession > 1)) && b.estado !== 'completed';
+    });
+
+    if (toFix.length === 0) {
+        return showToast("No se encontraron bonos que necesiten corrección", "info");
+    }
+
+    if (!confirm(`Se han detectado ${toFix.length} bonos con sesiones probablemente incorrectas (ej: Bono 10 con 1 sesión).\n\n¿Quieres corregirlos todos automáticamente en la base de datos?\n\nEsta acción actualizará sesiones_totales y pax_por_sesion.`)) return;
+
+    let fixedCount = 0;
+    const btn = document.getElementById("auto-fix-btn");
+    const originalContent = btn.innerHTML;
+
+    try {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Corrigiendo...';
+
+        for (const b of toFix) {
+            const det = detectSessions(b);
+            await db.collection("spa_vouchers").doc(b.bono).update({
+                sesiones_totales: det.total,
+                pax_por_sesion: det.paxPerSession,
+                manual_update: true,
+                auto_fixed: true,
+                updatedAt: new Date().toISOString()
+            });
+            fixedCount++;
+        }
+
+        showToast(`Se han corregido ${fixedCount} bonos correctamente`, "success");
+        cargarBonos();
+    } catch (err) {
+        showToast("Error en corrección masiva: " + err.message, "error");
+        console.error(err);
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = originalContent;
+    }
 }
 
 // --- RENDER ---
@@ -450,6 +564,25 @@ function renderBonosFromState() {
 
     document.getElementById("voucher-count").textContent = filtered.length;
 
+    // Actualizar botón de auto-fix
+    const toFix = filtered.filter(b => {
+        const det = detectSessions(b);
+        const dbTotal = b.sesiones_totales || b.sesiones_total || 1;
+        const dbPax = b.pax_por_sesion || b.pax_sesion || 1;
+        return ((dbTotal === 1 && det.total > 1) || (dbPax === 1 && det.paxPerSession > 1)) && b.estado !== 'completed';
+    });
+
+    const fixBtn = document.getElementById("auto-fix-btn");
+    if (fixBtn) {
+        if (toFix.length > 0) {
+            fixBtn.style.display = 'inline-flex';
+            const countSpan = document.getElementById("auto-fix-count");
+            if (countSpan) countSpan.textContent = `(${toFix.length})`;
+        } else {
+            fixBtn.style.display = 'none';
+        }
+    }
+
     if (filtered.length === 0) {
         tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding: 20px; color: var(--text-muted);">No se encontraron bonos.</td></tr>`;
         return;
@@ -460,9 +593,19 @@ function renderBonosFromState() {
         let statusLabel = 'ACTIVO';
         const isExpired = checkVoucherExpiry(b);
 
+        const det = detectSessions(b);
+        const dbTotal = b.sesiones_totales || b.sesiones_total || 1;
+        const dbPax = b.pax_por_sesion || b.pax_sesion || 1;
+
         if (b.estado === 'completed') { badgeClass = 'st-completed'; statusLabel = 'CANJEADO'; }
         else if (b.estado === 'expired') { badgeClass = 'st-expired'; statusLabel = 'CADUCADO'; }
-        else if (b.estado === 'partially') { badgeClass = 'st-partial'; statusLabel = `PARCIAL ${b.sesiones_usadas || 0}/${b.sesiones_totales || 1}`; }
+        else if (b.estado === 'partially') { badgeClass = 'st-partial'; statusLabel = `PARCIAL ${b.sesiones_usadas || 0}/${dbTotal}`; }
+
+        // Si detectamos más sesiones o pax de los que dice la base de datos
+        if (b.estado !== 'completed' && ((dbTotal === 1 && det.total > 1) || (dbPax === 1 && det.paxPerSession > 1))) {
+            const label = det.total > 1 ? `${det.total} ses` : `${det.paxPerSession} pax`;
+            statusLabel += ` <i class="fas fa-exclamation-triangle" title="Sugerencia: ${det.total} ses / ${det.paxPerSession} pax. Abre para corregir."></i> ${label}`;
+        }
 
         if (b.estado === 'pending' && isExpired) {
             badgeClass = 'st-expired'; statusLabel = 'CADUCADO (Auto)';
@@ -515,7 +658,7 @@ function openVoucherManagement(code) {
     const v = state.bonos.find(b => b.bono === code);
     if (!v) return;
 
-    const detected = detectSessions(v.producto);
+    const detected = detectSessions(v);
 
     document.getElementById("vm-title-code").textContent = code;
     document.getElementById("vm-code").value = code;
@@ -536,18 +679,58 @@ function openVoucherManagement(code) {
         const primaryMatch = findCatalogProduct(voucher);
 
         if (primaryMatch) {
-            services.push({
-                name: primaryMatch.nombre,
-                imagen: primaryMatch.imagen,
-                descripcion: primaryMatch.descripcion || primaryMatch.incluye || '',
-                sessions: primaryMatch.sesiones || 1,
-                precio: primaryMatch.precio || 0,
-                pax: primaryMatch.pax || 1
-            });
+            // Unificamos con la detección global de sesiones del bono
+            let sessionsCount = primaryMatch.sesiones || 1;
+            if (sessionsCount === 1 && detected.total > 1) {
+                sessionsCount = detected.total;
+            }
 
-            // Solo mostrar el producto principal.
-            // Los componentes del pack deben estar definidos en items_incluidos del catálogo,
-            // no adivinados por keywords que pueden ser incorrectos.
+            let paxCount = primaryMatch.pax || 1;
+            if (paxCount === 1 && detected.paxPerSession > 1) {
+                paxCount = detected.paxPerSession;
+            }
+
+            // SI TIENE ITEMS INCLUIDOS (PACK DESGLOSADO)
+            if (primaryMatch.items_incluidos && primaryMatch.items_incluidos.length > 0) {
+                primaryMatch.items_incluidos.forEach(itemName => {
+                    services.push({
+                        name: itemName.trim(),
+                        imagen: primaryMatch.imagen, // Usamos la misma imagen del pack por ahora
+                        descripcion: `Parte del pack: ${primaryMatch.nombre}`,
+                        // Asumimos 1 sesión de cada item por cada sesión del pack
+                        // Si es un Pack de 2 personas, cada item es para 2 personas también.
+                        sessions: sessionsCount, // Mantenemos el total de sesiones/usos del bono
+                        precio: 0, // Precio incluido en bono
+                        pax: paxCount
+                    });
+                });
+            } else {
+                // SI NO, MODALIDAD ESTÁNDAR (O INTENTO DE PARSEO DE STRING SI TIENE "+")
+                if (primaryMatch.nombre.includes("+") && !primaryMatch.nombre.toLowerCase().includes("pack")) {
+                    // Intento muy básico de separar "Circuito + Masaje" si no está definido en catálogo
+                    const parts = primaryMatch.nombre.split("+");
+                    parts.forEach(part => {
+                        services.push({
+                            name: part.trim(),
+                            imagen: primaryMatch.imagen,
+                            descripcion: primaryMatch.descripcion,
+                            sessions: sessionsCount,
+                            precio: 0,
+                            pax: paxCount
+                        });
+                    });
+                } else {
+                    // CASO NORMAL
+                    services.push({
+                        name: primaryMatch.nombre,
+                        imagen: primaryMatch.imagen,
+                        descripcion: primaryMatch.descripcion || primaryMatch.incluye || '',
+                        sessions: sessionsCount,
+                        precio: primaryMatch.precio || 0,
+                        pax: paxCount
+                    });
+                }
+            }
         }
 
         return services;
@@ -647,9 +830,29 @@ function openVoucherManagement(code) {
     }
     // -------------------------------------
 
-    document.getElementById("vm-sesiones-total").value = v.sesiones_totales || detected.total;
+    // --- POBLAR SESIONES Y PAX (Priorizar detección del catálogo) ---
+    let suggestedTotal = 0;
+    let suggestedPax = 1;
+
+    if (detectedServices.length > 0) {
+        suggestedTotal = detectedServices.reduce((sum, s) => sum + (s.sessions || s.sesiones || 1), 0);
+        suggestedPax = detectedServices[0].pax || 1;
+    }
+
+    let sessionsTotales = v.sesiones_totales || v.sesiones_total;
+    // Si la DB dice 1 o vacío, pero detectamos más, usamos lo detectado (self-healing)
+    if ((!sessionsTotales || sessionsTotales === 1) && suggestedTotal > 1) {
+        sessionsTotales = suggestedTotal;
+    }
+    document.getElementById("vm-sesiones-total").value = sessionsTotales || suggestedTotal || 1;
+
     document.getElementById("vm-sesiones-usadas").value = v.sesiones_usadas || 0;
-    document.getElementById("vm-pax-sesion").value = v.pax_por_sesion || detected.paxPerSession;
+
+    let paxPorSesion = v.pax_por_sesion || v.pax_sesion;
+    if ((!paxPorSesion || paxPorSesion === 1) && suggestedPax > 1) {
+        paxPorSesion = suggestedPax;
+    }
+    document.getElementById("vm-pax-sesion").value = paxPorSesion || suggestedPax || 1;
     document.getElementById("vm-notas").value = v.notas_internas || '';
     document.getElementById("vm-notas").placeholder = "Notas internas visible solo para staff...";
 
@@ -1053,6 +1256,9 @@ async function importExcelOrders(event) {
                     }
                 }
 
+                // Detectar sesiones al importar
+                const detected = detectSessions(mapped);
+
                 // Crear documento del bono
                 const bonoData = {
                     bono: bonoCode,
@@ -1072,8 +1278,8 @@ async function importExcelOrders(event) {
                     origen: 'woocommerce-excel',
                     status: mapOrderStatus(mapped.order_status),
                     sesiones_usadas: 0,
-                    sesiones_total: 1,
-                    pax_sesion: 1,
+                    sesiones_totales: detected.total,
+                    pax_por_sesion: detected.paxPerSession,
                     fecha_validez: null,
                     createdAt: new Date().toISOString(),
                     importedAt: new Date().toISOString()
