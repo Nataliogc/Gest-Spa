@@ -553,7 +553,7 @@
                 const isPack = ['pack_pareja', 'pack_hosteleria', 'suite_privada', 'pack_comida'].includes(item.categoria);
                 return `
                 <div class="service-card">
-                    <img src="${item.imagen || 'zenith-icon.png'}" style="width: 100%; height: 160px; object-fit: ${item.imagen ? 'cover' : 'contain'}; background: ${item.imagen ? 'transparent' : '#f1f5f9'}; padding: ${item.imagen ? '0' : '30px'}; border-radius: 8px; margin-bottom: 12px; border: 1px solid #e2e8f0;">
+                    <img src="${item.imagen || 'zenith-icon.png'}" referrerpolicy="no-referrer" style="width: 100%; height: 160px; object-fit: ${item.imagen ? 'cover' : 'contain'}; background: ${item.imagen ? 'transparent' : '#f1f5f9'}; padding: ${item.imagen ? '0' : '30px'}; border-radius: 8px; margin-bottom: 12px; border: 1px solid #e2e8f0;">
                     ${isPack ? `<div class="service-badge"><i class="fas fa-star"></i> PACK</div>` : ''}
                     
                     <div style="display:flex; justify-content:space-between; align-items:start; margin-bottom: 12px; gap: 10px;">
@@ -733,7 +733,7 @@
         function updateImagePreview(url) {
             const preview = document.getElementById("sm-image-preview");
             if (url && url.length > 10) {
-                preview.innerHTML = `<img src="${url}" style="width: 100%; height: 100%; object-fit: cover;">`;
+                preview.innerHTML = `<img src="${url}" referrerpolicy="no-referrer" style="width: 100%; height: 100%; object-fit: cover;">`;
             } else {
                 preview.innerHTML = `<i class="fas fa-image" style="color: #cbd5e1;"></i>`;
             }

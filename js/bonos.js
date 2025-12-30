@@ -482,7 +482,7 @@ function renderBonosFromState() {
 
         return `
         <tr>
-            <td style="padding: 10px 5px;"><img src="${thumbUrl}" style="width: 35px; height: 35px; object-fit: cover; border-radius: 4px; border: 1px solid #e2e8f0;"></td>
+            <td style="padding: 10px 5px;"><img src="${thumbUrl}" referrerpolicy="no-referrer" style="width: 35px; height: 35px; object-fit: cover; border-radius: 4px; border: 1px solid #e2e8f0;"></td>
             <td style="font-weight:600">${b.bono || '-'}</td>
             <td>${b.producto || '-'}</td>
             <td>${b.email || '-'}</td>
@@ -631,7 +631,7 @@ function openVoucherManagement(code) {
         listDiv.innerHTML += detectedServices.map((item, idx) => `
             <div style="display:flex; justify-content:space-between; align-items:center; background:#fff; padding:6px; margin-bottom:4px; border-radius:4px; border:1px solid #e2e8f0;">
                 <div style="display: flex; gap: 8px; align-items: center; flex: 1;">
-                    ${item.imagen ? `<img src="${item.imagen}" style="width: 30px; height: 30px; object-fit: cover; border-radius: 4px; border: 1px solid #e2e8f0;">` : ''}
+                    ${item.imagen ? `<img src="${item.imagen}" referrerpolicy="no-referrer" style="width: 30px; height: 30px; object-fit: cover; border-radius: 4px; border: 1px solid #e2e8f0;">` : ''}
                     <span>${item.name} <small style="color:#64748b;">(${item.sessions} ses)</small></span>
                 </div>
                 <button class="btn btn-sm btn-outline" style="font-size:0.75rem; padding:2px 8px; border-color: #2563eb; color: #2563eb;" 
