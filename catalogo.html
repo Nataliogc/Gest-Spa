@@ -502,20 +502,31 @@
             let filtered = state.services;
             if (state.currentTab !== 'todos') {
                 filtered = state.services.filter(s => {
-                    const cat = s.categoria;
+                    const cat = s.categoria || '';
                     const name = (s.nombre || '').toLowerCase();
-                    const isBono = cat.includes('bono') || name.includes('bono');
+                    const isBono = cat.includes('bono') || name.includes('bono'); // Keep detection
 
-                    if (state.currentTab === 'bonos') return isBono; // Show ALL bonos here
+                    // "Bonos" tab shows ALL bonos (aggregated view)
+                    if (state.currentTab === 'bonos') return isBono;
 
-                    // For other tabs, EXCLUDE bonos
-                    if (isBono) return false;
+                    // REMOVED: if (isBono) return false;  <-- This line prevented bonos from appearing in category tabs
 
-                    if (state.currentTab === 'spa') return cat === 'circuito' || cat === 'pack_hotel';
-                    if (state.currentTab === 'masajes') return ['masaje', 'facial', 'corporal', 'ritual', 'envoltura'].includes(cat);
+                    if (state.currentTab === 'spa') {
+                        // Include standard circuits AND circuit vouchers
+                        return cat === 'circuito' || cat === 'bono_circuito' || cat === 'pack_hotel';
+                    }
+
+                    if (state.currentTab === 'masajes') {
+                        // Include standard treatments AND their voucher counterparts
+                        return ['masaje', 'bono_masaje', 'facial', 'bono_facial', 'corporal', 'bono_corporal', 'ritual', 'envoltura'].includes(cat);
+                    }
+
                     if (state.currentTab === 'packs') return ['pack_pareja', 'suite_privada', 'pack_hosteleria', 'pack_comida'].includes(cat);
+
                     if (state.currentTab === 'estetica') return ['manicura', 'peluqueria', 'depilacion', 'maquillaje', 'uva'].includes(cat);
+
                     if (state.currentTab === 'complementos') return cat === 'complemento';
+
                     return false;
                 });
             }

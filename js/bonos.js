@@ -170,9 +170,15 @@ function goToReservation(client, service, code) {
             type = 'peluqueria';
         } else if (checkStr.includes('suite')) {
             type = 'suite';
-        } else if (checkStr.includes('masaje') || checkStr.includes('tratamiento') || checkStr.includes('ritual') || checkStr.includes('facial') || checkStr.includes('envoltura') || checkStr.includes('panacea')) {
+        } else if (checkStr.includes('masaje') || checkStr.includes('tratamiento') || checkStr.includes('ritual') || checkStr.includes('facial') || checkStr.includes('envoltura') || checkStr.includes('panacea') || checkStr.includes('maderoterapia') || checkStr.includes('bambu')) {
             type = 'panacea';
         }
+    }
+
+    // Corrección final: Si se determinó 'spa' (por defecto o catálogo) pero el nombre GRITA masaje, forzar panacea
+    // Esto arregla casos donde el catálogo tenga mal puesto el espacio o no se encuentre
+    if (type === 'spa' && (lowerService.includes('masaje') || lowerService.includes('tratamiento') || lowerService.includes('ritual') || lowerService.includes('facial'))) {
+        type = 'panacea';
     }
 
     const url = `reservas.html?type=${type}&action=new&client=${encodeURIComponent(client)}&service=${encodeURIComponent(service)}&voucher=${code}`;
@@ -665,7 +671,11 @@ function openVoucherManagement(code) {
     document.getElementById("vm-cliente").value = v.cliente || '';
     document.getElementById("vm-email").value = v.email || '';
     document.getElementById("vm-producto").value = v.producto || '';
+    document.getElementById("vm-producto").value = v.producto || '';
     document.getElementById("vm-fecha-compra").value = v.fecha || '';
+
+    // Renderizar historial de uso (async)
+    renderVoucherHistory(code);
 
     // --- Vincular con Catálogo y Detectar Servicios ---
     const catalogInfo = document.getElementById("vm-catalog-info");
