@@ -5,7 +5,11 @@ const state = {
         capacity: 20,
         cleaningTime: 30,
         closedDates: [],
-        whatsappTemplate: "Hola {{nombre}}, le confirmamos su reserva..."
+        whatsappTemplate: "Hola {{nombre}}, le confirmamos su reserva...",
+        wc_url: "https://cumbriabienestar.es",
+        wc_key: "",
+        wc_secret: "",
+        wc_push_key: ""
     },
     masterItems: [],
     spaces: [],
@@ -51,7 +55,11 @@ function updateSettingsUI() {
     const ids = {
         "cfg-spa-capacity": state.spaConfig.capacity,
         "cfg-spa-cleaning": state.spaConfig.cleaningTime,
-        "cfg-whatsapp-template": state.spaConfig.whatsappTemplate
+        "cfg-whatsapp-template": state.spaConfig.whatsappTemplate,
+        "cfg-wc-url": state.spaConfig.wc_url,
+        "cfg-wc-key": state.spaConfig.wc_key,
+        "cfg-wc-secret": state.spaConfig.wc_secret,
+        "cfg-wc-push-key": state.spaConfig.wc_push_key
     };
     for (const [id, val] of Object.entries(ids)) {
         const el = document.getElementById(id);
@@ -64,9 +72,19 @@ async function saveSpaSettings() {
     const cleaning = parseInt(document.getElementById("cfg-spa-cleaning").value) || 0;
     const template = document.getElementById("cfg-whatsapp-template").value;
 
+    // WooCommerce Config
+    const wcUrl = document.getElementById("cfg-wc-url").value.trim();
+    const wcKey = document.getElementById("cfg-wc-key").value.trim();
+    const wcSecret = document.getElementById("cfg-wc-secret").value.trim();
+    const wcPushKey = document.getElementById("cfg-wc-push-key").value.trim();
+
     state.spaConfig.capacity = capacity;
     state.spaConfig.cleaningTime = cleaning;
     state.spaConfig.whatsappTemplate = template;
+    state.spaConfig.wc_url = wcUrl;
+    state.spaConfig.wc_key = wcKey;
+    state.spaConfig.wc_secret = wcSecret;
+    state.spaConfig.wc_push_key = wcPushKey;
 
     try {
         await db.collection("spa_config").doc("settings").set(state.spaConfig);
@@ -182,9 +200,47 @@ async function updateMasterItemField(id, field, value) {
     }
 }
 
+/**
+ * Normaliza profundamente un nombre para detectar duplicados "borrosos" y semánticos
+ */
+function normalizeItemName(name) {
+    if (!name) return "";
+    let low = name.toString().toLowerCase().trim();
+
+    // Ignorar etiquetas de metadatos que no son items per se
+    if (low.startsWith("duracion:") || low.startsWith("pax:") || low.startsWith("incluye:") || low.startsWith("categoria:")) {
+        return "";
+    }
+
+    let n = low
+        .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // Quitar acentos
+        .replace(/[^a-z0-9]/g, "") // Quitar todo lo que no sea letra o número
+        .trim();
+
+    // Mapping semántico para items que el usuario considera "lo mismo"
+    if (n.includes("alojamiento") || n.includes("desayuno") || n.includes("pensioncompleta") || n.includes("mediapension")) {
+        return "alojamientohotel";
+    }
+    if (n.includes("circuitospa")) {
+        return "circuitospa";
+    }
+    if (n.includes("depilacion")) {
+        return "depilacion";
+    }
+
+    return n;
+}
+
 async function addMasterItem() {
     const name = prompt("Nombre del nuevo item:");
     if (!name || !name.trim()) return;
+
+    const normName = normalizeItemName(name);
+    const exists = state.masterItems.some(i => normalizeItemName(i.name) === normName);
+    if (exists) {
+        showToast("Este item ya existe (o uno muy similar) en el catálogo maestro", "warning");
+        return;
+    }
 
     try {
         await db.collection("spa_item_master").add({
@@ -194,8 +250,68 @@ async function addMasterItem() {
             created_at: new Date().toISOString()
         });
         cargarMasterItems();
+        showToast("Item añadido correctamente", "success");
     } catch (err) {
         showToast("Error: " + err.message, "error");
+    }
+}
+
+/**
+ * Utility to clean up duplicates in spa_item_master
+ * Keeps the item with more info (duration or space) or the oldest one.
+ */
+async function deduplicateMasterItems() {
+    if (!confirm("¿Deseas buscar y eliminar items duplicados automáticamente?")) return;
+
+    try {
+        const snapshot = await db.collection("spa_item_master").get();
+        const map = {}; // name.toLowerCase() -> [docs]
+
+        snapshot.forEach(doc => {
+            const data = doc.data();
+            const n = normalizeItemName(data.name);
+            if (!n) {
+                batch.delete(doc.ref);
+                deleteCount++;
+                return;
+            }
+            if (!map[n]) map[n] = [];
+            map[n].push({ id: doc.id, ...data });
+        });
+
+        const batch = db.batch();
+        let deleteCount = 0;
+
+        for (const name in map) {
+            const docs = map[name];
+            if (docs.length > 1) {
+                // Sort by "quality": favor those with duration > 0 or assigned space
+                docs.sort((a, b) => {
+                    const scoreA = (a.duration ? 1 : 0) + (a.space ? 1 : 0);
+                    const scoreB = (b.duration ? 1 : 0) + (b.space ? 1 : 0);
+                    if (scoreA !== scoreB) return scoreB - scoreA;
+                    // Fallback to earliest created_at
+                    return new Date(a.created_at || 0) - new Date(b.created_at || 0);
+                });
+
+                // Keep the first (best) one, delete the rest
+                for (let i = 1; i < docs.length; i++) {
+                    batch.delete(db.collection("spa_item_master").doc(docs[i].id));
+                    deleteCount++;
+                }
+            }
+        }
+
+        if (deleteCount > 0) {
+            await batch.commit();
+            showToast(`Se han eliminado ${deleteCount} duplicados`, "success");
+            cargarMasterItems();
+        } else {
+            showToast("No se encontraron duplicados", "info");
+        }
+    } catch (err) {
+        console.error("Deduplicación fallida:", err);
+        showToast("Error al deduplicar: " + err.message, "error");
     }
 }
 
@@ -218,11 +334,18 @@ async function syncExistingItemsToMaster() {
         const allItems = new Set();
         snapshot.forEach(doc => {
             const d = doc.data();
-            if (d.items_incluidos) d.items_incluidos.forEach(i => allItems.add(i.trim()));
+            if (d.items_incluidos) {
+                d.items_incluidos.forEach(i => {
+                    const trimmed = i.trim();
+                    if (normalizeItemName(trimmed)) {
+                        allItems.add(trimmed);
+                    }
+                });
+            }
         });
 
-        const existing = new Set(state.masterItems.map(i => i.name.toLowerCase()));
-        const newItems = [...allItems].filter(n => !existing.has(n.toLowerCase()));
+        const existing = new Set(state.masterItems.map(i => normalizeItemName(i.name)));
+        const newItems = [...allItems].filter(n => !existing.has(normalizeItemName(n)));
 
         if (newItems.length === 0) return showToast("Todo actualizado", "info");
 
@@ -230,14 +353,19 @@ async function syncExistingItemsToMaster() {
         newItems.forEach(name => {
             let duration = 0;
             let space = "";
-            const l = name.toLowerCase();
+            const norm = normalizeItemName(name);
 
             const durMatch = name.match(/(\d+)\s*['|min|m]/i);
             if (durMatch) duration = parseInt(durMatch[1]);
 
-            if (l.includes("spa")) space = "spa";
-            else if (l.includes("masaje")) space = "cabina";
-            // ... more logic logic from app.js ...
+            if (norm === "alojamientohotel") {
+                name = "Alojamiento / Hotel";
+                space = "hotel";
+            } else if (norm === "circuitospa") {
+                space = "spa";
+            } else if (name.toLowerCase().includes("masaje")) {
+                space = "cabina";
+            }
 
             const ref = db.collection("spa_item_master").doc();
             batch.set(ref, { name, duration, space, created_at: new Date().toISOString() });

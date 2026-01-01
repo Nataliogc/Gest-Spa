@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Configuración - Zenith Manager</title>
-    <link rel="icon" href="zenith-pwa-icon.png" type="image/png">
+    <link rel="icon" href="zenith-icon.png" type="image/png">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="styles.css">
 
@@ -85,6 +85,9 @@
                     <button class="config-tab btn active" onclick="switchConfigTab('tab-general', this)">
                         <i class="fas fa-tools"></i> General
                     </button>
+                    <button class="config-tab btn" onclick="switchConfigTab('tab-conexiones', this)">
+                        <i class="fas fa-plug"></i> Conexiones
+                    </button>
                     <button class="config-tab btn" onclick="switchConfigTab('tab-spa', this)">
                         <i class="fas fa-spa"></i> Módulo Spa
                     </button>
@@ -119,6 +122,68 @@
                                 <button onclick="saveSpaSettings()" class="btn btn-accent"
                                     style="width: 100%; margin-top: 20px; background: #25D366; border-color: #25D366; justify-content: center; height: 45px; font-weight: 600;">
                                     <i class="fas fa-save"></i> Guardar Plantilla de Mensaje
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- TAB CONEXIONES -->
+                    <div id="tab-conexiones" class="config-tab-content" style="display: none;">
+                        <div style="max-width: 800px;">
+                            <div class="stat-card" style="border-left: 4px solid #9b59b6;">
+                                <h3
+                                    style="margin: 0 0 15px 0; font-size: 1.1rem; display: flex; align-items: center; gap: 10px; color: #9b59b6;">
+                                    <i class="fab fa-wordpress"></i> Conexión con WooCommerce
+                                </h3>
+                                <p class="muted" style="font-size: 0.85rem; margin-bottom: 20px;">
+                                    Configura las llaves de la API para que el sistema pueda sincronizar el catálogo y
+                                    los bonos automáticamente.
+                                </p>
+
+                                <div class="form-group">
+                                    <label style="font-size: 0.8rem; font-weight: 600;">URL de la Tienda</label>
+                                    <input type="url" id="cfg-wc-url" placeholder="https://cumbriabienestar.es"
+                                        class="param-input" style="width: 100%; margin-top: 5px;">
+                                </div>
+
+                                <div class="form-row" style="margin-top: 15px;">
+                                    <div class="form-group">
+                                        <label style="font-size: 0.8rem; font-weight: 600;">Consumer Key
+                                            (ck_...)</label>
+                                        <input type="password" id="cfg-wc-key" placeholder="ck_xxxxxxxxxxxxxxxxxxxxxxxx"
+                                            class="param-input" style="width: 100%; margin-top: 5px;">
+                                    </div>
+                                    <div class="form-group">
+                                        <label style="font-size: 0.8rem; font-weight: 600;">Consumer Secret
+                                            (cs_...)</label>
+                                        <input type="password" id="cfg-wc-secret"
+                                            placeholder="cs_xxxxxxxxxxxxxxxxxxxxxxxx" class="param-input"
+                                            style="width: 100%; margin-top: 5px;">
+                                    </div>
+                                </div>
+
+                                <div class="form-group" style="margin-top: 15px;">
+                                    <label style="font-size: 0.8rem; font-weight: 600;">Clave de Seguridad (para
+                                        modificar la tienda)</label>
+                                    <input type="password" id="cfg-wc-push-key"
+                                        placeholder="Introduce una clave para autorizar cambios" class="param-input"
+                                        style="width: 100%; margin-top: 5px;">
+                                    <p class="muted" style="font-size: 0.7rem; margin-top: 4px;">* Se te pedirá esta
+                                        clave cada vez que intentes subir un cambio a la web.</p>
+                                </div>
+
+                                <div
+                                    style="background: #fdf2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 12px; margin-top: 20px;">
+                                    <p style="margin: 0; font-size: 0.75rem; color: #991b1b; line-height: 1.4;">
+                                        <i class="fas fa-shield-alt"></i> <b>Seguridad:</b> Las llaves se almacenan de
+                                        forma segura. No las compartas con nadie. Se recomiendan permisos de
+                                        "Lectura/Escritura" para sincronizar estados.
+                                    </p>
+                                </div>
+
+                                <button onclick="saveSpaSettings()" class="btn btn-accent"
+                                    style="width: 100%; margin-top: 25px; background: #9b59b6; border-color: #9b59b6; justify-content: center; height: 45px; font-weight: 600;">
+                                    <i class="fas fa-save"></i> Guardar Configuración de Conexión
                                 </button>
                             </div>
                         </div>
@@ -209,6 +274,11 @@
                                             title="Extraer items de servicios existentes"
                                             style="padding: 2px 8px; font-size: 0.65rem;">
                                             <i class="fas fa-sync-alt"></i> Sincronizar
+                                        </button>
+                                        <button onclick="deduplicateMasterItems()" class="btn btn-outline btn-sm"
+                                            title="Eliminar duplicados"
+                                            style="padding: 2px 8px; font-size: 0.65rem; color: #ef4444; border-color: #fecaca;">
+                                            <i class="fas fa-magic"></i> Deduplicar
                                         </button>
                                         <button onclick="addMasterItem()" class="btn btn-accent btn-sm"
                                             style="padding: 2px 12px; font-size: 0.7rem;">

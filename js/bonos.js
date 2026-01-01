@@ -5,7 +5,8 @@
 const state = {
     bonos: [],
     catalogProducts: [], // Para el selector de venta local
-    lvCart: [] // Carrito de venta local
+    lvCart: [], // Carrito de venta local
+    masterItems: [] // Configuración de espacios por item
 };
 
 // --- INIT ---
@@ -33,6 +34,7 @@ function initBonos() {
 
     // Load data
     cargarCatalogoSimple();
+    loadMasterItems(); // Load master items for smart redirection
     cargarBonos();
 }
 
@@ -144,45 +146,112 @@ function goToReservation(client, service, code) {
     client = unescape(client).trim();
     if (!confirm(`¿Ir al calendario para reservar '${service}' para ${client}?`)) return;
 
-    // 1. Buscar producto en catálogo (Match exacto o parcial)
-    const lowerService = service.toLowerCase();
-    let prod = state.catalogProducts.find(p => p.nombre.toLowerCase() === lowerService);
+    // 1. Buscar en Master Items (Prioridad Absoluta para Espacio)
+    // Normalizar strings
+    const serviceNorm = service.toLowerCase().trim();
 
-    // Si no encuentra exacto, intenta "starts with" o includes
-    if (!prod) {
-        prod = state.catalogProducts.find(p => p.nombre.toLowerCase().includes(lowerService) || lowerService.includes(p.nombre.toLowerCase()));
+    // Debug logging (Visual para el usuario)
+    let debugMsg = `DEBUG GOTO:\nService: ${serviceNorm}\nMaster Items Loaded: ${state.masterItems.length}\n`;
+
+    // Debug
+    console.log(`[goToReservation] Searching for space. Service: '${serviceNorm}'`);
+    console.log(`[goToReservation] Master Items loaded: ${state.masterItems.length}`);
+
+    // Match strategy: 
+    // 1. Exact match (High priority)
+    // 2. Master Item name is contained in Service string (e.g. Master: "Higiene Facial", Service: "Higiene Facial Básica")
+    // 3. Service string is contained in Master Item name
+
+    let masterItem = state.masterItems.find(i => i.name.toLowerCase().trim() === serviceNorm);
+
+    if (masterItem) debugMsg += `Match Exacto: SI (${masterItem.name})\n`;
+    else debugMsg += `Match Exacto: NO\n`;
+
+    if (!masterItem) {
+        masterItem = state.masterItems.find(i => serviceNorm.includes(i.name.toLowerCase().trim()));
+        if (masterItem) debugMsg += `Match Includes (Service -> Master): SI (${masterItem.name})\n`;
     }
 
-    let category = prod ? (prod.categoria || '').toLowerCase() : '';
-    let space = prod ? (prod.espacio || '').toLowerCase() : '';
+    if (!masterItem) {
+        masterItem = state.masterItems.find(i => i.name.toLowerCase().trim().includes(serviceNorm));
+        if (masterItem) debugMsg += `Match Includes (Master -> Service): SI (${masterItem.name})\n`;
+    }
 
-    // 2. Determinar módulo (type)
-    let type = 'spa'; // Default
+    alert(debugMsg);
 
-    // Use explicit space if defined
-    if (space && space !== '') {
-        type = space;
+    // Default module
+    let type = 'spa';
+
+    if (masterItem && masterItem.space) {
+        debugMsg += `Space Config: ${masterItem.space}\n`;
+        // Map common space names to URL types if needed, or use directly if they match
+        // Standardizing: 'sala panacea' -> 'panacea', 'suite spa' -> 'suite', etc.
+        const spaceLower = masterItem.space.toLowerCase();
+
+        if (spaceLower.includes('panacea')) type = 'panacea';
+        else if (spaceLower.includes('suite')) type = 'suite';
+        else if (spaceLower.includes('vip')) type = 'panacea'; // VIP usually shares logic or has own, assuming panacea/vip view
+        else if (spaceLower.includes('peluqueria') || spaceLower.includes('estetica')) type = 'peluqueria';
+        else type = 'spa'; // Fallback for 'circuit', etc.
+
+        console.log(`Smart Redirect: Item '${service}' matched to space '${masterItem.space}' -> Module '${type}'`);
     } else {
-        // Fallback checks on category AND name (if product not found or no category)
-        const checkStr = (category + ' ' + lowerService).trim();
+        // 2. Fallback: Heuristics based on catalog or name
+        const lowerService = service.toLowerCase();
 
-        if (checkStr.includes('peluqueria') || checkStr.includes('estetica') || checkStr.includes('manicura') || checkStr.includes('pedicura') || checkStr.includes('depilacion')) {
-            type = 'peluqueria';
-        } else if (checkStr.includes('suite')) {
-            type = 'suite';
-        } else if (checkStr.includes('masaje') || checkStr.includes('tratamiento') || checkStr.includes('ritual') || checkStr.includes('facial') || checkStr.includes('envoltura') || checkStr.includes('panacea') || checkStr.includes('maderoterapia') || checkStr.includes('bambu')) {
+        // Try to find in catalog to check category/space property there
+        let prod = state.catalogProducts.find(p => p.nombre.toLowerCase() === lowerService);
+        if (!prod) {
+            prod = state.catalogProducts.find(p => p.nombre.toLowerCase().includes(lowerService) || lowerService.includes(p.nombre.toLowerCase()));
+        }
+
+        let category = prod ? (prod.categoria || '').toLowerCase() : '';
+        let space = prod ? (prod.espacio || '').toLowerCase() : '';
+
+        // Use explicit space if defined in catalog product
+        if (space && space !== '') {
+            type = space;
+        } else {
+            // Fallback checks on category AND name
+            const checkStr = (category + ' ' + lowerService).trim();
+
+            if (checkStr.includes('peluqueria') || checkStr.includes('estetica') || checkStr.includes('manicura') || checkStr.includes('pedicura') || checkStr.includes('depilacion')) {
+                type = 'peluqueria';
+            } else if (checkStr.includes('suite')) {
+                type = 'suite';
+            } else if (checkStr.includes('masaje') || checkStr.includes('tratamiento') || checkStr.includes('ritual') || checkStr.includes('facial') || checkStr.includes('envoltura') || checkStr.includes('panacea') || checkStr.includes('maderoterapia') || checkStr.includes('bambu')) {
+                type = 'panacea';
+            }
+        }
+
+        // Corrección final (Legacy)
+        if (type === 'spa' && (lowerService.includes('masaje') || lowerService.includes('tratamiento') || lowerService.includes('ritual') || lowerService.includes('facial'))) {
             type = 'panacea';
+            debugMsg += `Legacy Override: Forced to Panacea\n`;
         }
     }
 
-    // Corrección final: Si se determinó 'spa' (por defecto o catálogo) pero el nombre GRITA masaje, forzar panacea
-    // Esto arregla casos donde el catálogo tenga mal puesto el espacio o no se encuentre
-    if (type === 'spa' && (lowerService.includes('masaje') || lowerService.includes('tratamiento') || lowerService.includes('ritual') || lowerService.includes('facial'))) {
-        type = 'panacea';
-    }
+    debugMsg += `FINAL TYPE: ${type}`;
+    // alert(debugMsg); // Descomentar para debug extremo, pero mejor console.log si el usuario puede verlo
+    // Si el usuario dijo "entra en el navegador", quizas no ve la consola.
+    // LE PONGO UN ALERT TEMPORAL:
+    alert(debugMsg);
 
     const url = `reservas.html?type=${type}&action=new&client=${encodeURIComponent(client)}&service=${encodeURIComponent(service)}&voucher=${code}`;
     window.location.href = url;
+}
+
+async function loadMasterItems() {
+    try {
+        const snapshot = await db.collection("spa_item_master").get();
+        state.masterItems = [];
+        snapshot.forEach(doc => {
+            state.masterItems.push(doc.data());
+        });
+        console.log("Master Items cargados para redirección:", state.masterItems.length);
+    } catch (err) {
+        console.error("Error loading master items:", err);
+    }
 }
 
 async function cargarCatalogoSimple() {
@@ -302,19 +371,103 @@ async function sincronizarConTienda(persistentData, btn, originalText) {
         let ops = 0;
         let newCount = 0;
 
-        const webVouchers = shopVouchers.map(b => {
-            // Fix potential undefined issue for 'b' if not object
-            if (!b || typeof b !== 'object') return null;
+        // Agrupar por código de bono para evitar duplicados y fusionar items
+        const groupedVouchers = {};
 
+        shopVouchers.forEach(b => {
+            if (!b || typeof b !== 'object') return;
+            const code = (b.bono || '').trim(); // Trim to ensure unique key
+
+            if (!groupedVouchers[code]) {
+                // Primer encuentro: Inicializar
+                groupedVouchers[code] = { ...b, bono: code }; // Ensure trimmed code in object
+                groupedVouchers[code].items_desglosados = []; // Iniciamos lista de items
+
+                // Añadir el item actual como primer sub-item
+                groupedVouchers[code].items_desglosados.push({
+                    name: b.producto,
+                    price: parseFloat(b.precio || b.importe || 0),
+                    sessions: 1, // Default, será ajustado luego por detección
+                    pax: 1
+                });
+            } else {
+                // Duplicado detected: Fusionar
+                const existing = groupedVouchers[code];
+
+                // 1. Sumar precio
+                const priceExisting = parseFloat(existing.precio || existing.importe || 0);
+                const priceNew = parseFloat(b.precio || b.importe || 0);
+                const newTotal = priceExisting + priceNew;
+                existing.precio = newTotal;
+                existing.importe = newTotal;
+
+                // 2. Concatenar nombre de producto if needed
+                if (!existing.producto.includes(b.producto)) {
+                    existing.producto = `${existing.producto} + ${b.producto}`;
+                }
+
+                // 3. Añadir a items desglosados
+                existing.items_desglosados.push({
+                    name: b.producto,
+                    price: priceNew,
+                    sessions: 1,
+                    pax: 1
+                });
+            }
+        });
+
+        // Convertir de vuelta a array
+        const uniqueShopVouchers = Object.values(groupedVouchers);
+
+        const webVouchers = uniqueShopVouchers.map(b => {
             const persisted = persistentData[b.bono];
             let finalState = 'pending';
+
+            // --- GHOST KILLER LOGIC ---
+            // Buscar otros documentos en persistentData que tengan ESTE mismo código de bono
+            // pero que su ID de documento NO sea el código (ej: ID='7570' vs ID='BONO7570')
+            // O que sea un ID antiguo que queremos limpiar.
+            // Priorizamos: El ID que coincide con b.bono es el "bueno". Los demás son fantasmas.
+            Object.keys(persistentData).forEach(docId => {
+                const p = persistentData[docId];
+                if (docId !== b.bono && p.bono === b.bono) {
+                    console.log(`[Ghost Killer] Deleting duplicate doc: ${docId} (matches ${b.bono})`);
+                    batch.delete(db.collection("spa_vouchers").doc(docId));
+                    ops++;
+                }
+            });
+            // ---------------------------
 
             if (persisted) {
                 const isManuallyManaged = persisted.notas_internas || persisted.fecha_validez || persisted.manual_update;
                 finalState = isManuallyManaged ? persisted.estado : 'pending';
+
+                // Si ya existe y estamos fusionando, asegurarnos de preservar sesiones totales si ya se calcularon
+                if (persisted.manual_update) {
+                    b.sesiones_totales = persisted.sesiones_totales;
+                    b.pax_por_sesion = persisted.pax_por_sesion;
+                }
             } else {
                 const docRef = db.collection("spa_vouchers").doc(b.bono);
-                batch.set(docRef, { ...b, estado: 'pending', synced_at: new Date().toISOString() });
+                // Calcular sesiones totales basado en los items fusionados
+                // Si tenemos items desglosados, la suma de sesiones de cada uno podría ser el total
+                // Pero por defecto, dejemos que la lógica de detección individual lo maneje o sumemos 1 por item
+                let calculatedTotal = b.items_desglosados ? b.items_desglosados.length : 1;
+
+                // Refinar cálculo de sesiones por item
+                if (b.items_desglosados) {
+                    calculatedTotal = 0;
+                    b.items_desglosados.forEach(item => {
+                        const det = detectSessions({ producto: item.name, importe: item.price });
+                        item.sessions = det.total; // Actualizar el item individual
+                        item.pax = det.paxPerSession;
+                        calculatedTotal += det.total;
+                    });
+                }
+
+                b.sesiones_totales = calculatedTotal;
+
+                batch.set(docRef, { ...b, estado: finalState, synced_at: new Date().toISOString() });
                 ops++;
                 newCount++;
             }
@@ -1094,7 +1247,9 @@ function renderLVCart() {
         <div style="display: flex; justify-content: space-between; align-items: center; background: #fff; padding: 6px; border-radius: 4px; border: 1px solid #e2e8f0; margin-bottom: 4px;">
             <div style="flex: 1;">
                 <div style="font-weight: 600; font-size: 0.8rem;">${item.name}</div>
-                <div style="font-size: 0.7rem; color: #64748b;">${item.sessions} ses. | ${item.price.toFixed(2)}€</div>
+                <div style="font-size: 0.7rem; color: #64748b;">
+                    ${item.sessions} ses. x ${item.price.toFixed(2)}€ = <strong>${(item.price * item.sessions).toFixed(2)}€</strong>
+                </div>
             </div>
             <button onclick="removeFromCart(${index})" style="background:none; border:none; color: #ef4444; cursor: pointer;">
                 <i class="fas fa-trash"></i>
@@ -1102,7 +1257,7 @@ function renderLVCart() {
         </div>
     `).join('');
 
-    const totalPrice = state.lvCart.reduce((sum, i) => sum + i.price, 0);
+    const totalPrice = state.lvCart.reduce((sum, i) => sum + (i.price * i.sessions), 0);
     const totalSessions = state.lvCart.reduce((sum, i) => sum + i.sessions, 0);
     totalDisplay.textContent = `${totalPrice.toFixed(2)}€ (${totalSessions} Sesiones)`;
 }
@@ -1120,7 +1275,7 @@ async function createLocalVoucher() {
     const codeInput = document.getElementById("lv-code").value.trim();
     const code = codeInput || `LOC-${new Date().getFullYear()}-${Math.floor(Math.random() * 10000)}`;
 
-    const totalPrice = state.lvCart.reduce((sum, i) => sum + i.price, 0);
+    const totalPrice = state.lvCart.reduce((sum, i) => sum + (i.price * i.sessions), 0);
     const totalSessions = state.lvCart.reduce((sum, i) => sum + i.sessions, 0);
     const productNames = state.lvCart.map(i => i.name).join(" + ");
 

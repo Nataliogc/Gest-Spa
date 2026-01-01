@@ -206,15 +206,14 @@
                     style="height: 40px; font-weight: 600; margin-right: 10px;">
                     <i class="fas fa-magic"></i> Auto-Configurar
                 </button>
-                <button id="btn-import-wc" class="btn btn-outline" onclick="triggerWCImport()"
-                    style="border-color: #2563eb; color: #2563eb;">
-                    <i class="fab fa-wordpress"></i> Importar WC
+                <button id="btn-sync-direct" class="btn btn-outline" onclick="syncDirectFromStore()"
+                    style="border-color: #9b59b6; color: #9b59b6;">
+                    <i class="fas fa-sync-alt"></i> Sincronizar Tienda
                 </button>
                 <button id="btn-clear-catalog" class="btn btn-outline" onclick="clearCatalog()"
                     style="border-color: #ef4444; color: #ef4444;">
                     <i class="fas fa-trash-sweep"></i> Limpiar Catálogo
                 </button>
-                <input type="file" id="wc-csv-input" style="display: none;" accept=".csv" onchange="handleWCFile(this)">
                 <button class="btn btn-accent" onclick="openServiceModal()" style="height: 40px; font-weight: 600;">
                     <i class="fas fa-plus"></i> Añadir Nuevo
                 </button>
@@ -222,6 +221,7 @@
         </div>
 
         <!-- TABS INTELIGENTES -->
+        <!-- TAB CONTAINER UPDATE -->
         <div class="tab-container" style="margin-bottom: 25px;">
             <div class="tab active" onclick="switchCatalogTab('todos', this)"><i class="fas fa-th-large"></i> Todos
             </div>
@@ -229,14 +229,17 @@
             <div class="tab" onclick="switchCatalogTab('masajes', this)"><i class="fas fa-spa"></i> Masajes</div>
             <div class="tab" onclick="switchCatalogTab('packs', this)"><i class="fas fa-box-open"></i> Packs & Suite
             </div>
-            <div class="tab" onclick="switchCatalogTab('bonos', this)"><i class="fas fa-ticket-alt"></i> Bonos
-            </div>
+            <div class="tab" onclick="switchCatalogTab('bonos', this)"><i class="fas fa-ticket-alt"></i> Bonos</div>
             <div class="tab" onclick="switchCatalogTab('estetica', this)"><i class="fas fa-magic"></i> Estética/Pelu
             </div>
             <div class="tab" onclick="switchCatalogTab('complementos', this)"><i class="fas fa-plus-circle"></i>
                 Complementos</div>
+            <div class="tab" onclick="switchCatalogTab('papelera', this)"
+                style="margin-left:auto; color: #ef4444; border-color: #fecaca;"><i class="fas fa-trash-alt"></i>
+                Papelera</div>
         </div>
 
+        <!-- WRAPPER DIV CLOSE -->
         <!-- LISTA DE SERVICIOS -->
         <div style="flex: 1; overflow-y: auto; padding-bottom: 30px;">
             <div id="services-grid" class="grid-densidad">
@@ -249,8 +252,14 @@
     <!-- MODAL GESTIÓN SERVICIO -->
     <div id="service-modal" class="modal" style="display: none;">
         <div class="modal-content" style="max-width: 850px; width: 95%;">
-            <div class="modal-header">
-                <h3 id="sm-title" style="margin: 0; font-size: 1.5rem; color: var(--text);">Nuevo Servicio</h3>
+            <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center;">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <h3 id="sm-title" style="margin: 0; font-size: 1.5rem; color: var(--text);">Nuevo Servicio</h3>
+                    <span id="sm-wc-id-badge"
+                        style="display: none; background: #e0f2fe; color: #0284c7; padding: 2px 8px; border-radius: 4px; font-size: 0.7rem; font-weight: 700; border: 1px solid #bae6fd;">
+                        ID: <span id="sm-wc-id-display"></span>
+                    </span>
+                </div>
                 <span class="close-modal" onclick="closeServiceModal()">&times;</span>
             </div>
 
@@ -300,6 +309,9 @@
                                         <option value="pack_pareja">Pack Pareja</option>
                                         <option value="pack_hosteleria">Pack Hostelería</option>
                                         <option value="suite_privada">Suite Privada</option>
+                                        <option value="gimnasio">Gimnasio</option>
+                                        <option value="bono_gimnasio">Bono Gimnasio</option>
+                                        <option value="bonos">Bonos</option>
                                     </optgroup>
                                     <optgroup label="Tratamientos">
                                         <option value="masaje">Masaje</option>
@@ -309,7 +321,6 @@
                                         <option value="corporal">Corporal</option>
                                         <option value="bono_corporal">Bono Corporal</option>
                                         <option value="ritual">Ritual</option>
-                                        <option value="envoltura">Envoltura</option>
                                     </optgroup>
                                     <optgroup label="Estética y Otros">
                                         <option value="manicura">Manicura</option>
@@ -329,18 +340,24 @@
                                     style="font-size: 0.9rem; padding: 4px 8px; height: 32px; width: 100%;">
                                     <option value="spa">Automático (Spa)</option>
                                     <option value="panacea">Panacea (Cabinas)</option>
-                                    <option value="suite">Suite (Privada)</option>
+                                    <option value="suite">Suite Spa</option>
                                     <option value="vip">Sala VIP</option>
                                     <option value="peluqueria">Peluquería</option>
+                                    <option value="gimnasio">Gimnasio</option>
                                 </select>
                             </div>
                             <div style="flex: 0.6;">
                                 <label
-                                    style="font-size: 0.65rem; font-weight: 700; text-transform: uppercase; color: #a0aec0; display: block; margin-bottom: 2px;">Pax</label>
+                                    style="font-size: 0.65rem; font-weight: 700; text-transform: uppercase; color: #a0aec0; display: block; margin-bottom: 2px;">
+                                    Pax <span id="sm-pax-icon"
+                                        style="font-size: 0.9rem; color: #4b5563; margin-left: 2px;">👤</span>
+                                </label>
                                 <select id="sm-pax" class="param-input form-control"
-                                    style="font-size: 0.9rem; padding: 4px 8px; height: 32px; width: 100%;">
+                                    style="font-size: 0.9rem; padding: 4px 8px; height: 32px; width: 100%;"
+                                    onchange="updatePaxIcon(this.value)">
                                     <option value="1">1</option>
                                     <option value="2">2</option>
+                                    <option value="group">Grupo</option>
                                 </select>
                             </div>
                             <div style="flex: 0.6;">
@@ -400,16 +417,66 @@
 
         <!-- Botones de Acción (dentro del contenido scrollable) -->
         <div
-            style="display: flex; gap: 10px; margin-top: 20px; padding-top: 15px; border-top: 1px solid var(--border);">
-            <button type="submit" id="sm-save-btn" class="btn btn-accent"
-                style="flex: 1; height: 40px; font-size: 0.9rem; font-weight: 600; justify-content: center;">
-                <i class="fas fa-save"></i> <span>GUARDAR</span>
-            </button>
-            <button type="button" class="btn btn-outline"
-                style="width: 45px; height: 40px; color: #ff5252; border-color: #ff5252; justify-content: center;"
-                onclick="deleteService()">
-                <i class="fas fa-trash-alt"></i>
-            </button>
+            style="margin-top: 20px; padding-top: 15px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 15px;">
+
+            <!-- SECCIÓN WOOCOMMERCE: Visible para items de WC o nuevos que se quieran subir -->
+            <div id="sm-wc-sync-section"
+                style="display: none; background: #fdf2f2; border: 1px solid #fecaca; padding: 15px; border-radius: 8px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                    <span style="font-size: 0.75rem; font-weight: 700; color: #991b1b;"><i class="fab fa-wordpress"></i>
+                        VINCULACIÓN WOOCOMMERCE</span>
+                    <button type="button" id="btn-wc-delete" class="btn btn-sm" onclick="deleteFromWC()"
+                        style="background: transparent; border: none; color: #b91c1c; font-size: 0.7rem; display: none;">
+                        <i class="fas fa-trash-alt"></i> Eliminar de la Web
+                    </button>
+                </div>
+
+                <!-- Nuevos Campos: Categorías y Opciones -->
+                <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 15px;">
+                    <div>
+                        <label
+                            style="font-size: 0.65rem; font-weight: 700; text-transform: uppercase; color: #991b1b; display: block; margin-bottom: 4px;">Categorías
+                            en la Web</label>
+                        <select id="sm-wc-categories" multiple class="form-control"
+                            style="font-size: 0.8rem; height: 80px; width: 100%; border-color: #fecaca;">
+                            <!-- Dinámico -->
+                        </select>
+                        <p style="font-size: 0.6rem; color: #991b1b; margin-top: 2px;">(Mantén Ctrl para seleccionar
+                            varias)</p>
+                    </div>
+
+                    <div style="display: flex; gap: 20px;">
+                        <label
+                            style="display: flex; align-items: center; gap: 8px; font-size: 0.75rem; color: #991b1b; font-weight: 600; cursor: pointer;">
+                            <input type="checkbox" id="sm-wc-regalar"> ¿Producto para Regalo?
+                        </label>
+                        <label
+                            style="display: flex; align-items: center; gap: 8px; font-size: 0.75rem; color: #991b1b; font-weight: 600; cursor: pointer;">
+                            <input type="checkbox" id="sm-wc-virtual" checked> Producto Virtual
+                        </label>
+                    </div>
+                </div>
+
+                <button type="button" id="btn-wc-push" class="btn btn-outline" onclick="pushServiceToWC()"
+                    style="width: 100%; border-color: #9b59b6; color: #9b59b6; height: 38px; font-size: 0.85rem; font-weight: 700;">
+                    <i class="fas fa-cloud-upload-alt"></i> Subir cambios a la Web
+                </button>
+                <p style="margin: 8px 0 0 0; font-size: 0.65rem; color: #b91c1c; text-align: center; opacity: 0.8;">
+                    * Sincroniza nombre, precio, descripción, imagen, categorías y estado virtual.
+                </p>
+            </div>
+
+            <div style="display: flex; gap: 10px;">
+                <button type="submit" id="sm-save-btn" class="btn btn-accent"
+                    style="flex: 1; height: 40px; font-size: 0.9rem; font-weight: 600; justify-content: center;">
+                    <i class="fas fa-save"></i> <span>GUARDAR</span>
+                </button>
+                <button type="button" class="btn btn-outline"
+                    style="width: 45px; height: 40px; color: #ff5252; border-color: #ff5252; justify-content: center;"
+                    onclick="deleteService()">
+                    <i class="fas fa-trash-alt"></i>
+                </button>
+            </div>
         </div>
 
     </div> <!-- End modal-body -->
@@ -417,6 +484,9 @@
     </form>
     </div>
     </div>
+
+    <!-- Toast Container -->
+    <div id="toast-container" style="position: fixed; bottom: 20px; right: 20px; z-index: 10000;"></div>
 
     <!-- Firebase -->
     <!-- Firebase SDKs Compat -->
@@ -432,7 +502,8 @@
             services: [],
             masterItems: [], // Listado maestro para el desglose
             currentTab: 'todos',
-            searchTerm: ''
+            searchTerm: '',
+            wcCategories: [] // Cache de categorías de WooCommerce
         };
 
         const db = firebase.firestore();
@@ -441,6 +512,7 @@
         window.onload = () => {
             cargarCatalogoFirestore();
             cargarMasterItems();
+            cargarCategoriasWC();
 
             // Re-vincular submit del form
             document.getElementById("service-form").addEventListener("submit", (e) => {
@@ -463,7 +535,8 @@
 
         async function cargarCatalogoFirestore() {
             try {
-                const snapshot = await db.collection("spa_services").where("active", "==", true).get();
+                // MODIFICADO: Cargar TODOS para poder ver la papelera
+                const snapshot = await db.collection("spa_services").get();
                 state.services = [];
                 snapshot.forEach(doc => state.services.push({ id: doc.id, ...doc.data() }));
 
@@ -485,6 +558,33 @@
             }
         }
 
+        async function cargarCategoriasWC() {
+            try {
+                const snap = await db.collection("spa_config").doc("settings").get();
+                if (!snap.exists) return;
+                const cfg = snap.data();
+                if (!cfg.wc_url || !cfg.wc_key) return;
+
+                const authUrl = `${cfg.wc_url.replace(/\/$/, "")}/wp-json/wc/v3/products/categories?consumer_key=${cfg.wc_key}&consumer_secret=${cfg.wc_secret}&per_page=100`;
+                const res = await fetch(`https://corsproxy.io/?${encodeURIComponent(authUrl)}`);
+                if (!res.ok) throw new Error("Error cargando categorías");
+
+                state.wcCategories = await res.json();
+                console.log("Categorías WC cargadas:", state.wcCategories.length);
+
+                // Poblar el select del modal si está abierto
+                const select = document.getElementById("sm-wc-categories");
+                if (select) {
+                    select.innerHTML = state.wcCategories
+                        .sort((a, b) => a.name.localeCompare(b.name))
+                        .map(c => `<option value="${c.id}">${c.name}</option>`)
+                        .join('');
+                }
+            } catch (e) {
+                console.warn("No se pudieron cargar categorías de WC:", e);
+            }
+        }
+
         function updateMasterDatalist() {
             let dl = document.getElementById("master-items-datalist");
             if (!dl) {
@@ -498,10 +598,18 @@
         function renderServices() {
             const container = document.getElementById("services-grid");
 
-            // 1. Filtrar por Tab
-            let filtered = state.services;
-            if (state.currentTab !== 'todos') {
-                filtered = state.services.filter(s => {
+            // 1. Filtrar por Estado (Activo / Papelera)
+            let filtered = state.services.filter(s => {
+                if (state.currentTab === 'papelera') {
+                    return s.active === false;
+                } else {
+                    return s.active !== false;
+                }
+            });
+
+            // 2. Filtrar por Tab
+            if (state.currentTab !== 'todos' && state.currentTab !== 'papelera') {
+                filtered = filtered.filter(s => {
                     const cat = s.categoria || '';
                     const name = (s.nombre || '').toLowerCase();
                     const isBono = cat.includes('bono') || name.includes('bono'); // Keep detection
@@ -531,7 +639,7 @@
                 });
             }
 
-            // 2. Filtrar por Búsqueda (Multicampo: nombre, categoria, descripcion, espacio, precio, items, sku)
+            // 3. Filtrar por Búsqueda (Multicampo: nombre, categoria, descripcion, espacio, precio, items, sku)
             if (state.searchTerm) {
                 filtered = filtered.filter(s => {
                     const priceStr = (s.precio || 0).toString();
@@ -562,9 +670,14 @@
 
             container.innerHTML = filtered.map(item => {
                 const isPack = ['pack_pareja', 'pack_hosteleria', 'suite_privada', 'pack_comida'].includes(item.categoria);
+                const isTrash = state.currentTab === 'papelera';
+
+                // Opacity style for trash
+                const styleOpacity = isTrash ? 'opacity: 0.6;' : '';
+
                 return `
-                <div class="service-card">
-                    <img src="${item.imagen || 'zenith-icon.png'}" referrerpolicy="no-referrer" style="width: 100%; height: 160px; object-fit: ${item.imagen ? 'cover' : 'contain'}; background: ${item.imagen ? 'transparent' : '#f1f5f9'}; padding: ${item.imagen ? '0' : '30px'}; border-radius: 8px; margin-bottom: 12px; border: 1px solid #e2e8f0;">
+                <div class="service-card" style="${styleOpacity} cursor: pointer;" onclick="openServiceModal('${item.id}')">
+                    <img src="${item.imagen || 'zenith-icon.png'}" referrerpolicy="no-referrer" style="width: 100%; height: 160px; object-fit: ${item.imagen ? 'cover' : 'contain'}; background: ${item.imagen ? 'transparent' : '#f1f5f9'}; padding: ${item.imagen ? '0' : '30px'}; border-radius: 8px; margin-bottom: 12px; border: 1px solid #e2e8f0; filter: ${isTrash ? 'grayscale(1)' : 'none'};">
                     ${isPack ? `<div class="service-badge"><i class="fas fa-star"></i> PACK</div>` : ''}
                     
                     <div style="display:flex; justify-content:space-between; align-items:start; margin-bottom: 12px; gap: 10px;">
@@ -597,12 +710,52 @@
                     ` : ''}
 
                     <div style="text-align: right; border-top: 1px solid #f1f5f9; padding-top: 12px; margin-top: auto;">
-                        <button class="btn btn-outline btn-sm" onclick="openServiceModal('${item.id}')" style="font-weight: 600;">
-                            <i class="fas fa-edit"></i> Editar
-                        </button>
+                        ${isTrash ?
+                        `<button class="btn btn-outline btn-sm" onclick="event.stopPropagation(); restoreService('${item.id}')" style="font-weight: 600; color: #10b981; border-color: #10b981;">
+                                <i class="fas fa-trash-restore"></i> Restaurar
+                             </button>
+                             <button class="btn btn-outline btn-sm" onclick="event.stopPropagation(); deletePermanently('${item.id}')" style="font-weight: 600; color: #ef4444; border-color: #ef4444; margin-left:8px;">
+                                <i class="fas fa-times"></i>
+                             </button>
+                            `
+                        :
+                        `<button class="btn btn-outline btn-sm" onclick="event.stopPropagation(); openServiceModal('${item.id}')" style="font-weight: 600;">
+                                <i class="fas fa-edit"></i> Editar
+                             </button>`
+                    }
                     </div>
                 </div>
             `}).join('');
+        }
+
+        async function restoreService(id) {
+            if (!confirm("¿Restaurar este servicio al catálogo activo?")) return;
+            try {
+                await db.collection("spa_services").doc(id).update({ active: true });
+                showToast("Servicio restaurado", "success");
+                cargarCatalogoFirestore();
+            } catch (e) {
+                alert("Error: " + e.message);
+            }
+        }
+
+        async function deletePermanently(id) {
+            if (!confirm("¿ELIMINAR DEFINITIVAMENTE? Esta acción no se puede deshacer.")) return;
+            try {
+                await db.collection("spa_services").doc(id).delete();
+                showToast("Servicio eliminado para siempre", "success");
+                cargarCatalogoFirestore();
+            } catch (e) {
+                alert("Error: " + e.message);
+            }
+        }
+
+        function updatePaxIcon(val) {
+            const icon = document.getElementById('sm-pax-icon');
+            if (val == '1') icon.textContent = '👤';
+            else if (val == '2') icon.textContent = '👥';
+            else if (val == 'group') icon.textContent = '👨‍👩‍👧‍👦';
+            else icon.textContent = '👤';
         }
 
         function openServiceModal(id) {
@@ -612,6 +765,7 @@
                 document.getElementById("sm-id").value = "";
                 document.getElementById("service-form").reset();
                 document.getElementById("sm-items-list").innerHTML = "";
+                updatePaxIcon('1'); // Reset icon
             } else {
                 const service = state.services.find(s => s.id === id);
                 if (!service) return;
@@ -621,12 +775,76 @@
                 document.getElementById("sm-precio").value = service.precio;
                 document.getElementById("sm-duracion").value = service.duracion || "";
                 document.getElementById("sm-pax").value = service.pax || "1";
+                updatePaxIcon(service.pax || "1"); // Update icon based on loaded value
                 document.getElementById("sm-sesiones").value = service.sesiones || "1";
                 document.getElementById("sm-categoria").value = service.categoria;
                 document.getElementById("sm-descripcion").value = service.descripcion || "";
                 document.getElementById("sm-espacio").value = service.espacio || "";
                 document.getElementById("sm-imagen").value = service.imagen || "";
+
+                // Sincronizar select de categorías WC
+                const wcCatSelect = document.getElementById("sm-wc-categories");
+                if (wcCatSelect) {
+                    let hasSelected = false;
+                    Array.from(wcCatSelect.options).forEach(opt => {
+                        const hasCat = service.wc_categories && service.wc_categories.some(c => c.id == opt.value);
+                        if (hasCat) {
+                            opt.selected = true;
+                            hasSelected = true;
+                        } else {
+                            opt.selected = false;
+                        }
+                    });
+
+                    // Si no hay categorías seleccionadas (nuevo o nunca sincronizado), intentar auto-seleccionar
+                    if (!hasSelected) {
+                        attemptAutoSelectCategory();
+                    }
+                }
+
+                // Sincronizar checkboxes
+
+                document.getElementById("sm-wc-virtual").checked = service.wc_is_virtual !== false; // Default true
+
                 updateImagePreview(service.imagen || "");
+
+                // Mostrar/Ocultar sección de WC
+                const wcSection = document.getElementById("sm-wc-sync-section");
+                const wcPushBtn = document.getElementById("btn-wc-push");
+                const wcDelBtn = document.getElementById("btn-wc-delete");
+
+                wcSection.style.display = "block"; // Ahora siempre visible para poder crear
+
+                if (service.wc_id) {
+                    wcPushBtn.innerHTML = '<i class="fas fa-sync-alt"></i> Actualizar en la Web';
+                    wcDelBtn.style.display = "block";
+
+                    // Guardamos el ID de WC en un campo oculto
+                    let idInput = document.getElementById("sm-wc-id");
+                    if (!idInput) {
+                        idInput = document.createElement("input");
+                        idInput.type = "hidden";
+                        idInput.id = "sm-wc-id";
+                        document.getElementById("service-form").appendChild(idInput);
+                    }
+                    idInput.value = service.wc_id;
+
+                    // Mostrar ID visualmente
+                    const badge = document.getElementById("sm-wc-id-badge");
+                    const badgeVal = document.getElementById("sm-wc-id-display");
+                    if (badge && badgeVal) {
+                        badge.style.display = "block";
+                        badgeVal.textContent = service.wc_id;
+                    }
+
+                } else {
+                    wcPushBtn.innerHTML = '<i class="fas fa-cloud-upload-alt"></i> Crear en la Web';
+                    wcDelBtn.style.display = "none";
+                    // IMPORTANTE: Limpiar el ID si existe de una apertura anterior
+                    if (document.getElementById("sm-wc-id")) document.getElementById("sm-wc-id").value = "";
+
+                    if (document.getElementById("sm-wc-id-badge")) document.getElementById("sm-wc-id-badge").style.display = "none";
+                }
 
                 // Cargar items incluidos
                 const list = document.getElementById("sm-items-list");
@@ -661,7 +879,8 @@
 
             const id = idParam || nombre.toLowerCase().replace(/[^a-z0-9]/g, '-');
 
-            const items = Array.from(document.querySelectorAll(".sm-item-input")).map(i => i.value.trim()).filter(v => v);
+            const items = Array.from(document.querySelectorAll(".sm-item-select")).map(i => i.value.trim()).filter(v => v);
+            alert("DEBUG SAVE: Items capturados para guardar:\n" + JSON.stringify(items));
 
             // AUTO-GUARDAR NUEVOS ITEMS EN EL MAESTRO
             for (const itemName of items) {
@@ -690,6 +909,12 @@
                 espacio: document.getElementById("sm-espacio").value,
                 descripcion: document.getElementById("sm-descripcion").value,
                 items_incluidos: items,
+
+                // Nuevos campos WooCommerce (locales)
+                wc_categories: Array.from(document.getElementById("sm-wc-categories").selectedOptions).map(opt => ({ id: parseInt(opt.value), name: opt.text })),
+
+                wc_is_virtual: document.getElementById("sm-wc-virtual").checked,
+
                 active: true,
                 last_updated: new Date().toISOString()
             };
@@ -710,14 +935,120 @@
 
         async function deleteService() {
             const id = document.getElementById("sm-id").value;
-            if (!id || !confirm("¿Eliminar este servicio?")) return;
+            if (!id || !confirm("¿Eliminar este servicio del programa?")) return;
+
+            // Check for WooCommerce Link
+            const wcId = document.getElementById("sm-wc-id")?.value;
+            let deleteFromStore = false;
+
+            if (wcId) {
+                if (confirm("Este servicio está vinculado a WooCommerce.\n\n¿Quieres eliminarlo TAMBIÉN de la tienda online? (Se borrará definitivamente)")) {
+                    deleteFromStore = true;
+                }
+            }
+
+            const btn = document.querySelector("#service-modal .btn-outline[onclick='deleteService()']");
+            if (btn) {
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+                btn.disabled = true;
+            }
+
             try {
+                // 1. Delete from WooCommerce if requested
+                if (deleteFromStore) {
+                    let wcSuccess = false;
+                    try {
+                        const snap = await db.collection("spa_config").doc("settings").get();
+                        const cfg = snap.data();
+
+                        if (cfg.wc_url && cfg.wc_key && cfg.wc_secret) {
+                            // STRATEGY CHANGE: Use BATCH endpoint (POST)
+                            // Many proxies/firewalls block DELETE requests. POST is safer.
+                            // Documentation: https://woocommerce.github.io/woocommerce-rest-api-docs/#batch-update-products
+
+                            const queryParams = new URLSearchParams({
+                                consumer_key: cfg.wc_key,
+                                consumer_secret: cfg.wc_secret
+                            });
+
+                            const authUrl = `${cfg.wc_url.replace(/\/$/, "")}/wp-json/wc/v3/products/batch?${queryParams.toString()}`;
+                            const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(authUrl)}`;
+
+                            // Body: { delete: [ id ] }
+                            // Note: 'force' might not be supported in batch directly via param, but let's try pushing it.
+                            // Actually batch delete force is usually ignored for 'delete', it trashes. 
+                            // To force delete in batch, usually you'd need a specific flag or empty trash later. 
+                            // For now, moving to Trash is acceptable success (better than failing). 
+                            // If we really want force, we might need to purge trash.
+
+                            const body = {
+                                delete: [parseInt(wcId)]
+                            };
+
+                            console.log("Attempting BATCH delete for ID:", wcId);
+
+                            const res = await fetch(proxyUrl, {
+                                method: 'POST', // STANDARD POST
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify(body)
+                            });
+
+                            if (!res.ok) {
+                                const errText = await res.text();
+                                console.warn("Fallo al borrar (BATCH) de WC", errText);
+                                throw new Error(`Error ${res.status}: ${errText}`);
+                            } else {
+                                const json = await res.json();
+                                // Batch returns { create: [], update: [], delete: [], ... }
+                                if (json.delete && json.delete.length > 0) {
+                                    const deletedItem = json.delete[0];
+                                    if (deletedItem.id) {
+                                        console.log("Eliminado de WC (Batch):", deletedItem.id);
+                                        wcSuccess = true;
+                                    } else if (deletedItem.error) {
+                                        throw new Error("WC Error: " + JSON.stringify(deletedItem.error));
+                                    }
+                                } else {
+                                    // Sometimes if id doesn't exist it returns empty.
+                                    console.warn("Respuesta Batch vacía o sin confirmación de borrado:", json);
+                                    // Consider success if we wanted it gone and it's not there? 
+                                    // Or maybe throwing error is safer.
+                                    if (json.delete && json.delete.length === 0) {
+                                        // Already gone?
+                                        wcSuccess = true;
+                                        console.log("Parece que ya no existía.");
+                                    } else {
+                                        throw new Error("No se confirmó el borrado en la respuesta de la tienda.");
+                                    }
+                                }
+                            }
+                        } else {
+                            throw new Error("Faltan credenciales de WooCommerce");
+                        }
+                    } catch (wcErr) {
+                        console.error(wcErr);
+                        // ALERTAR Y PREGUNTAR
+                        if (!confirm(`⚠️ ERROR AL BORRAR DE LA TIENDA\n\nNo se ha podido eliminar el producto de WooCommerce.\nDetalle: ${wcErr.message}\n\nSi 'aceptas', se borrará SOLO del programa local (pero volverá a aparecer si sincronizas).\nSi 'cancelas', no se hará nada.`)) {
+                            // Abortamos todo
+                            return;
+                        }
+                        // Si acepta, seguimos a borrar local aunque falló WC
+                    }
+                }
+
+                // 2. Delete Local
                 await db.collection("spa_services").doc(id).update({ active: false });
-                alert("Eliminado.");
+
+                showToast("Servicio enviado a la papelera", "success");
                 closeServiceModal();
                 cargarCatalogoFirestore();
             } catch (err) {
-                alert("Error: " + err.message);
+                alert("Error al eliminar: " + err.message);
+            } finally {
+                if (btn) {
+                    btn.innerHTML = '<i class="fas fa-trash-alt"></i>';
+                    btn.disabled = false;
+                }
             }
         }
 
@@ -726,18 +1057,459 @@
             const div = document.createElement("div");
             div.style.display = "flex";
             div.style.gap = "5px";
+            div.style.alignItems = "center";
+            div.style.marginBottom = "5px";
+
+            // Construir opciones del Select
+            let optionsHtml = '<option value="">-- Seleccionar --</option>';
+
+            // 1. Items Maestros
+            if (state.masterItems && state.masterItems.length > 0) {
+                state.masterItems.forEach(mi => {
+                    const isSelected = mi.name === text ? "selected" : "";
+                    optionsHtml += `<option value="${mi.name}" ${isSelected}>${mi.name}</option>`;
+                });
+            }
+
+            // 2. Si el texto actual NO está en maestros (es legacy), lo añadimos para no perderlo
+            if (text && (!state.masterItems || !state.masterItems.find(mi => mi.name === text))) {
+                optionsHtml += `<option value="${text}" selected style="color:red;">${text} (No inventariado)</option>`;
+            }
+
             div.innerHTML = `
-                <input type="text" class="param-input sm-item-input" value="${text}" 
-                    list="master-items-datalist"
-                    placeholder="Escribe o selecciona item..." 
-                    style="padding: 8px 12px; font-size: 0.85rem; flex: 1;">
+                <select class="param-input sm-item-select form-control" style="flex: 1; font-size: 0.85rem; padding: 6px;">
+                    ${optionsHtml}
+                </select>
                 <button type="button" class="btn btn-outline btn-sm" onclick="this.parentElement.remove()" 
-                    style="padding: 5px 10px; color: #ff5252; border-color: #eee; background: #fff;">
-                    <i class="fas fa-times"></i>
+                    style="padding: 5px 8px; color: #ff5252; border-color: #eee; background: #fff;">
+                    <i class="fas fa-trash-alt"></i>
                 </button>
             `;
             list.appendChild(div);
         }
+
+        async function pushServiceToWC() {
+            try {
+                // 1. Obtener config actual
+                const snap = await db.collection("spa_config").doc("settings").get();
+                if (!snap.exists) throw new Error("No hay configuración de conexión.");
+                const cfg = snap.data();
+
+                // 2. Pedir la clave de seguridad
+                const claveInput = prompt("🔑 Introduce la Clave de Seguridad para autorizar cambios en la TIENDA:");
+                if (claveInput === null) return;
+                if (cfg.wc_push_key && claveInput !== cfg.wc_push_key) {
+                    throw new Error("Clave de seguridad incorrecta.");
+                }
+
+                const wcId = document.getElementById("sm-wc-id")?.value;
+                const isNew = !wcId;
+
+                const btn = document.getElementById("btn-wc-push");
+                const originalContent = btn.innerHTML;
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Procesando...';
+                btn.disabled = true;
+
+                // 3. Preparar datos
+                const nombre = document.getElementById("sm-nombre").value;
+                const precio = parseFloat(document.getElementById("sm-precio").value) || 0;
+                const desc = document.getElementById("sm-descripcion").value;
+                console.log("🔍 DEBUG LECTURA DESCRIPCIÓN:", desc);
+                console.log("🔍 Longitud de descripción:", desc.length, "caracteres");
+                let imagen = document.getElementById("sm-imagen").value.trim();
+
+                // LIMPIEZA: Si es link de Google, quitamos los parámetros molestos (?authuser=0)
+                // pero NO añadimos extensiones falsas (#.jpg) porque rompen la petición entera.
+                if (imagen && imagen.includes("googleusercontent.com") && imagen.includes("?")) {
+                    imagen = imagen.split('?')[0];
+                }
+
+                // VALIDACIÓN DE IMAGEN
+                if (imagen) {
+                    if (imagen.includes("photos.app.goo.gl") || imagen.includes("drive.google.com")) {
+                        btn.innerHTML = originalContent;
+                        btn.disabled = false;
+                        alert("⚠️ Error: Ese enlace es un VISOR de Google, no una imagen directa.\n\nPor favor, usa una imagen subida a WordPress o haz clic derecho en la foto > 'Copiar dirección de imagen'.");
+                        return;
+                    }
+
+                    // Limpieza para Google LH3 (quitar parámetros extra que a veces confunden)
+                    if (imagen.includes("googleusercontent.com")) {
+                        // A veces ayuda quitar lo de ?authuser=0
+                        // Pero NO quitamos el path principal. 
+                        // No hacemos nada destructivo, solo warnings si acaso.
+                    }
+                }
+
+                // Recopilar categorías y opciones nuevas
+                const selectedOptions = Array.from(document.getElementById("sm-wc-categories").selectedOptions);
+                console.log("Opciones seleccionadas (DOM):", selectedOptions.map(o => o.value + ":" + o.text));
+
+                let selectedCats = selectedOptions.map(opt => ({ id: parseInt(opt.value) })).filter(c => !isNaN(c.id));
+                const isVirtual = document.getElementById("sm-wc-virtual").checked;
+
+                // SALVAGUARDA (NUEVA): Si no tiene categoría, intentar mapear la CATEGORÍA LOCAL ahora mismo
+                if (selectedCats.length === 0) {
+                    attemptAutoSelectCategory();
+                    // Volver a leer lo seleccionado
+                    const updatedOptions = Array.from(document.getElementById("sm-wc-categories").selectedOptions);
+                    selectedCats = updatedOptions.map(opt => ({ id: parseInt(opt.value) })).filter(c => !isNaN(c.id));
+                }
+
+
+
+
+
+                console.log("Categorías a enviar (Payload final):", selectedCats);
+
+                // --- INYECTAR ITEMS EN LA DESCRIPCIÓN ---
+                // Recopilar items del desglose (DOM)
+                const desglItems = [];
+                const itemSelects = document.querySelectorAll("#sm-items-list select"); // CORREGIDO: usar select en vez de input
+                itemSelects.forEach(sel => {
+                    if (sel.value && sel.value.trim() !== "") desglItems.push(sel.value.trim());
+                });
+
+                // Si hay items, los añadimos al final de la descripción
+                let finalDesc = desc;
+                if (desglItems.length > 0) {
+                    finalDesc += "\n\n<h3>Incluye:</h3><ul>";
+                    desglItems.forEach(it => {
+                        finalDesc += `<li>${it}</li>`;
+                    });
+                    finalDesc += "</ul>";
+                }
+                // También si hay items en el array state data y no en el DOM (raro en edicion, pero posible)
+
+                const body = {
+                    name: nombre,
+                    regular_price: precio.toString(),
+                    sale_price: "", // Forzar borrado de oferta por si acaso
+                    price: precio.toString(), // Refuerzo
+                    description: finalDesc, // DESCRIPCIÓN ENRIQUECIDA
+                    short_description: finalDesc, // También en corta para asegurar visibilidad
+                    type: 'simple',
+                    status: 'publish',
+                    virtual: isVirtual,
+                    categories: selectedCats
+                };
+                if (imagen) body.images = [{ src: imagen }];
+
+                // Atributos base
+                const rawPax = document.getElementById("sm-pax").value;
+                let paxValue = rawPax;
+                // RESTORED EMOJIS (User confirmed they work elsewhere)
+                if (rawPax == '1') paxValue = "1 👤";
+                else if (rawPax == '2') paxValue = "2 👥";
+                else if (rawPax == 'group') paxValue = "Grupo 👨‍👩‍👧‍👦";
+
+                // Get human readable text for Espacio
+                const espacioSelect = document.getElementById("sm-espacio");
+                const espacioText = espacioSelect.options[espacioSelect.selectedIndex].text;
+
+                body.attributes = [
+                    { name: 'Duración', visible: true, options: [(document.getElementById("sm-duracion").value || "60") + " min"] },
+                    { name: 'Pax', visible: true, options: [paxValue] },
+                    { name: 'Espacio', visible: true, options: [espacioText] }
+                ];
+
+
+
+                console.log("=== PAYLOAD DIAGNÓSTICO ===");
+                console.log("Nombre:", nombre);
+                console.log("Precio:", precio);
+                console.log("Descripción ORIGINAL (primeros 300 chars):", desc.substring(0, 300));
+                console.log("Items del desglose detectados:", desglItems);
+                console.log("Descripción FINAL (con items, primeros 500 chars):", finalDesc.substring(0, 500));
+                console.log("Categorías:", selectedCats);
+                console.log("Virtual:", isVirtual);
+                console.log("BODY COMPLETO:", JSON.stringify(body, null, 2));
+
+                // 4. Ejecutar 
+                // CAMBIO IMPORTANTE: Para ACTUALIZAR usamos /batch (POST) para evitar problemas con PUT y proxies
+                let proxyUrl;
+                let fetchOptions;
+
+                const queryParams = new URLSearchParams({
+                    consumer_key: cfg.wc_key,
+                    consumer_secret: cfg.wc_secret,
+                    _t: new Date().getTime()
+                });
+
+                if (isNew) {
+                    // CREAR: POST Normal
+                    const authUrl = `${cfg.wc_url.replace(/\/$/, "")}/wp-json/wc/v3/products?${queryParams.toString()}`;
+                    proxyUrl = `https://corsproxy.io/?${encodeURIComponent(authUrl)}`;
+                    fetchOptions = {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(body)
+                    };
+                } else {
+                    // ACTUALIZAR: POST con _method=PUT (workaround para proxies que no manejan PUT)
+                    // El proxy corsproxy.io trata PUT como GET, por eso usamos POST con _method=PUT
+                    queryParams.set('_method', 'PUT');
+                    const authUrl = `${cfg.wc_url.replace(/\/$/, "")}/wp-json/wc/v3/products/${wcId}?${queryParams.toString()}`;
+                    proxyUrl = `https://corsproxy.io/?${encodeURIComponent(authUrl)}`;
+
+                    fetchOptions = {
+                        method: 'POST',  // ← IMPORTANTE: POST en vez de PUT
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(body)
+                    };
+                }
+
+                console.log("Enviando a WC (Modo " + (isNew ? "CREATE (POST)" : "UPDATE (PUT)") + "):", proxyUrl);
+                const res = await fetch(proxyUrl, fetchOptions);
+
+                // Leer el response text primero para poder inspeccionar
+                const responseText = await res.text();
+                console.log("Respuesta de WooCommerce (raw, primeros 500 chars):", responseText.substring(0, 500));
+
+                if (!res.ok) {
+                    // DETECCIÓN ESPECIAL: Si la respuesta contiene HTML (error de WordPress)
+                    if (responseText.includes('<html') || responseText.includes('<!DOCTYPE')) {
+                        // Es un error HTML de WordPress, no un error JSON de WooCommerce
+                        let errorHint = "Error del servidor WordPress";
+
+                        // Intentar extraer mensaje del HTML
+                        if (responseText.includes('Ha habido un error crítico')) {
+                            errorHint = "Error crítico en WordPress. Verifica que:\n" +
+                                "1. Las credenciales de WooCommerce sean correctas\n" +
+                                "2. La URL de la tienda esté accesible\n" +
+                                "3. Tu WordPress no tenga plugins conflictivos activos";
+                        }
+
+                        throw new Error(errorHint + "\n\nCódigo HTTP: " + res.status);
+                    }
+
+                    // Intentar parsear error JSON de WooCommerce
+                    let errorMsg = "Error en la Tienda: " + res.status;
+                    try {
+                        const json = JSON.parse(responseText);
+                        errorMsg = json.message || json.error || errorMsg;
+                        if (json.data && json.data.message) {
+                            errorMsg += "\nDetalles: " + json.data.message;
+                        }
+                    } catch (e) {
+                        // No es JSON válido, mostrar inicio del texto
+                        errorMsg += "\nRespuesta: " + responseText.substring(0, 200);
+                    }
+
+                    throw new Error(errorMsg);
+                }
+
+                // Parsear respuesta exitosa
+                let result;
+                try {
+                    result = JSON.parse(responseText);
+                } catch (e) {
+                    throw new Error("WooCommerce devolvió una respuesta inválida (no JSON): " + responseText.substring(0, 200));
+                }
+                console.log("Respuesta de WooCommerce:", result);
+
+                // PUT y POST devuelven el producto directamente (no en formato batch)
+                let finalResult = result;
+
+                // Validar que tengamos un ID (confirmación de éxito)
+                if (!finalResult.id) {
+                    console.error("Respuesta inesperada (sin ID):", finalResult);
+                    throw new Error("WooCommerce no devolvió un ID válido. Respuesta: " + JSON.stringify(finalResult).substring(0, 200));
+                }
+
+                // Si era nuevo, guardamos el ID retornado en nuestro Firestore
+                const localId = document.getElementById("sm-id").value;
+                if (localId) {
+                    const updateData = {
+                        wc_categories: selectedCats,
+                        wc_is_virtual: isVirtual,
+                        last_wc_sync: new Date().toISOString()
+                    };
+                    if (isNew) {
+                        updateData.wc_id = finalResult.id.toString();
+                        updateData.origen = 'woocommerce_api';
+                    }
+                    await db.collection("spa_services").doc(localId).update(updateData);
+
+                    if (isNew) {
+                        // Actualizar UI local
+                        const idInput = document.getElementById("sm-wc-id") || document.createElement("input");
+                        idInput.id = "sm-wc-id"; idInput.type = "hidden";
+                        idInput.value = finalResult.id.toString();
+                        if (!idInput.parentElement) document.getElementById("service-form").appendChild(idInput);
+
+                        // Badge visual
+                        const badge = document.getElementById("sm-wc-id-badge");
+                        const badgeVal = document.getElementById("sm-wc-id-display");
+                        if (badge && badgeVal) {
+                            badge.style.display = "block";
+                            badgeVal.textContent = finalResult.id;
+                        }
+                    }
+                }
+
+                // Restaurar botón ANTES del alert
+                const btnDone = document.getElementById("btn-wc-push");
+                if (btnDone) {
+                    btnDone.innerHTML = originalContent;
+                    btnDone.disabled = false;
+                }
+
+                const finalId = isNew ? finalResult.id : wcId;
+                const finalName = finalResult.name;
+                const finalPrice = finalResult.price || finalResult.regular_price || "0";
+
+                if (!finalName) {
+                    alert("⚠️ ALERTA DEBUG: El servidor respondió pero no devolvió el nombre.\nRespuesta cruda:\n" + JSON.stringify(result, null, 2));
+                } else {
+                    const descPreview = (finalResult.description || finalDesc || "").replace(/<[^>]*>/g, '').substring(0, 100);
+                    alert(isNew ?
+                        `✨ ¡Producto CREADO en WooCommerce! (ID: ${finalId})\nNombre: ${finalName}\nPrecio: ${finalPrice}€\nDescripción: ${descPreview}...` :
+                        `✨ ¡Producto ACTUALIZADO en WooCommerce! (ID: ${finalId})\nNombre: ${finalName}\nPrecio: ${finalPrice}€\nDescripción enviada: ${descPreview}...`);
+                }
+
+            } catch (error) {
+                console.error("Error en push WC:", error);
+                const btnErr = document.getElementById("btn-wc-push");
+                if (btnErr && typeof originalContent !== 'undefined') {
+                    btnErr.innerHTML = originalContent;
+                    btnErr.disabled = false;
+                }
+                alert("❌ " + error.message);
+            }
+        }
+
+        async function deleteFromWC() {
+            const wcId = document.getElementById("sm-wc-id")?.value;
+            if (!wcId) return;
+
+            if (!confirm("⚠️ ¿Estás seguro de que quieres borrar este producto de la TIENDA ONLINE? (Se moverá a la papelera o se eliminará si la papelera está llena)")) return;
+
+            // Optional confirmation again 
+            // const confirm2 = confirm("¿Realmente eliminar?"); 
+
+            try {
+                const snap = await db.collection("spa_config").doc("settings").get();
+                const cfg = snap.data();
+
+                const claveInput = prompt("🔑 Confirmación de seguridad. Introduce tu clave:");
+                if (claveInput === null) return;
+                if (cfg.wc_push_key && claveInput !== cfg.wc_push_key) {
+                    throw new Error("Clave incorrecta.");
+                }
+
+                const btn = document.querySelector("button[onclick='deleteFromWC()']");
+                const originalText = btn ? btn.innerHTML : "Eliminar de la Web";
+                if (btn) btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+
+                if (cfg.wc_url && cfg.wc_key && cfg.wc_secret) {
+                    // STRATEGY CHANGE: Use BATCH endpoint (POST)
+                    const queryParams = new URLSearchParams({
+                        consumer_key: cfg.wc_key,
+                        consumer_secret: cfg.wc_secret
+                    });
+
+                    // Endpoint BATCH
+                    const authUrl = `${cfg.wc_url.replace(/\/$/, "")}/wp-json/wc/v3/products/batch?${queryParams.toString()}`;
+                    const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(authUrl)}`;
+
+                    // Body
+                    const body = {
+                        delete: [parseInt(wcId)]
+                    };
+
+                    const res = await fetch(proxyUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(body)
+                    });
+
+                    if (!res.ok) {
+                        const errText = await res.text();
+                        throw new Error(`Error ${res.status} al borrar de WC: ${errText}`);
+                    }
+
+                    const json = await res.json();
+                    // Check deletion success
+                    if ((json.delete && json.delete.length > 0) || (json.delete && json.delete.length === 0 /* considered done */)) {
+                        alert("🗑️ Producto enviado a la papelera en WooCommerce (o eliminado).");
+                        const localId = document.getElementById("sm-id").value;
+                        if (localId) await db.collection("spa_services").doc(localId).update({ wc_id: null });
+
+                        // Update UI
+                        // document.getElementById("sm-wc-sync-section").style.display = "none"; // Mantener visible para poder re-vincular
+                        document.getElementById("sm-wc-id").value = "";
+                    } else {
+                        console.warn("Respuesta extraña:", json);
+                        throw new Error("No se pudo confirmar el borrado en la tienda.");
+                    }
+
+                } else {
+                    throw new Error("No hay credenciales de WooCommerce configuradas.");
+                }
+
+            } catch (e) {
+                alert("❌ " + e.message);
+            } finally {
+                const btn = document.querySelector("button[onclick='deleteFromWC()']");
+                if (btn) btn.innerHTML = "Eliminar de la Web";
+            }
+        }
+    </script>
+    <script>
+        function attemptAutoSelectCategory() {
+            const wcSelect = document.getElementById("sm-wc-categories");
+            if (!wcSelect || !state.wcCategories || state.wcCategories.length === 0) return;
+
+            const localCatVal = document.getElementById("sm-categoria").value;
+            const localCatSelect = document.getElementById("sm-categoria");
+            const localCatText = localCatSelect.options[localCatSelect.selectedIndex]?.text || localCatVal;
+
+            if (!localCatText) return;
+
+            console.log("Intentando auto-asignar categoría WC basada en:", localCatText);
+
+            // 1. Buscar coincidencia exacta o fuerte
+            let match = state.wcCategories.find(c => c.name.toLowerCase() === localCatText.toLowerCase());
+
+            // 2. Coincidencia parcial
+            if (!match) {
+                match = state.wcCategories.find(c =>
+                    c.name.toLowerCase().includes(localCatText.toLowerCase()) ||
+                    localCatText.toLowerCase().includes(c.name.toLowerCase())
+                );
+            }
+
+            // 3. Mapeos de palabras clave
+            if (!match) {
+                const lower = localCatText.toLowerCase();
+                if (lower.includes("masaje")) match = state.wcCategories.find(c => c.name.toLowerCase().includes("masaje") || c.name.toLowerCase().includes("belleza corporal"));
+                else if (lower.includes("facial")) match = state.wcCategories.find(c => c.name.toLowerCase().includes("facial") || c.name.toLowerCase().includes("belleza facial"));
+                else if (lower.includes("corporal")) match = state.wcCategories.find(c => c.name.toLowerCase().includes("corporal"));
+                else if (lower.includes("circuito") || lower.includes("spa")) match = state.wcCategories.find(c => c.name.toLowerCase().includes("spa") || c.name.toLowerCase().includes("circuito"));
+                else if (lower.includes("gimnasio") || lower.includes("gym")) match = state.wcCategories.find(c => c.name.toLowerCase().includes("gimnasio"));
+                else if (lower.includes("bono")) match = state.wcCategories.find(c => c.name.toLowerCase().includes("bono"));
+                else if (lower.includes("pack") || lower.includes("pareja")) match = state.wcCategories.find(c => c.name.toLowerCase().includes("pareja") || c.name.toLowerCase().includes("compartir"));
+                else if (lower.includes("hosteleria") || lower.includes("hostelería")) match = state.wcCategories.find(c => c.name.toLowerCase().includes("hosteleria") || c.name.toLowerCase().includes("hostelería"));
+                else if (lower.includes("ritual")) match = state.wcCategories.find(c => c.name.toLowerCase().includes("ritual"));
+                else if (lower.includes("peluquer") || lower.includes("estetica")) match = state.wcCategories.find(c => c.name.toLowerCase().includes("estetica") || c.name.toLowerCase().includes("belleza"));
+            }
+
+            if (match) {
+                console.log("Coincidencia encontrada:", match.name);
+                // Seleccionar solo si no está seleccionado
+                const opt = Array.from(wcSelect.options).find(o => o.value == match.id);
+                if (opt) {
+                    opt.selected = true;
+                    // Visual highlighting
+                    wcSelect.style.borderColor = "#4ade80";
+                    setTimeout(() => wcSelect.style.borderColor = "#fecaca", 1000); // Back to original red-ish theme
+                }
+            } else {
+                console.log("No se encontró coincidencia automática.");
+            }
+        }
+
     </script>
     <script>
         // --- NUEVA LÓGICA DE INFERENCIA DE METADATOS (REUTILIZABLE) ---
@@ -815,29 +1587,37 @@
 
             // --- 2. LÓGICA DE CATEGORÍA INTERNA ---
             let internalCat = '';
-            if (lowerCat.includes('masaje')) internalCat = 'masaje';
-            else if (lowerCat.includes('facial')) internalCat = 'facial';
+
+            // Detección por categoría WooCommerce
+            if (lowerCat.includes('masaje') || lowerCat.includes('belleza corporal')) internalCat = 'masaje';
+            else if (lowerCat.includes('facial') || lowerCat.includes('belleza facial')) internalCat = 'facial';
             else if (lowerCat.includes('corporal')) internalCat = 'corporal';
             else if (lowerCat.includes('ritual')) internalCat = 'ritual';
-            else if (lowerCat.includes('circuito')) internalCat = 'circuito';
+            else if (lowerCat.includes('circuito') || lowerCat.includes('spa')) internalCat = 'circuito';
             else if (lowerCat.includes('suite')) internalCat = 'suite_privada';
-            else if (lowerCat.includes('pareja')) internalCat = 'pack_pareja';
+            else if (lowerCat.includes('pareja') || lowerCat.includes('programas para compartir')) internalCat = 'pack_pareja';
+            else if (lowerCat.includes('hosteleria') || lowerCat.includes('hostelería')) internalCat = 'pack_hosteleria';
+            else if (lowerCat.includes('gimnasio') || lowerCat.includes('gym')) internalCat = 'gimnasio';
             else if (lowerCat.includes('manicura') || lowerCat.includes('pedicura')) internalCat = 'manicura';
-            else if (lowerCat.includes('peluqueria')) internalCat = 'peluqueria';
-            else if (lowerCat.includes('depilacion')) internalCat = 'depilacion';
+            else if (lowerCat.includes('peluqueria') || lowerCat.includes('peluquería')) internalCat = 'peluqueria';
+            else if (lowerCat.includes('depilacion') || lowerCat.includes('depilación')) internalCat = 'depilacion';
 
             // Refinamiento por nombre si no se detectó por categoría
             if (!internalCat) {
-                if (lowerName.includes('bono')) internalCat = 'bono_circuito'; // Default for bonuses if unknown
+                if (lowerName.includes('gimnasio') || lowerName.includes('gym')) internalCat = 'gimnasio';
+                else if (lowerName.includes('bono')) internalCat = 'bono_circuito'; // Default for bonuses if unknown
                 else if (lowerName.includes('suite')) internalCat = 'suite_privada';
                 else if (lowerName.includes('masaje')) internalCat = 'masaje';
+                else if (lowerName.includes('pareja')) internalCat = 'pack_pareja';
             }
 
             // Especial para Bonos
             if (lowerName.includes('bono') && !internalCat.startsWith('bono_')) {
                 if (internalCat === 'masaje') internalCat = 'bono_masaje';
                 else if (internalCat === 'facial') internalCat = 'bono_facial';
-                else internalCat = 'bono_circuito';
+                else if (internalCat === 'corporal') internalCat = 'bono_corporal';
+                else if (internalCat === 'circuito') internalCat = 'bono_circuito';
+                else if (internalCat === 'gimnasio') internalCat = 'bono_gimnasio';
             }
 
             if (internalCat) updates.categoria = internalCat;
@@ -898,6 +1678,13 @@
                     lines.forEach(line => {
                         // Limpiar balas, guiones, asteriscos y espacios extra
                         let trimmed = line.trim().replace(/^[\s·\-\*•\t\d\.]+\s*/, '');
+                        const low = trimmed.toLowerCase();
+
+                        // Ignorar ruido de metadatos
+                        if (low.startsWith("duracion") || low.startsWith("pax:") || low.startsWith("incluye:") || low.startsWith("categoria:")) {
+                            return;
+                        }
+
                         if (trimmed && trimmed.length > 3 && trimmed.length < 120) {
                             // Si parece un item (no una frase larga o párrafo), lo añadimos
                             // Filtramos frases que parecen párrafos narrativos
@@ -959,156 +1746,215 @@
             }
         }
 
-        // --- IMPORTACIÓN WOOCOMMERCE ---
-        function triggerWCImport() {
-            document.getElementById('wc-csv-input').click();
-        }
+        // --- IMPORTACIÓN WOOCOMMERCE DIRECTA (API) ---
+        async function syncDirectFromStore() {
+            const btn = document.getElementById('btn-sync-direct');
+            const originalText = btn.innerHTML;
 
-        function handleWCFile(input) {
-            const file = input.files[0];
-            if (!file) return;
+            try {
+                // 1. Obtener credenciales
+                const snap = await db.collection("spa_config").doc("settings").get();
+                if (!snap.exists) throw new Error("No se ha configurado la conexión en Ajustes.");
 
-            const reader = new FileReader();
-            reader.onload = async (e) => {
-                let text = e.target.result;
-                // Eliminar BOM de UTF-8 si existe
-                if (text.charCodeAt(0) === 0xFEFF) {
-                    text = text.substring(1);
+                const cfg = snap.data();
+                if (!cfg.wc_url || !cfg.wc_key || !cfg.wc_secret) {
+                    throw new Error("Credenciales incompletas. Ve a Ajustes > Conexiones.");
                 }
-                const rows = parseCSV(text);
-                if (rows.length < 2) return alert("El archivo parece estar vacío.");
 
-                if (confirm(`Se han detectado ${rows.length - 1} productos. ¿Proceder con la sincronización?`)) {
-                    await syncWCProducts(rows);
-                }
-            };
-            reader.readAsText(file, 'UTF-8');
-        }
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Conectando...';
 
-        function parseCSV(text) {
-            const rows = [];
-            let currentLine = "";
-            let inQuotes = false;
+                // 2. Construir URL base
+                const baseUrl = cfg.wc_url.replace(/\/$/, "");
+                const apiPath = "/wp-json/wc/v3/products";
 
-            for (let i = 0; i < text.length; i++) {
-                const char = text[i];
-                if (char === '"') inQuotes = !inQuotes;
-                if (char === '\n' && !inQuotes) {
-                    rows.push(splitCSVLine(currentLine));
-                    currentLine = "";
-                } else if (char !== '\r') {
-                    currentLine += char;
-                }
-            }
-            if (currentLine) rows.push(splitCSVLine(currentLine));
-            return rows;
-        }
+                let allProducts = [];
+                let page = 1;
+                const perPage = 100;
+                let keepingGoing = true;
 
-        function splitCSVLine(line) {
-            const result = [];
-            let currentField = "";
-            let inQuotes = false;
+                while (keepingGoing) {
+                    btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Cargando (Pág ${page})...`;
 
-            for (let i = 0; i < line.length; i++) {
-                const char = line[i];
-                if (char === '"') {
-                    if (inQuotes && line[i + 1] === '"') {
-                        currentField += '"';
-                        i++;
+                    const queryParams = new URLSearchParams({
+                        per_page: perPage,
+                        page: page,
+                        status: 'publish',
+                        orderby: 'date',
+                        order: 'desc',
+                        consumer_key: cfg.wc_key,
+                        consumer_secret: cfg.wc_secret,
+                        _t: new Date().getTime()
+                    });
+
+                    const authUrl = `${baseUrl}${apiPath}?${queryParams.toString()}`;
+                    const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(authUrl)}`;
+
+                    const res = await fetch(proxyUrl);
+                    if (res.status === 401) throw new Error("Error 401: Llaves incorrectas.");
+                    if (!res.ok) throw new Error(`Error ${res.status} leyendo página ${page}`);
+
+                    const products = await res.json();
+                    if (!Array.isArray(products)) throw new Error("Respuesta inválida de la tienda.");
+
+                    if (products.length > 0) {
+                        allProducts = allProducts.concat(products);
+                        page++;
+                        if (products.length < perPage) keepingGoing = false; // Última página
                     } else {
-                        inQuotes = !inQuotes;
+                        keepingGoing = false;
                     }
-                } else if (char === ',' && !inQuotes) {
-                    result.push(currentField.trim());
-                    currentField = "";
-                } else {
-                    currentField += char;
+
+                    // Límite de seguridad
+                    if (page > 10) keepingGoing = false;
                 }
+
+                const products = allProducts;
+
+                if (!confirm(`Se han recuperado ${products.length} productos de la tienda. ¿Proceder con la actualización?`)) {
+                    btn.innerHTML = originalText;
+                    return;
+                }
+
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Actualizando...';
+                await processJSONProducts(products);
+
+                alert("✅ Catálogo sincronizado correctamente desde la tienda.");
+                cargarCatalogoFirestore();
+
+            } catch (error) {
+                console.error("Error en sync directo:", error);
+                alert("❌ " + error.message);
+            } finally {
+                btn.innerHTML = originalText;
             }
-            result.push(currentField.trim());
-            return result;
         }
 
-        async function syncWCProducts(rows) {
-            const headers = rows[0].map(h => h.trim());
-            console.log("CSV Headers detectados:", headers);
-
-            const nameIdx = headers.indexOf("Nombre");
-            const idIdx = headers.indexOf("ID");
-            const priceIdx = headers.indexOf("Precio normal");
-            const skuIdx = headers.indexOf("SKU");
-            const typeIdx = headers.indexOf("Tipo");
-            const descIdx = headers.indexOf("Descripción") !== -1 ? headers.indexOf("Descripción") : headers.indexOf("Descripción corta");
-            const imgIdx = headers.indexOf("Imágenes");
-            const catIdx = headers.indexOf("Categorías");
-
-            if (nameIdx === -1 || idIdx === -1) {
-                console.error("No se encontraron las columnas requeridas (Nombre o ID).", headers);
-                return alert("Formato de CSV no reconocido. Asegúrate de que las cabeceras incluyen 'ID' y 'Nombre'. Comprueba si las letras se ven bien en la consola.");
-            }
-
-            let syncCount = 0;
+        async function processJSONProducts(products) {
             const batchSize = 100;
             let currentBatch = db.batch();
             let batchOps = 0;
 
-            for (let i = 1; i < rows.length; i++) {
-                const row = rows[i];
-                const wcId = row[idIdx];
-                const nombre = row[nameIdx] ? row[nameIdx].trim() : "";
-                if (!wcId || !nombre) continue;
+            const getAttr = (prod, name) => {
+                if (!prod.attributes) return null;
+                const attr = prod.attributes.find(a => a.name.toLowerCase() === name.toLowerCase());
+                return attr && attr.options.length > 0 ? attr.options[0] : null;
+            };
 
-                const sku = row[skuIdx] ? row[skuIdx].trim() : "";
-                const precio = parseFloat(row[priceIdx]) || 0;
-                let desc = row[descIdx] || "";
-                const tipo = row[typeIdx] || "";
-                const wcCats = catIdx !== -1 ? (row[catIdx] || "") : "";
+            for (const p of products) {
+                // Saltar variables (padres) si tienen variaciones
+                if (p.type === 'variable') continue;
 
-                // Limpiar HTML y artefactos de la descripción
-                desc = desc.replace(/<[^>]*>?/gm, ''); // Quitar HTML
-                desc = desc.replace(/&nbsp;/g, ' ');   // Limpiar entidades HTML comunes
-                desc = desc.replace(/&amp;/g, '&');
-                desc = desc.replace(/\\r|\\t/g, ' ');  // Limpiar retornos y tabuladores literales
-                desc = desc.replace(/\\n/g, '\n');     // Convertir literal \n a salto real
-                desc = desc.replace(/\n\s*\n/g, '\n\n'); // Normalizar dobles saltos
-                desc = desc.replace(/[ ]{2,}/g, ' ');  // Limpiar espacios múltiples
-                desc = desc.trim();
+                const wcId = p.id;
+                const nombre = p.name;
+                const sku = p.sku || "";
+                const precio = parseFloat(p.regular_price) || parseFloat(p.price) || 0;
+                let desc = p.description || p.short_description || "";
 
-                // Inferencia inteligente de metadatos (AHORA PASAMOS LA DESC)
+                // Limpiar HTML
+                desc = desc.replace(/<[^>]*>?/gm, '').trim();
+
+                // Categorías
+                const wcCats = p.categories ? p.categories.map(c => c.name).join(", ") : "";
+
+                // Inferencia inteligente (Base)
                 const metadata = inferServiceMetadata(nombre, wcCats, sku, desc);
 
-                // Imágenes: Cogemos la primera
-                let imgUrl = "";
-                if (imgIdx !== -1 && row[imgIdx]) {
-                    imgUrl = row[imgIdx].split(',')[0].trim();
+                // --- SOBRESCRITURA CON ATRIBUTOS TÉCNICOS (Si existen) ---
+                const attrDur = getAttr(p, "Duración");
+                const attrPax = getAttr(p, "Pax");
+                const attrEsp = getAttr(p, "Espacio");
+                const attrInc = p.attributes ? p.attributes.find(a =>
+                    a.name.toLowerCase().includes("incluido") || a.name.toLowerCase().includes("servicios")
+                ) : null;
+
+                const finalDur = attrDur ? parseInt(attrDur) : (metadata.duracion || 0);
+                const finalPax = attrPax ? parseInt(attrPax) : (metadata.pax || 1);
+                const finalEsp = attrEsp ? attrEsp.toLowerCase() : (metadata.espacio || 'spa');
+
+                let finalItems = metadata.items_incluidos || [];
+                if (attrInc && attrInc.options.length > 0) {
+                    finalItems = attrInc.options.map(i => i.trim());
                 }
+
+                // Imagen
+                const imgUrl = p.images && p.images.length > 0 ? p.images[0].src : "";
 
                 const docId = `wc-${wcId}`;
                 const ref = db.collection("spa_services").doc(docId);
 
+                // CHECK EXISTENCE TO PROTECT LOCAL CONFIGURATION
+                // If the service exists locally, we should TRUST the local configuration for logic fields 
+                // (pax, sessions, category, included_items, active status) 
+                // and ONLY update technical fields from WC (price, name, image, description).
+
+                let isActive = true;
+                let localData = null;
+
+                try {
+                    const docSnap = await ref.get();
+                    if (docSnap.exists) {
+                        localData = docSnap.data();
+                        if (localData.active === false) {
+                            isActive = false;
+                        }
+                    }
+                } catch (e) {
+                    console.warn("Error checking existence for " + docId, e);
+                }
+
+                // PREPARE DATA - Solo metadatos técnicos de WooCommerce
                 const data = {
-                    nombre: nombre,
-                    wc_id: wcId,
+                    wc_id: wcId.toString(),
                     wc_sku: sku,
-                    precio: precio,
-                    descripcion: desc,
-                    imagen: imgUrl,
-                    tipo_wc: tipo,
+                    tipo_wc: p.type,
                     categoria_wc: wcCats,
-                    // Datos inferidos
-                    categoria: metadata.categoria || 'circuito',
-                    espacio: metadata.espacio || 'spa',
-                    sesiones: metadata.sesiones || 1,
-                    pax: metadata.pax || 1,
-                    items_incluidos: metadata.items_incluidos || [],
-                    active: true,
                     last_updated: new Date().toISOString(),
-                    origen: 'woocommerce_import'
+                    origen: 'woocommerce_api'
                 };
 
-                currentBatch.set(ref, data, { merge: true });
+                // CONDITIONAL UPDATES (Respect Local Config)
+                if (localData) {
+                    // === PRODUCTO EXISTENTE: PROTEGER CAMBIOS LOCALES ===
+                    // Solo actualizamos metadatos técnicos de WC arriba.
+                    // Los campos editables se respetan si ya existen localmente.
+
+                    console.log(`[SYNC] Producto existente: ${nombre} - Respetando datos locales`);
+
+                    // Campos editables - Prioridad LOCAL
+                    // IMPORTANTE: Usar !== undefined en vez de || porque "" (vacío) es válido
+                    data.nombre = localData.nombre !== undefined ? localData.nombre : nombre;
+                    data.descripcion = localData.descripcion !== undefined ? localData.descripcion : desc;
+                    data.precio = localData.precio !== undefined ? localData.precio : precio;
+                    data.imagen = localData.imagen !== undefined ? localData.imagen : imgUrl;
+
+                    // Campos de configuración interna
+                    data.categoria = localData.categoria || metadata.categoria || 'circuito';
+                    data.espacio = localData.espacio || finalEsp;
+                    data.sesiones = localData.sesiones !== undefined ? localData.sesiones : (metadata.sesiones || 1);
+                    data.duracion = localData.duracion || finalDur;
+                    data.pax = localData.pax !== undefined ? localData.pax : finalPax;
+                    data.items_incluidos = localData.items_incluidos || finalItems;
+                    data.active = isActive; // Keep inactive if it was inactive
+
+                } else {
+                    // === PRODUCTO NUEVO: USAR DATOS DE WOOCOMMERCE ===
+                    console.log(`[SYNC] Producto NUEVO: ${nombre} - Importando desde WooCommerce`);
+
+                    data.nombre = nombre;
+                    data.descripcion = desc;
+                    data.precio = precio;
+                    data.imagen = imgUrl;
+                    data.categoria = metadata.categoria || 'circuito';
+                    data.espacio = finalEsp;
+                    data.sesiones = metadata.sesiones || 1;
+                    data.duracion = finalDur;
+                    data.pax = finalPax;
+                    data.items_incluidos = finalItems;
+                    data.active = true;
+                }
+
+                currentBatch.set(ref, data, { merge: true }); // Merge ensures we don't lose other fields
                 batchOps++;
-                syncCount++;
 
                 if (batchOps >= batchSize) {
                     await currentBatch.commit();
@@ -1118,52 +1964,20 @@
             }
 
             if (batchOps > 0) await currentBatch.commit();
+        }
 
-            // --- SEGUNDA PASADA: Herencia de imágenes para variantes ---
-            // Recargamos los productos y buscamos variantes sin imagen
-            const allProducts = await db.collection("spa_services").get();
-            const productsMap = [];
-            allProducts.forEach(doc => {
-                productsMap.push({ id: doc.id, ...doc.data() });
-            });
-
-            const inheritBatch = db.batch();
-            let inheritCount = 0;
-
-            for (const prod of productsMap) {
-                // Si no tiene imagen, buscar un producto similar que sí la tenga
-                if (!prod.imagen || prod.imagen === '') {
-                    const baseName = prod.nombre
-                        .replace(/\(Individual\)/gi, '')
-                        .replace(/para\s*\d+\s*personas?/gi, '')
-                        .trim()
-                        .toLowerCase();
-
-                    // Buscar otro producto con nombre similar que SÍ tenga imagen
-                    const similar = productsMap.find(p =>
-                        p.id !== prod.id &&
-                        p.imagen &&
-                        p.imagen !== '' &&
-                        p.nombre.toLowerCase().includes(baseName.substring(0, 30)) // Match partial
-                    );
-
-                    if (similar) {
-                        const ref = db.collection("spa_services").doc(prod.id);
-                        inheritBatch.update(ref, { imagen: similar.imagen });
-                        inheritCount++;
-                        console.log(`Heredada imagen de "${similar.nombre}" -> "${prod.nombre}"`);
-                    }
-                }
+        async function clearCatalog() {
+            if (!confirm("⚠️ ¿Estás SEGURO de que quieres borrar TODO el catálogo? Esta acción no se puede deshacer.")) return;
+            try {
+                const snap = await db.collection("spa_services").get();
+                const batch = db.batch();
+                snap.forEach(doc => batch.delete(doc.ref));
+                await batch.commit();
+                alert("🗑️ Catálogo borrado correctamente.");
+                cargarCatalogoFirestore();
+            } catch (error) {
+                console.error("Error al borrar:", error);
             }
-
-            if (inheritCount > 0) {
-                await inheritBatch.commit();
-                console.log(`✅ ${inheritCount} imágenes heredadas de productos similares.`);
-            }
-
-            alert(`✅ Sincronización completada: ${syncCount} productos procesados.` +
-                (inheritCount > 0 ? `\n📷 ${inheritCount} imágenes heredadas automáticamente.` : ''));
-            cargarCatalogoFirestore();
         }
     </script>
 </body>

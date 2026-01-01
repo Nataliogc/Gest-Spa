@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Limpiar Cache - Zenith Manager</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        .container {
+            background: white;
+            padding: 40px;
+            border-radius: 15px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+            text-align: center;
+            max-width: 500px;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        p {
+            color: #666;
+            margin-bottom: 30px;
+            line-height: 1.6;
+        }
+
+        .btn {
+            background: #d4af37;
+            color: white;
+            padding: 15px 30px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            transition: all 0.3s;
+            margin: 10px;
+        }
+
+        .btn:hover {
+            background: #c19b2a;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(212, 175, 55, 0.3);
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+        }
+
+        .btn-secondary:hover {
+            background: #5a6268;
+        }
+
+        .status {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 8px;
+            display: none;
+        }
+
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .status.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+
+        ul {
+            text-align: left;
+            margin: 20px 0;
+        }
+
+        li {
+            margin: 10px 0;
+            color: #666;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>🔧 Limpiar Cache de la Aplicación</h1>
+        <p>Si estás experimentando problemas después de una actualización, limpia el cache del navegador y el Service
+            Worker.</p>
+
+        <div>
+            <button class="btn" onclick="clearAllCache()">
+                🗑️ Limpiar Todo el Cache
+            </button>
+            <button class="btn btn-secondary" onclick="reloadApp()">
+                🔄 Recargar Aplicación
+            </button>
+        </div>
+
+        <div id="status" class="status"></div>
+
+        <h3 style="margin-top: 40px; color: #333;">Pasos Manuales Alternativos:</h3>
+        <ul>
+            <li><strong>Chrome/Edge:</strong> Ctrl + Shift + Delete → Borrar datos de navegación</li>
+            <li><strong>Desregistrar SW:</strong> F12 → Application → Service Workers → Unregister</li>
+            <li><strong>Refrescar:</strong> Ctrl + F5 (refresco forzado)</li>
+        </ul>
+    </div>
+
+    <script>
+        const statusDiv = document.getElementById('status');
+
+        function showStatus(message, type = 'info') {
+            statusDiv.textContent = message;
+            statusDiv.className = `status ${type}`;
+            statusDiv.style.display = 'block';
+        }
+
+        async function clearAllCache() {
+            showStatus('⏳ Limpiando cache...', 'info');
+
+            try {
+                // 1. Desregistrar todos los service workers
+                if ('serviceWorker' in navigator) {
+                    const registrations = await navigator.serviceWorker.getRegistrations();
+                    for (let registration of registrations) {
+                        await registration.unregister();
+                        console.log('Service Worker desregistrado:', registration);
+                    }
+                }
+
+                // 2. Limpiar todos los caches
+                if ('caches' in window) {
+                    const cacheNames = await caches.keys();
+                    for (let cacheName of cacheNames) {
+                        await caches.delete(cacheName);
+                        console.log('Cache eliminado:', cacheName);
+                    }
+                }
+
+                // 3. Limpiar localStorage
+                localStorage.clear();
+                sessionStorage.clear();
+
+                showStatus('✅ Cache limpiado correctamente. Recargando...', 'success');
+
+                setTimeout(() => {
+                    window.location.href = '/index.html';
+                }, 2000);
+
+            } catch (error) {
+                console.error('Error limpiando cache:', error);
+                showStatus('❌ Error: ' + error.message, 'error');
+            }
+        }
+
+        function reloadApp() {
+            showStatus('🔄 Recargando aplicación...', 'info');
+            setTimeout(() => {
+                window.location.href = '/index.html';
+            }, 1000);
+        }
+
+        // Auto-ejecutar limpieza si viene con parámetro
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('auto') === 'true') {
+            clearAllCache();
+        }
+    </script>
+</body>
+
+</html>

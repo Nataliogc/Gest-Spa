@@ -5,6 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Reservas Spa - Zenith Manager</title>
+    <link rel="icon" type="image/png" href="zenith-icon.png">
     <link rel="stylesheet" href="styles.css">
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&display=swap"
         rel="stylesheet">
@@ -819,6 +820,7 @@
 
             await cargarSpaConfig();
             await loadStaffConfig(); // Cargar capacidad de personal
+            await loadMasterItems(); // Cargar configuración de espacios de items
 
             await fetchBasePrice();
             picker.addEventListener("change", () => loadReservas(picker.value));
@@ -1173,9 +1175,19 @@
             // Strict filtering for SPA module
             let servicesToShow = currentServices;
             if (currentModule.code === 'spa') {
-                servicesToShow = currentServices.filter(s => s.nombre === 'Circuito Spa');
+                servicesToShow = currentServices.filter(s => s.nombre === 'Circuito Spa' || s.nombre.toLowerCase().includes('sabores'));
                 if (servicesToShow.length === 0) {
-                    servicesToShow = [{ nombre: 'Circuito Spa', duration: 90, precio: 35 }];
+                    const fallbacks = [
+                        { nombre: 'Circuito Spa', duration: 90, precio: 35, items_incluidos: [] },
+                        { nombre: 'Spa y Sabores', duration: 90, precio: 45, items_incluidos: ['Circuito Spa', 'Comida/Cena Menú Sabores'] }
+                    ];
+                    servicesToShow = fallbacks;
+                    // Ensure they are in currentServices so price automation finds them
+                    fallbacks.forEach(f => {
+                        if (!currentServices.find(s => s.nombre === f.nombre)) {
+                            currentServices.push(f);
+                        }
+                    });
                 }
             } else if (moduleType === 'suite') {
                 if (servicesToShow.length === 0) {
@@ -1211,6 +1223,18 @@
             updatePackInfo();
         }
 
+        // Global master items cache
+        window.masterItems = [];
+
+        async function loadMasterItems() {
+            try {
+                const snap = await db.collection("spa_item_master").get();
+                window.masterItems = [];
+                snap.forEach(doc => window.masterItems.push(doc.data()));
+                console.log("Items maestros cargados:", window.masterItems.length);
+            } catch (e) { console.error("Error loading master items:", e); }
+        }
+
         function updatePackInfo() {
             const serviceEl = document.getElementById("res-servicio");
             if (!serviceEl) return;
@@ -1219,6 +1243,12 @@
             const container = document.getElementById("pack-includes-container");
             const list = document.getElementById("pack-items-list");
             const reminder = document.getElementById("pack-reminder");
+            const saveBtn = document.getElementById("btn-save-booking");
+
+            // Limpiar avisos previos de redirección
+            const prevAlert = document.getElementById("module-redirect-alert");
+            if (prevAlert) prevAlert.remove();
+            if (saveBtn) saveBtn.disabled = false;
 
             if (!container || !list || !reminder) return;
 
@@ -1228,6 +1258,55 @@
             }
 
             container.style.display = "block";
+
+            // CHECK FOR MODULE REDIRECTION
+            let requiredModule = null;
+            let requiredModuleName = "";
+            let triggerItem = "";
+
+            service.items_incluidos.forEach(itemName => {
+                const master = window.masterItems.find(mi => mi.name === itemName);
+                if (master && master.space) {
+                    // Map space names to module codes
+                    let modCode = null;
+                    const spaceLower = master.space.toLowerCase();
+
+                    if (spaceLower.includes("panacea")) modCode = 'panacea';
+                    else if (spaceLower.includes("vip")) modCode = 'vip';
+                    else if (spaceLower.includes("suite")) modCode = 'suite';
+                    else if (spaceLower.includes("peluquería") || spaceLower.includes("peluqueria")) modCode = 'peluqueria';
+
+                    // Si encontramos un requisito de sala ESPECIAL y NO estamos en ella (y no estamos en modo "combined" que permite todo)
+                    if (modCode && modCode !== 'spa' && currentModule.code !== modCode && moduleType !== 'combined') {
+                        requiredModule = modCode;
+                        requiredModuleName = master.space;
+                        triggerItem = itemName;
+                    }
+                }
+            });
+
+            if (requiredModule) {
+                const alertDiv = document.createElement("div");
+                alertDiv.id = "module-redirect-alert";
+                alertDiv.style = "background: #fff3cd; color: #856404; padding: 10px; border-radius: 6px; margin-top: 10px; border: 1px solid #ffeeba; display: flex; flex-direction: column; gap: 8px;";
+                alertDiv.innerHTML = `
+                    <div style="font-weight: bold; font-size: 0.8rem;"><i class="fas fa-exclamation-triangle"></i> Ubicación Incorrecta</div>
+                    <div style="font-size: 0.75rem;">
+                        El item <b>"${triggerItem}"</b> requiere realizarse en <b>${requiredModuleName}</b>.
+                        Actualmente estás en <b>${currentModule.name}</b>.
+                    </div>
+                    <button type="button" class="btn btn-sm btn-accent" 
+                        onclick="window.location.href='reservas.html?type=${requiredModule}&action=new&service=${encodeURIComponent(selService)}&date=${document.getElementById('form-date').value}'"
+                        style="align-self: flex-start; margin-top: 5px;">
+                        <i class="fas fa-external-link-alt"></i> Ir a Agenda ${requiredModuleName}
+                    </button>
+                `;
+                container.appendChild(alertDiv);
+
+                // Deshabilitar guardado para evitar errores
+                if (saveBtn) saveBtn.disabled = true;
+            }
+
             list.innerHTML = service.items_incluidos.map(item => `
                 <div style="font-size: 0.75rem; color: #4a5568; display: flex; align-items: center; gap: 5px;">
                     <i class="fas fa-check-circle" style="color: #48bb78;"></i> ${item}
@@ -2065,7 +2144,11 @@
             document.getElementById("booking-modal").style.display = "none";
         }
 
+        let isSavingReservation = false;
+
         async function handleFormSubmit() {
+            if (isSavingReservation) return;
+
             const btn = document.getElementById("btn-save-booking");
             const originalText = btn.innerHTML;
 
@@ -2085,7 +2168,8 @@
                     return;
                 }
 
-                // 2. Cambiar estado del botón
+                // 2. Cambiar estado del botón y activar guard
+                isSavingReservation = true;
                 btn.disabled = true;
                 btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Guardando...';
 
@@ -2113,8 +2197,6 @@
                             const clean = parseInt(spaConfig.cleaningTime || 0);
                             alert(`¡SALA OCUPADA!\n\nConflicto detectado con:\n- Cliente: ${collision.nombre}\n- Horario: ${collision.hora} (${collision.duracion || 60} min)\n\nEl sistema reserva un margen de limpieza de ${clean} min entre citas.`);
                         }
-                        btn.disabled = false;
-                        btn.innerHTML = originalText;
                         return;
                     }
                 }
@@ -2124,8 +2206,6 @@
                     const staffFree = await checkStaffAvailability(date, time, duration, id);
                     if (!staffFree) {
                         alert(`¡SIN PERSONAL DISPONIBLE! No hay terapeutas libres para este horario.`);
-                        btn.disabled = false;
-                        btn.innerHTML = originalText;
                         return;
                     }
                 }
@@ -2142,31 +2222,13 @@
                     const vDoc = await db.collection("spa_vouchers").doc(bonoCode).get();
                     if (!vDoc.exists) {
                         alert("El código de bono introducido no existe.");
-                        btn.disabled = false; btn.innerHTML = originalText;
                         return;
                     }
                     const vData = vDoc.data();
                     const totalSesiones = vData.sesiones_totales || 1;
-                    const usedSesionesDB = vData.sesiones_usadas || 0; // Usadas históricas (finalizadas)
-
-                    // b) Contar reservas ACTIVAS (futuras o pasadas no finalizadas) que NO sean esta misma
-                    //    Nota: 'sesiones_usadas' en DB suele actualizarse al consumirse.
-                    //    Pero para evitar duplicados, debemos contar las reservas pendientes en el sistema.
-
-                    // Estrategia: 
-                    // Saldo Disponible Real = Totales - (Reservas Activas de este bono)
-                    // Reservas Activas = Status != 'anulada' 
-
-                    // Buscamos en todas las colecciones relevantes? Principalmente spa_reservas
-                    // Ojo: Si el sistema ya incrementa 'sesiones_usadas' al FINALIZAR, 
-                    // entonces Saldo = Total - Usadas_DB - (Reservas Pendientes / Confirmadas Futuras)
-
-                    // Simplificación robusta: Contar TODAS las reservas no anuladas en DB y sumar sus sesiones.
-                    // Si el total excede el lìmite, bloquear.
 
                     const snaps = await db.collection(currentModule.collection)
                         .where("bono", "==", bonoCode)
-                        //.where("status", "!=", "anulada") 
                         .get();
 
                     let sesionesReservadas = 0;
@@ -2181,8 +2243,6 @@
 
                     if (totalComprometido > totalSesiones) {
                         alert(`¡LÍMITE EXCEDIDO!\n\nEste bono tiene ${totalSesiones} sesiones totales.\nYa hay ${sesionesReservadas} sesiones reservadas/usadas.\nIntentas reservar ${currentSessionCount} más (Total: ${totalComprometido}).\n\nNo se puede completar la operación.`);
-                        btn.disabled = false;
-                        btn.innerHTML = originalText;
                         return;
                     }
                 }
@@ -2231,15 +2291,16 @@
                     }
                 }
 
-                // Limpieza final
-                clearPendingVoucher();
+                // Limpieza final INMEDIATA
                 closeModal();
+                clearPendingVoucher();
                 loadReservas(date);
 
             } catch (err) {
                 console.error("ERROR AL GUARDAR RESERVA:", err);
                 alert("Error crítico al guardar: " + err.message + "\n\nIntenta recargar la página.");
             } finally {
+                isSavingReservation = false;
                 btn.disabled = false;
                 btn.innerHTML = originalText;
             }

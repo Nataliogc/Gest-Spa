@@ -82,6 +82,11 @@ function formatDate(dateStr) {
     return new Date(dateStr).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
+
+function generateUID() {
+    return Date.now().toString(36) + Math.random().toString(36).substr(2);
+}
+
 // Inicialización básica
 document.addEventListener("DOMContentLoaded", () => {
     applyTheme();
