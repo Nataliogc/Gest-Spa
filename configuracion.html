@@ -270,16 +270,6 @@
                                         <i class="fas fa-list-ul"></i> Items de Compra / Pack
                                     </h3>
                                     <div style="display: flex; gap: 10px;">
-                                        <button onclick="syncExistingItemsToMaster()" class="btn btn-outline btn-sm"
-                                            title="Extraer items de servicios existentes"
-                                            style="padding: 2px 8px; font-size: 0.65rem;">
-                                            <i class="fas fa-sync-alt"></i> Sincronizar
-                                        </button>
-                                        <button onclick="deduplicateMasterItems()" class="btn btn-outline btn-sm"
-                                            title="Eliminar duplicados"
-                                            style="padding: 2px 8px; font-size: 0.65rem; color: #ef4444; border-color: #fecaca;">
-                                            <i class="fas fa-magic"></i> Deduplicar
-                                        </button>
                                         <button onclick="addMasterItem()" class="btn btn-accent btn-sm"
                                             style="padding: 2px 12px; font-size: 0.7rem;">
                                             <i class="fas fa-plus"></i> Nuevo Item
@@ -302,9 +292,12 @@
                                                     style="padding: 12px; text-align: center; color: #475569; font-weight: 700; width: 15%;">
                                                     DUR (MIN)</th>
                                                 <th
-                                                    style="padding: 12px; text-align: left; color: #475569; font-weight: 700; width: 30%;">
+                                                    style="padding: 12px; text-align: left; color: #475569; font-weight: 700; width: 25%;">
                                                     ESPACIO</th>
-                                                <th style="padding: 12px; text-align: center; width: 10%;"></th>
+                                                <th
+                                                    style="padding: 12px; text-align: center; color: #475569; font-weight: 700; width: 15%;">
+                                                    PROD</th>
+                                                <th style="padding: 12px; text-align: center; width: 5%;"></th>
                                             </tr>
                                         </thead>
                                         <tbody id="master-items-tbody">

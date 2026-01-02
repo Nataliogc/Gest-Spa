@@ -13,7 +13,8 @@ const state = {
     },
     masterItems: [],
     spaces: [],
-    complementos: []
+    complementos: [],
+    catalogServices: [] // Para contar usos
 };
 
 // --- INIT ---
@@ -24,6 +25,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
 function initConfig() {
     cargarSpaConfig();
+    cargarCatalogServices(); // Cargar catálogo para conteos
     cargarMasterItems();
     cargarSpaces();
     cargarComplementos();
@@ -133,6 +135,17 @@ function removeClosedDate(date) {
     renderClosedDates();
 }
 
+// --- CATALOG SERVICES (for counting) ---
+async function cargarCatalogServices() {
+    try {
+        const snapshot = await db.collection("spa_services").where("active", "!=", false).get();
+        state.catalogServices = [];
+        snapshot.forEach(doc => state.catalogServices.push({ id: doc.id, ...doc.data() }));
+    } catch (err) {
+        console.error("Error cargando catálogo:", err);
+    }
+}
+
 // --- MASTER ITEMS ---
 async function cargarMasterItems() {
     try {
@@ -150,7 +163,7 @@ function renderMasterItems() {
     if (!list) return;
 
     if (state.masterItems.length === 0) {
-        list.innerHTML = `<tr><td colspan="4" style="padding: 30px; text-align: center; color: #94a3b8;">No hay items configurados.</td></tr>`;
+        list.innerHTML = `<tr><td colspan="5" style="padding: 30px; text-align: center; color: #94a3b8;">No hay items configurados.</td></tr>`;
         return;
     }
 
@@ -162,6 +175,14 @@ function renderMasterItems() {
 
     list.innerHTML = state.masterItems.map(item => {
         const isComplement = isComplemento(item.name);
+
+        // Contar cuántos productos usan este item
+        const usageCount = state.catalogServices.filter(service => {
+            if (!service.items_incluidos || !Array.isArray(service.items_incluidos)) return false;
+            return service.items_incluidos.some(includedItem =>
+                includedItem.toLowerCase().trim() === item.name.toLowerCase().trim()
+            );
+        }).length;
         return `
         <tr style="border-bottom: 1px solid #f1f5f9;">
             <td style="padding: 10px 12px;">
@@ -171,7 +192,7 @@ function renderMasterItems() {
             <td style="padding: 10px 12px; text-align: center;">
                 ${isComplement ? '<span class="muted text-xs">N/A</span>' :
                 `<input type="number" value="${item.duration || 0}" onchange="updateMasterItemField('${item.id}', 'duration', parseInt(this.value))" 
-                        class="param-input" style="width: 60px; text-align: center;" min="0" max="300">`
+                        class="param-input" style="width: 90px; text-align: center;" min="0" max="300">`
             }
             </td>
             <td style="padding: 10px 12px;">
@@ -181,6 +202,14 @@ function renderMasterItems() {
                     ${state.spaces.map(s => `<option value="${s.code}" ${item.space === s.code ? 'selected' : ''}>${s.name}</option>`).join('')}
                 </select>`
             }
+            </td>
+            <td style="padding: 10px 12px; text-align: center;">
+                <span onclick="showItemUsage('${item.id}', '${item.name.replace(/'/g, "\\'")}')"
+                    style="display: inline-block; background: ${usageCount > 0 ? '#e0f2fe' : '#f1f5f9'}; color: ${usageCount > 0 ? '#0369a1' : '#94a3b8'}; padding: 4px 10px; border-radius: 6px; font-weight: 600; font-size: 0.75rem; cursor: ${usageCount > 0 ? 'pointer' : 'default'}; transition: all 0.2s;" 
+                    ${usageCount > 0 ? 'onmouseover="this.style.background=\'#bfdbfe\'" onmouseout="this.style.background=\'#e0f2fe\'"' : ''}>
+                    <i class="fas fa-${usageCount > 0 ? 'box-open' : 'inbox'}" style="margin-right: 4px; font-size: 0.65rem;"></i>
+                    ${usageCount} ${usageCount === 1 ? 'producto' : 'productos'}
+                </span>
             </td>
             <td style="padding: 10px 12px; text-align: center;">
                 <button onclick="deleteMasterItem('${item.id}')" class="btn-icon danger"><i class="fas fa-trash-alt"></i></button>
@@ -199,6 +228,29 @@ async function updateMasterItemField(id, field, value) {
         showToast("Error actualizando: " + err.message, "error");
     }
 }
+
+function showItemUsage(itemId, itemName) {
+    // Encontrar productos que usan este item
+    const usedByProducts = state.catalogServices.filter(service => {
+        if (!service.items_incluidos || !Array.isArray(service.items_incluidos)) return false;
+        return service.items_incluidos.some(includedItem =>
+            includedItem.toLowerCase().trim() === itemName.toLowerCase().trim()
+        );
+    });
+
+    if (usedByProducts.length === 0) {
+        showToast("Este item no está siendo usado por ningún producto", "info");
+        return;
+    }
+
+    // Crear mensaje con la lista de productos
+    const productList = usedByProducts
+        .map((p, i) => `${i + 1}. ${p.nombre} (${p.precio}€)`)
+        .join('\n');
+
+    alert(`📦 Productos que usan "${itemName}":\n\n${productList}\n\nTotal: ${usedByProducts.length} producto${usedByProducts.length !== 1 ? 's' : ''}`);
+}
+
 
 /**
  * Normaliza profundamente un nombre para detectar duplicados "borrosos" y semánticos

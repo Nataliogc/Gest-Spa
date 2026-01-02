@@ -227,7 +227,7 @@
             </div>
             <div class="tab" onclick="switchCatalogTab('spa', this)"><i class="fas fa-water"></i> Spa</div>
             <div class="tab" onclick="switchCatalogTab('masajes', this)"><i class="fas fa-spa"></i> Masajes</div>
-            <div class="tab" onclick="switchCatalogTab('packs', this)"><i class="fas fa-box-open"></i> Packs & Suite
+            <div class="tab" onclick="switchCatalogTab('packs', this)"><i class="fas fa-box-open"></i> Packs (2+ Items)
             </div>
             <div class="tab" onclick="switchCatalogTab('bonos', this)"><i class="fas fa-ticket-alt"></i> Bonos</div>
             <div class="tab" onclick="switchCatalogTab('estetica', this)"><i class="fas fa-magic"></i> Estética/Pelu
@@ -338,7 +338,8 @@
                                     style="font-size: 0.65rem; font-weight: 700; text-transform: uppercase; color: #a0aec0; display: block; margin-bottom: 2px;">Espacio</label>
                                 <select id="sm-espacio" class="param-input form-control"
                                     style="font-size: 0.9rem; padding: 4px 8px; height: 32px; width: 100%;">
-                                    <option value="spa">Automático (Spa)</option>
+                                    <option value="auto">Automático</option>
+                                    <option value="spa">Spa</option>
                                     <option value="panacea">Panacea (Cabinas)</option>
                                     <option value="suite">Suite Spa</option>
                                     <option value="vip">Sala VIP</option>
@@ -366,6 +367,18 @@
                                 <input type="number" id="sm-sesiones" class="param-input form-control" placeholder="1"
                                     style="font-size: 0.9rem; padding: 4px 8px; height: 32px; width: 100%;">
                             </div>
+                        </div>
+
+                        <!-- Row 3: Venta Local Toggle -->
+                        <div
+                            style="display: flex; gap: 10px; align-items: center; margin-top: 5px; background: #fffbeb; padding: 8px; border-radius: 6px; border: 1px solid #fef3c7;">
+                            <label
+                                style="display: flex; align-items: center; gap: 8px; font-size: 0.8rem; color: #92400e; font-weight: 600; cursor: pointer; margin: 0;">
+                                <input type="checkbox" id="sm-venta-local" checked>
+                                <i class="fas fa-store"></i> Permitir Venta Local (Bonos)
+                            </label>
+                            <span style="font-size: 0.65rem; color: #b45309; opacity: 0.8;">Si se desmarca, no aparecerá
+                                en el modal de 'Nueva Venta Local'.</span>
                         </div>
                     </div>
 
@@ -629,7 +642,10 @@
                         return ['masaje', 'bono_masaje', 'facial', 'bono_facial', 'corporal', 'bono_corporal', 'ritual', 'envoltura'].includes(cat);
                     }
 
-                    if (state.currentTab === 'packs') return ['pack_pareja', 'suite_privada', 'pack_hosteleria', 'pack_comida'].includes(cat);
+                    // Packs: servicios con más de un item incluido
+                    if (state.currentTab === 'packs') {
+                        return s.items_incluidos && Array.isArray(s.items_incluidos) && s.items_incluidos.length > 1;
+                    }
 
                     if (state.currentTab === 'estetica') return ['manicura', 'peluqueria', 'depilacion', 'maquillaje', 'uva'].includes(cat);
 
@@ -639,7 +655,7 @@
                 });
             }
 
-            // 3. Filtrar por Búsqueda (Multicampo: nombre, categoria, descripcion, espacio, precio, items, sku)
+            // 3. Filtrar por Búsqueda (Multicampo: nombre, categoria, descripcion, espacio, precio, items, sku, product_id)
             if (state.searchTerm) {
                 filtered = filtered.filter(s => {
                     const priceStr = (s.precio || 0).toString();
@@ -649,6 +665,7 @@
                     const descStr = (s.descripcion || '').toLowerCase();
                     const nameStr = (s.nombre || '').toLowerCase();
                     const skuStr = (s.wc_sku || '').toLowerCase();
+                    const productIdStr = (s.wc_product_id || '').toString().toLowerCase();
 
                     return nameStr.includes(state.searchTerm) ||
                         descStr.includes(state.searchTerm) ||
@@ -656,6 +673,7 @@
                         spaceStr.includes(state.searchTerm) ||
                         priceStr.includes(state.searchTerm) ||
                         skuStr.includes(state.searchTerm) ||
+                        productIdStr.includes(state.searchTerm) ||
                         includesStr.includes(state.searchTerm);
                 });
             }
@@ -669,7 +687,8 @@
             }
 
             container.innerHTML = filtered.map(item => {
-                const isPack = ['pack_pareja', 'pack_hosteleria', 'suite_privada', 'pack_comida'].includes(item.categoria);
+                // Un pack es cualquier servicio con más de un item incluido
+                const isPack = item.items_incluidos && Array.isArray(item.items_incluidos) && item.items_incluidos.length > 1;
                 const isTrash = state.currentTab === 'papelera';
 
                 // Opacity style for trash
@@ -691,6 +710,7 @@
                         <span><i class="fas fa-clock" style="color: var(--accent); margin-right: 4px;"></i> ${item.duracion ? item.duracion + " min" : "Consultar"}</span>
                         ${item.pax === 2 ? '<span style="color: var(--accent);"><i class="fas fa-user-friends"></i> 2 Pax</span>' : item.pax === 'group' ? '<span style="color: #64748b;"><i class="fas fa-users"></i> Grupo</span>' : '<span style="color: #64748b;"><i class="fas fa-user"></i> 1 Pax</span>'}
                         ${item.sesiones && item.sesiones > 1 ? `<span style="background: #e0f2fe; color: #0369a1; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 0.65rem;"><i class="fas fa-layer-group"></i> ${item.sesiones} Ses.</span>` : ''}
+                        ${isPack ? `<span style="background: #fef3c7; color: #92400e; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 0.65rem; border: 1px solid #fcd34d;"><i class="fas fa-list-ul"></i> ${item.items_incluidos.length} Items</span>` : ''}
                     </div>
                     
                     <p style="font-size: 0.8rem; color: var(--text-muted); margin: 0 0 15px 0; line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; height: 2.4rem;">
@@ -803,8 +823,8 @@
                 }
 
                 // Sincronizar checkboxes
-
-                document.getElementById("sm-wc-virtual").checked = service.wc_is_virtual !== false; // Default true
+                document.getElementById("sm-wc-virtual").checked = service.wc_is_virtual !== false;
+                document.getElementById("sm-venta-local").checked = service.venta_local !== false;
 
                 updateImagePreview(service.imagen || "");
 
@@ -879,8 +899,8 @@
 
             const id = idParam || nombre.toLowerCase().replace(/[^a-z0-9]/g, '-');
 
+
             const items = Array.from(document.querySelectorAll(".sm-item-select")).map(i => i.value.trim()).filter(v => v);
-            alert("DEBUG SAVE: Items capturados para guardar:\n" + JSON.stringify(items));
 
             // AUTO-GUARDAR NUEVOS ITEMS EN EL MAESTRO
             for (const itemName of items) {
@@ -898,6 +918,30 @@
                 }
             }
 
+            // Auto-detectar espacio si está en modo automático
+            let espacioValue = document.getElementById("sm-espacio").value;
+            if (espacioValue === "auto") {
+                const categoria = document.getElementById("sm-categoria").value;
+                const nombreLower = nombre.toLowerCase();
+
+                // Lógica de detección automática
+                if (categoria.includes("gimnasio") || nombreLower.includes("gimnasio")) {
+                    espacioValue = "gimnasio";
+                } else if (categoria.includes("peluqueria") || nombreLower.includes("peluque")) {
+                    espacioValue = "peluqueria";
+                } else if (categoria === "suite_privada" || nombreLower.includes("suite")) {
+                    espacioValue = "suite";
+                } else if (nombreLower.includes("vip") || nombreLower.includes("sala vip")) {
+                    espacioValue = "vip";
+                } else if (categoria.includes("masaje") || categoria.includes("facial") || categoria.includes("corporal") ||
+                    nombreLower.includes("masaje") || nombreLower.includes("facial") || nombreLower.includes("tratamiento")) {
+                    espacioValue = "panacea"; // Cabinas
+                } else {
+                    espacioValue = "spa"; // Por defecto
+                }
+                console.log(`[AUTO-DETECT] "${nombre}" → espacio: ${espacioValue}`);
+            }
+
             const data = {
                 nombre: nombre,
                 precio: parseFloat(document.getElementById("sm-precio").value),
@@ -906,7 +950,7 @@
                 sesiones: parseInt(document.getElementById("sm-sesiones").value) || 1,
                 imagen: document.getElementById("sm-imagen").value.trim(),
                 categoria: document.getElementById("sm-categoria").value,
-                espacio: document.getElementById("sm-espacio").value,
+                espacio: espacioValue, // Usar el valor auto-detectado
                 descripcion: document.getElementById("sm-descripcion").value,
                 items_incluidos: items,
 
@@ -914,6 +958,7 @@
                 wc_categories: Array.from(document.getElementById("sm-wc-categories").selectedOptions).map(opt => ({ id: parseInt(opt.value), name: opt.text })),
 
                 wc_is_virtual: document.getElementById("sm-wc-virtual").checked,
+                venta_local: document.getElementById("sm-venta-local").checked,
 
                 active: true,
                 last_updated: new Date().toISOString()
@@ -1668,8 +1713,59 @@
 
             // --- 5. EXTRACCIÓN DE ITEMS (DESGLOSE) ---
             let items = [];
-            // Si hay una sección de "Incluye" en la descripción, intentamos extraer los items
-            if (lowerDesc.includes('incluye')) {
+
+            // NUEVO: Parser HTML para extraer items de listas <ul><li>
+            function extractItemsFromHTML(htmlDesc) {
+                const extractedItems = [];
+
+                try {
+                    // Crear un elemento temporal para parsear HTML
+                    const tempDiv = document.createElement('div');
+                    tempDiv.innerHTML = htmlDesc;
+
+                    // Buscar todas las listas <ul>
+                    const lists = tempDiv.querySelectorAll('ul');
+                    lists.forEach(ul => {
+                        const listItems = ul.querySelectorAll('li');
+                        listItems.forEach(li => {
+                            let text = li.textContent.trim();
+
+                            // Limpiar texto
+                            text = text.replace(/^[\s·\-\*•\t\d\.]+\s*/, '');
+
+                            // Filtrar ruido
+                            const low = text.toLowerCase();
+                            if (low.startsWith("duracion") || low.startsWith("pax:") ||
+                                low.startsWith("incluye:") || low.startsWith("categoria:")) {
+                                return;
+                            }
+
+                            if (text && text.length > 3 && text.length < 120) {
+                                // Capitalizar primera letra
+                                text = text.charAt(0).toUpperCase() + text.slice(1);
+                                if (!extractedItems.includes(text)) {
+                                    extractedItems.push(text);
+                                }
+                            }
+                        });
+                    });
+                } catch (e) {
+                    console.warn("Error parsing HTML for items:", e);
+                }
+
+                return extractedItems;
+            }
+
+            // Intentar extraer de HTML primero (desc puede contener HTML)
+            items = extractItemsFromHTML(desc);
+
+            // Debug: Log si se encontraron items en HTML
+            if (items.length > 0) {
+                console.log(`[PARSE] Extraídos ${items.length} items de HTML para "${name}":`, items);
+            }
+
+            // Si no encontramos items en HTML, intentar parseo de texto plano
+            if (items.length === 0 && lowerDesc.includes('incluye')) {
                 const parts = lowerDesc.split(/incluye[:\s]*/i);
                 if (parts.length > 1) {
                     const content = parts[1];
@@ -1848,16 +1944,14 @@
                 const nombre = p.name;
                 const sku = p.sku || "";
                 const precio = parseFloat(p.regular_price) || parseFloat(p.price) || 0;
-                let desc = p.description || p.short_description || "";
-
-                // Limpiar HTML
-                desc = desc.replace(/<[^>]*>?/gm, '').trim();
+                const descHtml = p.description || p.short_description || ""; // Descripción HTML sin procesar
+                const descPlain = descHtml.replace(/<[^>]*>?/gm, '').trim(); // Texto plano para mostrar
 
                 // Categorías
                 const wcCats = p.categories ? p.categories.map(c => c.name).join(", ") : "";
 
-                // Inferencia inteligente (Base)
-                const metadata = inferServiceMetadata(nombre, wcCats, sku, desc);
+                // Inferencia inteligente (Base) - Pasar HTML para parsear items
+                const metadata = inferServiceMetadata(nombre, wcCats, sku, descHtml);
 
                 // --- SOBRESCRITURA CON ATRIBUTOS TÉCNICOS (Si existen) ---
                 const attrDur = getAttr(p, "Duración");
@@ -1923,7 +2017,7 @@
                     // Campos editables - Prioridad LOCAL
                     // IMPORTANTE: Usar !== undefined en vez de || porque "" (vacío) es válido
                     data.nombre = localData.nombre !== undefined ? localData.nombre : nombre;
-                    data.descripcion = localData.descripcion !== undefined ? localData.descripcion : desc;
+                    data.descripcion = localData.descripcion !== undefined ? localData.descripcion : descPlain;
                     data.precio = localData.precio !== undefined ? localData.precio : precio;
                     data.imagen = localData.imagen !== undefined ? localData.imagen : imgUrl;
 
@@ -1933,7 +2027,15 @@
                     data.sesiones = localData.sesiones !== undefined ? localData.sesiones : (metadata.sesiones || 1);
                     data.duracion = localData.duracion || finalDur;
                     data.pax = localData.pax !== undefined ? localData.pax : finalPax;
-                    data.items_incluidos = localData.items_incluidos || finalItems;
+
+                    // ITEMS: Priorizar WC si tiene más items que local
+                    if (finalItems && finalItems.length > 0 && (!localData.items_incluidos || localData.items_incluidos.length < finalItems.length)) {
+                        console.log(`[SYNC] Actualizando items_incluidos para "${nombre}": ${finalItems.length} items parseados de WC`);
+                        data.items_incluidos = finalItems;
+                    } else {
+                        data.items_incluidos = localData.items_incluidos || finalItems;
+                    }
+
                     data.active = isActive; // Keep inactive if it was inactive
 
                 } else {
@@ -1941,7 +2043,7 @@
                     console.log(`[SYNC] Producto NUEVO: ${nombre} - Importando desde WooCommerce`);
 
                     data.nombre = nombre;
-                    data.descripcion = desc;
+                    data.descripcion = descPlain; // Usar texto plano para descripción
                     data.precio = precio;
                     data.imagen = imgUrl;
                     data.categoria = metadata.categoria || 'circuito';

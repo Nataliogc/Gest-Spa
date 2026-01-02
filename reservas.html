@@ -471,7 +471,8 @@
 
     <!-- MODAL RESERVA ULTRA-COMPACT -->
     <div id="booking-modal" class="modal">
-        <div class="modal-content" style="max-width: 820px; padding: 12px 20px; border-radius: 12px;">
+        <div class="modal-content"
+            style="max-width: 820px; padding: 12px 20px; border-radius: 12px; max-height: 90vh; overflow-y: auto;">
             <span class="close-modal" onclick="closeModal()"
                 style="top: 8px; right: 12px; font-size: 1.2rem;">&times;</span>
 
@@ -1176,18 +1177,31 @@
             let servicesToShow = currentServices;
             if (currentModule.code === 'spa') {
                 servicesToShow = currentServices.filter(s => s.nombre === 'Circuito Spa' || s.nombre.toLowerCase().includes('sabores'));
+
+                // CRITICAL FIX: Ensure pending voucher service is INCLUDED
+                const pending = sessionStorage.getItem('pendingVoucherBooking');
+                if (pending) {
+                    try {
+                        const pData = JSON.parse(pending);
+                        if (pData.producto && !servicesToShow.find(s => s.nombre === pData.producto)) {
+                            // Find it in full list or add temporary
+                            const fFound = currentServices.find(s => s.nombre === pData.producto);
+                            if (fFound) {
+                                servicesToShow.push(fFound);
+                            } else {
+                                // Fallback object if not found in catalog (should rare)
+                                servicesToShow.push({ nombre: pData.producto, duration: 60, precio: 0, items_incluidos: [] });
+                            }
+                        }
+                    } catch (e) { console.error(e); }
+                }
+
                 if (servicesToShow.length === 0) {
                     const fallbacks = [
                         { nombre: 'Circuito Spa', duration: 90, precio: 35, items_incluidos: [] },
                         { nombre: 'Spa y Sabores', duration: 90, precio: 45, items_incluidos: ['Circuito Spa', 'Comida/Cena Menú Sabores'] }
                     ];
                     servicesToShow = fallbacks;
-                    // Ensure they are in currentServices so price automation finds them
-                    fallbacks.forEach(f => {
-                        if (!currentServices.find(s => s.nombre === f.nombre)) {
-                            currentServices.push(f);
-                        }
-                    });
                 }
             } else if (moduleType === 'suite') {
                 if (servicesToShow.length === 0) {
@@ -1198,6 +1212,17 @@
                     servicesToShow = [{ nombre: 'Servicio Peluquería', duration: 30, precio: 20 }];
                 }
             }
+
+            // Deduplicate logic
+            const uniqueServices = [];
+            const seenNames = new Set();
+            servicesToShow.forEach(s => {
+                if (!seenNames.has(s.nombre)) {
+                    seenNames.add(s.nombre);
+                    uniqueServices.push(s);
+                }
+            });
+            servicesToShow = uniqueServices;
 
             // Populate options
             servicesToShow.forEach(s => {
@@ -1307,16 +1332,43 @@
                 if (saveBtn) saveBtn.disabled = true;
             }
 
-            list.innerHTML = service.items_incluidos.map(item => `
+            // Safety Filter: Ocultar ítems de restaurante si el servicio no es de gastronomía (evita datos sucios)
+            const serviceNameLower = (service.nombre || '').toLowerCase();
+            const isGastronomicService = serviceNameLower.includes('sabores') ||
+                serviceNameLower.includes('cena') ||
+                serviceNameLower.includes('comida') ||
+                serviceNameLower.includes('lunch') ||
+                serviceNameLower.includes('gastron') ||
+                serviceNameLower.includes('románt') ||
+                serviceNameLower.includes('brunch');
+
+            const displayItems = service.items_incluidos.filter(item => {
+                const lowerItem = item.toLowerCase();
+                // Si el ítem es de restaurante pero el servicio NO lo anuncia en su nombre, lo ocultamos
+                if (!isGastronomicService && (lowerItem.includes('menú') || lowerItem.includes('restaurante') || lowerItem.includes('cena') || lowerItem.includes('almuerzo'))) {
+                    return false;
+                }
+                return true;
+            });
+
+            list.innerHTML = displayItems.map(item => `
                 <div style="font-size: 0.75rem; color: #4a5568; display: flex; align-items: center; gap: 5px;">
                     <i class="fas fa-check-circle" style="color: #48bb78;"></i> ${item}
                 </div>
             `).join('');
 
             // Detectar restaurante/menú
-            const needsRestaurant = service.items_incluidos.some(item =>
-                item.toLowerCase().includes("restaurante") || item.toLowerCase().includes("menú") || item.toLowerCase().includes("comida")
-            );
+            // Detectar restaurante/menú
+            // Detectar restaurante/menú (Solo si es explícitamente un menú o comida en restaurante, no solo la palabra)
+            // USAR LA LISTA FILTRADA (displayItems) para ser consistentes con lo que ve el usuario
+            const needsRestaurant = displayItems.some(item => {
+                const lower = item.toLowerCase();
+                // Excluir explícitamente negaciones comunes
+                if (lower.includes("no incluye") || lower.includes("sin restaurante") || lower.includes("sin comida")) return false;
+
+                // Patrones positivos
+                return (lower.includes("menú") || lower.includes("cena") || lower.includes("almuerzo") || (lower.includes("restaurante") && !lower.includes("bono")));
+            });
             reminder.style.display = needsRestaurant ? "block" : "none";
         }
 
@@ -2162,7 +2214,10 @@
                 }
 
                 const telField = document.getElementById("res-tel");
-                if (!telField.value.trim()) {
+                const origenVal = document.getElementById("res-origen").value;
+
+                // Solo validar teléfono si NO es un bono (ya que en bonos se oculta el campo)
+                if (origenVal !== 'bono' && !telField.value.trim()) {
                     alert("Por favor, introduce un teléfono de contacto.");
                     telField.focus();
                     return;

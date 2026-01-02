@@ -326,8 +326,32 @@
 
                         <div class="form-group">
                             <label style="font-size: 0.8rem;">Producto / Servicio</label>
+                            <input type="text" id="lv-product-search" class="param-input"
+                                placeholder="🔍 Buscar en catálogo..." onkeyup="filterLocalProducts(this.value)"
+                                style="margin-top: 5px; margin-bottom: 8px; height: 32px; font-size: 0.8rem;">
+
+                            <!-- Accesos Directos (Categorías) -->
+                            <div id="lv-category-shortcuts"
+                                style="display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 10px;">
+                                <button type="button" class="btn btn-sm btn-outline lv-cat-btn active"
+                                    onclick="setLVCategory('todos', this)"
+                                    style="font-size: 0.65rem; padding: 4px 8px; border-radius: 15px;">Todos</button>
+                                <button type="button" class="btn btn-sm btn-outline lv-cat-btn"
+                                    onclick="setLVCategory('spa', this)"
+                                    style="font-size: 0.65rem; padding: 4px 8px; border-radius: 15px;">Spa</button>
+                                <button type="button" class="btn btn-sm btn-outline lv-cat-btn"
+                                    onclick="setLVCategory('masaje', this)"
+                                    style="font-size: 0.65rem; padding: 4px 8px; border-radius: 15px;">Masajes</button>
+                                <button type="button" class="btn btn-sm btn-outline lv-cat-btn"
+                                    onclick="setLVCategory('pack', this)"
+                                    style="font-size: 0.65rem; padding: 4px 8px; border-radius: 15px;">Packs</button>
+                                <button type="button" class="btn btn-sm btn-outline lv-cat-btn"
+                                    onclick="setLVCategory('bono', this)"
+                                    style="font-size: 0.65rem; padding: 4px 8px; border-radius: 15px;">Bonos</button>
+                            </div>
+
                             <select id="lv-product-select" class="param-input" onchange="checkCustomProduct(this)"
-                                style="margin-top: 5px;">
+                                style="margin-top: 0;">
                                 <option value="">Seleccionar del catálogo...</option>
                             </select>
                             <input type="text" id="lv-product-custom" class="param-input"
@@ -397,14 +421,60 @@
     </div>
     </div>
 
+    <!-- Modal Validación Alojamiento -->
+    <div id="accommodation-validation-modal" class="modal" style="display: none;">
+        <div class="modal-content glass" style="max-width: 500px;">
+            <div class="modal-header">
+                <h2 style="margin: 0; font-size: 1.15rem; font-weight: 700;">
+                    <i class="fas fa-hotel" style="color: var(--accent);"></i> Validar Alojamiento y Desayuno
+                </h2>
+                <span class="close-btn" onclick="closeAccommodationValidation()"
+                    style="font-size: 1.5rem; cursor: pointer;">×</span>
+            </div>
+            <div class="modal-body" style="padding: 20px;">
+                <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 20px;">
+                    Complete la información de la reserva de hotel para validar el alojamiento.
+                </p>
+                <div class="form-group">
+                    <label style="font-size: 0.8rem; font-weight: 600;">Fecha de Alojamiento</label>
+                    <input type="date" id="av-fecha" class="param-input" required style="margin-top: 5px;">
+                </div>
+                <div class="form-group">
+                    <label style="font-size: 0.8rem; font-weight: 600;">Nombre del Huésped</label>
+                    <input type="text" id="av-nombre" class="param-input" placeholder="Nombre completo" required
+                        style="margin-top: 5px;">
+                </div>
+                <div class="form-group">
+                    <label style="font-size: 0.8rem; font-weight: 600;">Teléfono de Contacto</label>
+                    <input type="tel" id="av-telefono" class="param-input" placeholder="666 123 456" required
+                        style="margin-top: 5px;">
+                </div>
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label style="font-size: 0.8rem; font-weight: 600;">Nº de Reserva de Hotel</label>
+                    <input type="text" id="av-reserva" class="param-input" placeholder="RES-2026-001" required
+                        style="margin-top: 5px; font-family: monospace;">
+                </div>
+            </div>
+            <div class="modal-footer" style="display: flex; gap: 10px;">
+                <button onclick="closeAccommodationValidation()" class="btn btn-outline"
+                    style="flex: 1; justify-content: center;">Cancelar</button>
+                <button onclick="confirmAccommodationRedemption()" class="btn btn-accent"
+                    style="flex: 2; justify-content: center;">
+                    <i class="fas fa-check-circle"></i> Confirmar Canje
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- Toast Container -->
     <div id="toast-container"></div>
 
     <!-- Scripts -->
     <script src="firebase-config.js"></script>
     <script src="js/app-core.js"></script>
-    <script src="js/bonos-history-helper.js?v=2"></script>
-    <script src="js/bonos.js?v=3"></script>
+
+    <script src="js/bonos.js?v=FIX_BADGE_1502"></script>
+    <script src="js/bonos-history-helper.js?v=FIX_HISTORY_DEBUG_1390"></script>
 </body>
 
 </html>

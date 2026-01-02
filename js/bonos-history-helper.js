@@ -1,9 +1,17 @@
 
-async function renderVoucherHistory(bonoCode) {
+async function renderVoucherHistory(bonoCode, internalValidations = []) {
+    console.log('[HISTORY] Render requested for:', bonoCode);
     const listContainer = document.getElementById("vm-history-list");
+
     if (!listContainer) {
+        console.log('[HISTORY] Creating container...');
         // Create container if not exists (append to modal body, before footer)
         const modalBody = document.querySelector("#voucher-modal .modal-body");
+        if (!modalBody) {
+            console.error('[HISTORY] .modal-body not found!');
+            return;
+        }
+
         const historyDiv = document.createElement("div");
         historyDiv.id = "vm-history-list";
         historyDiv.style.marginTop = "20px";
@@ -16,10 +24,9 @@ async function renderVoucherHistory(bonoCode) {
             </h4>
             <div id="vm-history-content" style="max-height: 200px; overflow-y: auto;"></div>
         `;
-        // Insert before control de sesiones is probably better layout-wise, but appending is safer
-        // Let's insert after control-sesiones logic? No, just append for now
         modalBody.appendChild(historyDiv);
     } else {
+        console.log('[HISTORY] Container exists, clearing...');
         document.getElementById("vm-history-content").innerHTML = '';
         document.getElementById("vm-history-loader").style.display = "inline";
     }
@@ -40,6 +47,31 @@ async function renderVoucherHistory(bonoCode) {
                 const d = doc.data();
                 if (d.status !== 'anulada') {
                     allReservations.push({ ...d, _col: col, id: doc.id });
+                }
+            });
+        }
+
+        // --- MERGE INTERNAL VALIDATIONS ---
+        if (internalValidations && internalValidations.length > 0) {
+            internalValidations.forEach(item => {
+                if (item.validations && Array.isArray(item.validations)) {
+                    item.validations.forEach(val => {
+                        // val has fecha_validacion (ISO string)
+                        // we need fecha (YYYY-MM-DD) and hora (HH:MM)
+                        const d = new Date(val.fecha_validacion);
+                        const dateStr = d.toISOString().split('T')[0];
+                        const timeStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+                        allReservations.push({
+                            fecha: dateStr,
+                            hora: timeStr,
+                            servicio: item.name || 'Servicio del Bono',
+                            pax: item.pax || 1,
+                            status: 'completed', // Validations are always completed
+                            _col: 'internal',
+                            validado_por: val.validado_por
+                        });
+                    });
                 }
             });
         }
