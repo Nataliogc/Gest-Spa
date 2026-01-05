@@ -742,6 +742,7 @@
         };
     </script>
 
+    <script src="https://unpkg.com/dexie@latest/dist/dexie.js"></script>
     <script src="js/app-core.js"></script>
 
     <script>
@@ -1701,6 +1702,45 @@
                     return; // Stop standard flow
                 }
 
+
+                // --- STANDARD MODULES (SPA, SUITE, ETC) ---
+
+                // 1. Local Load (Instant)
+                if (window.apiLocal) {
+                    try {
+                        const allLocal = await apiLocal.getReservasByDate(date);
+                        if (allLocal && allLocal.length > 0) {
+                            // Filter by current collection
+                            const relevantLocal = allLocal.filter(r => r.collection === currentModule.collection);
+
+                            if (relevantLocal.length > 0) {
+                                currentData = relevantLocal;
+                                renderSlots(date);
+                                console.log(`[LOCAL] Rendered ${relevantLocal.length} items for ${currentModule.name}`);
+                            }
+                        }
+                    } catch (e) {
+                        console.warn("Error loading local data:", e);
+                    }
+                }
+
+                // 2. Remote Load (Background)
+                const snapshot = await db.collection(currentModule.collection).where("fecha", "==", date).get();
+                const remoteData = [];
+                snapshot.forEach(doc => {
+                    remoteData.push({ id: doc.id, ...doc.data(), collection: currentModule.collection });
+                });
+
+                // Sync Remote -> Local
+                if (window.apiLocal) {
+                    for (const r of remoteData) {
+                        await apiLocal.saveReserva({ ...r, syncStatus: 'synced' });
+                    }
+                }
+
+                currentData = remoteData;
+                renderSlots(date);
+                if (window.updateGlobalSyncStatus) updateGlobalSyncStatus('synced');
 
                 if (selectedTime) updateDetails(selectedTime);
 
