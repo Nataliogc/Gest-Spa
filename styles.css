@@ -649,6 +649,7 @@ tr:hover td {
     box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
     max-height: 90vh;
     position: relative;
+    z-index: 1;
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -813,4 +814,87 @@ tr:hover td {
 
 .btn-icon-sm:hover {
     transform: scale(1.1);
+}
+
+/* --- QUOTA WARNING SYSTEM --- */
+#quota-warning-banner {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    background: #fff3cd;
+    border-top: 4px solid #ffc107;
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.15);
+    z-index: 1500;
+    transform: translateY(100%);
+    transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    display: flex;
+    justify-content: center;
+    padding: 0;
+}
+
+#quota-warning-banner.visible {
+    transform: translateY(0);
+}
+
+.quota-content {
+    max-width: 800px;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    padding: 20px;
+}
+
+.quota-content i.fa-exclamation-triangle {
+    font-size: 2rem;
+    color: #d97706;
+}
+
+.quota-content strong {
+    color: #92400e;
+    font-size: 1.1rem;
+    display: block;
+    margin-bottom: 4px;
+}
+
+.quota-content span {
+    color: #b45309;
+    font-size: 0.95rem;
+}
+
+.quota-sub {
+    font-weight: 600;
+    display: block;
+    margin-top: 5px;
+}
+
+.quota-close {
+    background: transparent;
+    border: none;
+    color: #92400e;
+    font-size: 1.2rem;
+    cursor: pointer;
+    margin-left: auto;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    transition: background 0.2s;
+}
+
+.quota-close:hover {
+    background: rgba(0, 0, 0, 0.05);
+}
+
+body.quota-locked::after {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(255, 255, 255, 0.5);
+    z-index: 99999;
+    pointer-events: all;
+    cursor: not-allowed;
 }

@@ -87,8 +87,16 @@
 
                 <!-- Filtros -->
                 <div style="display: flex; gap: 10px; align-items: center; margin-top: 20px; flex-wrap: wrap;">
-                    <input type="text" id="voucher-search" placeholder="Buscar bono, email o producto..."
-                        class="param-input" style="flex: 1; min-width: 200px;">
+                    <div style="display: flex; gap: 5px; flex: 1; min-width: 200px;">
+                        <input type="text" id="voucher-search"
+                            placeholder="🔍 Buscar código de bono (LOC-XXXX o BONOXXXX)..." class="param-input"
+                            style="flex: 1;">
+                        <button id="clear-search-btn" onclick="clearSearch()" class="btn btn-outline"
+                            style="padding: 8px 12px; display: none; border-color: #94a3b8; color: #94a3b8;"
+                            title="Limpiar búsqueda">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
 
                     <input type="date" id="voucher-date" class="param-input" style="width: 160px;">
 
@@ -100,10 +108,16 @@
                         <option value="expired">Caducados</option>
                     </select>
 
-                    <button onclick="resetFilters()" class="btn btn-outline"
-                        style="padding: 10px 15px; border-radius: 8px;" title="Ver todos los bonos">
-                        <i class="fas fa-list"></i> Ver Todos
-                    </button>
+                    <select id="bonos-filter-months" class="param-input" style="width: 180px;" onchange="cargarBonos()"
+                        title="Filtrar por antigüedad para reducir lecturas">
+                        <option value="0" selected>Solo hoy</option>
+                        <option value="0.25">Última semana</option>
+                        <option value="1">Último mes</option>
+                        <option value="3">Últimos 3 meses</option>
+                        <option value="6">Últimos 6 meses</option>
+                        <option value="12">Último año</option>
+                    </select>
+
 
                     <button onclick="openLocalVoucherModal()" class="btn btn-accent"
                         style="padding: 10px 15px; border-radius: 8px; white-space: nowrap;">
@@ -146,10 +160,17 @@
 
     <!-- Modal Gestión Bono -->
     <div id="voucher-modal" class="modal" style="display: none;">
-        <div class="modal-content" style="max-width: 650px; border-radius: 12px;">
-            <div class="modal-header" style="padding: 12px 20px; background: #f8fafc;">
-                <h2 style="margin:0; font-size: 1.1rem; font-weight: 700;">Gestionar Bono <span id="vm-title-code"
-                        style="color: var(--accent);"></span></h2>
+        <div class="modal-content" style="max-width: 750px; border-radius: 12px;">
+            <div class="modal-header"
+                style="padding: 12px 20px; background: #f8fafc; display: flex; justify-content: space-between; align-items: center;">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <h2 style="margin:0; font-size: 1.1rem; font-weight: 700;">Gestionar Bono <span id="vm-title-code"
+                            style="color: var(--accent);"></span></h2>
+                    <button type="button" onclick="reactivarBono()" class="btn btn-outline"
+                        style="border-color: #10b981; color: #10b981; height: 26px; font-size: 0.7rem; padding: 0 10px; border-radius: 4px; display: flex; align-items: center; gap: 4px;">
+                        <i class="fas fa-undo" style="font-size: 0.65rem;"></i> Reactivar
+                    </button>
+                </div>
                 <div style="display: flex; align-items: center; gap: 10px;">
                     <span id="vm-status-badge" class="st-badge st-pending"
                         style="font-size: 0.65rem; padding: 2px 8px;">PENDIENTE</span>
@@ -158,123 +179,126 @@
                 </div>
             </div>
 
-            <div class="modal-body" style="padding: 15px 20px;">
-                <div class="form-grid" style="grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 12px;">
-                    <div class="form-group" style="margin-bottom: 0;">
-                        <label style="font-size: 0.65rem; margin-bottom: 4px;">Código</label>
-                        <input type="text" id="vm-code" readonly class="param-input"
-                            style="background: #f1f5f9; padding: 6px 10px; font-size: 0.85rem;">
-                    </div>
-                    <div class="form-group" style="margin-bottom: 0;">
-                        <label style="font-size: 0.65rem; margin-bottom: 4px;">Cliente</label>
-                        <input type="text" id="vm-cliente" class="param-input"
-                            style="padding: 6px 10px; font-size: 0.85rem;">
-                    </div>
-                    <div class="form-group" style="margin-bottom: 0;">
-                        <label style="font-size: 0.65rem; margin-bottom: 4px;">Validez Hasta</label>
-                        <input type="date" id="vm-fecha-validez" class="param-input"
-                            style="padding: 6px 10px; font-size: 0.85rem;">
-                    </div>
-                    <div class="form-group" style="margin-bottom: 0; grid-column: span 1;">
-                        <label style="font-size: 0.65rem; margin-bottom: 4px;">Email</label>
-                        <input type="email" id="vm-email" class="param-input" readonly
-                            style="background: #f1f5f9; color: #64748b; padding: 6px 10px; font-size: 0.85rem;">
-                    </div>
-                    <div class="form-group" style="margin-bottom: 0; grid-column: span 2;">
-                        <label style="font-size: 0.65rem; margin-bottom: 4px;">Producto</label>
-                        <input type="text" id="vm-producto" class="param-input" readonly
-                            style="background: #f1f5f9; padding: 6px 10px; font-size: 0.85rem;">
-                    </div>
-                    <div class="form-group" style="margin-bottom: 0; display: none;">
-                        <label style="font-size: 0.65rem; margin-bottom: 4px;">Fecha Compra</label>
-                        <input type="text" id="vm-fecha-compra" readonly class="param-input"
-                            style="background: #f1f5f9; padding: 6px 10px; font-size: 0.85rem;">
-                    </div>
-                </div>
+            <div class="modal-body"
+                style="padding: 0; display: grid; grid-template-columns: 300px 1fr; height: 500px; overflow: hidden;">
+                <!-- COLUMNA IZQUIERDA: Detalles Fijos -->
+                <div style="background: #f8fafc; padding: 15px; border-right: 1px solid #e2e8f0; overflow-y: auto;">
 
-                <!-- Previsualización del Catálogo -->
-                <div id="vm-catalog-info"
-                    style="margin: 0 0 12px 0; padding: 10px; background: #f0f9ff; border-radius: 8px; border: 1px solid #bae6fd; display: none;">
-                    <div style="display: flex; gap: 12px; align-items: start;">
-                        <img id="vm-cat-img" src=""
-                            style="width: 60px; height: 60px; object-fit: cover; border-radius: 6px; border: 1px solid #bae6fd; background: #fff;">
-                        <div style="flex: 1;">
-                            <div
-                                style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 2px;">
-                                <h4 id="vm-cat-name"
-                                    style="margin: 0; font-size: 0.85rem; color: #0369a1; font-weight: 700;">Nombre del
-                                    Producto</h4>
-                                <span id="vm-cat-price"
-                                    style="background: #15803d; color: white; font-weight: 700; font-size: 0.75rem; padding: 2px 8px; border-radius: 4px; white-space: nowrap;">0€</span>
+                    <!-- INFO CLIENTE -->
+                    <div style="margin-bottom: 15px;">
+                        <h4
+                            style="font-size: 0.7rem; text-transform: uppercase; color: #94a3b8; margin-bottom: 8px; font-weight: 700;">
+                            Cliente</h4>
+                        <div class="form-group" style="margin-bottom: 8px;">
+                            <input type="text" id="vm-cliente" class="param-input" placeholder="Nombre Cliente"
+                                style="padding: 4px 8px; font-size: 0.85rem; font-weight: 600;">
+                        </div>
+                        <div class="form-group" style="margin-bottom: 8px;">
+                            <input type="email" id="vm-email" class="param-input" readonly
+                                style="padding: 4px 8px; font-size: 0.8rem; background: #e2e8f0; color: #64748b;">
+                        </div>
+                        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:5px;">
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label style="font-size: 0.65rem; color:#64748b;">Código</label>
+                                <input type="text" id="vm-code" readonly class="param-input"
+                                    style="padding: 4px 8px; font-size: 0.75rem; background: #e2e8f0; color: #64748b; font-family:monospace;">
                             </div>
-                            <p id="vm-cat-desc"
-                                style="font-size: 0.7rem; color: #0c4a6e; margin: 0; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">
-                            </p>
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label style="font-size: 0.65rem; color:#64748b;">Validez</label>
+                                <input type="date" id="vm-fecha-validez" class="param-input"
+                                    style="padding: 4px 8px; font-size: 0.75rem;">
+                            </div>
                         </div>
                     </div>
+
+                    <!-- PREVISUALIZACIÓN PRODUCTO -->
+                    <div id="vm-catalog-info"
+                        style="margin-bottom: 15px; padding: 10px; background: #fff; border-radius: 8px; border: 1px solid #bae6fd; display: none;">
+                        <div style="display: flex; gap: 10px; align-items: start;">
+                            <img id="vm-cat-img" src=""
+                                style="width: 40px; height: 40px; object-fit: cover; border-radius: 4px; background: #f0f9ff;">
+                            <div style="flex: 1; min-width: 0;">
+                                <div style="display:flex; justify-content:space-between; align-items:start;">
+                                    <h4 id="vm-cat-name"
+                                        style="margin: 0; font-size: 0.8rem; color: #0369a1; font-weight: 700; line-height: 1.2;">
+                                        Producto</h4>
+                                    <span id="vm-cat-price"
+                                        style="background: #15803d; color: white; font-weight: 700; font-size: 0.7rem; padding: 2px 6px; border-radius: 4px;">0€</span>
+                                </div>
+                                Producto</h4>
+                                <p id="vm-cat-desc"
+                                    style="font-size: 0.65rem; color: #64748b; margin: 2px 0 0 0; line-height: 1.2; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">
+                                </p>
+                            </div>
+                        </div>
+                        <input type="text" id="vm-producto" class="param-input" readonly
+                            style="margin-top:5px; background: #f0f9ff; border:none; color:#0369a1; font-size:0.75rem; padding:0; display:none;">
+                    </div>
+
+                    <!-- CONTROL SESIONES -->
+                    <div
+                        style="margin-bottom: 15px; background: #fff; padding: 10px; border-radius: 8px; border: 1px solid #e2e8f0;">
+                        <h4
+                            style="font-size: 0.65rem; text-transform: uppercase; color: #94a3b8; margin-bottom: 5px; font-weight: 700;">
+                            Sesiones</h4>
+                        <div style="display: flex; gap: 5px;">
+                            <div style="flex:1;">
+                                <label style="font-size: 0.6rem; color:#64748b; display:block;">Total</label>
+                                <input type="number" id="vm-sesiones-total" class="param-input"
+                                    style="padding: 4px 6px; font-size: 0.8rem; text-align:center;">
+                            </div>
+                            <div style="flex:1;">
+                                <label style="font-size: 0.6rem; color:#64748b; display:block;">Usadas</label>
+                                <input type="number" id="vm-sesiones-usadas" class="param-input"
+                                    style="padding: 4px 6px; font-size: 0.8rem; text-align:center;">
+                            </div>
+                            <div style="flex:1;">
+                                <label style="font-size: 0.6rem; color:#64748b; display:block;">Pax</label>
+                                <input type="number" id="vm-pax-sesion" class="param-input"
+                                    style="padding: 4px 6px; font-size: 0.8rem; text-align:center;">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- NOTAS -->
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <h4
+                            style="font-size: 0.65rem; text-transform: uppercase; color: #94a3b8; margin-bottom: 5px; font-weight: 700;">
+                            Notas Internas</h4>
+                        <textarea id="vm-notas" class="param-input" placeholder="Notas staff..." rows="3"
+                            style="padding: 6px; font-size: 0.75rem; min-height: 60px; resize:none;"></textarea>
+                    </div>
+
+                    <!-- Hidden Fields -->
+                    <input type="text" id="vm-fecha-compra" readonly style="display: none;">
                 </div>
 
+                <!-- COLUMNA DERECHA: Dinámica -->
                 <div
-                    style="margin: 0 0 12px 0; padding: 12px; background: #f8fafc; border-radius: 8px; border: 1px solid var(--border);">
-                    <h3
-                        style="font-size: 0.65rem; text-transform: uppercase; color: var(--text-muted); margin-bottom: 8px; font-weight: 700; border: none; padding: 0;">
-                        Control de Sesiones</h3>
-                    <div style="display: flex; gap: 12px; align-items: center;">
-                        <div class="form-group" style="flex: 1; margin-bottom: 0;">
-                            <label style="font-size: 0.65rem; margin-bottom: 4px;">Totales</label>
-                            <input type="number" id="vm-sesiones-total" class="param-input"
-                                style="padding: 6px 10px; font-size: 0.85rem;">
-                        </div>
-                        <div class="form-group" style="flex: 1; margin-bottom: 0;">
-                            <label style="font-size: 0.65rem; margin-bottom: 4px;">Usadas</label>
-                            <input type="number" id="vm-sesiones-usadas" class="param-input"
-                                style="padding: 6px 10px; font-size: 0.85rem;">
-                        </div>
-                        <div class="form-group" style="flex: 1; margin-bottom: 0;">
-                            <label style="font-size: 0.65rem; margin-bottom: 4px;">Pax/Sesión</label>
-                            <input type="number" id="vm-pax-sesion" value="1" class="param-input"
-                                style="padding: 6px 10px; font-size: 0.85rem;">
-                        </div>
+                    style="padding: 15px; overflow-y: auto; display: flex; flex-direction: column; gap: 15px; background: #fff;">
+
+                    <!-- ITEMS BREAKDOWN -->
+                    <div id="vm-items-container" style="display: flex; flex-direction: column; gap: 5px;">
+                        <!-- Injected by JS -->
+                    </div>
+
+                    <!-- HISTORIAL -->
+                    <div id="vm-history-container" style="margin-top: auto;">
+                        <!-- Injected by JS -->
                     </div>
                 </div>
-
-                <div class="form-group" style="margin-bottom: 0;">
-                    <label style="font-size: 0.65rem; margin-bottom: 4px;">Notas Internas</label>
-                    <textarea id="vm-notas" class="param-input" placeholder="Notas solo visibles para el personal..."
-                        rows="2" style="padding: 8px 12px; font-size: 0.82rem; min-height: 50px;"></textarea>
-                </div>
-
             </div>
-        </div> <!-- End modal-body -->
 
-        <div class="modal-footer" style="padding: 12px 20px; background: #f8fafc; flex-direction: column; gap: 8px;">
-            <div style="display: flex; gap: 8px; width: 100%;">
-                <button type="button" onclick="marcarCanjeado()" class="btn btn-primary"
-                    style="flex: 1.5; background: #2563eb; border-color: #2563eb; justify-content: center; height: 38px; font-size: 0.8rem;">
-                    <i class="fas fa-check-circle"></i> Canjear 1
-                </button>
-                <button type="button" onclick="marcarCompleto()" class="btn btn-accent"
-                    style="flex: 1; justify-content: center; height: 38px; font-size: 0.8rem;">
-                    <i class="fas fa-flag-checkered"></i> Total
-                </button>
+            <!-- FOOTER: Debe estar DENTRO de modal-content -->
+            <div class="modal-footer"
+                style="padding: 12px 20px; background: #f8fafc; border-top: 1px solid #e2e8f0; display: flex; justify-content: flex-end;">
                 <button type="button" id="vm-save-btn" onclick="saveVoucherChanges()" class="btn btn-outline"
-                    style="flex: 1; justify-content: center; height: 38px; font-size: 0.8rem; border-color: #334155; color: #334155;">
+                    style="min-width: 120px; height: 38px; font-size: 0.85rem; border-color: #334155; color: #334155;">
                     <i class="fas fa-save"></i> <span>Guardar</span>
                 </button>
             </div>
-            <div style="display: flex; gap: 8px; width: 100%;">
-                <button type="button" onclick="reactivarBono()" class="btn btn-outline"
-                    style="flex: 1; border-color: #10b981; color: #10b981; justify-content: center; height: 32px; font-size: 0.75rem; padding: 0;">
-                    <i class="fas fa-undo"></i> Reactivar
-                </button>
-                <button type="button" onclick="deleteVoucher()" class="btn btn-outline"
-                    style="flex: 1; border-color: #ef4444; color: #ef4444; justify-content: center; height: 32px; font-size: 0.75rem; padding: 0;">
-                    <i class="fas fa-trash"></i> Eliminar
-                </button>
-            </div>
-        </div>
-    </div>
-    </div>
+        </div> <!-- End modal-content -->
+    </div> <!-- End modal -->
 
     <!-- Modal Venta Local (Optimized) -->
     <div id="local-voucher-modal" class="modal" style="display: none;">
@@ -446,12 +470,13 @@
                 </div>
                 <div class="form-group">
                     <label style="font-size: 0.8rem; font-weight: 600;">Teléfono de Contacto</label>
-                    <input type="tel" id="av-telefono" class="param-input" placeholder="666 123 456" required
+                    <input type="tel" id="av-telefono" class="param-input" required
+                        oninput="let v=this.value.replace(/\D/g,'').substring(0,9); if(v.length>6) this.value=v.slice(0,3)+' '+v.slice(3,6)+' '+v.slice(6); else if(v.length>3) this.value=v.slice(0,3)+' '+v.slice(3); else this.value=v;"
                         style="margin-top: 5px;">
                 </div>
                 <div class="form-group" style="margin-bottom: 0;">
                     <label style="font-size: 0.8rem; font-weight: 600;">Nº de Reserva de Hotel</label>
-                    <input type="text" id="av-reserva" class="param-input" placeholder="RES-2026-001" required
+                    <input type="text" id="av-reserva" class="param-input" required
                         style="margin-top: 5px; font-family: monospace;">
                 </div>
             </div>
@@ -473,8 +498,8 @@
     <script src="firebase-config.js"></script>
     <script src="js/app-core.js"></script>
 
-    <script src="js/bonos.js?v=FIX_BADGE_1502"></script>
-    <script src="js/bonos-history-helper.js?v=FIX_HISTORY_DEBUG_1390"></script>
+    <script src="js/bonos.js?v=cache_clear_v24_quota"></script>
+    <script src="js/bonos-history-helper.js?v=cache_clear_v24_quota"></script>
 </body>
 
 </html>

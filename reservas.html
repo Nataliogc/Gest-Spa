@@ -368,6 +368,8 @@
 
                 <div
                     style="display: flex; align-items: center; background: #f1f5f9; padding: 6px 12px; border-radius: 8px; gap: 8px;">
+
+
                     <button onclick="changeDate(-1)" class="btn-icon-only"
                         style="border:none; background:transparent; cursor:pointer; color: #64748b;">
                         <i class="fas fa-chevron-left"></i>
@@ -417,15 +419,15 @@
         <!-- Split View Container -->
         <div id="split-view-container"
             style="display: none; grid-template-columns: 1fr 1fr; gap: 20px; height: calc(100vh - 160px);">
-            <!-- Col 1 -->
+            <!-- Col 1 (LEFT) -> VIP -->
             <div id="split-col-1" style="display: flex; flex-direction: column; height: 100%;">
-                <h3 style="text-align: center; margin-bottom: 10px; color: var(--accent);">SALA PANACEA</h3>
-                <div id="timeline-container-panacea" class="timeline-mode" style="flex:1;"></div>
-            </div>
-            <!-- Col 2 -->
-            <div id="split-col-2" style="display: flex; flex-direction: column; height: 100%;">
                 <h3 style="text-align: center; margin-bottom: 10px; color: var(--accent);">SALA VIP</h3>
                 <div id="timeline-container-vip" class="timeline-mode" style="flex:1;"></div>
+            </div>
+            <!-- Col 2 (RIGHT) -> PANACEA -->
+            <div id="split-col-2" style="display: flex; flex-direction: column; height: 100%;">
+                <h3 style="text-align: center; margin-bottom: 10px; color: var(--accent);">SALA PANACEA</h3>
+                <div id="timeline-container-panacea" class="timeline-mode" style="flex:1;"></div>
             </div>
         </div>
 
@@ -704,6 +706,42 @@
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
     <script src="firebase-config.js"></script>
+
+    <!-- STUB TEMPORAL: Sistema de Personal -->
+    <script>
+        // Función temporal que siempre retorna alta disponibilidad de personal
+        // TODO: Implementar sistema completo de gestión de personal
+        window.getDailyStaffAvailability = function (moduleType, date) {
+            console.log('[STUB] getDailyStaffAvailability called for:', moduleType, date);
+
+            // Retornar objeto con disponibilidad ilimitada para todos los slots
+            const availability = {};
+
+            // Generar slots de 15 minutos de 10:00 a 21:45
+            for (let h = 10; h <= 21; h++) {
+                for (let m of [0, 15, 30, 45]) {
+                    if (h === 21 && m > 45) continue; // Último slot 21:45
+                    const time = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+                    availability[time] = 10; // Alta disponibilidad (10 terapeutas disponibles)
+                }
+            }
+
+            console.log('[STUB] Returning high availability for all slots');
+            return Promise.resolve(availability);
+        };
+
+        // Función para obtener terapeutas disponibles para una sala específica
+        window.getAvailableStaffForRoom = async function (roomCode, date, time, duration) {
+            console.log('[STUB] getAvailableStaffForRoom called:', { roomCode, date, time, duration });
+            // Retornar lista de terapeutas disponibles (stub)
+            return [
+                { id: 'staff1', name: 'Terapeuta 1' },
+                { id: 'staff2', name: 'Terapeuta 2' },
+                { id: 'staff3', name: 'Terapeuta 3' }
+            ];
+        };
+    </script>
+
     <script src="js/app-core.js"></script>
 
     <script>
@@ -748,7 +786,7 @@
             },
             'panacea': {
                 code: 'panacea',
-                name: 'SALA SPA PANACEA',
+                name: 'SALAS',
                 collection: 'reservas_panacea',
                 capacity: 1,
                 isPrivate: true,
@@ -1039,12 +1077,76 @@
                     timeSel.value = previousVal;
                 }
 
+                // Cleanup
+                if (saveBtn) saveBtn.disabled = false;
+
+                // Trigger staff update if time changed
+                if (timeSel.value && currentModule.requiresStaff) {
+                    // We don't await here to avoid blocking UI, but we could
+                    handleStaffFieldsChange();
+                }
+
             } catch (err) {
-                console.error("Error al calcular slots:", err);
-                timeSel.innerHTML = '<option value="">Error</option>';
+                if (window.checkFirestoreError && window.checkFirestoreError(err)) return;
+                console.error("Error refreshing slots:", err);
+                timeSel.innerHTML = '<option value="">Error carga</option>';
             } finally {
                 const saveBtn = document.getElementById("btn-save-booking");
                 if (saveBtn) saveBtn.disabled = false;
+            }
+        }
+
+        // NUEVA FUNCIÓN NECESARIA: Manejar cambio de campos para staff
+        async function handleStaffFieldsChange() {
+            const staffSel = document.getElementById("booking-staff");
+            // Relaxed check: Run if module requires it OR if the element exists (safety fallback)
+            if (!currentModule.requiresStaff && !staffSel) return;
+            if (!staffSel) return;
+
+            // Show loading state
+            staffSel.innerHTML = '<option>Cargando...</option>';
+            staffSel.disabled = true;
+
+            const date = document.getElementById("form-date").value;
+            const time = document.getElementById("form-time").value;
+            const duration = parseInt(document.getElementById("inputDuration")?.value || 60);
+            const formId = document.getElementById("form-id").value; // Exclude current reservation
+
+            if (!date || !time) {
+                staffSel.innerHTML = '<option value="">Seleccione hora...</option>';
+                return;
+            }
+
+            try {
+                // Call the optimized batch function
+                const staffList = await getAvailableStaffForRoom(currentModule.code, date, time, duration, formId);
+
+                // Populate dropdown
+                let html = '<option value="">Seleccionar terapeuta...</option>';
+                staffList.forEach(s => {
+                    html += `<option value="${s.id}">${s.alias || s.name}</option>`;
+                });
+
+                staffSel.innerHTML = html;
+                staffSel.disabled = false;
+
+                // If editing, try to re-select the original staff
+                if (formId) {
+                    const res = currentData.find(r => r.id === formId);
+                    if (res && res.staff_id) {
+                        const exists = staffList.find(s => s.id === res.staff_id);
+                        if (!exists) {
+                            const label = res.staff_name || "Terapeuta Asignado (Conflicto?)";
+                            staffSel.innerHTML += `<option value="${res.staff_id}" selected>${label}</option>`;
+                        }
+                        staffSel.value = res.staff_id;
+                    }
+                }
+
+            } catch (err) {
+                console.error("Error updating staff list:", err);
+                staffSel.innerHTML = '<option value="">Error: ' + err.message + '</option>';
+                alert("Error cargando staff: " + err.message);
             }
         }
 
@@ -1101,6 +1203,7 @@
                 }
 
             } catch (err) {
+                if (window.checkFirestoreError && window.checkFirestoreError(err)) return;
                 console.warn("Error validando saldo del bono:", err);
             }
         }
@@ -1163,6 +1266,7 @@
                 currentComplementos = all.filter(s => (s.categoria || "").toLowerCase() === 'complemento');
 
             } catch (err) {
+                if (window.checkFirestoreError && window.checkFirestoreError(err)) return;
                 console.error("Error fetching price:", err);
                 baseCircuitoPrice = (moduleType === 'suite') ? 100 : 25;
             }
@@ -1178,23 +1282,7 @@
             if (currentModule.code === 'spa') {
                 servicesToShow = currentServices.filter(s => s.nombre === 'Circuito Spa' || s.nombre.toLowerCase().includes('sabores'));
 
-                // CRITICAL FIX: Ensure pending voucher service is INCLUDED
-                const pending = sessionStorage.getItem('pendingVoucherBooking');
-                if (pending) {
-                    try {
-                        const pData = JSON.parse(pending);
-                        if (pData.producto && !servicesToShow.find(s => s.nombre === pData.producto)) {
-                            // Find it in full list or add temporary
-                            const fFound = currentServices.find(s => s.nombre === pData.producto);
-                            if (fFound) {
-                                servicesToShow.push(fFound);
-                            } else {
-                                // Fallback object if not found in catalog (should rare)
-                                servicesToShow.push({ nombre: pData.producto, duration: 60, precio: 0, items_incluidos: [] });
-                            }
-                        }
-                    } catch (e) { console.error(e); }
-                }
+
 
                 if (servicesToShow.length === 0) {
                     const fallbacks = [
@@ -1211,6 +1299,25 @@
                 if (servicesToShow.length === 0) {
                     servicesToShow = [{ nombre: 'Servicio Peluquería', duration: 30, precio: 20 }];
                 }
+            }
+
+            // GLOBAL: Ensure pending voucher service is INCLUDED (for ANY module)
+            const pending = sessionStorage.getItem('pendingVoucherBooking');
+            if (pending) {
+                try {
+                    const pData = JSON.parse(pending);
+                    if (pData.producto && !servicesToShow.find(s => s.nombre === pData.producto)) {
+                        // Try to find in full catalog
+                        const fFound = currentServices.find(s => s.nombre === pData.producto);
+                        // Or at least push a placeholder
+                        if (fFound) {
+                            servicesToShow.push(fFound);
+                        } else {
+                            // Even if not in loaded list, force add it so it can be selected
+                            servicesToShow.push({ nombre: pData.producto, duration: 60, precio: 0, items_incluidos: [] });
+                        }
+                    }
+                } catch (e) { console.error(e); }
             }
 
             // Deduplicate logic
@@ -1257,7 +1364,10 @@
                 window.masterItems = [];
                 snap.forEach(doc => window.masterItems.push(doc.data()));
                 console.log("Items maestros cargados:", window.masterItems.length);
-            } catch (e) { console.error("Error loading master items:", e); }
+            } catch (e) {
+                if (window.checkFirestoreError && window.checkFirestoreError(e)) return;
+                console.error("Error loading master items:", e);
+            }
         }
 
         function updatePackInfo() {
@@ -1474,6 +1584,7 @@
                     spaConfig = { ...spaConfig, ...doc.data() };
                 }
             } catch (err) {
+                if (window.checkFirestoreError && window.checkFirestoreError(err)) return;
                 console.error("Error loading spa_config:", err);
             }
         }
@@ -1494,15 +1605,35 @@
                     return;
                 }
 
-                if (moduleType === 'combined') {
+                if (moduleType === 'combined' || moduleType === 'panacea') {
                     document.getElementById("slots-container").style.display = 'none';
                     document.getElementById("split-view-container").style.display = 'grid';
 
-                    // Parallel Fetch for Panacea and VIP
-                    // We need to fetch data AND staff availability for BOTH
-
                     const [panaceaParams, vipParams] = [MODULES['panacea'], MODULES['vip']];
+                    let hasLocalData = false;
 
+                    // A1. CARGA LOCAL SPLIT (Inmediata)
+                    if (window.apiLocal) {
+                        try {
+                            const allLocal = await apiLocal.getReservasByDate(date);
+                            if (allLocal && allLocal.length > 0) {
+                                const localPanacea = allLocal.filter(r => r._moduleCode === 'panacea' || r.collection === panaceaParams.collection);
+                                const localVip = allLocal.filter(r => r._moduleCode === 'vip' || r.collection === vipParams.collection);
+
+                                // Renderizar si hay algo relevante
+                                if (localPanacea.length > 0 || localVip.length > 0) {
+                                    // Staff mock vacío para render inmediato
+                                    renderTimeline(date, 'timeline-container-panacea', panaceaParams, localPanacea, {});
+                                    renderTimeline(date, 'timeline-container-vip', vipParams, localVip, {});
+                                    console.log(`[LOCAL-SPLIT] Renderizados ${localPanacea.length} Panacea / ${localVip.length} VIP`);
+                                    hasLocalData = true;
+                                    currentData = [...localPanacea, ...localVip];
+                                }
+                            }
+                        } catch (e) { console.warn("Error local split:", e); }
+                    }
+
+                    // A2. CARGA REMOTA SPLIT (Background)
                     try {
                         const [snapPanacea, snapVip, availPanacea, availVip] = await Promise.all([
                             db.collection(panaceaParams.collection).where("fecha", "==", date).get(),
@@ -1512,46 +1643,67 @@
                         ]);
 
                         let dataPanacea = [];
-                        snapPanacea.forEach(doc => dataPanacea.push({ id: doc.id, ...doc.data() }));
+                        snapPanacea.forEach(doc => dataPanacea.push({
+                            id: doc.id,
+                            ...doc.data(),
+                            _moduleCode: 'panacea',
+                            collection: panaceaParams.collection // Persistir origen
+                        }));
 
                         let dataVip = [];
-                        snapVip.forEach(doc => dataVip.push({ id: doc.id, ...doc.data() }));
+                        snapVip.forEach(doc => dataVip.push({
+                            id: doc.id,
+                            ...doc.data(),
+                            _moduleCode: 'vip',
+                            collection: vipParams.collection
+                        }));
 
-                        // Render both
-                        // Note: we pass specific module config and data to renderTimeline
+                        // Guardar en LocalDB para futuro
+                        if (window.apiLocal) {
+                            const allRemote = [...dataPanacea, ...dataVip];
+                            for (const res of allRemote) {
+                                await apiLocal.saveReserva({ ...res, syncStatus: 'synced' });
+                            }
+                        }
+
+                        currentData = [...dataPanacea, ...dataVip];
+
                         renderTimeline(date, 'timeline-container-panacea', panaceaParams, dataPanacea, availPanacea);
                         renderTimeline(date, 'timeline-container-vip', vipParams, dataVip, availVip);
 
+                        if (window.updateGlobalSyncStatus) updateGlobalSyncStatus('synced');
+
+                        // Check URL auto-open logic
+                        const urlParams = new URLSearchParams(window.location.search);
+                        const targetId = urlParams.get('id');
+                        if (targetId) {
+                            const foundRes = currentData.find(r => r.id === targetId);
+                            if (foundRes && typeof editBooking === 'function') {
+                                editBooking(targetId, foundRes);
+                                setTimeout(() => {
+                                    const card = document.querySelector(`.booking-card[data-id="${targetId}"]`);
+                                    if (card) {
+                                        card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                        card.style.boxShadow = "0 0 0 4px #fbbf24";
+                                        setTimeout(() => card.style.boxShadow = "", 3000);
+                                    }
+                                }, 500);
+                            }
+                        }
+
                     } catch (err) {
                         console.error("Error loading combined view:", err);
+                        if (!hasLocalData && window.checkFirestoreError && window.checkFirestoreError(err)) {
+                            // Si falló remoto y no teníamos local, mostrar error visible
+                            if (window.updateGlobalSyncStatus) updateGlobalSyncStatus('offline');
+                        }
                     }
                     return; // Stop standard flow
-                } else {
-                    document.getElementById("slots-container").style.display = (currentModule.viewType === 'grid') ? 'grid' : 'block';
-                    document.getElementById("split-view-container").style.display = 'none';
                 }
 
-                const snapshot = await db.collection(currentModule.collection)
-                    .where("fecha", "==", date)
-                    .get();
 
-                currentData = [];
-                snapshot.forEach(doc => currentData.push({ id: doc.id, ...doc.data() }));
-
-                // Load Staff Availability if module requires it
-                currentStaffAvailability = {};
-                if (currentModule.requiresStaff && typeof window.getDailyStaffAvailability === 'function') {
-                    try {
-                        // "panacea", "vip", "suite", etc. matches moduleType
-                        currentStaffAvailability = await window.getDailyStaffAvailability(moduleType, date);
-                        console.log("Disponibilidad personal cargada:", currentStaffAvailability);
-                    } catch (e) {
-                        console.error("Error cargando disponibilidad personal:", e);
-                    }
-                }
-
-                renderSlots(date);
                 if (selectedTime) updateDetails(selectedTime);
+
 
                 // Auto-open logic
                 const urlParams = new URLSearchParams(window.location.search);
@@ -1594,12 +1746,28 @@
                     if (targetId) {
                         const res = currentData.find(r => r.id === targetId);
                         if (res) {
-                            selectSlot(res.hora, false, false);
-                            editBooking(targetId);
+                            console.log("Auto-opening booking ID from URL:", targetId);
+                            // 1. Open Details
+                            if (typeof editBooking === 'function') {
+                                editBooking(targetId);
+                                const modal = document.getElementById("booking-modal");
+                                if (modal) modal.style.display = "block";
+                            }
+
+                            // 2. Highlight/Scroll
+                            setTimeout(() => {
+                                const card = document.querySelector(`.booking-card[data-id="${targetId}"]`);
+                                if (card) {
+                                    card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                    card.style.boxShadow = "0 0 0 4px #fbbf24";
+                                    setTimeout(() => card.style.boxShadow = "", 3000);
+                                }
+                            }, 500);
                         }
                     }
                 }
             } catch (err) {
+                if (window.checkFirestoreError && window.checkFirestoreError(err)) return;
                 console.error("Error:", err);
             }
         }
@@ -1970,6 +2138,29 @@
                 document.getElementById("res-nombre").value = data.cliente;
                 document.getElementById("res-origen").value = "bono";
                 document.getElementById("res-bono").value = data.bono || "";
+
+                // Set Service explicitly (ROBUST)
+                if (data.producto) {
+                    const svcSelect = document.getElementById("res-servicio");
+                    const targetVal = data.producto;
+
+                    // Check if exists
+                    let exists = Array.from(svcSelect.options).some(o => o.value === targetVal);
+
+                    if (!exists) {
+                        console.warn("Force adding missing service option:", targetVal);
+                        const newOpt = document.createElement("option");
+                        newOpt.value = targetVal;
+                        newOpt.textContent = targetVal;
+                        svcSelect.appendChild(newOpt);
+                    }
+
+                    svcSelect.value = targetVal;
+                    // Trigger change events
+                    if (typeof updatePackInfo === 'function') updatePackInfo();
+                    if (typeof updatePriceAutomation === 'function') updatePriceAutomation();
+                }
+
                 document.getElementById("res-obs").value = `Reserva de bono: ${data.producto}`;
 
                 // Calcular sesiones por defecto según pax/sesión del bono (mínimo 1)
@@ -2004,9 +2195,15 @@
             if (notice) notice.remove();
         }
 
-        async function editBooking(id) {
-            const res = currentData.find(r => r.id === id);
+        async function editBooking(id, explicitRes = null) {
+            const res = explicitRes || currentData.find(r => r.id === id);
             if (!res) return;
+
+            // Context Switch for Split Views
+            if (res._moduleCode && MODULES[res._moduleCode]) {
+                currentModule = MODULES[res._moduleCode];
+                window.currentModule = currentModule; // Ensure global ref is updated
+            }
 
             const isAnulada = res.status === 'anulada';
             const btnCancel = document.getElementById("btn-cancelar");
@@ -2023,6 +2220,12 @@
             // Poblar slots disponibles para esta fecha/reserva
             await updateAvailableTimeSlots();
             timeSel.value = res.hora;
+
+            // Explicitly load staff options, waiting for completion
+            // 'excludeId' from #form-id is picked up by handleStaffFieldsChange
+            if (typeof handleStaffFieldsChange === 'function') {
+                await handleStaffFieldsChange();
+            }
 
             // Verificar si la reserva es PASADA
             const now = new Date();
@@ -2096,6 +2299,17 @@
             renderComplementos();
 
             document.getElementById("res-servicio").value = res.servicio || "Circuito Spa";
+
+            // FORCE ADD SERVICE IF MISSING (Prevent empty dropdown)
+            const serviceDropdown = document.getElementById("res-servicio");
+            if (res.servicio && serviceDropdown.value === "" && !Array.from(serviceDropdown.options).some(o => o.value === res.servicio)) {
+                const opt = document.createElement("option");
+                opt.value = res.servicio;
+                opt.textContent = res.servicio; // Clean name, no scary suffix
+                serviceDropdown.appendChild(opt);
+                serviceDropdown.value = res.servicio;
+            }
+            if (typeof updatePackInfo === 'function') updatePackInfo();
             document.getElementById("res-sesiones").value = res.sesiones_consumidas || 1;
 
             // Marcar complementos guardados
@@ -2107,7 +2321,27 @@
             }
 
             if (document.getElementById("inputDuration")) {
-                document.getElementById("inputDuration").value = res.duracion || 60;
+                let dur = res.duracion || 60;
+                // Heuristic: If duration is 60 but name says 30', and it's a forced service, maybe suggest 30?
+                // Only if likely wrong. But better to trust the DB record if it exists.
+                // If the user says "pone sesenta", it means the DB PROBABLY has 60. 
+                // We should check if the service definition has a different default.
+                const sObj = currentServices.find(s => s.nombre === res.servicio);
+                if (sObj && sObj.duracion) dur = sObj.duracion;
+
+                // Heuristic: Auto-correct 60 to 30 IF service name contains "30" (e.g. 30', 30min)
+                // Regex checks for "30" followed by non-digit or end of string.
+                if (dur === 60 && res.servicio && /30\D|30$/.test(res.servicio)) {
+                    dur = 30;
+                }
+
+                document.getElementById("inputDuration").value = dur;
+            }
+
+            // POPULATE STAFF
+            if (res.staff_id && document.getElementById("booking-staff")) {
+                const staffSel = document.getElementById("booking-staff");
+                staffSel.value = res.staff_id;
             }
 
             toggleRoomField();
@@ -2258,7 +2492,7 @@
 
                 // Check Personal (Solo si el módulo lo requiere)
                 if (currentModule.requiresStaff) {
-                    const staffFree = await checkStaffAvailability(date, time, duration, id);
+                    const staffFree = await checkReservationStaffAvailability(date, time, duration, id); // Renamed call
                     if (!staffFree) {
                         alert(`¡SIN PERSONAL DISPONIBLE! No hay terapeutas libres para este horario.`);
                         return;
@@ -2328,30 +2562,84 @@
                     updated_at: new Date().toISOString()
                 };
 
-                console.log("Payload preparado:", payload);
-
-                if (id) {
-                    await db.collection(currentModule.collection).doc(id).update(payload);
-                    showToast("Reserva actualizada", "success");
-                } else {
-                    payload.res_id = generateUID();
-                    payload.status = 'confirmada';
-                    payload.created_at = new Date().toISOString();
-                    const docRef = await db.collection(currentModule.collection).add(payload);
-                    showToast("Reserva creada correctamente", "success");
-
-                    // SI ES UN BONO, ACTUALIZAR SESIONES USADAS
-                    if (payload.origen === 'bono' && payload.bono) {
-                        await updateVoucherSessions(payload.bono, sesionesConsumidas);
+                // CAPTURE STAFF IF REQUIRED
+                if (currentModule.requiresStaff) {
+                    const staffSel = document.getElementById("booking-staff");
+                    if (staffSel && staffSel.value) {
+                        payload.staff_id = staffSel.value;
+                        payload.staff_name = staffSel.options[staffSel.selectedIndex].text;
                     }
                 }
 
-                // Limpieza final INMEDIATA
+                console.log("Payload preparado:", payload);
+
+                // 1. GUARDADO LOCAL INMEDIATO
+                if (window.apiLocal) {
+                    // Asegurar ID si es nuevo
+                    if (!payload.res_id) payload.res_id = generateUID();
+                    if (!id) id = payload.res_id; // Simular ID para local
+
+                    await apiLocal.saveReserva({
+                        ...payload,
+                        id: id,
+                        syncStatus: 'pending'
+                    });
+                    if (window.updateGlobalSyncStatus) updateGlobalSyncStatus('pending');
+
+                    // Actualizar UI in-memory
+                    loadReservas(date); // Recargará de local
+                }
+
+                // 2. INTENTO FIRESTORE
+                try {
+                    if (id) {
+                        // Check if exists remotely? Just try update
+                        // Realmente 'id' aquí es el docID de Firestore si editamos, o undefined si es nuevo
+                        // Si es nuevo, Firestore generará uno nuevo... o usamos el res_id?
+                        // MEJOR ESTRATEGIA: Si es nuevo, dejar que Firestore genere ID, y luego actualizar local
+
+                        if (payload.created_at) {
+                            // Es edicion de existente o nuevo manual con ID?
+                            await db.collection(currentModule.collection).doc(id).update(payload);
+                        } else {
+                            // Nuevo
+                            await db.collection(currentModule.collection).add(payload);
+                        }
+                    } else {
+                        payload.res_id = generateUID();
+                        payload.status = 'confirmada';
+                        payload.created_at = new Date().toISOString();
+                        const docRef = await db.collection(currentModule.collection).add(payload);
+
+                        // Actualizar ID local con el de Firestore
+                        if (window.apiLocal) {
+                            await apiLocal.markSynced('reservas', payload.res_id, docRef.id);
+                            // Note: markSynced needs logic to update the key if it changed, or we just rely on res_id
+                        }
+                    }
+
+                    if (window.updateGlobalSyncStatus) updateGlobalSyncStatus('synced');
+                    showToast("Reserva guardada y sincronizada", "success");
+
+                } catch (fsErr) {
+                    console.warn("Fallo guardado Firestore (Local only):", fsErr);
+                    if (window.updateGlobalSyncStatus) updateGlobalSyncStatus('offline');
+                    showToast("Guardado localmente (Pendiente subir)", "info");
+                }
+
+                // SI ES UN BONO, ACTUALIZAR SESIONES USADAS (Optimistic UI handled by updateVoucherSessions check)
+                if (payload.origen === 'bono' && payload.bono) {
+                    updateVoucherSessions(payload.bono, sesionesConsumidas, payload.servicio).catch(console.warn);
+                }
+
+                // Limpieza final
                 closeModal();
                 clearPendingVoucher();
-                loadReservas(date);
+                // loadReservas(date); // Ya llamado arriba en local path
 
             } catch (err) {
+                if (window.checkFirestoreError && window.checkFirestoreError(err)) return; // STOP if quota error
+
                 console.error("ERROR AL GUARDAR RESERVA:", err);
                 alert("Error crítico al guardar: " + err.message + "\n\nIntenta recargar la página.");
             } finally {
@@ -2361,17 +2649,46 @@
             }
 
             // Helper para actualizar bono si es necesario
-            async function updateVoucherSessions(bonoId, consumed) {
+            async function updateVoucherSessions(bonoId, consumed, serviceName = null) {
                 try {
                     const vDoc = await db.collection("spa_vouchers").doc(bonoId).get();
                     if (vDoc.exists) {
                         const vData = vDoc.data();
                         const newUsed = (vData.sesiones_usadas || 0) + consumed;
-                        await db.collection("spa_vouchers").doc(bonoId).update({
+
+                        const updates = {
                             sesiones_usadas: newUsed,
-                            estado: (newUsed >= (vData.sesiones_totales || 1)) ? 'completed' : 'partially',
                             last_updated: new Date().toISOString()
-                        });
+                        };
+
+                        // 1. Sincronizar con el desglose de items (Packs)
+                        if (vData.items_desglosados && Array.isArray(vData.items_desglosados) && serviceName) {
+                            const normalizedSearch = serviceName.toLowerCase().trim();
+                            let itemMatched = false;
+
+                            vData.items_desglosados.forEach(item => {
+                                const itemName = (item.name || '').toLowerCase().trim();
+                                if (itemName === normalizedSearch || normalizedSearch.includes(itemName) || itemName.includes(normalizedSearch)) {
+                                    item.used = (item.used || 0) + consumed;
+                                    itemMatched = true;
+                                }
+                            });
+
+                            if (itemMatched) {
+                                updates.items_desglosados = vData.items_desglosados;
+                            }
+                        }
+
+                        // 2. Recalcular estado basado en items si existen
+                        if (updates.items_desglosados) {
+                            const allComplete = updates.items_desglosados.every(i => (i.used || 0) >= (i.sessions || 1));
+                            updates.estado = allComplete ? 'completed' : 'partially';
+                        } else {
+                            // Logic estándar por sesiones
+                            updates.estado = (newUsed >= (vData.sesiones_totales || 1)) ? 'completed' : 'partially';
+                        }
+
+                        await db.collection("spa_vouchers").doc(bonoId).update(updates);
                     }
                 } catch (vErr) { console.warn("Error bono:", vErr); }
             }
@@ -2567,7 +2884,7 @@
             }
         }
 
-        async function checkStaffAvailability(date, time, duration, id) {
+        async function checkReservationStaffAvailability(date, time, duration, id) {
             if (typeof window.getAvailableStaffForRoom === 'function') {
                 try {
                     const roomCode = currentModule.code;
@@ -2584,6 +2901,7 @@
         function createBookingCardTimeline(booking) {
             const div = document.createElement("div");
             div.className = "booking-card";
+            div.dataset.id = booking.id; // Add ID for direct access
 
             // Color según estado
             const color = booking.status === 'confirmada' ? '#4caf50' : '#f44336';
@@ -2738,6 +3056,7 @@
                     staffConfig.afternoon = data.afternoon_count || 1;
                 }
             } catch (err) {
+                if (window.checkFirestoreError && window.checkFirestoreError(err)) return;
                 console.error("Error cargando staffConfig:", err);
             }
         }
@@ -2826,8 +3145,45 @@
         // Initialize Date Display
         document.addEventListener('DOMContentLoaded', () => {
             const picker = document.getElementById('main-date-picker');
-            if (picker && picker.value) {
+
+            // Check for URL parameters
+            const urlParams = new URLSearchParams(window.location.search);
+            const dateParam = urlParams.get('fecha') || urlParams.get('date'); // Support both
+            const action = urlParams.get('action');
+
+            if (dateParam) {
+                picker.value = dateParam;
+                // Wait slight for date picker to be ready if needed
+                setTimeout(() => handleDateChange(dateParam), 100);
+            } else if (picker && picker.value) {
                 updateDateDisplay(picker.value);
+            }
+
+            // HANDLE VOUCHER REDIRECTION
+            if (action === 'new') {
+                const client = urlParams.get('client');
+                const service = urlParams.get('service');
+                const voucher = urlParams.get('voucher');
+
+                // Store in session for pre-fill
+                if (client || service || voucher) {
+                    const pendingData = {
+                        cliente: client || "",
+                        producto: service || "",
+                        bono: voucher || "",
+                        pax_por_sesion: 2 // Default or inferred?
+                    };
+                    sessionStorage.setItem('pendingVoucherBooking', JSON.stringify(pendingData));
+
+                    // Trigger Modal Open (give a moment for scripts to Init)
+                    setTimeout(() => {
+                        if (typeof showBookingForm === 'function') {
+                            showBookingForm(null, true); // true = isNew
+                        } else {
+                            console.error("showBookingForm not defined yet");
+                        }
+                    }, 500);
+                }
             }
         });
 
@@ -2869,6 +3225,7 @@
 
     <!-- Staff Management Integration -->
     <script src="reservas-staff.js"></script>
+
 
     <div id="toast-container"
         style="position: fixed; top: 20px; right: 20px; z-index: 99999; display: flex; flex-direction: column; align-items: flex-end;">

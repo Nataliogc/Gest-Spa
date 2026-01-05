@@ -12,6 +12,11 @@ const state = {
 // --- INIT ---
 const db = window.db || firebase.firestore();
 
+// --- DETECTOR DE CUOTA DE GOOGLE AGOTADA (Gestionado en app-core.js) ---
+
+
+
+
 document.addEventListener("DOMContentLoaded", () => {
     // Check if app-core loaded (optional, but good for logging)
     if (typeof setupNavigation === 'function') {
@@ -47,12 +52,36 @@ function setupBonoListeners() {
     const searchInput = document.getElementById("voucher-search");
     if (searchInput) {
         searchInput.addEventListener("input", (e) => {
-            // Si el usuario escribe, limpiamos la fecha para buscar en todo el histórico
-            if (e.target.value.length > 0) {
-                const dateInput = document.getElementById("voucher-date");
-                if (dateInput) dateInput.value = "";
+            const searchTerm = e.target.value.trim();
+            const clearBtn = document.getElementById("clear-search-btn");
+
+            // Mostrar/ocultar botón de limpiar
+            if (clearBtn) {
+                clearBtn.style.display = searchTerm.length > 0 ? "block" : "none";
             }
-            renderBonosFromState();
+
+            // BÚSQUEDA INTELIGENTE CON 3 NIVELES:
+            if (searchTerm.length > 0) {
+                // NIVEL 1: Código exacto de bono (LOC-YYYY-XXXX o BONOXXXX) → 1 lectura
+                const isVoucherCode = /^(LOC-\d{4}-\d+|BONO\d+)$/i.test(searchTerm.toUpperCase());
+
+                if (isVoucherCode) {
+                    searchVoucherByCode(searchTerm.toUpperCase());
+                    return;
+                }
+
+                // NIVEL 2: Búsqueda con mínimo 3 caracteres → searchIndex optimizado
+                if (searchTerm.length >= 3) {
+                    searchVouchersByText(searchTerm);
+                    return;
+                }
+
+                // NIVEL 3: Menos de 3 caracteres → búsqueda local (sin queries a Firestore)
+                renderBonosFromState();
+            } else {
+                // Sin término de búsqueda → mostrar todo según filtros actuales
+                renderBonosFromState();
+            }
         });
     }
 
@@ -180,8 +209,116 @@ function findCatalogProduct(voucher) {
     return candidates[0];
 }
 
-// --- CARGA DE DATOS ---
+/**
+ * Genera un array de tokens de búsqueda para búsquedas optimizadas en Firestore
+ * Usa array-contains que permite buscar por cualquier token
+ * @param {Object} voucher - El bono del que generar los tokens
+ * @returns {Array<string>} - Array de tokens normalizados
+ */
+function generateSearchTokens(voucher) {
+    if (!voucher) return [];
 
+    const tokens = new Set(); // Usar Set para evitar duplicados
+
+    // Normalizar función helper
+    const normalize = (str) => {
+        if (!str) return '';
+        return String(str)
+            .toLowerCase()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '') // Eliminar acentos
+            .trim();
+    };
+
+    // 1. CÓDIGO DE BONO (completo y fragmentos)
+    if (voucher.bono) {
+        const code = normalize(voucher.bono);
+        tokens.add(code); // Código completo: "loc-2025-8566"
+
+        // Fragmentos del código
+        const parts = code.split('-');
+        parts.forEach(part => {
+            if (part.length > 0) tokens.add(part); // "loc", "2025", "8566"
+        });
+
+        // Prefijo para búsquedas parciales
+        if (parts.length > 1) {
+            tokens.add(parts[0]); // "loc"
+            tokens.add(`${parts[0]}-${parts[1]}`); // "loc-2025"
+        }
+    }
+
+    // 2. CLIENTE (nombre completo y palabras individuales)
+    if (voucher.cliente) {
+        const client = normalize(voucher.cliente);
+        tokens.add(client); // Nombre completo normalizado
+
+        // Palabras individuales
+        client.split(' ').forEach(word => {
+            if (word.length >= 3) tokens.add(word); // Solo palabras de 3+ caracteres
+        });
+    }
+
+    // 3. EMAIL (completo y dominio)
+    if (voucher.email) {
+        const email = normalize(voucher.email);
+        tokens.add(email); // Email completo
+
+        // Dominio del email
+        const domain = email.split('@')[1];
+        if (domain) tokens.add(domain); // "gmail.com"
+    }
+
+    // 4. PRODUCTO (nombre completo y palabras clave)
+    if (voucher.producto) {
+        const product = normalize(voucher.producto);
+        tokens.add(product); // Producto completo
+
+        // Palabras individuales del producto
+        product.split(' ').forEach(word => {
+            if (word.length >= 3) tokens.add(word); // "masaje", "relax", etc.
+        });
+    }
+
+    // 5. TELÉFONO (completo)
+    if (voucher.telefono) {
+        const phone = String(voucher.telefono).replace(/\s+/g, '');
+        tokens.add(phone); // "612345678"
+    }
+
+    // Convertir Set a Array y filtrar vacíos
+    return Array.from(tokens).filter(t => t && t.length > 0);
+}
+
+
+// --- HELPER ITEMS MASTERS ---
+function getSpaceForService(serviceName) {
+    if (!serviceName) return '';
+    const nameLower = serviceName.toLowerCase().trim();
+
+    // 1. Check Master Items (Priority defined in Configuration)
+    if (state.masterItems && state.masterItems.length > 0) {
+        // Exact case-insensitive match
+        const exact = state.masterItems.find(i => i.name.toLowerCase().trim() === nameLower);
+        if (exact && exact.space) return exact.space;
+
+        // Normalized match (ignore spaces/symbols)
+        const normalize = (s) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
+        const targetNorm = normalize(nameLower);
+        const match = state.masterItems.find(i => normalize(i.name) === targetNorm);
+        if (match && match.space) return match.space;
+    }
+
+    // 2. Fallback to Catalog
+    const catalogItem = state.catalogProducts.find(p => p.nombre.toLowerCase().trim() === nameLower);
+    if (catalogItem && catalogItem.espacio) return catalogItem.espacio;
+
+    // 3. Fallback to implicit logic (legacy)
+    if (nameLower.includes('spa')) return 'spa';
+    if (nameLower.includes('hotel') || nameLower.includes('alojamiento')) return 'hotel';
+
+    return '';
+}
 
 // Helper para redirección
 function goToReservation(client, service, code) {
@@ -233,9 +370,10 @@ function goToReservation(client, service, code) {
 
         if (spaceLower.includes('panacea')) type = 'panacea';
         else if (spaceLower.includes('suite')) type = 'suite';
-        else if (spaceLower.includes('vip')) type = 'panacea'; // VIP usually shares logic or has own, assuming panacea/vip view
+        else if (spaceLower.includes('vip')) type = 'panacea';
         else if (spaceLower.includes('peluqueria') || spaceLower.includes('estetica')) type = 'peluqueria';
-        else type = 'spa'; // Fallback for 'circuit', etc.
+        else if (spaceLower.includes('hotel') || spaceLower.includes('restaurante') || spaceLower.includes('alojamiento')) type = 'hotel';
+        else type = 'spa';
 
         console.log(`Smart Redirect: Item '${service}' matched to space '${masterItem.space}' -> Module '${type}'`);
     } else {
@@ -258,7 +396,9 @@ function goToReservation(client, service, code) {
             // Fallback checks on category AND name
             const checkStr = (category + ' ' + lowerService).trim();
 
-            if (checkStr.includes('peluqueria') || checkStr.includes('estetica') || checkStr.includes('manicura') || checkStr.includes('pedicura') || checkStr.includes('depilacion')) {
+            if (checkStr.includes('restaurante') || checkStr.includes('menu') || checkStr.includes('menú') || checkStr.includes('comida') || checkStr.includes('cena') || checkStr.includes('desayuno') || checkStr.includes('almuerzo') || checkStr.includes('alojamiento') || checkStr.includes('hotel')) {
+                type = 'hotel';
+            } else if (checkStr.includes('peluqueria') || checkStr.includes('estetica') || checkStr.includes('manicura') || checkStr.includes('pedicura') || checkStr.includes('depilacion')) {
                 type = 'peluqueria';
             } else if (checkStr.includes('suite')) {
                 type = 'suite';
@@ -280,7 +420,13 @@ function goToReservation(client, service, code) {
     // LE PONGO UN ALERT TEMPORAL:
     alert(debugMsg);
 
-    const url = `reservas.html?type=${type}&action=new&client=${encodeURIComponent(client)}&service=${encodeURIComponent(service)}&voucher=${code}`;
+    let url = `reservas.html?type=${type}&action=new&client=${encodeURIComponent(client)}&service=${encodeURIComponent(service)}&voucher=${code}`;
+
+    // Si es hotel/restaurante, redirigir al proyecto independiente
+    if (type === 'hotel') {
+        url = `../gestion-Salones/restaurante.html?action=new&client=${encodeURIComponent(client)}&service=${encodeURIComponent(service)}&voucher=${code}`;
+    }
+
     window.location.href = url;
 }
 
@@ -293,6 +439,7 @@ async function loadMasterItems() {
         });
         console.log("Master Items cargados para redirección:", state.masterItems.length);
     } catch (err) {
+        if (window.checkFirestoreError && window.checkFirestoreError(err)) return;
         console.error("Error loading master items:", err);
     }
 }
@@ -334,34 +481,274 @@ async function cargarCatalogoSimple() {
         state.catalogProducts.sort((a, b) => a.nombre.localeCompare(b.nombre));
         console.log("Catálogo cargado para bonos:", state.catalogProducts.length, "productos");
     } catch (err) {
+        if (window.checkFirestoreError && window.checkFirestoreError(err)) return;
         console.error("Error cargando catálogo para bonos:", err);
     }
 }
+
+
+/**
+ * Búsqueda directa optimizada por código de bono
+ * Realiza una sola lectura de Firestore en lugar de cargar todos los bonos
+ * @param {string} code - Código del bono a buscar (ej: LOC-2025-123 o BONO456)
+ */
+async function searchVoucherByCode(code) {
+    const tableBody = document.getElementById("vouchers-table-body");
+    if (!tableBody || !code) return;
+
+    // Feedback visual
+    tableBody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding: 20px;" class="muted">
+        <i class="fas fa-search fa-spin"></i> Buscando bono ${code} (Local)...
+    </td></tr>`;
+
+    try {
+        // 1. CARGA LOCAL PRIMERO
+        if (window.apiLocal) {
+            const localBono = await apiLocal.getBonoByCode(code);
+            if (localBono) {
+                console.log(`[LOCAL-FIRST] Bono ${code} encontrado en IndexedDB`);
+                state.bonos = [localBono];
+                state.isActiveSearch = true;
+                renderBonosFromState();
+                updateCount();
+                showToast(`Bono ${code} cargado de memoria local`, 'success');
+                return;
+            }
+        }
+
+        // 2. SI NO ESTÁ EN LOCAL, BUSCAR EN FIRESTORE
+        console.log(`[LOCAL-FIRST] Bono ${code} no hallado en local, consultando Firestore...`);
+        const docRef = db.collection("spa_vouchers").doc(code);
+        const docSnap = await docRef.get();
+
+        if (docSnap.exists) {
+            const voucher = { ...docSnap.data(), bono: code };
+            state.bonos = [voucher];
+            state.isActiveSearch = true;
+            renderBonosFromState();
+            updateCount();
+
+            // Guardar en local para la próxima vez
+            if (window.apiLocal) {
+                await apiLocal.saveBono({ ...voucher, syncStatus: 'synced', lastSyncAt: new Date().toISOString() });
+            }
+
+            showToast(`Bono ${code} descargado de Google`, 'success');
+        } else {
+            // No encontrado en ningún sitio
+            tableBody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding: 40px;">
+                <div style="color: var(--text-muted);">
+                    <i class="fas fa-search" style="font-size: 2.5rem; opacity: 0.3; display: block; margin-bottom: 15px;"></i>
+                    <p style="margin: 0; font-weight: bold;">El bono <strong>${code}</strong> no existe.</p>
+                    <p style="font-size: 0.85rem; margin-top: 8px; opacity: 0.7;">Verifica el código (ej: LOC-2025-XXXX) o búscalo por nombre.</p>
+                </div>
+            </td></tr>`;
+
+            state.bonos = [];
+            updateCount();
+            showToast(`Bono ${code} no encontrado`, 'warning');
+        }
+    } catch (err) {
+        if (window.checkFirestoreError && window.checkFirestoreError(err)) return;
+        console.error("[BÚSQUEDA DIRECTA] Error:", err);
+        showToast('Error al buscar el bono', 'error');
+    }
+}
+
+
+
+/**
+ * Búsqueda general optimizada usando searchTokens con array-contains
+ * Busca en todos los campos indexados: código, cliente, email, producto, teléfono
+ * @param {string} searchTerm - Término de búsqueda
+ */
+async function searchVouchersByText(searchTerm) {
+    const tableBody = document.getElementById("vouchers-table-body");
+    if (!tableBody || !searchTerm) return;
+
+    const normalizedTerm = searchTerm.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+
+    tableBody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding: 20px;" class="muted">
+        <i class="fas fa-search fa-spin"></i> Buscando localmente...
+    </td></tr>`;
+
+    try {
+        // 1. BÚSQUEDA LOCAL (Dexie MultiEntry)
+        let localResults = [];
+        if (window.dbLocal) {
+            localResults = await dbLocal.bonos
+                .where('searchTokens')
+                .equals(normalizedTerm)
+                .limit(100)
+                .toArray();
+        }
+
+        if (localResults.length > 0) {
+            state.bonos = localResults;
+            state.isActiveSearch = true;
+            renderBonosFromState();
+            updateCount();
+            showToast(`🔍 ${localResults.length} resultados locales`, 'success');
+            return;
+        }
+
+        // 2. SI NO HAY LOCAL, BUSCAR EN FIRESTORE (Solo si hay conexión)
+        tableBody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding: 20px;" class="muted">
+            <i class="fas fa-search fa-spin"></i> Consultando en la nube...
+        </td></tr>`;
+
+        const snapshot = await db.collection("spa_vouchers")
+            .where("searchTokens", "array-contains", normalizedTerm)
+            .limit(50)
+            .get();
+
+        if (!snapshot.empty) {
+            const vouchers = [];
+            snapshot.forEach(doc => {
+                const v = { ...doc.data(), bono: doc.id };
+                vouchers.push(v);
+                // Guardar para futura búsqueda local rápida
+                if (window.apiLocal) apiLocal.saveBono({ ...v, syncStatus: 'synced' });
+            });
+
+            state.bonos = vouchers;
+            state.isActiveSearch = true;
+            renderBonosFromState();
+            updateCount();
+            showToast(`✅ ${vouchers.length} bonos descargados`, 'success');
+        } else {
+            tableBody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding: 40px;">
+                <div style="color: var(--text-muted);">
+                    <i class="fas fa-search" style="font-size: 2.5rem; opacity: 0.3; display: block; margin-bottom: 15px;"></i>
+                    <p style="margin: 0; font-weight: bold;">Sin resultados para "${searchTerm}"</p>
+                </div>
+            </td></tr>`;
+            state.bonos = [];
+            updateCount();
+        }
+    } catch (err) {
+        if (window.checkFirestoreError && window.checkFirestoreError(err)) return;
+        console.error("[BÚSQUEDA] Error:", err);
+    }
+}
+
 
 
 async function cargarBonos() {
     const tableBody = document.getElementById("vouchers-table-body");
     if (!tableBody) return;
 
-    // Feedback visual
+    // 1. CARGA LOCAL INMEDIATA (Prioridad 1)
+    if (window.apiLocal) {
+        try {
+            const localBonos = await apiLocal.getBonos();
+            if (localBonos.length > 0) {
+                console.log(`[LOCAL-FIRST] Cargados ${localBonos.length} bonos de IndexedDB`);
+                state.bonos = localBonos;
+                renderBonosFromState();
+                updateCount();
+            }
+        } catch (e) {
+            console.error("Error leyendo de IndexedDB:", e);
+        }
+    }
+
+    // Feedback visual para la sincronización
     const btn = document.getElementById("sync-vouchers-btn");
-    const originalText = btn ? btn.innerHTML : 'Sincronizar';
+    const originalText = btn ? (btn.dataset.originalText || btn.innerHTML) : 'Sincronizar';
     if (btn) {
+        if (!btn.dataset.originalText) btn.dataset.originalText = originalText;
         btn.innerHTML = '<i class="fas fa-sync fa-spin"></i> Sincronizando...';
         btn.disabled = true;
         btn.style.opacity = "0.7";
     }
 
+    if (window.updateGlobalSyncStatus) updateGlobalSyncStatus('pending');
+
+    // --- WATCHDOG (15s) ---
+    const watchdog = setTimeout(() => {
+        if (btn && btn.disabled) {
+            console.warn("⏱️ Timeout en sincronización. Permaneciendo en modo local.");
+            if (window.checkFirestoreError) {
+                db.collection("spa_config").doc("settings").get()
+                    .catch(err => window.checkFirestoreError(err));
+            }
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = btn.dataset.originalText || 'Sincronizar';
+                btn.style.opacity = "1";
+            }
+            if (window.updateGlobalSyncStatus) updateGlobalSyncStatus('offline');
+        }
+    }, 15000);
+
+
+
     if (state.bonos.length === 0) {
-        tableBody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding: 20px;" class="muted">Cargando bonos...</td></tr>`;
+        tableBody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding: 40px;" class="muted">
+            <i class="fas fa-spinner fa-spin" style="font-size: 2rem; margin-bottom: 10px; display: block; color: var(--accent);"></i>
+            Cargando base de datos de bonos...
+        </td></tr>`;
     }
+
 
     let persistentData = {};
 
     try {
-        // 1. Carga desde Firestore
-        const snapshot = await db.collection("spa_vouchers").get();
-        snapshot.forEach(doc => persistentData[doc.id] = doc.data());
+        // 1. Carga desde Firestore CON FILTRO DE FECHA (optimización de lecturas)
+        // Por defecto: SOLO HOY (reduce ~98% de lecturas)
+        const filterMonthsSelect = document.getElementById('bonos-filter-months');
+        const monthsBack = filterMonthsSelect ? parseFloat(filterMonthsSelect.value) || 0 : 0;
+
+        let cutoffStr;
+        if (monthsBack === 0) {
+            // Solo hoy: usar fecha LOCAL (no UTC) para evitar problemas de timezone
+            const today = new Date();
+            const year = today.getFullYear();
+            const month = String(today.getMonth() + 1).padStart(2, '0');
+            const day = String(today.getDate()).padStart(2, '0');
+            cutoffStr = `${year}-${month}-${day}`;
+            console.log(`[OPTIMIZACIÓN] Cargando bonos de HOY (local): ${cutoffStr}`);
+        } else {
+            // Filtro por período (semanas o meses)
+            const cutoffDate = new Date();
+
+            // Si es 0.25 (semana), calcular 7 días atrás
+            if (monthsBack < 1) {
+                const daysBack = Math.round(monthsBack * 30); // 0.25 * 30 ≈ 7 días
+                cutoffDate.setDate(cutoffDate.getDate() - daysBack);
+                console.log(`[OPTIMIZACIÓN] Cargando bonos desde: últimos ${daysBack} días`);
+            } else {
+                cutoffDate.setMonth(cutoffDate.getMonth() - monthsBack);
+                console.log(`[OPTIMIZACIÓN] Cargando bonos desde: últimos ${monthsBack} meses`);
+            }
+
+            cutoffStr = cutoffDate.toISOString().split('T')[0];
+        }
+
+        // Carga con filtro de fecha (máximo 1 año)
+        // IMPORTANTE: El campo es "fecha" NO "fecha_compra"
+        const query = db.collection("spa_vouchers")
+            .where("fecha", ">=", cutoffStr)
+            .orderBy("fecha", "desc");
+
+        const snapshot = await query.get();
+        console.log(`[FIRESTORE] Leídos ${snapshot.size} documentos`);
+
+        // GUARDAR EN LOCAL Y ACTUALIZAR ESTADO
+        for (const doc of snapshot.docs) {
+            const data = doc.data();
+            persistentData[doc.id] = data;
+            if (window.apiLocal) {
+                await apiLocal.saveBono({
+                    ...data,
+                    bono: doc.id,
+                    syncStatus: 'synced',
+                    lastSyncAt: new Date().toISOString()
+                });
+            }
+        }
+
 
         state.bonos = Object.values(persistentData).map(p => ({
             ...p,
@@ -375,15 +762,39 @@ async function cargarBonos() {
         // 2. Sincronización WooCommerce (solo si hay conexión)
         // Check if getBonoEndpoint exists
         if (typeof getBonoEndpoint === 'function') {
-            sincronizarConTienda(persistentData, btn, originalText);
-        } else {
-            restoreButton(btn, originalText);
+            await sincronizarConTienda(persistentData, btn, originalText);
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = btn.dataset.originalText || originalText;
+                btn.style.opacity = "1";
+            }
         }
+        if (window.updateGlobalSyncStatus) updateGlobalSyncStatus('synced');
+        clearTimeout(watchdog);
+
+
 
     } catch (err) {
+        clearTimeout(watchdog);
+        if (window.checkFirestoreError && window.checkFirestoreError(err)) {
+            if (window.updateGlobalSyncStatus) updateGlobalSyncStatus('offline');
+            // No borramos la tabla, dejamos los datos locales que ya se cargaron al principio
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = btn.dataset.originalText || originalText;
+                btn.style.opacity = "1";
+            }
+            return;
+        }
+
         console.error("Error cargando bonos:", err);
+
         tableBody.innerHTML = `<tr><td colspan="7" class="error" style="text-align:center;">Error: ${err.message}</td></tr>`;
-        restoreButton(btn, originalText);
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = btn.dataset.originalText || originalText;
+            btn.style.opacity = "1";
+        }
     }
 }
 
@@ -508,7 +919,8 @@ async function sincronizarConTienda(persistentData, btn, originalText) {
                     const updateData = cleanUndefined({
                         product_id: topPId,
                         variation_id: topVId,
-                        items_desglosados: b.items_desglosados || []
+                        items_desglosados: b.items_desglosados || [],
+                        searchTokens: generateSearchTokens(b) // Agregar searchTokens para búsqueda
                     });
                     batch.update(db.collection("spa_vouchers").doc(b.bono), updateData);
                     ops++;
@@ -539,6 +951,23 @@ async function sincronizarConTienda(persistentData, btn, originalText) {
 
                 b.sesiones_totales = calculatedTotal;
 
+                // CRÍTICO: También calcular y guardar pax_por_sesion
+                // Usar el PAX del primer ítem o detectarlo del producto principal
+                let calculatedPax = 1;
+                if (b.items_desglosados && b.items_desglosados.length > 0) {
+                    // Usar el PAX del primer ítem (normalmente todos los ítems de un bono tienen el mismo PAX)
+                    calculatedPax = b.items_desglosados[0].pax || 1;
+                } else {
+                    // Si no hay ítems desglosados, detectar del producto principal
+                    const mainDet = detectSessions({
+                        producto: b.producto,
+                        product_id: b.product_id,
+                        variation_id: b.variation_id
+                    });
+                    calculatedPax = mainDet.paxPerSession || 1;
+                }
+                b.pax_por_sesion = calculatedPax;
+
                 // Asegurar persistencia de IDs a nivel de raíz para el bono (usa el del primer item si es nuevo)
                 const firstItem = b.items_desglosados?.[0] || {};
                 const topLevelDataRaw = {
@@ -546,7 +975,9 @@ async function sincronizarConTienda(persistentData, btn, originalText) {
                     product_id: b.product_id || firstItem.product_id,
                     variation_id: b.variation_id || firstItem.variation_id,
                     estado: finalState,
-                    synced_at: new Date().toISOString()
+                    synced_at: new Date().toISOString(),
+                    // NUEVO: Agregar searchTokens (array) para búsquedas optimizadas
+                    searchTokens: generateSearchTokens(b)
                 };
 
                 // Limpiar undefined para set
@@ -580,6 +1011,7 @@ async function sincronizarConTienda(persistentData, btn, originalText) {
         }
 
     } catch (err) {
+        if (window.checkFirestoreError && window.checkFirestoreError(err)) return;
         console.warn("Sync error:", err);
         showToast("Error en sincronización: " + err.message, "error");
     } finally {
@@ -660,41 +1092,94 @@ function detectSessions(voucher) {
 
     // 2. Detección por texto (Regex más flexible)
     if (lower) {
-        // Detectar packs con "+" (Ej: Pack Spa + Masaje -> 2 sesiones)
-        const isPackStr = lower.includes("pack") || lower.includes("pk");
-        if (isPackStr && lower.includes("+")) {
-            // Dividir por "+" pero ignorar los que están dentro de paréntesis (ej: "(5+1)")
-            const segments = lower.split("+").filter(s => s.trim().length > 2);
-            if (segments.length > 1) {
-                detectedTotal = segments.length;
-                textDetected = true;
-            }
-        }
-
+        // PRIORIDAD 1: Detectar patrones explícitos como (5+1), 5+1, etc.
         const matchPlus = lower.match(/\((\d+)\s*\+\s*(\d+)\)/); // (5+1)
         const matchPlainPlus = lower.match(/(\s+|^)(\d+)\s*\+\s*(\d+)(\s+|$)/); // 5+1 (sin paréntesis)
-        const matchBono = lower.match(/bono\s*(\d+)/i);
-        const matchSes = lower.match(/(\d+)\s*sesiones/i);
-        const matchX = lower.match(/(\d+)\s*x\s+/i);
 
         if (matchPlus) {
             detectedTotal = parseInt(matchPlus[1]) + parseInt(matchPlus[2]);
             textDetected = true;
-        } else if (!textDetected && matchPlainPlus) {
+        } else if (matchPlainPlus) {
             detectedTotal = parseInt(matchPlainPlus[2]) + parseInt(matchPlainPlus[3]);
             textDetected = true;
-        } else if (matchBono) {
-            detectedTotal = parseInt(matchBono[1]);
-            textDetected = true;
-        } else if (matchSes) {
-            detectedTotal = parseInt(matchSes[1]);
-            textDetected = true;
-        } else if (matchX) {
-            detectedTotal = parseInt(matchX[1]);
-            textDetected = true;
-        } else if (!textDetected) {
-            if (lower.includes("b5")) { detectedTotal = 5; textDetected = true; }
-            else if (lower.includes("b10")) { detectedTotal = 10; textDetected = true; }
+        }
+
+        // PRIORIDAD 2: Detectar "Bono X" donde X es un número
+        if (!textDetected) {
+            const matchBono = lower.match(/bono\s*(\d+)/i);
+            if (matchBono) {
+                detectedTotal = parseInt(matchBono[1]);
+                textDetected = true;
+            }
+        }
+
+        // PRIORIDAD 3: Detectar "Bono Masaje" genérico (típicamente 5 sesiones)
+        // Solo aplicar si no hay un número explícito y contiene "bono masaje" o similar
+        if (!textDetected && lower.includes("bono") && (lower.includes("masaje") || lower.includes("masa"))) {
+            // Si el producto contiene "+ Bono Masaje", interpretar como 1 servicio + 5 del bono = 6 total
+            if (lower.includes("+")) {
+                detectedTotal = 6; // Estándar: 1 servicio inmediato + bono de 5
+                textDetected = true;
+            } else {
+                detectedTotal = 5; // Solo bono sin servicio inmediato
+                textDetected = true;
+            }
+        }
+
+        // PRIORIDAD 4: Otros patrones
+        if (!textDetected) {
+            const matchSes = lower.match(/(\d+)\s*sesiones/i);
+            const matchX = lower.match(/(\d+)\s*x\s+/i);
+
+            if (matchSes) {
+                detectedTotal = parseInt(matchSes[1]);
+                textDetected = true;
+            } else if (matchX) {
+                detectedTotal = parseInt(matchX[1]);
+                textDetected = true;
+            } else if (lower.includes("b5")) {
+                detectedTotal = 5;
+                textDetected = true;
+            } else if (lower.includes("b10")) {
+                detectedTotal = 10;
+                textDetected = true;
+            }
+        }
+
+        // ÚLTIMO RECURSO: Detectar packs con "+" genéricos (solo si no se detectó nada antes)
+        if (!textDetected) {
+            const isPackStr = lower.includes("pack") || lower.includes("pk");
+            if (isPackStr && lower.includes("+")) {
+                // Dividir por "+" pero ignorar los que están dentro de paréntesis
+                const segments = lower.split("+").filter(s => s.trim().length > 2);
+                if (segments.length > 1) {
+                    detectedTotal = segments.length;
+                    textDetected = true;
+                }
+            }
+        }
+
+        // NUEVA LÓGICA: Detectar "Experiencia" o packs combinados tipo "Circuito + Masaje"
+        if (!textDetected && (lower.includes("experiencia") || lower.includes("experience"))) {
+            // Buscar cuántos servicios distintos menciona
+            const hasCircuito = lower.includes("circuito") || lower.includes("spa");
+            const hasMasaje = lower.includes("masaje") || lower.includes("massage");
+            const hasEnvoltura = lower.includes("envoltura") || lower.includes("envol");
+            const hasPeeling = lower.includes("peeling");
+
+            // Contar servicios mencionados
+            let servicesCount = 0;
+            if (hasCircuito) servicesCount++;
+            if (hasMasaje) servicesCount++;
+            if (hasEnvoltura) servicesCount++;
+            if (hasPeeling) servicesCount++;
+
+            // Si hay múltiples servicios en una experiencia, asumimos 1 sesión del pack completo
+            // NO multiplicar por el número de servicios incluidos
+            if (servicesCount > 1) {
+                detectedTotal = 1; // 1 sesión del pack completo
+                textDetected = true;
+            }
         }
     }
 
@@ -722,9 +1207,19 @@ function detectSessions(voucher) {
             const ratio = Math.round(voucherPrice / catalogPrice);
 
             if (ratio > 1 && Math.abs((catalogPrice * ratio) - voucherPrice) < 2 && quantity === 0) {
+                // NUEVO: Detectar si es un pack especial de "Experiencia" o combinado
+                const isExperiencePack = lower.includes("experiencia") ||
+                    lower.includes("experience") ||
+                    (lower.includes("pack") && lower.includes("+"));
+
                 const isBono = lower.includes("bono") || lower.includes("sesion") || lower.includes("pack");
 
-                if (isBono || ratio > 3) {
+                // Si es pack de experiencia, el ratio probablemente sea por PAX, no por sesiones
+                if (isExperiencePack && (ratio === 2 || ratio === 4)) {
+                    // No aplicar ratio a sesiones, es un pack especial
+                    // El precio alto es por ser un pack premium, no más sesiones
+                    console.log(`[DETECT] Pack especial detectado: ${lower}, ratio ${ratio} ignorado para sesiones`);
+                } else if (isBono || ratio > 3) {
                     total = (catalogMatch.sesiones || 1) * ratio;
                 } else {
                     if (lower.includes("pareja") || lower.includes("duo")) {
@@ -750,12 +1245,36 @@ function detectSessions(voucher) {
         total = quantity * baseSessions;
     }
 
-    // Detección de PAX por palabras clave
-    const isDouble = lower.includes("pareja") || lower.includes("2 personas") || lower.includes("doble") || lower.includes("duo") || lower.includes("2 pax");
-    const isIndividual = lower.includes("individual") || lower.includes("1 pax") || lower.includes("1 persona");
+    // Detección mejorada de PAX por palabras clave
+    const isDouble = lower.includes("pareja") ||
+        lower.includes("en pareja") ||
+        lower.includes("2 personas") ||
+        lower.includes("para 2") ||
+        lower.includes("doble") ||
+        lower.includes("duo") ||
+        lower.includes("dúo") ||
+        lower.includes("2 pax") ||
+        lower.includes("2pax") ||
+        lower.includes("couple");
+
+    const isIndividual = lower.includes("individual") ||
+        lower.includes("1 pax") ||
+        lower.includes("1 persona");
 
     if (isDouble && !isIndividual) {
         pax = 2;
+
+        // IMPORTANTE: Si es un pack de pareja, NO aplicar el ratio a las sesiones
+        // El precio alto es porque es para 2 personas, no porque sean más sesiones
+        if (catalogMatch && catalogMatch.precio > 0 && voucherPrice > 0) {
+            const catalogPrice = parseFloat(catalogMatch.precio);
+            const ratio = Math.round(voucherPrice / catalogPrice);
+
+            // Si el ratio es ~2 y ya detectamos que es pareja, ajustar
+            if (ratio === 2 && total > 1) {
+                total = Math.ceil(total / 2); // Dividir las sesiones porque el ratio era por PAX, no por sesiones
+            }
+        }
     } else if (isIndividual) {
         pax = 1;
     } else if (catalogMatch && catalogMatch.pax) {
@@ -827,6 +1346,11 @@ function renderBonosFromState() {
             (b.cliente || '').toLowerCase().includes(searchTerm) ||
             (b.telefono || '').toLowerCase().includes(searchTerm);
 
+        // NUEVO: Si hay búsqueda activa por searchTokens, NO aplicar filtros
+        if (state.isActiveSearch) {
+            return true; // Mostrar TODOS los resultados de la búsqueda
+        }
+
         // Fecha
         let dateMatch = true;
         if (filterDate && b.fecha) {
@@ -883,9 +1407,31 @@ function renderBonosFromState() {
         const dbTotal = b.sesiones_totales || b.sesiones_total || 1;
         const dbPax = b.pax_por_sesion || b.pax_sesion || 1;
 
-        if (b.estado === 'completed') { badgeClass = 'st-completed'; statusLabel = 'CANJEADO'; }
+        // Determine effective status
+        const realUsed = b.sesiones_usadas || 0;
+        const realTotal = dbTotal;
+
+        let effectivelyCompleted = realUsed >= realTotal && realTotal > 0;
+        if (b.items_desglosados && b.items_desglosados.length > 0) {
+            effectivelyCompleted = b.items_desglosados.every(i => (i.used || 0) >= (i.sessions || 1));
+        }
+
+        if (b.estado === 'completed') {
+            badgeClass = 'st-completed';
+            statusLabel = 'CANJEADO';
+        }
+        else if (effectivelyCompleted) {
+            badgeClass = 'st-completed';
+            statusLabel = 'CANJEADO';
+        }
         else if (b.estado === 'expired') { badgeClass = 'st-expired'; statusLabel = 'CADUCADO'; }
-        else if (b.estado === 'partially') { badgeClass = 'st-partial'; statusLabel = `PARCIAL ${b.sesiones_usadas || 0}/${dbTotal}`; }
+        else if (b.estado === 'partially' || realUsed > 0) {
+            badgeClass = 'st-partial';
+            statusLabel = `PARCIAL ${realUsed}/${dbTotal}`;
+        }
+
+
+        // Confiamos en el estado explícito 'completed' - si fue marcado como completo, se muestra como completo
 
         // Si detectamos más sesiones o pax de los que dice la base de datos
         if (b.estado !== 'completed' && ((dbTotal === 1 && det.total > 1) || (dbPax === 1 && det.paxPerSession > 1))) {
@@ -940,7 +1486,25 @@ function resetFilters() {
     renderBonosFromState();
 }
 
-function openVoucherManagement(code) {
+/**
+ * Limpia el campo de búsqueda y recarga los bonos según el filtro de fecha actual
+ */
+function clearSearch() {
+    const searchInput = document.getElementById("voucher-search");
+    const clearBtn = document.getElementById("clear-search-btn");
+
+    if (searchInput) searchInput.value = "";
+    if (clearBtn) clearBtn.style.display = "none";
+
+    // Resetear flag de búsqueda activa
+    state.isActiveSearch = false;
+
+    // Recargar bonos según el filtro de fecha seleccionado
+    cargarBonos();
+}
+
+
+async function openVoucherManagement(code) {
     const v = state.bonos.find(b => b.bono === code);
     if (!v) return;
 
@@ -951,11 +1515,16 @@ function openVoucherManagement(code) {
     document.getElementById("vm-cliente").value = v.cliente || '';
     document.getElementById("vm-email").value = v.email || '';
     document.getElementById("vm-producto").value = v.producto || '';
-    document.getElementById("vm-producto").value = v.producto || '';
     document.getElementById("vm-fecha-compra").value = v.fecha || '';
+    // document.getElementById("vm-importe").value = v.importe || 0; 
+
+    const priceBadge = document.getElementById("vm-cat-price");
+    if (priceBadge) {
+        priceBadge.textContent = (v.importe || 0) + '€';
+    }
 
     // Renderizar historial de uso (async)
-    renderVoucherHistory(code);
+    // renderVoucherHistory(code); // Moved to end with await
 
     // --- Vincular con Catálogo y Detectar Servicios ---
     const catalogInfo = document.getElementById("vm-catalog-info");
@@ -1006,13 +1575,16 @@ function openVoucherManagement(code) {
                         p.nombre.toLowerCase().includes(itemName.toLowerCase().trim())
                     );
 
+                    // Detect SPACE properly using Master Items
+                    const detectedSpace = getSpaceForService(itemName) || itemCatalog?.espacio || primaryMatch.espacio || '';
+
                     services.push({
                         itemId: 'srv_' + Math.random().toString(36).substr(2, 9), // ID único
                         name: itemName.trim(),
                         imagen: itemCatalog?.imagen || primaryMatch.imagen,
                         descripcion: itemCatalog?.descripcion || `Parte del pack: ${primaryMatch.nombre}`,
                         sessions: sessionsPerItem,
-                        space: itemCatalog?.espacio || primaryMatch.espacio || '',
+                        space: detectedSpace,
                         used: 0,
                         validations: [],
                         precio: 0,
@@ -1029,12 +1601,15 @@ function openVoucherManagement(code) {
                     const sessionsPerItem = Math.max(1, Math.round(sessionsCount / itemsCount));
 
                     parts.forEach(part => {
+                        const partName = part.trim();
+                        const detectedSpace = getSpaceForService(partName) || primaryMatch.espacio || '';
+
                         services.push({
-                            name: part.trim(),
+                            name: partName,
                             imagen: primaryMatch.imagen,
                             descripcion: primaryMatch.descripcion,
                             sessions: sessionsPerItem,
-                            space: primaryMatch.espacio || '',
+                            space: detectedSpace,
                             used: 0,
                             validations: [],
                             precio: 0,
@@ -1043,12 +1618,14 @@ function openVoucherManagement(code) {
                     });
                 } else {
                     // CASO NORMAL
+                    const detectedSpace = getSpaceForService(primaryMatch.nombre) || primaryMatch.espacio || '';
+
                     services.push({
                         name: primaryMatch.nombre,
                         imagen: primaryMatch.imagen,
                         descripcion: primaryMatch.descripcion || primaryMatch.incluye || '',
                         sessions: sessionsCount,
-                        space: primaryMatch.espacio || '',
+                        space: detectedSpace,
                         used: 0,
                         validations: [],
                         precio: primaryMatch.precio || 0,
@@ -1081,9 +1658,17 @@ function openVoucherManagement(code) {
         const fallbackSpace = parentProduct?.espacio || '';
         console.log('[DEBUG] Producto principal:', v.producto, '-> fallback space:', fallbackSpace);
 
-        // Enriquecer con datos del catálogo (especialmente 'space' si falta)
+        // Enriquecer con datos del catálogo (especialmente 'space' si falta o es incorrecto)
         baseServices = v.items_desglosados.map(item => {
-            // Buscar en catálogo para obtener espacio si no existe
+            // FORCE RE-CHECK of space using Master Items / Helper
+            // This fixes cases where 'spa' was saved incorrectly for 'Hotel' items
+            const detectedSpace = getSpaceForService(item.name);
+            if (detectedSpace && detectedSpace !== item.space) {
+                console.log(`[FIX] Actualizando espacio para '${item.name}': ${item.space} -> ${detectedSpace}`);
+                item.space = detectedSpace;
+            }
+
+            // Buscar en catálogo para obtener espacio si aún no tiene
             if (!item.space) {
                 const itemName = (item.name || '').toLowerCase();
                 // Normalizar nombre: quitar duraciones como "- 60'", "- 90'", etc.
@@ -1100,38 +1685,56 @@ function openVoucherManagement(code) {
                     console.log('[DEBUG] 🎁 Regla forzada: Complemento detectado');
                 }
                 else {
-                    const catalogItem = state.catalogProducts.find(p => {
-                        const catalogName = p.nombre.toLowerCase();
-                        const catalogNormalized = catalogName.replace(/\s*-\s*\d+['"]?\s*(min|minutos)?/gi, '').trim();
+                    // Try Master Items/Helper with normalized name (stripped duration)
+                    const detected = getSpaceForService(normalizedName);
 
-                        // Intentar coincidencia exacta primero
-                        if (catalogName === itemName || catalogNormalized === normalizedName) return true;
-
-                        // Luego coincidencia parcial (contiene)
-                        if (catalogName.includes(normalizedName) || normalizedName.includes(catalogNormalized)) return true;
-
-                        // Finalmente, coincidencia por palabras clave
-                        const itemWords = normalizedName.split(/\s+/);
-                        const catalogWords = catalogNormalized.split(/\s+/);
-                        const commonWords = itemWords.filter(w => w.length > 3 && catalogWords.includes(w));
-                        return commonWords.length >= 2; // Al menos 2 palabras en común
-                    });
-
-                    if (catalogItem) {
-                        item.space = catalogItem.espacio || '';
-                        console.log('[DEBUG] ✓ Enriquecido:', item.name, '-> space:', item.space, 'desde:', catalogItem.nombre);
+                    if (detected) {
+                        item.space = detected;
+                        console.log('[DEBUG] Space detected via Master/Helper:', detected);
                     } else {
-                        // Fallback: usar espacio del producto principal
-                        item.space = fallbackSpace;
-                        if (fallbackSpace) {
-                            console.log('[DEBUG] ⚠ No en catálogo, usando espacio del pack:', item.name, '-> space:', item.space);
+                        const catalogItem = state.catalogProducts.find(p => {
+                            const catalogName = p.nombre.toLowerCase();
+                            const catalogNormalized = catalogName.replace(/\s*-\s*\d+['"]?\s*(min|minutos)?/gi, '').trim();
+
+                            // Intentar coincidencia exacta primero
+                            if (catalogName === itemName || catalogNormalized === normalizedName) return true;
+
+                            // Luego coincidencia parcial (contiene)
+                            if (catalogName.includes(normalizedName) || normalizedName.includes(catalogNormalized)) return true;
+
+                            // Finalmente, coincidencia por palabras clave
+                            const itemWords = normalizedName.split(/\s+/);
+                            const catalogWords = catalogNormalized.split(/\s+/);
+                            const commonWords = itemWords.filter(w => w.length > 3 && catalogWords.includes(w));
+                            return commonWords.length >= 2; // Al menos 2 palabras en común
+                        });
+
+                        if (catalogItem) {
+                            item.space = catalogItem.espacio || '';
+                            console.log('[DEBUG] ✓ Enriquecido:', item.name, '-> space:', item.space, 'desde:', catalogItem.nombre);
                         } else {
-                            console.warn('[DEBUG] ✗ No encontrado y sin fallback:', item.name);
+                            // Fallback: usar espacio del producto principal
+                            item.space = fallbackSpace;
+                            if (fallbackSpace) {
+                                console.log('[DEBUG] ⚠ No en catálogo, usando espacio del pack:', item.name, '-> space:', item.space);
+                            } else {
+                                console.warn('[DEBUG] ✗ No encontrado y sin fallback:', item.name);
+                            }
                         }
                     }
                 }
             } else {
                 console.log('[DEBUG] Item ya tiene space:', item.name, '->', item.space);
+            }
+
+            // CRÍTICO: Re-detectar sesiones si el item tiene un número incorrecto
+            // Esto corrige items como "Bono Masaje (5+1)" que vienen con sessions:1 de la DB
+            if (!item.sessions || item.sessions === 1) {
+                const sessionsResult = detectSessions({ producto: item.name });
+                if (sessionsResult.total > 1) {
+                    console.log(`[DEBUG] 🔄 Redetectando sesiones para "${item.name}": ${item.sessions || 1} -> ${sessionsResult.total}`);
+                    item.sessions = sessionsResult.total;
+                }
             }
 
             // Generar ID único si no tiene (retrocompatibilidad)
@@ -1238,40 +1841,34 @@ function openVoucherManagement(code) {
 
 
     // -- LISTA DE SERVICIOS CON RESERVA (EDITABLE) --
-    const productInput = document.getElementById("vm-producto");
-    const listDivId = 'vm-merged-list';
-    const container = productInput.parentNode;
+    // Ahora usamos el contenedor fijo en la columna derecha
+    const listDivId = 'vm-items-container';
     let listDiv = document.getElementById(listDivId);
 
     // Guardar en estado global para edición
     state.editingVoucherItems = [...detectedServices];
 
     console.log('[DEBUG] state.editingVoucherItems asignado. Total items:', state.editingVoucherItems.length);
-    state.editingVoucherItems.forEach((item, idx) => {
-        console.log(`[DEBUG] Item ${idx}: name="${item.name}", space="${item.space || 'VACIO'}"`);
-    });
-
 
     function renderEditableBreakdown() {
         if (!listDiv) {
-            listDiv = document.createElement('div');
-            listDiv.id = listDivId;
-            listDiv.style = "font-size:0.8rem; color:#334155; margin-top:6px; border:1px solid #cbd5e1; padding:8px; border-radius:6px; max-height:250px; overflow-y:auto; background:#f1f5f9;";
-            container.appendChild(listDiv);
+            // Fallback por si el modal nuevo no está cargado aún (no debería pasar)
+            listDiv = document.getElementById(listDivId);
+            if (!listDiv) return;
+        }
 
-            // Inyectar datalist para el catálogo una sola vez
-            if (!document.getElementById('catalog-datalist')) {
-                const dl = document.createElement('datalist');
-                dl.id = 'catalog-datalist';
-                dl.innerHTML = state.catalogProducts.map(p => `<option value="${p.nombre}">`).join('');
-                document.body.appendChild(dl);
-            }
+        // Inyectar datalist para el catálogo una sola vez (globalmente o checkear si existe)
+        if (!document.getElementById('catalog-datalist')) {
+            const dl = document.createElement('datalist');
+            dl.id = 'catalog-datalist';
+            dl.innerHTML = state.catalogProducts.map(p => `<option value="${p.nombre}">`).join('');
+            document.body.appendChild(dl);
         }
 
         if (state.editingVoucherItems.length > 0) {
             listDiv.innerHTML = `
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-                <div style="font-weight:600; color:#475569; font-size:0.75rem;">ÍTEMS DE COMPRA / PACK</div>
+                <div style="font-weight:700; color:#334155; font-size:0.75rem; text-transform:uppercase;">Items de Compra</div>
             </div>`;
 
             listDiv.innerHTML += state.editingVoucherItems.map((item, idx) => {
@@ -1283,20 +1880,34 @@ function openVoucherManagement(code) {
                 // Detectar si es Hotel (para mostrar solo Gestionar)
                 const isAccommodation = spaceName.toLowerCase() === 'hotel' || item.name.toLowerCase().includes('alojamiento');
 
+                // Detectar si es Complemento (botella de cava, vino, etc.)
+                const itemNameLower = item.name.toLowerCase();
+                const isComplement = spaceName.toLowerCase() === 'complemento' ||
+                    itemNameLower.match(/(botella|cava|vino|ramo|flores|fruta|bombones|detalle)/i);
+
                 let buttonsHtml = '';
 
                 if (isComplete) {
                     buttonsHtml = `
                         <button class="btn btn-sm" disabled
-                            style="padding:4px 10px; font-size:0.75rem; background:#cbd5e1; color:#64748b; cursor:not-allowed; border:none; white-space:nowrap; border-radius:4px;">
+                            style="padding:2px 8px; font-size:0.7rem; background:#cbd5e1; color:#64748b; cursor:not-allowed; border:none; white-space:nowrap; border-radius:4px;">
                             <i class="fas fa-check-circle"></i> Completo
                         </button>
                      `;
+                } else if (isComplement) {
+                    // COMPLEMENTOS: Solo botón de "Completar" simple (sin reserva)
+                    buttonsHtml = `
+                        <button class="btn btn-sm" 
+                            onclick="validateServiceItem(${idx}, true)" 
+                            style="padding:2px 8px; font-size:0.7rem; background:#10b981; color:#fff; border:none; white-space:nowrap; border-radius:4px;">
+                            <i class="fas fa-check"></i> Completar
+                        </button>
+                    `;
                 } else if (isAccommodation) {
                     buttonsHtml = `
                         <button class="btn btn-sm" 
                             onclick="validateServiceItem(${idx})" 
-                            style="padding:4px 10px; font-size:0.75rem; background:#2563eb; color:#fff; border:none; white-space:nowrap; border-radius:4px;">
+                            style="padding:2px 8px; font-size:0.7rem; background:#2563eb; color:#fff; border:none; white-space:nowrap; border-radius:4px;">
                             <i class="fas fa-concierge-bell"></i> Gestionar
                         </button>
                     `;
@@ -1305,8 +1916,8 @@ function openVoucherManagement(code) {
                     // Botón RESERVAR (Principal)
                     buttonsHtml += `
                         <button class="btn btn-sm" 
-                            onclick="goToReservation('${encodeURIComponent(v.cliente || '')}', '${encodeURIComponent(item.name || '')}', '${encodeURIComponent(v.bono || v.codigo || '')}', '${encodeURIComponent(item.space || '')}')" 
-                            style="padding:4px 10px; font-size:0.75rem; background:#0ea5e9; color:#fff; border:none; white-space:nowrap; border-radius:4px; margin-right:4px;">
+                            onclick="goToReservation('${encodeURIComponent(v.cliente || '').replace(/'/g, "%27")}', '${encodeURIComponent(item.name || '').replace(/'/g, "%27")}', '${encodeURIComponent(v.bono || v.codigo || '').replace(/'/g, "%27")}', '${encodeURIComponent(item.space || '').replace(/'/g, "%27")}')" 
+                            style="padding:2px 8px; font-size:0.7rem; background:#0ea5e9; color:#fff; border:none; white-space:nowrap; border-radius:4px; margin-right:4px;">
                             <i class="fas fa-calendar-alt"></i> Reservar
                         </button>
                     `;
@@ -1315,7 +1926,7 @@ function openVoucherManagement(code) {
                     buttonsHtml += `
                         <button class="btn btn-sm" 
                             onclick="validateServiceItem(${idx}, true)" 
-                            style="padding:4px 8px; font-size:0.75rem; background:#fff; color:#64748b; border:1px solid #cbd5e1; white-space:nowrap; border-radius:4px;"
+                            style="padding:2px 6px; font-size:0.7rem; background:#fff; color:#64748b; border:1px solid #cbd5e1; white-space:nowrap; border-radius:4px;"
                             title="Consumir sesión manualmente sin reserva">
                             <i class="fas fa-check"></i>
                         </button>
@@ -1323,26 +1934,23 @@ function openVoucherManagement(code) {
                 }
 
                 return `
-                <div style="display:flex; justify-content:space-between; align-items:center; background:${isComplete ? '#f0fdf4' : '#fff'}; padding:8px; margin-bottom:4px; border-radius:4px; border:1px solid ${isComplete ? '#86efac' : '#e2e8f0'}; gap:8px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; background:${isComplete ? '#f0fdf4' : '#fff'}; padding:8px; margin-bottom:4px; border-radius:6px; border:1px solid ${isComplete ? '#86efac' : '#e2e8f0'}; gap:8px;">
                     <div style="display: flex; flex-direction: column; flex: 1; overflow:hidden; gap:2px;">
                         <div style="font-size:0.8rem; font-weight:600; color:#334155;">${item.name}</div>
-                        <div style="font-size:0.7rem; color:#64748b;">
-                            <i class="fas fa-map-marker-alt" style="margin-right:4px;"></i>${spaceName}
+                        <div style="font-size:0.65rem; color:#64748b;">
+                            <i class="fas fa-map-marker-alt" style="margin-right:2px;"></i>${spaceName}
+                            <span style="margin-left:8px; font-weight:600; color:${isComplete ? '#16a34a' : '#334155'};">
+                                ${used}/${total} sesiones
+                            </span>
                         </div>
                     </div>
-                    <div style="display:flex; align-items:center; gap:6px;">
-                        <div style="text-align:center;">
-                            <div style="font-size:0.65rem; color:#64748b; text-transform:uppercase;">Sesiones</div>
-                            <div style="font-size:0.8rem; font-weight:700; color:${isComplete ? '#16a34a' : '#334155'};">${used}/${total}</div>
-                        </div>
-                        <div style="display:flex;">
-                            ${buttonsHtml}
-                        </div>
+                    <div style="display:flex; align-items:center; gap:4px;">
+                         ${buttonsHtml}
                     </div>
                 </div>
             `;
             }).join('');
-            listDiv.style.display = 'block';
+            listDiv.style.display = 'flex';
         } else {
             listDiv.innerHTML = `
                 <div style="text-align:center; padding:10px;">
@@ -1354,7 +1962,7 @@ function openVoucherManagement(code) {
         }
     }
 
-    // Definir funciones de edición globalmente para que funcionen desde el HTML inyectado
+    // Definir funciones de edición...
     window.addVoucherItem = () => {
         state.editingVoucherItems.push({ name: '', sessions: 1, space: '', used: 0, validations: [], pax: v.pax_por_sesion || 1 });
         renderEditableBreakdown();
@@ -1368,12 +1976,74 @@ function openVoucherManagement(code) {
     };
     window.updateVoucherItemName = (idx, val) => {
         state.editingVoucherItems[idx].name = val;
-        // Auto-detect space from catalog
-        const catalogItem = state.catalogProducts.find(p => p.nombre.toLowerCase() === val.toLowerCase());
-        if (catalogItem) {
-            state.editingVoucherItems[idx].space = catalogItem.espacio || '';
+        // Auto-detect space using helper (Master Items priority)
+        const detectedSpace = getSpaceForService(val);
+        if (detectedSpace) {
+            state.editingVoucherItems[idx].space = detectedSpace;
         }
     };
+
+    // --- Sincronizar uso real con Historial ---
+    if (typeof renderVoucherHistory === 'function') {
+        const voucherCode = v.bono || v.codigo;
+        // Await history to get real reservations
+        const history = await renderVoucherHistory(voucherCode, v.items_desglosados);
+
+        if (history && history.length > 0) {
+            console.log('[BONO] Sincronizando items con historial:', history.length, 'reservas');
+            state.editingVoucherItems.forEach(item => {
+                const iName = (item.name || '').toLowerCase().trim();
+
+                // Count reservations that match this item
+                const validReservations = history.filter(h => {
+                    // Filter out cancellations (already done in helper but safe to check)
+                    if (h.status === 'anulada') return false;
+
+                    // Name match
+                    // Name match
+                    const hName = (h.servicio || '').toLowerCase().trim();
+
+                    // 1. Exact match or contains
+                    // Ensure overlap is significant (not just one letter matching or something weird, though trim handles empty)
+                    let nameMatch = false;
+                    if (hName) { // Only check if name exists to prevent "".includes(...) = true
+                        nameMatch = hName === iName || hName.includes(iName) || iName.includes(hName);
+                    }
+
+                    // 2. Space match (Restringido)
+                    // No usar spaceMatch genérico para Spa, ya que cruza Masajes con Circuitos
+                    let spaceMatch = false;
+                    if (item.space) {
+                        const s = item.space.toLowerCase();
+                        // Para Hotel, suele ser único item, así que es más seguro
+                        if (s === 'hotel' && (h.origen || '').toLowerCase().includes('hotel')) spaceMatch = true;
+
+                        // Para Spa/Masaje, confiamos en el nombre. 
+                        // Solo si el item es MUY genérico (ej: "Bono Spa") habilitamos match por colección
+                        if (s === 'spa' && h._col === 'reservas_spa') spaceMatch = true;
+                    }
+
+                    return nameMatch || spaceMatch;
+                });
+
+                if (validReservations.length > 0) {
+                    // Update usage based on unique reservations found
+                    // Simple logic: 1 reservation = 1 use
+                    // We sum pax if needed? Usually usage is sessions.
+                    // Let's assume 1 reservation = 1 session used for that item.
+                    const computedUsed = validReservations.reduce((sum, r) => sum + 1, 0); // Count reservations
+
+                    // Only update if computed is higher than current (avoid overwriting manual edits if any)
+                    // Or SHOULD we overwrite? User wants to see "Gestionar" if reserved.
+                    // Yes, sync with reality.
+                    if (computedUsed > (item.used || 0)) {
+                        item.used = computedUsed;
+                        console.log(`[BONO] Auto-updated item '${item.name}' used -> ${computedUsed}`);
+                    }
+                }
+            });
+        }
+    }
 
     renderEditableBreakdown();
     // -------------------------------------
@@ -1449,11 +2119,7 @@ function openVoucherManagement(code) {
         }
     }, 100);
 
-    // Renderizar historial (reservas externas + validaciones internas)
-    if (typeof renderVoucherHistory === 'function') {
-        const voucherCode = v.bono || v.codigo;
-        renderVoucherHistory(voucherCode, v.items_desglosados);
-    }
+    // Historico renderizado arriba
 
     document.getElementById("voucher-modal").style.display = "flex";
 }
@@ -1506,17 +2172,47 @@ async function saveVoucherChanges() {
     try {
         btn.disabled = true;
         btnText.textContent = "GUARDANDO...";
-        await db.collection("spa_vouchers").doc(code).set(updates, { merge: true });
-        showToast("Cambios guardados", "success");
-        closeVoucherModal();
-        cargarBonos();
+
+        const bonoData = { ...updates, bono: code };
+
+        // 1. GUARDADO LOCAL INMEDIATO
+        if (window.apiLocal) {
+            await apiLocal.saveBono({ ...bonoData, syncStatus: 'pending' });
+            if (window.updateGlobalSyncStatus) updateGlobalSyncStatus('pending');
+        }
+
+        // UI Update inmediata en el state
+        const idx = state.bonos.findIndex(b => (b.bono || b.codigo) === code);
+        if (idx !== -1) {
+            state.bonos[idx] = { ...state.bonos[idx], ...updates };
+            renderBonosFromState();
+        }
+
+        // 2. INTENTO FIRESTORE (Background-ish)
+        try {
+            await db.collection("spa_vouchers").doc(code).set(updates, { merge: true });
+            if (window.apiLocal) await apiLocal.markSynced('bonos', code, code);
+            if (window.updateGlobalSyncStatus) updateGlobalSyncStatus('synced');
+            showToast("Cambios guardados y sincronizados", "success");
+        } catch (fsErr) {
+            console.warn("Fallo sincronización Firestore (modo local activo):", fsErr);
+            if (window.checkFirestoreError && window.checkFirestoreError(fsErr)) {
+                if (window.updateGlobalSyncStatus) updateGlobalSyncStatus('offline');
+                showToast("Guardado localmente (Sin cuota de Google)", "info");
+            } else {
+                throw fsErr;
+            }
+        }
+
     } catch (err) {
-        showToast("Error guardando: " + err.message, "error");
+        console.error("Error general guardando:", err);
+        showToast("Error al procesar: " + err.message, "error");
     } finally {
         btn.disabled = false;
         btnText.textContent = originalText;
     }
 }
+
 
 // Variable global para tracking de validación de alojamiento
 let currentVoucherForAccommodation = null;
@@ -1551,20 +2247,131 @@ function marcarCanjeado() {
 function marcarCompleto() {
     const total = parseInt(document.getElementById("vm-sesiones-total").value) || 1;
     document.getElementById("vm-sesiones-usadas").value = total;
+
+    // IMPORTANTE: También marcar todos los items individuales como completos si existen 
+    if (state.editingVoucherItems && state.editingVoucherItems.length > 0) {
+        state.editingVoucherItems.forEach(item => {
+            item.used = item.sessions || 1;
+        });
+        // Refrescar el desglose visual en el modal si es necesario
+        if (typeof openVoucherManagement.renderEditableBreakdown === 'function') {
+            openVoucherManagement.renderEditableBreakdown();
+        }
+    }
+
     saveVoucherChanges();
 }
 
-function reactivarBono() {
-    if (!confirm("¿Quieres reactivar este bono y poner las sesiones usadas a 0?")) return;
-    document.getElementById("vm-sesiones-usadas").value = 0;
-    saveVoucherChanges();
+async function reactivarBono() {
+    const code = document.getElementById("vm-code").value;
+    const confirmMsg = "Se verificará el historial de reservas.\n\n" +
+        "- Si hay reservas PASADAS (>1h), NO se podrá reactivar.\n" +
+        "- Si hay reservas FUTURAS, se ANULARÁN automáticamente.\n\n" +
+        "¿Deseas continuar?";
+
+    if (!confirm(confirmMsg)) return;
+
+    try {
+        // Fix: Use generic selector or specific header selector since it moved
+        let btn = document.querySelector("#voucher-modal .modal-header button[onclick='reactivarBono()']");
+        // Fallback in case I move it back or multiple exist (take the visible one logic if needed, but header is specific enough)
+        if (!btn) btn = document.querySelector("button[onclick='reactivarBono()']");
+
+        if (!btn) {
+            console.error("No reaction button found");
+            return;
+        }
+
+        const originalText = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Verificando...';
+
+        // 1. Obtener historial
+        const history = await renderVoucherHistory(code);
+        const activeReservations = history.filter(h => h.status !== 'anulada');
+
+        const now = new Date();
+        // Margen de 1 hora (podemos reactivar si la reserva fue hace menos de 1 hora, o es futura)
+        const marginTime = new Date(now.getTime() - 60 * 60 * 1000);
+
+        let hasPastReservations = false;
+        let futureReservations = [];
+
+        activeReservations.forEach(res => {
+            // Construir fecha reserva
+            const resDate = new Date(res.fecha + 'T' + res.hora);
+
+            if (resDate < marginTime) {
+                hasPastReservations = true;
+                console.warn(`[REACTIVAR] Reserva pasada detectada: ${res.fecha} ${res.hora} (${res.servicio})`);
+            } else {
+                futureReservations.push(res);
+            }
+        });
+
+        // 2. Validar
+        if (hasPastReservations) {
+            alert("NO SE PUEDE REACTIVAR.\n\nEste bono tiene reservas pasadas ya consumidas. No es posible reactivarlo.");
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+            return;
+        }
+
+        // 3. Anular futuras (si existen)
+        if (futureReservations.length > 0) {
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Anulando reservas...';
+            console.log(`[REACTIVAR] Anulando ${futureReservations.length} reservas futuras...`);
+
+            const batch = db.batch();
+
+            futureReservations.forEach(res => {
+                if (res._col && res.id && res._col !== 'internal') {
+                    const ref = db.collection(res._col).doc(res.id);
+                    batch.update(ref, {
+                        status: 'anulada',
+                        anulada_por: 'reactivacion_bono',
+                        fecha_anulacion: new Date().toISOString()
+                    });
+                }
+            });
+
+            await batch.commit();
+            console.log('[REACTIVAR] Reservas futuras anuladas.');
+        }
+
+        // 4. Reactivar Bono
+        document.getElementById("vm-sesiones-usadas").value = 0;
+
+        // Resetear uso de items
+        if (state.editingVoucherItems) {
+            state.editingVoucherItems.forEach(item => item.used = 0);
+        }
+
+        await saveVoucherChanges();
+
+        // Refrescar para ver reservas anuladas
+        openVoucherManagement(code);
+
+        showToast("Bono reactivado y reservas futuras anuladas", "success");
+
+    } catch (err) {
+        console.error("Error reactivando bono:", err);
+        alert("Error al reactivar: " + err.message);
+    } finally {
+        const btn = document.querySelector("button[onclick='reactivarBono()']");
+        if (btn) {
+            btn.disabled = false;
+            // Restaurar icono original si se conoce, o dejar texto genérico
+            btn.innerHTML = '<i class="fas fa-undo"></i> Reactivar';
+        }
+    }
 }
 
 // Nueva funcionalidad: Validación por servicio individual
 let currentServiceIndex = null; // Tracking del servicio siendo validado
 
 // Validar un servicio individual del pack
-function validateServiceItem(itemIndex) {
+function validateServiceItem(itemIndex, isManual = false) {
     console.log('[DEBUG] validateServiceItem click index:', itemIndex);
     const codeInput = document.getElementById("vm-code").value.trim();
     console.log('[DEBUG] Buscando bono con código:', codeInput);
@@ -1657,9 +2464,8 @@ function cleanUndefined(obj) {
 // Helper para guardar el desglose completo en Firestore
 async function saveServiceBreakdownToFirestore(voucherCode) {
     try {
-        console.log('[DEBUG] Guardando desglose para:', voucherCode);
+        console.log('[LOCAL-FIRST] Generando desglose para:', voucherCode);
 
-        // Preparar datos base
         const itemsToSave = state.editingVoucherItems.map(item => ({
             itemId: item.itemId || ('srv_' + Math.random().toString(36).substr(2, 9)),
             name: item.name || '',
@@ -1673,24 +2479,41 @@ async function saveServiceBreakdownToFirestore(voucherCode) {
             descripcion: item.descripcion || ''
         }));
 
-        // Limpieza profunda de undefined
         const cleanedItems = cleanUndefined(itemsToSave);
-
-        await db.collection("spa_vouchers").doc(voucherCode).update({
+        const updates = {
             items_desglosados: cleanedItems,
             last_updated: new Date().toISOString()
-        });
+        };
 
-        console.log('[DEBUG] Guardado exitoso en Firestore');
+        // 1. PERSISTENCIA LOCAL
+        if (window.apiLocal) {
+            const current = await apiLocal.getBonoByCode(voucherCode);
+            if (current) {
+                await apiLocal.saveBono({ ...current, ...updates, syncStatus: 'pending' });
+                if (window.updateGlobalSyncStatus) updateGlobalSyncStatus('pending');
+            }
+        }
 
-        // Recargar bonos para actualizar estado
-        await cargarBonos();
+        // 2. INTENTO FIRESTORE
+        try {
+            await db.collection("spa_vouchers").doc(voucherCode).update(updates);
+            if (window.apiLocal) await apiLocal.markSynced('bonos', voucherCode, voucherCode);
+            if (window.updateGlobalSyncStatus) updateGlobalSyncStatus('synced');
+            console.log('[LOCAL-FIRST] Desglose sincronizado en Firestore');
+        } catch (fsErr) {
+            console.warn("Fallo sync desglose (permaneciendo en local):", fsErr);
+            if (window.updateGlobalSyncStatus) updateGlobalSyncStatus('offline');
+        }
+
+        // Recargar para refrescar UI
+        renderBonosFromState();
 
     } catch (error) {
-        console.error("Error guardando desglose:", error);
+        console.error("Error procesando desglose:", error);
         throw error;
     }
 }
+
 
 
 function openAccommodationValidation(voucher) {
@@ -1770,14 +2593,27 @@ async function deleteVoucher() {
     if (!confirm("¿Seguro que quieres eliminar este bono? Esta acción es irreversible.")) return;
     const code = document.getElementById("vm-code").value;
     try {
-        await db.collection("spa_vouchers").doc(code).delete();
-        showToast("Bono eliminado", "success");
+        // 1. BORRADO LOCAL INMEDIATO
+        if (window.dbLocal) {
+            await dbLocal.bonos.where('bono').equals(code).delete();
+        }
+
+        // 2. INTENTO FIRESTORE
+        try {
+            await db.collection("spa_vouchers").doc(code).delete();
+            showToast("Bono eliminado de la nube", "success");
+        } catch (fsErr) {
+            console.warn("Fallo borrado Firestore (eliminado localmente):", fsErr);
+            showToast("Bono eliminado localmente (Sin cuota)", "info");
+        }
+
         closeVoucherModal();
         cargarBonos();
     } catch (err) {
         showToast("Error eliminando: " + err.message, "error");
     }
 }
+
 
 // --- MODAL VENTA LOCAL (Nuevo con Carrito) ---
 
@@ -1997,8 +2833,14 @@ async function createLocalVoucher() {
         origen: 'local',
         sesiones_totales: totalSessions,
         sesiones_usadas: 0,
-        items_desglosados: state.lvCart
+        items_desglosados: state.lvCart,
+        createdAt: new Date().toISOString()
     };
+
+    // Generar searchTokens para que sea buscable localmente de inmediato
+    if (typeof generateSearchTokens === 'function') {
+        newVoucher.searchTokens = generateSearchTokens(newVoucher);
+    }
 
     try {
         const btn = document.getElementById("lv-save-btn");
@@ -2009,10 +2851,27 @@ async function createLocalVoucher() {
         if (btnText.tagName === 'SPAN') btnText.textContent = "CREANDO...";
         else btn.textContent = "CREANDO...";
 
-        await db.collection("spa_vouchers").doc(code).set(newVoucher);
-        showToast("Bono local creado", "success");
+        // 1. GUARDADO LOCAL INMEDIATO
+        if (window.apiLocal) {
+            await apiLocal.saveBono({ ...newVoucher, syncStatus: 'pending' });
+            if (window.updateGlobalSyncStatus) updateGlobalSyncStatus('pending');
+        }
+
+        // 2. INTENTO FIRESTORE
+        try {
+            await db.collection("spa_vouchers").doc(code).set(newVoucher);
+            if (window.apiLocal) await apiLocal.markSynced('bonos', code, code);
+            if (window.updateGlobalSyncStatus) updateGlobalSyncStatus('synced');
+            showToast("Bono creado y sincronizado", "success");
+        } catch (fsErr) {
+            console.warn("Fallo sync creación bono (permance en local):", fsErr);
+            if (window.updateGlobalSyncStatus) updateGlobalSyncStatus('offline');
+            showToast("Bono creado localmente (Pendiente de subir)", "info");
+        }
+
         closeLocalVoucherModal();
         cargarBonos();
+
     } catch (err) {
         showToast("Error creando bono: " + err.message, "error");
     } finally {
@@ -2022,6 +2881,7 @@ async function createLocalVoucher() {
         if (btnText.tagName === 'SPAN') btnText.textContent = "Crear Bono";
     }
 }
+
 
 // Helper para redirección
 function goToReservation(client, service, code, targetModule) {
@@ -2035,18 +2895,20 @@ function goToReservation(client, service, code, targetModule) {
 
     let url = `reservas.html?action=new&client=${client}&service=${service}&voucher=${code}&date=${today}`;
 
-    // Añadir el tipo de módulo si existe
     if (targetModule) {
-        // Asegurar que el módulo es uno de los válidos (spa, suite, panacea, peluqueria, vip)
-        const validModules = ['spa', 'suite', 'panacea', 'vip', 'peluqueria'];
+        // Asegurar que el módulo es uno de los válidos (spa, suite, panacea, peluqueria, vip, hotel)
+        const validModules = ['spa', 'suite', 'panacea', 'vip', 'peluqueria', 'hotel'];
         const normalizedModule = targetModule.toLowerCase().trim();
 
         if (validModules.includes(normalizedModule)) {
-            url += `&type=${normalizedModule}`;
-        } else if (normalizedModule.includes('alojamiento') || normalizedModule === 'hotel') {
-            // Si el espacio es hotel, quizás queramos ir a suite (comportamiento legacy) o no hacer nada de type
-            // Por ahora asumimos que no cambia el módulo si es hotel, o redirige a suite si así se prefiere
-            // url += `&type=suite`; 
+            if (normalizedModule === 'hotel') {
+                url = `../gestion-Salones/restaurante.html?action=new&client=${client}&service=${service}&voucher=${code}&date=${today}`;
+            } else {
+                url += `&type=${normalizedModule}`;
+            }
+        } else if (normalizedModule.includes('alojamiento') || normalizedModule.includes('restaurante')) {
+            // Si el espacio incluye restaurante o alojamiento, redirigir a hotel externo
+            url = `../gestion-Salones/restaurante.html?action=new&client=${client}&service=${service}&voucher=${code}&date=${today}`;
         }
     }
 
@@ -2223,7 +3085,7 @@ async function importExcelOrders(event) {
                     importedAt: new Date().toISOString()
                 };
 
-                await db.collection('bonos').doc(bonoCode).set(bonoData);
+                await db.collection('spa_vouchers').doc(bonoCode).set(bonoData);
                 imported++;
                 console.log("✅ Importado:", bonoCode, bonoData.producto);
 
@@ -2273,3 +3135,79 @@ function mapOrderStatus(wcStatus) {
     };
     return statusMap[wcStatus] || 'activo';
 }
+
+// Event listeners para filtros (Search, Date, Status)
+document.addEventListener('DOMContentLoaded', () => {
+    const searchInput = document.getElementById('voucher-search');
+    const dateInput = document.getElementById('voucher-date');
+    const statusSelect = document.getElementById('voucher-filter');
+    const monthsSelect = document.getElementById('bonos-filter-months');
+
+    if (searchInput) {
+        searchInput.addEventListener('input', async () => {
+            const searchTerm = searchInput.value.trim();
+
+            // BÚSQUEDA DIRECTA: Si escribe un código exacto (LOC-XXXX o BONOXXXX), buscar solo ese documento
+            if (searchTerm.match(/^(LOC-|BONO)\d+/i)) {
+                const codigo = searchTerm.toUpperCase();
+                console.log(`[BÚSQUEDA DIRECTA] Buscando código específico: ${codigo}`);
+
+                try {
+                    const doc = await db.collection("spa_vouchers").doc(codigo).get();
+                    if (doc.exists) {
+                        const bonoData = { ...doc.data(), bono: doc.id };
+
+                        // Añadir al state si no está ya cargado
+                        const existingIndex = state.bonos.findIndex(b => b.bono === doc.id);
+                        if (existingIndex === -1) {
+                            state.bonos.unshift(bonoData); // Añadir al principio
+                            console.log(`[BÚSQUEDA DIRECTA] ✓ Bono ${doc.id} encontrado (1 lectura)`);
+                        } else {
+                            console.log(`[BÚSQUEDA DIRECTA] ✓ Bono ${doc.id} ya estaba cargado`);
+                        }
+
+                        // Renderizar para mostrar el resultado
+                        if (typeof renderBonosFromState === 'function') {
+                            renderBonosFromState();
+                        }
+                        return; // No continuar con búsqueda por filtro
+                    } else {
+                        console.log(`[BÚSQUEDA DIRECTA] ✗ Bono ${codigo} no existe en la base de datos`);
+                    }
+                } catch (err) {
+                    console.warn(`[BÚSQUEDA DIRECTA] Error: ${err.message}`);
+                }
+            }
+
+            // BÚSQUEDA POR NOMBRE/EMAIL: Auto-expandir a último año
+            if (searchTerm.length > 2 && monthsSelect && monthsSelect.value === '0') {
+                console.log('[BÚSQUEDA] Auto-expandiendo a 12 meses para buscar bonos antiguos');
+                monthsSelect.value = '12';
+                if (typeof loadVouchers === 'function') {
+                    loadVouchers();
+                    return; // loadVouchers ya llamará a renderBonosFromState
+                }
+            }
+
+            if (typeof renderBonosFromState === 'function') {
+                renderBonosFromState();
+            }
+        });
+    }
+
+    if (dateInput) {
+        dateInput.addEventListener('change', () => {
+            if (typeof renderBonosFromState === 'function') {
+                renderBonosFromState();
+            }
+        });
+    }
+
+    if (statusSelect) {
+        statusSelect.addEventListener('change', () => {
+            if (typeof renderBonosFromState === 'function') {
+                renderBonosFromState();
+            }
+        });
+    }
+});

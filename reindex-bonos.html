@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reindexar Bonos - Zenith</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 600px;
+            width: 100%;
+            padding: 40px;
+        }
+
+        h1 {
+            color: #1e293b;
+            margin-bottom: 10px;
+            font-size: 1.75rem;
+        }
+
+        .subtitle {
+            color: #64748b;
+            margin-bottom: 30px;
+            font-size: 0.9rem;
+        }
+
+        .info-box {
+            background: #f1f5f9;
+            border-left: 4px solid #3b82f6;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .info-box h3 {
+            color: #1e40af;
+            margin-bottom: 8px;
+            font-size: 1rem;
+        }
+
+        .info-box p {
+            color: #475569;
+            font-size: 0.85rem;
+            line-height: 1.5;
+        }
+
+        .warning-box {
+            background: #fef3c7;
+            border-left: 4px solid #f59e0b;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .warning-box h3 {
+            color: #92400e;
+            margin-bottom: 8px;
+            font-size: 1rem;
+        }
+
+        .warning-box p {
+            color: #78350f;
+            font-size: 0.85rem;
+            line-height: 1.5;
+        }
+
+        .progress-container {
+            display: none;
+            margin: 20px 0;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 30px;
+            background: #e2e8f0;
+            border-radius: 15px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #3b82f6, #8b5cf6);
+            width: 0%;
+            transition: width 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+            font-size: 0.8rem;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .stat {
+            background: #f8fafc;
+            padding: 10px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #1e293b;
+        }
+
+        .stat-label {
+            font-size: 0.7rem;
+            color: #64748b;
+            text-transform: uppercase;
+            margin-top: 4px;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 15px;
+            border: none;
+            border-radius: 10px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .log-container {
+            background: #1e293b;
+            color: #e2e8f0;
+            border-radius: 8px;
+            padding: 15px;
+            max-height: 200px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 0.75rem;
+            line-height: 1.6;
+            margin-top: 20px;
+            display: none;
+        }
+
+        .log-entry {
+            padding: 2px 0;
+        }
+
+        .log-success {
+            color: #86efac;
+        }
+
+        .log-error {
+            color: #fca5a5;
+        }
+
+        .log-info {
+            color: #93c5fd;
+        }
+
+        .log-warning {
+            color: #fde047;
+        }
+    </style>
+
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <script src="firebase-config.js"></script>
+    <script src="js/app-core.js"></script>
+</head>
+
+
+<body>
+    <div class="container">
+        <h1>🔍 Reindexar Bonos</h1>
+        <p class="subtitle">Script de mantenimiento - Ejecutar solo una vez</p>
+
+        <div class="info-box">
+            <h3>¿Qué hace este script?</h3>
+            <p>
+                Agrega un campo <strong>searchTokens</strong> (array optimizado) a todos los bonos existentes en
+                Firestore.
+                Este índice permite búsquedas ultra-rápidas por <strong>cualquier</strong> palabra: nombre, email,
+                producto, código, etc.
+            </p>
+        </div>
+
+        <div class="warning-box">
+            <h3>⚠️ Antes de ejecutar</h3>
+            <p>
+                • <strong>EJECUTAR AHORA</strong>: Actualiza de searchIndex (string) a searchTokens (array)<br>
+                • Los bonos nuevos ya tendrán searchTokens automáticamente<br>
+                • El proceso puede tardar unos minutos<br>
+                • No cerrar esta página hasta que termine
+            </p>
+        </div>
+
+        <button id="startBtn" class="btn btn-primary" onclick="startReindexing()">
+            Iniciar Reindexación
+        </button>
+
+        <div class="progress-container" id="progressContainer">
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill">0%</div>
+            </div>
+
+            <div class="stats">
+                <div class="stat">
+                    <div class="stat-value" id="totalCount">0</div>
+                    <div class="stat-label">Total</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value" id="processedCount">0</div>
+                    <div class="stat-label">Procesados</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value" id="errorCount">0</div>
+                    <div class="stat-label">Errores</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="log-container" id="logContainer"></div>
+    </div>
+
+    <script>
+        const db = firebase.firestore();
+        let total = 0;
+        let processed = 0;
+        let errors = 0;
+
+        function log(message, type = 'info') {
+            const logContainer = document.getElementById('logContainer');
+            logContainer.style.display = 'block';
+
+            const entry = document.createElement('div');
+            entry.className = `log-entry log-${type}`;
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logContainer.appendChild(entry);
+            logContainer.scrollTop = logContainer.scrollHeight;
+        }
+
+        function updateProgress() {
+            const percentage = total > 0 ? Math.round((processed / total) * 100) : 0;
+            document.getElementById('progressFill').style.width = percentage + '%';
+            document.getElementById('progressFill').textContent = percentage + '%';
+            document.getElementById('totalCount').textContent = total;
+            document.getElementById('processedCount').textContent = processed;
+            document.getElementById('errorCount').textContent = errors;
+        }
+
+        function generateSearchTokens(voucher) {
+            if (!voucher) return [];
+
+            const tokens = new Set();
+
+            const normalize = (str) => {
+                if (!str) return '';
+                return String(str)
+                    .toLowerCase()
+                    .normalize('NFD')
+                    .replace(/[\u0300-\u036f]/g, '')
+                    .trim();
+            };
+
+            // 1. CÓDIGO DE BONO (completo y fragmentos)
+            if (voucher.bono) {
+                const code = normalize(voucher.bono);
+                tokens.add(code);
+
+                const parts = code.split('-');
+                parts.forEach(part => {
+                    if (part.length > 0) tokens.add(part);
+                });
+
+                if (parts.length > 1) {
+                    tokens.add(parts[0]);
+                    tokens.add(`${parts[0]}-${parts[1]}`);
+                }
+            }
+
+            // 2. CLIENTE (nombre completo y palabras)
+            if (voucher.cliente) {
+                const client = normalize(voucher.cliente);
+                tokens.add(client);
+
+                client.split(' ').forEach(word => {
+                    if (word.length >= 3) tokens.add(word);
+                });
+            }
+
+            // 3. EMAIL (completo y dominio)
+            if (voucher.email) {
+                const email = normalize(voucher.email);
+                tokens.add(email);
+
+                const domain = email.split('@')[1];
+                if (domain) tokens.add(domain);
+            }
+
+            // 4. PRODUCTO (completo y palabras)
+            if (voucher.producto) {
+                const product = normalize(voucher.producto);
+                tokens.add(product);
+
+                product.split(' ').forEach(word => {
+                    if (word.length >= 3) tokens.add(word);
+                });
+            }
+
+            // 5. TELÉFONO
+            if (voucher.telefono) {
+                const phone = String(voucher.telefono).replace(/\s+/g, '');
+                tokens.add(phone);
+            }
+
+            return Array.from(tokens).filter(t => t && t.length > 0);
+        }
+        async function startReindexing() {
+            const btn = document.getElementById('startBtn');
+            btn.disabled = true;
+            btn.textContent = 'Procesando...';
+
+            document.getElementById('progressContainer').style.display = 'block';
+
+            log('Iniciando reindexación...', 'info');
+
+            try {
+                // Obtener TODOS los bonos (sin filtro de fecha para esta operación)
+                log('Cargando todos los bonos...', 'info');
+                const snapshot = await db.collection('spa_vouchers').get();
+                total = snapshot.size;
+
+                log(`Total de bonos encontrados: ${total}`, 'success');
+                updateProgress();
+
+                // Procesar en batches de 500 (límite de Firestore)
+                const BATCH_SIZE = 500;
+                let batch = db.batch();
+                let batchCount = 0;
+
+                for (const doc of snapshot.docs) {
+                    const data = doc.data();
+
+                    // Generar searchTokens (array)
+                    const searchTokens = generateSearchTokens({
+                        bono: doc.id,
+                        ...data
+                    });
+
+                    // Forzar actualización para todos los bonos (cambio de searchIndex a searchTokens)
+                    batch.update(doc.ref, { searchTokens });
+                    batchCount++;
+
+                    // Si alcanzamos el límite del batch, commit y crear nuevo
+                    if (batchCount >= BATCH_SIZE) {
+                        await batch.commit();
+                        log(`Batch completado: ${batchCount} bonos actualizados`, 'success');
+                        batch = db.batch();
+                        batchCount = 0;
+                    }
+
+                    processed++;
+                    updateProgress();
+                }
+
+                // Commit del último batch si hay operaciones pendientes
+                if (batchCount > 0) {
+                    await batch.commit();
+                    log(`Último batch completado: ${batchCount} bonos actualizados`, 'success');
+                }
+
+                log('✅ Reindexación completada exitosamente!', 'success');
+                log(`Total procesados: ${processed}`, 'success');
+                log(`Total errores: ${errors}`, errors > 0 ? 'warning' : 'info');
+
+                btn.textContent = '✅ Completado';
+                btn.style.background = '#10b981';
+
+            } catch (error) {
+                if (window.checkFirestoreError && window.checkFirestoreError(error)) {
+                    log('❌ ERROR DE CUOTA DETECTADO. El proceso se ha detenido.', 'error');
+                } else {
+                    log(`❌ Error: ${error.message}`, 'error');
+                }
+                errors++;
+                updateProgress();
+
+                btn.disabled = false;
+                btn.textContent = 'Reintentar';
+            }
+
+        }
+    </script>
+</body>
+
+</html>

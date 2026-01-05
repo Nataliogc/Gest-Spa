@@ -266,6 +266,7 @@ async function saveStaff(e) {
         closeStaffModal();
         loadStaff();
     } catch (err) {
+        if (window.checkFirestoreError && window.checkFirestoreError(err)) return;
         console.error("Error guardando personal:", err);
         alert("Error al guardar: " + err.message);
     }
@@ -331,6 +332,7 @@ async function toggleStaffStatus(staffId) {
         alert(`${staff.name} ${newStatus === 'inactive' ? 'dado de baja' : 'reactivado'} correctamente.`);
         loadStaff();
     } catch (err) {
+        if (window.checkFirestoreError && window.checkFirestoreError(err)) return;
         console.error("Error cambiando estado:", err);
         alert("Error: " + err.message);
     }
@@ -656,83 +658,8 @@ async function saveDayAvailability(e) {
 }
 
 // ===== UTILITY: Get available staff for booking =====
-async function getAvailableStaff(room, date, time) {
-    // This function will be called from reservas.html
-    // Returns list of available staff for given room, date, and time
-
-    try {
-        // Load active staff assigned to this room
-        const snapshot = await db.collection("spa_staff")
-            .where("status", "==", "active")
-            .where("assigned_rooms", "array-contains", room)
-            .get();
-
-        const availableStaff = [];
-
-        for (const doc of snapshot.docs) {
-            const staff = { id: doc.id, ...doc.data() };
-
-            // Check if available on this date/time
-            const isAvailable = await checkStaffAvailability(staff, date, time);
-
-            if (isAvailable) {
-                availableStaff.push(staff);
-            }
-        }
-
-        return availableStaff;
-    } catch (err) {
-        console.error("Error getting available staff:", err);
-        return [];
-    }
-}
-
-async function checkStaffAvailability(staff, date, time) {
-    // Check if staff is available on given date and time
-
-    const dateObj = new Date(date);
-    const dayOfWeek = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'][dateObj.getDay()];
-
-    // Check for exception first
-    try {
-        const snapshot = await db.collection("spa_staff_availability")
-            .where("staff_id", "==", staff.id)
-            .where("date", "==", date)
-            .get();
-
-        if (!snapshot.empty) {
-            const availability = snapshot.docs[0].data();
-
-            if (availability.status === 'unavailable') {
-                return false;
-            }
-
-            if (availability.status === 'custom') {
-                return isTimeInShifts(time, availability.custom_schedule.shifts);
-            }
-        }
-    } catch (err) {
-        console.error("Error checking availability exception:", err);
-    }
-
-    // Use default schedule
-    const daySchedule = staff.default_schedule[dayOfWeek];
-
-    if (!daySchedule || !daySchedule.enabled) {
-        return false;
-    }
-
-    return isTimeInShifts(time, daySchedule.shifts);
-}
-
-function isTimeInShifts(time, shifts) {
-    if (!shifts || shifts.length === 0) return false;
-
-    for (const shift of shifts) {
-        if (time >= shift.start && time <= shift.end) {
-            return true;
-        }
-    }
-
-    return false;
-}
+// NOTE: These functions were removed because they caused N+1 query performance issues.
+// Use 'reservas-staff.js' and 'getAvailableStaffForRoom' instead, which uses batch fetching.
+// - getAvailableStaff() [REMOVED]
+// - checkStaffAvailability() [REMOVED]
+// - isTimeInShifts() [REMOVED]
