@@ -1391,7 +1391,7 @@ function renderBonosFromState() {
             }
         }
 
-        return textMatch && dateMatch && statusMatch;
+        return dateMatch && statusMatch;
     });
 
     document.getElementById("voucher-count").textContent = filtered.length;
