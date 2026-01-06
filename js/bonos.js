@@ -643,6 +643,13 @@ async function cargarBonos() {
     // 1. CARGA LOCAL INMEDIATA (Prioridad 1)
     if (window.apiLocal) {
         try {
+            // INTENTO DE SUBIDA DE PENDIENTES (Auto-Sync Up)
+            /* 
+              Si hay bonos pendientes de subir (ej: importados offline o con versión anterior),
+              intentamos subirlos ahora antes de descargar actualizaciones.
+            */
+            await uploadLocalPendingToFirestore();
+
             const localBonos = await apiLocal.getBonos();
             if (localBonos.length > 0) {
                 console.log(`[LOCAL-FIRST] Cargados ${localBonos.length} bonos de IndexedDB`);
@@ -651,7 +658,7 @@ async function cargarBonos() {
                 updateCount();
             }
         } catch (e) {
-            console.error("Error leyendo de IndexedDB:", e);
+            console.error("Error leyendo/sincronizando IndexedDB:", e);
         }
     }
 
@@ -3725,7 +3732,22 @@ window.importLocalVouchersFromExcel = function (event) {
                     newBono.searchTokens = generateSearchTokens(newBono);
 
                     // Guardar en DB Local (y la API se encarga de sync si es posible)
-                    await apiLocal.saveBono(newBono);
+                    // PRIMERO guardamos en local por seguridad
+                    await apiLocal.saveBono({ ...newBono, syncStatus: 'pending' });
+
+                    // INTENTO DE SUBIDA A FIRESTORE
+                    try {
+                        const fsData = typeof cleanUndefined === 'function' ? cleanUndefined(newBono) : newBono;
+                        await db.collection("spa_vouchers").doc(newBono.bono).set(fsData);
+
+                        // Si funciona, marcamos como synced
+                        if (window.apiLocal) {
+                            await apiLocal.markSynced('bonos', newBono.bono, newBono.bono);
+                        }
+                        console.log(`[IMPORT] Bono ${newBono.bono} subido a Firestore ✅`);
+                    } catch (fsErr) {
+                        console.warn(`[IMPORT] ⚠ Fallo subida Firestore para ${newBono.bono}. Permanece en local (pending).`, fsErr);
+                    }
 
                     // Actualizar estado local
                     state.bonos.unshift(newBono);
@@ -3763,3 +3785,51 @@ window.importLocalVouchersFromExcel = function (event) {
 
     reader.readAsArrayBuffer(file);
 };
+
+// --- SYNC HELPER ---
+async function uploadLocalPendingToFirestore() {
+    if (!window.apiLocal || !window.db) return;
+
+    try {
+        const pending = await apiLocal.getPendingSync('bonos');
+        if (pending.length === 0) return;
+
+        console.log(`[SYNC-UP] Subiendo ${pending.length} bonos pendientes a la nube...`);
+        const batch = db.batch();
+        let batchedCount = 0;
+
+        for (const item of pending) {
+            if (!item.bono) continue;
+
+            const docRef = db.collection("spa_vouchers").doc(item.bono);
+            const dataToUpload = { ...item };
+
+            // Eliminar ID local de Dexie antes de subir
+            delete dataToUpload.id;
+
+            // Limpieza de datos (undefined no permitido en Firestore)
+            const cleanData = typeof cleanUndefined === 'function' ? cleanUndefined(dataToUpload) : dataToUpload;
+
+            // Merge true para no machacar datos si ya existen (aunque normalmente set es ok)
+            batch.set(docRef, cleanData, { merge: true });
+            batchedCount++;
+        }
+
+        if (batchedCount > 0) {
+            await batch.commit();
+            console.log(`[SYNC-UP] ${batchedCount} bonos subidos correctamente.`);
+
+            // Marcar como synced en local
+            for (const item of pending) {
+                // Usamos el ID clave para la actualización local si existe
+                await apiLocal.markSynced('bonos', item.id || item.bono, item.bono);
+            }
+
+            showToast(`Sincronizados ${batchedCount} bonos locales con la nube`, 'success');
+        }
+
+    } catch (err) {
+        console.error("Error en subida de pendientes:", err);
+        // No bloqueamos la ejecución, solo logueamos
+    }
+}
