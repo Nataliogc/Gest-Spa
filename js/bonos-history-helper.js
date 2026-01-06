@@ -203,6 +203,29 @@ Confirmada por: ${res.validado_por || 'Sistema'}
                 else if (res._col === 'reservas_vip') moduleTypeForLink = 'vip';
                 else if (res._col === 'reservas_peluqueria') moduleTypeForLink = 'peluqueria';
 
+                if (res._col === 'reservas_restaurante') {
+                    // Link externo a Mesachef
+                    return `
+                    <a href="https://nataliogc.github.io/Mesachef/restaurante.html?action=edit&id=${res.id}&date=${res.fecha}" target="_blank" style="text-decoration:none; display:flex; justify-content:space-between; align-items:center; padding: 10px 0; border-bottom: 1px solid #f1f5f9; cursor:pointer;" title="Ver en Mesachef">
+                        <div style="flex: 1;">
+                            <div style="display:flex; align-items:center; gap: 8px;">
+                                <span style="background:${typeColor}; color:white; font-size:0.65rem; padding: 2px 6px; border-radius:4px; font-weight:700;">${typeLabel}</span>
+                                <div style="font-weight:600; font-size:0.85rem; color:#1e293b;">
+                                    ${date} - ${res.hora}h <i class="fas fa-utensils" style="font-size:0.7em; color:#94a3b8; margin-left:4px;"></i>
+                                </div>
+                            </div>
+                            <div style="font-size:0.75rem; color:#64748b; margin-top:2px;">
+                                ${res.servicio} (${res.pax} pax)
+                            </div>
+                        </div>
+                        <div style="text-align:right;">
+                            <div style="font-weight:700; font-size:0.9rem; color:#334155;">${precio}</div>
+                            <span class="badge badge-green" style="font-size:0.65rem;">Reservado</span>
+                        </div>
+                    </a>
+                    `;
+                }
+
                 return `
                     <a href="reservas.html?fecha=${res.fecha}&id=${res.id}&type=${moduleTypeForLink}" target="_blank" style="text-decoration:none; display:flex; justify-content:space-between; align-items:center; padding: 10px 0; border-bottom: 1px solid #f1f5f9; cursor:pointer;" title="Ver en Calendario">
                         <div style="flex: 1;">

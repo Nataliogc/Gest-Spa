@@ -95,7 +95,8 @@ document.addEventListener("DOMContentLoaded", () => {
     // Inyectar base de datos local
     if (!document.querySelector('script[src*="db-local.js"]')) {
         const script = document.createElement('script');
-        script.src = "js/db-local.js";
+        // Cache busting: Force reload to avoid using old cached version causing ReferenceError
+        script.src = "js/db-local.js?v=" + Date.now();
         document.head.appendChild(script);
     }
 

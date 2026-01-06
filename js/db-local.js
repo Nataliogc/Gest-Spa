@@ -3,60 +3,145 @@
  * Proporciona una capa de persistencia inmediata para evitar bloqueos por cuota de Firestore.
  */
 
-// Importar Dexie desde CDN si no existe
-if (typeof Dexie === 'undefined') {
-    const script = document.createElement('script');
-    script.src = "https://unpkg.com/dexie@latest/dist/dexie.js";
-    document.head.appendChild(script);
+// Variable global para la instancia (accesible via window.dbLocal una vez cargada)
+window.dbLocal = null;
+
+let _dbReadyPromise = null;
+
+function initNativeDb() {
+    if (window.dbLocal) return window.dbLocal;
+
+    // Check robusto: typeof es seguro para variables no declaradas
+    if (typeof Dexie === 'undefined') {
+        console.warn("⚠️ initNativeDb: Dexie no está disponible aún. Retornando null.");
+        return null;
+    }
+
+    try {
+        const db = new Dexie("ZenithLocalDB");
+
+        // Definir esquema profesional
+        db.version(1).stores({
+            bonos: '++id, bono, cliente, email, estado, *searchTokens, updatedAt, syncStatus, lastSyncAt',
+            reservas: '++id, date, time, customer, service, syncStatus, updatedAt',
+            config: 'key, value'
+        });
+
+        window.dbLocal = db;
+        console.log("📦 ZenithLocalDB (Dexie) inicializado correctamente.");
+        return db;
+    } catch (e) {
+        console.error("❌ Error inicializando Dexie (pero Dexie existía):", e);
+        return null;
+    }
 }
 
-const dbLocal = new Dexie("ZenithLocalDB");
+function ensureDb() {
+    // Si ya hay promesa de carga en curso, retornarla
+    if (_dbReadyPromise) return _dbReadyPromise;
 
-// Definir esquema profesional
-dbLocal.version(1).stores({
-    bonos: '++id, bono, cliente, email, estado, *searchTokens, updatedAt, syncStatus, lastSyncAt',
-    reservas: '++id, date, time, customer, service, syncStatus, updatedAt',
-    config: 'key, value'
-});
+    // Si Dexie ya existe, intentar inicializar inmediatamente
+    if (typeof Dexie !== 'undefined') {
+        const db = initNativeDb();
+        if (db) {
+            _dbReadyPromise = Promise.resolve(db);
+            return _dbReadyPromise;
+        }
+    }
+
+    // Si no, iniciar carga asíncrona del script
+    console.log("⏳ Cargando Dexie desde CDN asíncronamente...");
+    _dbReadyPromise = new Promise((resolve, reject) => {
+        // Doble check por si se cargó mientras iniciábamos
+        if (typeof Dexie !== 'undefined') {
+            resolve(initNativeDb());
+            return;
+        }
+
+        const script = document.createElement('script');
+        // Usar versión específica (v3) para evitar breaking changes de v4 @latest
+        script.src = "https://unpkg.com/dexie@3.2.4/dist/dexie.min.js";
+
+        script.onload = () => {
+            console.log("✅ Dexie CDN cargado.");
+            resolve(initNativeDb());
+        };
+        script.onerror = (e) => {
+            console.error("❌ Error FATAL cargando Dexie CDN", e);
+            reject(e);
+        };
+        document.head.appendChild(script);
+    });
+
+    return _dbReadyPromise;
+}
+
+// Iniciar proceso de carga inmediatamente
+ensureDb();
 
 
 // --- UTILIDADES DE BONOS ---
 window.apiLocal = {
+    async _getDb() {
+        return ensureDb();
+    },
+
     // BONOS
     async saveBono(bonoData) {
+        const db = await this._getDb();
+        if (!db) throw new Error("LocalDB not available");
+
         const data = {
             ...bonoData,
             updatedAt: new Date().toISOString(),
             syncStatus: bonoData.syncStatus || 'pending'
         };
-        return await dbLocal.bonos.put(data);
+        return await db.bonos.put(data);
     },
 
     async getBonos() {
-        return await dbLocal.bonos.orderBy('updatedAt').reverse().toArray();
+        const db = await this._getDb();
+        if (!db) return [];
+        return await db.bonos.orderBy('updatedAt').reverse().toArray();
     },
 
     async getBonoByCode(code) {
-        return await dbLocal.bonos.where('bono').equals(code).first();
+        const db = await this._getDb();
+        if (!db) return null;
+        return await db.bonos.where('bono').equals(code).first();
     },
 
     // RESERVAS
     async saveReserva(reservaData) {
+        const db = await this._getDb();
+        if (!db) throw new Error("LocalDB not available");
         const data = {
             ...reservaData,
             updatedAt: new Date().toISOString(),
             syncStatus: reservaData.syncStatus || 'pending'
         };
-        return await dbLocal.reservas.put(data);
+        return await db.reservas.put(data);
     },
 
     async getReservasByDate(dateStr) {
-        return await dbLocal.reservas.where('date').equals(dateStr).toArray();
+        const db = await this._getDb();
+        if (!db) return [];
+        return await db.reservas.where('date').equals(dateStr).toArray();
     },
 
     // GENERAL
     async markSynced(table, id, firestoreId) {
-        return await dbLocal[table].update(id, {
+        const db = await this._getDb();
+        if (!db) return;
+
+        // Dexie update necesita la clave primaria
+        // Si 'id' es la clave de Dexie (numérica), bien. 
+        // Si 'id' es string (Guid), depende del esquema.
+        // Esquema: '++id' (auto-increment numérico). 
+        // PERO saveBono hace put(data). Si data tiene id=... lo usa.
+        // Asumimos que saveBono recibe {id: 123, ...} si viene de local.
+
+        return await db[table].update(id, {
             syncStatus: 'synced',
             lastSyncAt: new Date().toISOString(),
             firestoreId: firestoreId
@@ -64,8 +149,8 @@ window.apiLocal = {
     },
 
     async getPendingSync(table) {
-        return await dbLocal[table].where('syncStatus').equals('pending').toArray();
+        const db = await this._getDb();
+        if (!db) return [];
+        return await db[table].where('syncStatus').equals('pending').toArray();
     }
 };
-
-console.log("📦 ZenithLocalDB (Dexie) inicializado.");

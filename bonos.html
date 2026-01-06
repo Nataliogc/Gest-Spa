@@ -82,6 +82,13 @@
                         </button>
                         <button id="sync-vouchers-btn" class="btn btn-accent"><i class="fas fa-sync"></i>
                             Sincronizar</button>
+
+                        <input type="file" id="import-local-input" accept=".xlsx, .xls" style="display: none;"
+                            onchange="importLocalVouchersFromExcel(event)">
+                        <button onclick="document.getElementById('import-local-input').click()" class="btn btn-outline"
+                            style="border-color: #10b981; color: #10b981;">
+                            <i class="fas fa-file-import"></i> Importar Locales
+                        </button>
                     </div>
                 </header>
 
@@ -499,8 +506,8 @@
     <script src="https://unpkg.com/dexie@latest/dist/dexie.js"></script>
     <script src="js/app-core.js"></script>
 
-    <script src="js/bonos.js?v=cache_clear_v24_quota"></script>
-    <script src="js/bonos-history-helper.js?v=cache_clear_v24_quota"></script>
+    <script src="js/bonos.js?v=cache_clear_v25_restaurante"></script>
+    <script src="js/bonos-history-helper.js?v=cache_clear_v25_restaurante"></script>
 </body>
 
 </html>

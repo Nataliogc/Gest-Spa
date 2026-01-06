@@ -235,10 +235,10 @@ function generateSearchTokens(voucher) {
         const code = normalize(voucher.bono);
         tokens.add(code); // Código completo: "loc-2025-8566"
 
-        // Fragmentos del código
-        const parts = code.split('-');
+        // Fragmentos del código (separar por guiones O espacios)
+        const parts = code.split(/[-\s]+/);
         parts.forEach(part => {
-            if (part.length > 0) tokens.add(part); // "loc", "2025", "8566"
+            if (part.length > 0) tokens.add(part); // "loc", "2025", "8566", "16707"
         });
 
         // Prefijo para búsquedas parciales
@@ -321,7 +321,7 @@ function getSpaceForService(serviceName) {
 }
 
 // Helper para redirección
-function goToReservation(client, service, code) {
+function goToReservation(client, service, code, space) {
     service = unescape(service).trim();
     client = unescape(client).trim();
     if (!confirm(`¿Ir al calendario para reservar '${service}' para ${client}?`)) return;
@@ -357,7 +357,7 @@ function goToReservation(client, service, code) {
         if (masterItem) debugMsg += `Match Includes (Master -> Service): SI (${masterItem.name})\n`;
     }
 
-    alert(debugMsg);
+    // alert(debugMsg);
 
     // Default module
     let type = 'spa';
@@ -372,7 +372,7 @@ function goToReservation(client, service, code) {
         else if (spaceLower.includes('suite')) type = 'suite';
         else if (spaceLower.includes('vip')) type = 'panacea';
         else if (spaceLower.includes('peluqueria') || spaceLower.includes('estetica')) type = 'peluqueria';
-        else if (spaceLower.includes('hotel') || spaceLower.includes('restaurante') || spaceLower.includes('alojamiento')) type = 'hotel';
+        else if (spaceLower.includes('hotel') || spaceLower.includes('restaurante') || spaceLower.includes('alojamiento') || spaceLower === 'rest') type = 'hotel';
         else type = 'spa';
 
         console.log(`Smart Redirect: Item '${service}' matched to space '${masterItem.space}' -> Module '${type}'`);
@@ -387,16 +387,18 @@ function goToReservation(client, service, code) {
         }
 
         let category = prod ? (prod.categoria || '').toLowerCase() : '';
-        let space = prod ? (prod.espacio || '').toLowerCase() : '';
+        // Use passed space argument if available, otherwise catalog space
+        let spaceFromCatalog = prod ? (prod.espacio || '').toLowerCase() : '';
+        let resolvedSpace = (space && space !== '') ? space.toLowerCase() : spaceFromCatalog;
 
-        // Use explicit space if defined in catalog product
-        if (space && space !== '') {
-            type = space;
+        // Use explicit space if defined
+        if (resolvedSpace && resolvedSpace !== '') {
+            type = resolvedSpace;
         } else {
             // Fallback checks on category AND name
             const checkStr = (category + ' ' + lowerService).trim();
 
-            if (checkStr.includes('restaurante') || checkStr.includes('menu') || checkStr.includes('menú') || checkStr.includes('comida') || checkStr.includes('cena') || checkStr.includes('desayuno') || checkStr.includes('almuerzo') || checkStr.includes('alojamiento') || checkStr.includes('hotel')) {
+            if (checkStr.includes('restaurante') || checkStr.includes('menu') || checkStr.includes('menú') || checkStr.includes('comida') || checkStr.includes('cena') || checkStr.includes('desayuno') || checkStr.includes('almuerzo') || checkStr.includes('alojamiento') || checkStr.includes('hotel') || type === 'rest') {
                 type = 'hotel';
             } else if (checkStr.includes('peluqueria') || checkStr.includes('estetica') || checkStr.includes('manicura') || checkStr.includes('pedicura') || checkStr.includes('depilacion')) {
                 type = 'peluqueria';
@@ -418,13 +420,13 @@ function goToReservation(client, service, code) {
     // alert(debugMsg); // Descomentar para debug extremo, pero mejor console.log si el usuario puede verlo
     // Si el usuario dijo "entra en el navegador", quizas no ve la consola.
     // LE PONGO UN ALERT TEMPORAL:
-    alert(debugMsg);
+    // alert(debugMsg);
 
     let url = `reservas.html?type=${type}&action=new&client=${encodeURIComponent(client)}&service=${encodeURIComponent(service)}&voucher=${code}`;
 
-    // Si es hotel/restaurante, redirigir al proyecto independiente
-    if (type === 'hotel') {
-        url = `../gestion-Salones/restaurante.html?action=new&client=${encodeURIComponent(client)}&service=${encodeURIComponent(service)}&voucher=${code}`;
+    // Si es hotel/restaurante, redirigir al proyecto independiente (Mesachef)
+    if (type === 'hotel' || type === 'restaurante' || type === 'rest' || (type || '').toLowerCase().includes('restaurante')) {
+        url = `https://nataliogc.github.io/Mesachef/restaurante.html?action=new&client=${encodeURIComponent(client)}&service=${encodeURIComponent(service)}&voucher=${code}`;
     }
 
     window.location.href = url;
@@ -1308,13 +1310,17 @@ async function autoFixVoucherSessions() {
 
         for (const b of toFix) {
             const det = detectSessions(b);
-            await db.collection("spa_vouchers").doc(b.bono).update({
-                sesiones_totales: det.total,
-                pax_por_sesion: det.paxPerSession,
-                manual_update: true,
-                auto_fixed: true,
-                updatedAt: new Date().toISOString()
-            });
+
+            // Actualizar objeto localmente
+            b.sesiones_totales = det.total;
+            b.pax_por_sesion = det.paxPerSession;
+            b.manual_update = true;
+            b.auto_fixed = true;
+            b.updatedAt = new Date().toISOString();
+
+            // Guardar usando la API local (Maneja IndexedDB + Sync)
+            await apiLocal.saveBono(b);
+
             fixedCount++;
         }
 
@@ -1339,22 +1345,38 @@ function renderBonosFromState() {
     const filterDate = document.getElementById("voucher-date").value;
 
     const filtered = state.bonos.filter(b => {
-        // Texto (Bono, Email, Producto, Cliente, Teléfono)
-        const textMatch = (b.bono || '').toLowerCase().includes(searchTerm) ||
-            (b.email || '').toLowerCase().includes(searchTerm) ||
-            (b.producto || '').toLowerCase().includes(searchTerm) ||
-            (b.cliente || '').toLowerCase().includes(searchTerm) ||
-            (b.telefono || '').toLowerCase().includes(searchTerm);
-
         // NUEVO: Si hay búsqueda activa por searchTokens, NO aplicar filtros
         if (state.isActiveSearch) {
             return true; // Mostrar TODOS los resultados de la búsqueda
         }
 
+        // Search Term (Global)
+        if (searchTerm) {
+            const clienteStr = String(b.cliente || "").toLowerCase();
+            const bonoStr = String(b.bono || "").toLowerCase();
+            const emailStr = String(b.email || "").toLowerCase();
+            const productoStr = String(b.producto || "").toLowerCase();
+            const telefonoStr = String(b.telefono || "").toLowerCase(); // Added telefono
+
+            // Buscar en searchTokens si existen
+            const matchesTokens = b.searchTokens && Array.isArray(b.searchTokens)
+                ? b.searchTokens.some(t => t.includes(searchTerm))
+                : false;
+
+            if (!matchesTokens &&
+                !clienteStr.includes(searchTerm) &&
+                !bonoStr.includes(searchTerm) &&
+                !emailStr.includes(searchTerm) &&
+                !productoStr.includes(searchTerm) &&
+                !telefonoStr.includes(searchTerm)) { // Added telefono
+                return false;
+            }
+        }
+
         // Fecha
         let dateMatch = true;
         if (filterDate && b.fecha) {
-            dateMatch = b.fecha.startsWith(filterDate);
+            dateMatch = String(b.fecha).startsWith(filterDate);
         }
 
         // Estado
@@ -1439,7 +1461,7 @@ function renderBonosFromState() {
             statusLabel += ` <i class="fas fa-exclamation-triangle" title="Sugerencia: ${det.total} ses / ${det.paxPerSession} pax. Abre para corregir."></i> ${label}`;
         }
 
-        if (b.estado === 'pending' && isExpired) {
+        if ((b.estado === 'pending' || b.estado === 'activo') && isExpired) {
             badgeClass = 'st-expired'; statusLabel = 'CADUCADO (Auto)';
         }
 
@@ -2016,7 +2038,10 @@ async function openVoucherManagement(code) {
                     if (item.space) {
                         const s = item.space.toLowerCase();
                         // Para Hotel, suele ser único item, así que es más seguro
-                        if (s === 'hotel' && (h.origen || '').toLowerCase().includes('hotel')) spaceMatch = true;
+                        if (s === 'hotel' && ((h.origen || '').toLowerCase().includes('hotel') || h._col === 'reservas_restaurante')) spaceMatch = true;
+
+                        // Para Restaurante explícito
+                        if ((s === 'restaurante' || s === 'rest') && h._col === 'reservas_restaurante') spaceMatch = true;
 
                         // Para Spa/Masaje, confiamos en el nombre. 
                         // Solo si el item es MUY genérico (ej: "Bono Spa") habilitamos match por colección
@@ -2883,37 +2908,7 @@ async function createLocalVoucher() {
 }
 
 
-// Helper para redirección
-function goToReservation(client, service, code, targetModule) {
-    // FIX: Usar fecha local para evitar problemas de zona horaria (UTC vs Local)
-    const localDate = new Date();
-    const offset = localDate.getTimezoneOffset();
-    const today = new Date(localDate.getTime() - (offset * 60 * 1000)).toISOString().split('T')[0];
-
-    // confirm eliminado para agilizar UX
-    // if (!confirm(...)) return;
-
-    let url = `reservas.html?action=new&client=${client}&service=${service}&voucher=${code}&date=${today}`;
-
-    if (targetModule) {
-        // Asegurar que el módulo es uno de los válidos (spa, suite, panacea, peluqueria, vip, hotel)
-        const validModules = ['spa', 'suite', 'panacea', 'vip', 'peluqueria', 'hotel'];
-        const normalizedModule = targetModule.toLowerCase().trim();
-
-        if (validModules.includes(normalizedModule)) {
-            if (normalizedModule === 'hotel') {
-                url = `../gestion-Salones/restaurante.html?action=new&client=${client}&service=${service}&voucher=${code}&date=${today}`;
-            } else {
-                url += `&type=${normalizedModule}`;
-            }
-        } else if (normalizedModule.includes('alojamiento') || normalizedModule.includes('restaurante')) {
-            // Si el espacio incluye restaurante o alojamiento, redirigir a hotel externo
-            url = `../gestion-Salones/restaurante.html?action=new&client=${client}&service=${service}&voucher=${code}&date=${today}`;
-        }
-    }
-
-    window.location.href = url;
-}
+// function goToReservation removed (duplicate legacy code)
 
 async function markServiceUsed(itemIndex, voucher) {
     const item = state.editingVoucherItems[itemIndex];
@@ -3211,3 +3206,332 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 });
+
+// --- Funcionalidad de Exportación a Excel ---
+// Se define globalmente para ser accesible desde el HTML
+window.exportLocalVouchersToExcel = async function () {
+    if (!state.bonos || state.bonos.length === 0) {
+        showToast("No hay bonos cargados para exportar", "warning");
+        return;
+    }
+
+    try {
+        const btn = document.querySelector("button[onclick='exportLocalVouchersToExcel()']");
+        const originalContent = btn ? btn.innerHTML : '';
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Exportando...';
+        }
+
+        // 1. Filtrar solo bonos locales (origen 'local' o código empieza por LOC-)
+        const localBonos = state.bonos.filter(b =>
+            b.origen === 'local' ||
+            (b.codigo && b.codigo.startsWith('LOC-')) ||
+            (b.bono && b.bono.startsWith('LOC-'))
+        );
+
+        if (localBonos.length === 0) {
+            showToast("No se encontraron bonos locales para exportar", "info");
+            if (btn) {
+                btn.innerHTML = originalContent;
+                btn.disabled = false;
+            }
+            return;
+        }
+
+        console.log(`[EXPORT] Encontrados ${localBonos.length} bonos locales.`);
+
+        // 2. Mapear datos al formato deseado (Columnas de "BONOS LOCALES.xlsx")
+        const exportData = localBonos.map(b => {
+            // Normalizar campos
+            const codigo = b.bono || b.codigo || '';
+            const fecha = b.fecha || '';
+            const cliente = b.cliente || b.customer_note || ''; // Fallback si cliente no está
+            const email = b.email || '';
+            const producto = b.producto || '';
+            const importe = parseFloat(b.importe || 0);
+            const estado = b.estado || 'pending';
+
+            // Generar objeto plano
+            return {
+                "Código": codigo,
+                "Fecha": fecha,
+                "Cliente": cliente,
+                "Email": email,
+                "Producto": producto,
+                "Importe": importe,
+                "Estado": estado,
+                "Sesiones Total": b.sesiones_totales || 1,
+                "Sesiones Usadas": b.sesiones_usadas || 0,
+                "Origen": "Local"
+            };
+        });
+
+        // 3. Crear Workbook y Sheet
+        const ws = XLSX.utils.json_to_sheet(exportData);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Bonos Locales");
+
+        // 4. Generar nombre de archivo con fecha
+        const dateStr = new Date().toISOString().split('T')[0];
+        const fileName = `BONOS_LOCALES_${dateStr}.xlsx`;
+
+        // 5. Descargar
+        XLSX.writeFile(wb, fileName);
+
+        showToast(`Exportados ${localBonos.length} bonos correctamente`, "success");
+
+    } catch (err) {
+        console.error("Error exportando a Excel:", err);
+        showToast("Error al exportar: " + err.message, "error");
+    } finally {
+        const btn = document.querySelector("button[onclick='exportLocalVouchersToExcel()']");
+        if (btn) {
+            btn.innerHTML = '<i class="fas fa-file-export"></i> Exp. Locales';
+            btn.disabled = false;
+        }
+    }
+};
+
+// --- IMPORTAR BONOS LOCALES DESDE EXCEL ---
+window.importLocalVouchersFromExcel = function (event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+
+    reader.onload = async function (e) {
+        try {
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, { type: 'array' });
+
+            const firstSheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[firstSheetName];
+
+            // Convertir a Array de Arrays primero para buscar la cabecera
+            const rawData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
+            if (!rawData || rawData.length === 0) {
+                showToast("El archivo Excel parece vacío.", "error");
+                return;
+            }
+
+            // --- AUTO-DETECT HEADER ROW ---
+            let headerRowIndex = 0;
+            let foundHeader = false;
+
+            for (let i = 0; i < Math.min(rawData.length, 10); i++) {
+                const row = rawData[i];
+                const rowStr = JSON.stringify(row).toLowerCase();
+                // Buscar palabras clave en la fila
+                if (rowStr.includes('codigo') || rowStr.includes('código') || rowStr.includes('bono') || rowStr.includes('code')) {
+                    headerRowIndex = i;
+                    foundHeader = true;
+                    console.log(`[IMPORT] Cabecera detectada en fila ${i}:`, row);
+                    break;
+                }
+            }
+
+            // Si no encontramos nada claro, asumimos fila 0, pero avisamos
+            if (!foundHeader) {
+                console.warn("[IMPORT] No se detectó fila de cabecera obvia. Usando fila 0.");
+            }
+
+            // Re-procesar usando la fila detectada como cabecera (range offset)
+            const jsonData = XLSX.utils.sheet_to_json(worksheet, { range: headerRowIndex });
+
+            let importedCount = 0;
+            let errorCount = 0;
+            let skippedCount = 0;
+
+            console.log(`[IMPORT] Procesando ${jsonData.length} filas desde la fila ${headerRowIndex}...`);
+
+            for (const row of jsonData) {
+                try {
+                    // Helper para normalizar headers (eliminar acentos, lower case y SALTOS DE LÍNEA)
+                    const normalizeHeader = h => h.toLowerCase()
+                        .replace(/[\r\n]+/g, "") // Eliminar saltos de línea (Fix para 'ARTIC\nULO')
+                        .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+                        .trim();
+
+                    const getVal = (keys) => {
+                        const rowKeys = Object.keys(row);
+                        for (const k of keys) {
+                            const target = normalizeHeader(k);
+                            const foundKey = rowKeys.find(rk => normalizeHeader(rk).includes(target));
+                            if (foundKey) return row[foundKey];
+                        }
+                        return null;
+                    };
+
+                    // MAPPING EXTENDIDO PARA FORMATO LEGACY
+                    // 'no tarjeta' matches 'Nº TARJETA' normalized
+                    let rawCodigo = getVal(['Codigo', 'Bono', 'ID', 'Code', 'Nº Tarjeta', 'Tarjeta', 'Numero']);
+
+                    if (!rawCodigo) {
+                        if (Object.keys(row).length > 2) {
+                            // console.warn("[IMPORT] Fila ignorada por falta de código:", row);
+                            errorCount++;
+                        }
+                        continue;
+                    }
+
+                    // AÑADIR PREFIJO "exc.Loc " si no lo tiene
+                    const codigo = String(rawCodigo).startsWith("exc.Loc") ? rawCodigo : `exc.Loc ${rawCodigo}`;
+
+                    if (String(rawCodigo).includes("16707")) {
+                        console.log("DEBUG 16707 FOUND:", { rawCodigo, codigo, row });
+                    }
+
+                    const exists = state.bonos.find(b => b.codigo === codigo || b.bono === codigo);
+                    if (exists) {
+                        if (String(rawCodigo).includes("16707")) console.log("DEBUG 16707 SKIPPED (EXISTS):", exists);
+                        skippedCount++;
+                        continue;
+                    }
+
+                    const cliente = getVal(['Cliente', 'Nombre', 'Titular', 'Customer']) || 'Cliente Importado';
+
+                    // 'FECHA DE COMPRA' mapping - Prioritized
+                    const fechaRaw = getVal(['Fecha de compra', 'Fecha', 'Date', 'Created', 'Compra', 'Cha de comp']);
+
+                    // DEBUG LOG
+                    if (importedCount === 0) {
+                        console.log("DEBUG IMPORT ROW 0:", row);
+                        console.log("DEBUG KEYS:", Object.keys(row));
+                        console.log("DEBUG FECHA RAW:", fechaRaw);
+                    }
+
+                    let fecha = new Date().toISOString().split('T')[0]; // Default
+
+                    if (fechaRaw) {
+                        if (typeof fechaRaw === 'number') {
+                            // Excel serial date (Excel epoch is 1899-12-30)
+                            try {
+                                const d = new Date((fechaRaw - 25569) * 86400 * 1000);
+                                if (!isNaN(d.getTime())) fecha = d.toISOString().split('T')[0];
+                            } catch (e) { console.warn("Error parsing excel date:", fechaRaw); }
+                        } else if (typeof fechaRaw === 'string') {
+                            // Parse string formats
+                            const trimmed = fechaRaw.trim();
+                            // Check for DD/MM/YYYY
+                            if (trimmed.match(/^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{4}/)) {
+                                const parts = trimmed.split(/[\/\-]/);
+                                if (parts.length === 3) {
+                                    const day = parts[0].padStart(2, '0');
+                                    const month = parts[1].padStart(2, '0');
+                                    const year = parts[2];
+                                    fecha = `${year}-${month}-${day}`;
+                                }
+                            } else {
+                                // Fallback standard
+                                const d = new Date(trimmed);
+                                if (!isNaN(d.getTime())) fecha = d.toISOString().split('T')[0];
+                            }
+                        }
+                    }
+
+                    // Mapping Producto. Fixed 'ARTICULO' matching 'ARTIC\nULO' via normalizeHeader removal of \n
+                    const producto = getVal(['Producto', 'Servicio', 'Concepto', 'Item', 'Articulo']) || 'Bono Importado';
+
+                    // 'efectivo' might be the price in this specific sheet
+                    const importe = parseFloat(getVal(['Importe', 'Precio', 'Coste', 'Amount', 'Efectivo', 'Total']) || 0);
+
+                    const email = getVal(['Email', 'Correo']) || '';
+
+                    // NUEVO: OBSERVACIONES
+                    const observaciones = getVal(['Observaciones', 'Notas', 'Comentarios', 'Nota']) || '';
+
+                    // Logic for redemption date (FECHA DE CANJE)
+                    const fechaCanje = getVal(['Fecha Canje', 'Canje', 'Echa de canj']);
+
+                    // VALIDACIÓN DE DUPLICADOS ROBUSTA
+                    // 1. Verificar si ya existe en el estado actual (state.bonos)
+                    const alreadyExists = state.bonos.some(b => b.bono === codigo);
+                    if (alreadyExists) {
+                        console.log(`[Import] Saltando duplicado (ya en estado): ${codigo}`);
+                        skippedCount++;
+                        continue;
+                    }
+
+                    // 2. Verificar si ya lo hemos procesado en ESTE lote
+                    if (processedCodes.has(codigo)) {
+                        console.log(`[Import] Saltando duplicado (en lote): ${codigo}`);
+                        skippedCount++;
+                        continue;
+                    }
+                    processedCodes.add(codigo);
+
+                    let sesiones = parseInt(getVal(['Sesiones', 'Sesiones Total', 'Cantidad']) || 1);
+                    let sesionesUsadas = parseInt(getVal(['Sesiones Usadas', 'Usadas']) || 0);
+
+                    // Si tiene fecha de canje, asumimos que está gastado si no se especifica sesiones usadas
+                    if (fechaCanje && sesionesUsadas === 0) {
+                        sesionesUsadas = sesiones;
+                    }
+
+                    const newBono = {
+                        codigo: String(codigo), // Ensure string
+                        bono: String(codigo),
+                        cliente: cliente,
+                        fecha: fecha,
+                        email: email,
+                        producto: producto,
+                        importe: importe,
+                        sesiones_totales: sesiones,
+                        sesiones_usadas: sesionesUsadas,
+                        observaciones: observaciones, // Guardamos observaciones
+                        origen: 'local',
+                        estado: sesionesUsadas >= sesiones ? 'agotado' : 'activo',
+                        items_desglosados: [
+                            {
+                                name: producto,
+                                sessions: sesiones,
+                                used: sesionesUsadas,
+                                price: importe
+                            }
+                        ]
+                    };
+
+                    // Generar tokens de búsqueda para que sea encontrable
+                    newBono.searchTokens = generateSearchTokens(newBono);
+
+                    // Guardar en DB Local (y la API se encarga de sync si es posible)
+                    await apiLocal.saveBono(newBono);
+
+                    // Actualizar estado local
+                    state.bonos.unshift(newBono);
+                    importedCount++;
+
+                } catch (rowErr) {
+                    console.error("Error importando fila:", row, rowErr);
+                    errorCount++;
+                }
+            }
+
+            // REFRESCAR UI (Usar la función correcta)
+            if (typeof renderBonosFromState === 'function') {
+                renderBonosFromState();
+            } else if (typeof renderBonos === 'function') {
+                renderBonos(state.bonos);
+            } else {
+                console.warn("[IMPORT] No se encontró función de renderizado. Recargando...");
+                window.location.reload();
+            }
+
+            let msg = `Importados: ${importedCount}.`;
+            if (skippedCount > 0) msg += ` Saltados (duplicados): ${skippedCount}.`;
+            if (errorCount > 0) msg += ` Ignorados/Error: ${errorCount}.`;
+
+            showToast(msg, importedCount > 0 ? "success" : "info");
+
+        } catch (err) {
+            console.error("Error procesando archivo:", err);
+            showToast("Error crítico al leer el archivo Excel.", "error");
+        } finally {
+            event.target.value = '';
+        }
+    };
+
+    reader.readAsArrayBuffer(file);
+};
