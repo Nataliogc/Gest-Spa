@@ -101,7 +101,14 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     // Crear indicador de sincronización si no existe
-    setupSyncIndicator();
+    // setupSyncIndicator(); // DISABLED: Using SyncManager instead
+
+    // Initialize Sync Engine (Background Sync)
+    if (typeof SyncManager !== 'undefined') {
+        console.log("Initializing SyncManager...");
+        window.syncEngine = new SyncManager();
+        window.syncEngine.init();
+    }
 
     // Setup theme toggles
     document.querySelectorAll(".theme-toggle").forEach(btn => {
