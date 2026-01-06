@@ -1021,6 +1021,109 @@ async function sincronizarConTienda(persistentData, btn, originalText) {
     }
 }
 
+// --- CLEANUP DUPLICATES ---
+async function cleanupDuplicates() {
+    if (!confirm("⚠️ ATENCIÓN: Esta acción buscará y ELIMINARÁ permanentemente los bonos duplicados de la base de datos (Local y Nube).\n\n¿Estás seguro/a?")) return;
+
+    const btn = document.getElementById("cleanup-btn");
+    if (btn) btn.disabled = true;
+    showToast("Iniciando limpieza de duplicados...", "info");
+
+    try {
+        const allBonos = state.bonos;
+        const codeMap = new Map();
+        let duplicatesFound = 0;
+        let deletedCount = 0;
+
+        // 1. Identificar duplicados
+        console.log(`[CLEANUP] Analizando ${allBonos.length} bonos en memoria...`);
+
+        for (const b of allBonos) {
+            const code = String(b.bono || b.codigo).trim();
+            if (!codeMap.has(code)) {
+                codeMap.set(code, [b]);
+            } else {
+                codeMap.get(code).push(b);
+            }
+        }
+
+        // 2. Procesar grupos con más de 1 elemento
+        for (const [code, list] of codeMap.entries()) {
+            if (list.length > 1) {
+                duplicatesFound++;
+                console.log(`[CLEANUP] Duplicado detectado: ${code} (${list.length} copias)`);
+
+                // Estrategia: Mantener el más reciente (updatedAt) o el que tenga más info.
+                // Ordenar: Más completo primero, Más reciente updated primero.
+                list.sort((a, b) => {
+                    // Puntos por tener items
+                    const scrA = (a.items_desglosados?.length || 0) * 10
+                        + (a.updatedAt ? new Date(a.updatedAt).getTime() : 0);
+                    const scrB = (b.items_desglosados?.length || 0) * 10
+                        + (b.updatedAt ? new Date(b.updatedAt).getTime() : 0);
+                    return scrB - scrA; // Descending
+                });
+
+                const keeper = list[0];
+                const trash = list.slice(1);
+
+                // Eliminar trash
+                for (const item of trash) {
+                    const idToDelete = item.id || item.bono || code; // Firestore Doc ID usually matches Code
+
+                    try {
+                        // Delete Local
+                        if (window.apiLocal) {
+                            const localDb = await apiLocal._getDb();
+                            // Buscar por ID interno de dexie si lo tenemos
+                            if (item.id && typeof item.id === 'number') {
+                                await localDb.bonos.delete(item.id);
+                            } else {
+                                // Buscar por código
+                                const found = await localDb.bonos.where('bono').equals(code).toArray();
+                                // Borrar todos menos el keeper si podemos identificarlo... 
+                                // O más agresivo: borrar TODO lo de este código local y volver a guardar el keeper.
+                                for (const f of found) {
+                                    if (f.id !== keeper.id) await localDb.bonos.delete(f.id);
+                                }
+                            }
+                        }
+
+                        // Delete Firestore (ONLY if doc ID is different from keeper, OR if we are sure it's a dupe doc)
+                        // Riesgo: si dos docs (A y B) tienen mismo 'bono' field pero distinto DocID -> borrar B.
+                        // Si tienen mismo DocID... Firestore solo tiene 1. El duplicado es visual/local.
+
+                        // Check if item has a specific Firestore ID different from Keeper
+                        if (item.firestoreId && item.firestoreId !== keeper.firestoreId) {
+                            await db.collection('spa_vouchers').doc(item.firestoreId).delete();
+                        } else if (item.id && typeof item.id === 'string' && item.id !== keeper.id) {
+                            // Assuming item.id IS the firestore doc id
+                            await db.collection('spa_vouchers').doc(item.id).delete();
+                        }
+
+                    } catch (e) {
+                        console.error(`[CLEANUP] Error borrando copia de ${code}:`, e);
+                    }
+                    deletedCount++;
+                }
+            }
+        }
+
+        if (deletedCount > 0) {
+            showToast(`Limpieza: ${deletedCount} duplicados eliminados.`, "success");
+            await cargarBonos(); // Recargar todo limpisimo
+        } else {
+            showToast("No se encontraron duplicados reales que eliminar.", "info");
+        }
+
+    } catch (e) {
+        console.error("Cleanup error:", e);
+        showToast("Error limpieza: " + e.message, "error");
+    } finally {
+        if (btn) btn.disabled = false;
+    }
+}
+
 function restoreButton(btn, text) {
     if (btn) {
         btn.innerHTML = text;
@@ -1344,6 +1447,19 @@ function renderBonosFromState() {
     const filterStatus = document.getElementById("voucher-filter").value;
     const filterDate = document.getElementById("voucher-date").value;
 
+    // --- INJECT CLEANUP BUTTON (Admin/PowerUser) ---
+    const filterContainer = document.querySelector('.filters-row') || document.querySelector('.filters-container');
+    if (filterContainer && !document.getElementById('cleanup-btn')) {
+        const btn = document.createElement('button');
+        btn.id = 'cleanup-btn';
+        btn.innerHTML = '<i class="fas fa-trash-alt"></i> Limpiar Duplicados';
+        btn.className = 'btn-secondary'; // Use existing class
+        btn.style = "background:#ef4444; color:white; border:none; padding:8px 12px; border-radius:6px; cursor:pointer; font-size:0.85rem; font-weight:600; margin-left:10px;";
+        btn.onclick = cleanupDuplicates;
+        // Insert at the end of filters
+        filterContainer.appendChild(btn);
+    }
+
     const filtered = state.bonos.filter(b => {
         // NUEVO: Si hay búsqueda activa por searchTokens, NO aplicar filtros
         if (state.isActiveSearch) {
@@ -1393,6 +1509,19 @@ function renderBonosFromState() {
 
         return dateMatch && statusMatch;
     });
+
+    // --- DEDUPLICACIÓN VISUAL ---
+    // Asegurar que solo se muestra 1 bono por Código
+    const uniqueBonos = [];
+    const seenCodes = new Set();
+    filtered.forEach(b => {
+        const code = String(b.bono || b.codigo).trim();
+        if (!seenCodes.has(code)) {
+            seenCodes.add(code);
+            uniqueBonos.push(b);
+        }
+    });
+    filtered = uniqueBonos;
 
     document.getElementById("voucher-count").textContent = filtered.length;
 
@@ -2955,6 +3084,7 @@ async function markServiceUsed(itemIndex, voucher) {
 }
 
 // --- IMPORTACIÓN DE EXCEL DE WOOCOMMERCE ---
+// --- IMPORTACIÓN DE EXCEL DE WOOCOMMERCE ---
 async function importExcelOrders(event) {
     const file = event.target.files[0];
     if (!file) return;
@@ -2992,6 +3122,7 @@ async function importExcelOrders(event) {
             'Fecha del pedido': 'fecha',
             // Producto
             'ID del producto': 'product_id',
+            'ID de la variante': 'variation_id', // Capturar variación si existe
             'Nombre del artículo': 'producto',
             'Coste de artículo': 'importe',
             'Precio actual del producto': 'precio_producto',
@@ -3007,93 +3138,171 @@ async function importExcelOrders(event) {
             'Nota del cliente': 'nota_cliente'
         };
 
+        // 1. AGRUPAR FILAS POR NÚMERO DE PEDIDO
+        const orders = {};
+
+        for (const row of rows) {
+            // Mapear campos
+            const mapped = {};
+            for (const [excelCol, fieldName] of Object.entries(columnMap)) {
+                if (row[excelCol] !== undefined && row[excelCol] !== '') {
+                    mapped[fieldName] = row[excelCol];
+                }
+            }
+
+            // Validar clave
+            const orderKey = mapped.order_number || mapped.order_id;
+            if (!orderKey) continue;
+
+            const bonoCode = `WC${orderKey}`;
+
+            if (!orders[bonoCode]) {
+                orders[bonoCode] = {
+                    bonoCode,
+                    meta: mapped, // Guardar metadatos generales del primer item
+                    items: []
+                };
+            }
+
+            // Añadir item
+            orders[bonoCode].items.push(mapped);
+        }
+
         let imported = 0;
         let skipped = 0;
         let errors = 0;
+        let updated = 0;
 
-        for (const row of rows) {
+        const orderCodes = Object.keys(orders);
+        console.log(`Pedidos únicos detectados: ${orderCodes.length}`);
+
+        // 2. PROCESAR CADA PEDIDO AGRUPADO
+        for (const code of orderCodes) {
             try {
-                // Mapear campos
-                const mapped = {};
-                for (const [excelCol, fieldName] of Object.entries(columnMap)) {
-                    if (row[excelCol] !== undefined && row[excelCol] !== '') {
-                        mapped[fieldName] = row[excelCol];
-                    }
-                }
+                const orderData = orders[code];
+                const firstItem = orderData.items[0]; // Usar datos del primer item para cabecera de bono
 
-                // Validar datos mínimos
-                if (!mapped.order_number && !mapped.order_id) {
-                    console.warn("Fila sin número de pedido:", row);
-                    skipped++;
-                    continue;
-                }
-
-                // Generar código de bono
-                const bonoCode = `WC${mapped.order_number || mapped.order_id}`;
-
-                // Verificar si ya existe
-                const existing = await db.collection('bonos').doc(bonoCode).get();
-                if (existing.exists) {
-                    console.log("Bono ya existe:", bonoCode);
-                    skipped++;
-                    continue;
-                }
+                // Verificar si ya existe en Firestore
+                const docRef = db.collection('spa_vouchers').doc(code);
+                const existingDoc = await docRef.get();
 
                 // Calcular cliente
-                const clientName = [mapped.nombre || '', mapped.apellidos || ''].filter(Boolean).join(' ').trim();
+                const clientName = [firstItem.nombre || '', firstItem.apellidos || ''].filter(Boolean).join(' ').trim();
 
                 // Parsear fecha
                 let fechaCompra = null;
-                if (mapped.fecha) {
-                    const d = new Date(mapped.fecha);
+                if (firstItem.fecha) {
+                    const d = new Date(firstItem.fecha);
                     if (!isNaN(d.getTime())) {
                         fechaCompra = d.toISOString().split('T')[0];
                     }
                 }
 
-                // Detectar sesiones al importar
-                const detected = detectSessions(mapped);
+                // Construir items desglosados
+                let totalSesiones = 0;
+                let totalPrice = 0;
+                let productNames = [];
+                const itemsDesglosados = [];
 
-                // Crear documento del bono
+                orderData.items.forEach(item => {
+                    const price = parseFloat(String(item.importe || item.total_pedido || '0').replace(',', '.')) || 0;
+                    const qty = parseInt(item.cantidad) || 1;
+
+                    // Detectar sesiones por item
+                    const det = detectSessions(item);
+
+                    // Por cada unidad de cantidad, añadir un item (o agrupar, pero mejor desglosar si son servicios distintos)
+                    // Si qty > 1 de un mismo servicio, ¿desglosar?
+                    // Sí, mejor desglosar para permitir consumo individual.
+                    for (let i = 0; i < qty; i++) {
+                        itemsDesglosados.push({
+                            itemId: 'imp_' + Math.random().toString(36).substr(2, 9),
+                            name: item.producto || 'Producto sin nombre',
+                            product_id: item.product_id ? String(item.product_id) : null,
+                            variation_id: item.variation_id ? String(item.variation_id) : null,
+                            price: price / qty, // Precio unitario aproximado
+                            sessions: det.total,
+                            pax: det.paxPerSession,
+                            used: 0
+                        });
+                        totalSesiones += det.total;
+                    }
+
+                    productNames.push(`${qty > 1 ? qty + 'x ' : ''}${item.producto}`);
+                    totalPrice += price; // El precio de la fila generalmente es el total de esa línea
+                });
+
+                // Si ya existe, decidimos si actualizar o saltar
+                // Estrategia: Si existe y tiene menos items, actualizamos (fusión). 
+                // Pero por simplicidad, si ya existe, asumimos que está bien y saltamos, salvo que sea un re-import forzado.
+                // CORRECCIÓN: Si el usuario re-importa para arreglar items faltantes, debemos permitir Update.
+
+                if (existingDoc.exists) {
+                    const existingData = existingDoc.data();
+
+                    // Chequeo simple: Si el existente tiene menos items desglosados, actualizar
+                    if ((existingData.items_desglosados || []).length < itemsDesglosados.length) {
+                        console.log(`[UPDATE] Actualizando bono ${code} con más items (${itemsDesglosados.length} vs ${existingData.items_desglosados?.length})`);
+
+                        await docRef.update({
+                            items_desglosados: itemsDesglosados,
+                            producto: productNames.join(' + '), // Actualizar nombre compuesto
+                            sesiones_totales: totalSesiones,
+                            importe: totalPrice // Actualizar precio total real
+                        });
+                        updated++;
+                    } else {
+                        console.log("Bono ya existe y parece completo:", code);
+                        skipped++;
+                    }
+                    continue;
+                }
+
+                // Crear nuevo documento
                 const bonoData = {
-                    bono: bonoCode,
-                    order_id: String(mapped.order_id || mapped.order_number || ''),
-                    producto: mapped.producto || 'Producto WooCommerce',
-                    product_id: mapped.product_id ? String(mapped.product_id) : null,
-                    sku: mapped.sku || null,
-                    descripcion: mapped.descripcion || '',
-                    categoria: mapped.categoria || '',
+                    bono: code,
+                    order_id: String(firstItem.order_id || firstItem.order_number || ''),
+                    producto: productNames.join(' + '),
                     cliente: clientName || 'Cliente WooCommerce',
-                    email: mapped.email || mapped.email_billing || '',
-                    telefono: mapped.telefono || '',
-                    importe: parseFloat(String(mapped.importe || mapped.total_pedido || '0').replace(',', '.')) || 0,
-                    cantidad: parseInt(mapped.cantidad) || 1,
+                    email: firstItem.email || firstItem.email_billing || '',
+                    telefono: firstItem.telefono || '',
+                    importe: totalPrice,
+                    cantidad: 1, // Es 1 bono que contiene X items
                     fecha: fechaCompra || new Date().toISOString().split('T')[0],
-                    nota_cliente: mapped.nota_cliente || '',
+                    nota_cliente: firstItem.nota_cliente || '',
                     origen: 'woocommerce-excel',
-                    status: mapOrderStatus(mapped.order_status),
+                    status: mapOrderStatus(firstItem.order_status),
+                    estado: 'pending', // Estado interno inicial
                     sesiones_usadas: 0,
-                    sesiones_totales: detected.total,
-                    pax_por_sesion: detected.paxPerSession,
+                    sesiones_totales: totalSesiones,
+                    pax_por_sesion: itemsDesglosados[0]?.pax || 1, // Pax del primer item por defecto
+                    items_desglosados: itemsDesglosados,
                     fecha_validez: null,
                     createdAt: new Date().toISOString(),
                     importedAt: new Date().toISOString()
                 };
 
-                await db.collection('spa_vouchers').doc(bonoCode).set(bonoData);
+                // Generar searchTokens
+                if (typeof generateSearchTokens === 'function') {
+                    bonoData.searchTokens = generateSearchTokens(bonoData);
+                }
+
+                await docRef.set(bonoData);
+                if (window.apiLocal) await apiLocal.saveBono({ ...bonoData, syncStatus: 'synced' }); // Guardar copia local también
+
                 imported++;
-                console.log("✅ Importado:", bonoCode, bonoData.producto);
+                console.log("✅ Importado Agrupado:", code, bonoData.producto);
 
             } catch (rowErr) {
-                console.error("Error en fila:", rowErr, row);
+                console.error("Error procesando pedido:", code, rowErr);
                 errors++;
             }
         }
 
-        showToast(`Importación completada: ${imported} nuevos, ${skipped} omitidos, ${errors} errores`, imported > 0 ? "success" : "info");
+        showToast(`Importación completada: ${imported} nuevos, ${updated} actualizados, ${skipped} omitidos`, (imported > 0 || updated > 0) ? "success" : "info");
 
         // Recargar bonos
-        if (imported > 0) {
+        if (imported > 0 || updated > 0) {
             await cargarBonos();
         }
 
@@ -3445,21 +3654,40 @@ window.importLocalVouchersFromExcel = function (event) {
                     // Logic for redemption date (FECHA DE CANJE)
                     const fechaCanje = getVal(['Fecha Canje', 'Canje', 'Echa de canj']);
 
-                    // VALIDACIÓN DE DUPLICADOS ROBUSTA
-                    // 1. Verificar si ya existe en el estado actual (state.bonos)
-                    const alreadyExists = state.bonos.some(b => b.bono === codigo);
-                    if (alreadyExists) {
-                        console.log(`[Import] Saltando duplicado (ya en estado): ${codigo}`);
-                        skippedCount++;
-                        continue;
-                    }
-
-                    // 2. Verificar si ya lo hemos procesado en ESTE lote
+                    // VALIDACIÓN DE DUPLICADOS ROBUSTA (ASYNC)
+                    // 1. Verificar si ya lo hemos procesado en ESTE lote
                     if (processedCodes.has(codigo)) {
                         console.log(`[Import] Saltando duplicado (en lote): ${codigo}`);
                         skippedCount++;
                         continue;
                     }
+
+                    // 2. Verificar existencia REAL en DB (Local o Firestore) porque state.bonos puede estar incompleto (filtros)
+                    let checkExists = null;
+                    if (window.apiLocal) {
+                        checkExists = await apiLocal.getBonoByCode(codigo);
+                    }
+                    // Si no está en local, verificar Firestore (por si no se ha sincronizado o no se ha cargado)
+                    if (!checkExists) {
+                        const fsDoc = await db.collection('spa_vouchers').doc(codigo).get();
+                        if (fsDoc.exists) checkExists = fsDoc.data();
+                    }
+
+                    if (checkExists) {
+                        console.log(`[Import] Saltando duplicado (ya existe en BD): ${codigo}`);
+                        skippedCount++;
+                        // Si existe, asegúrate de que esté en state local para que el usuario lo VEA al menos
+                        const isVisible = state.bonos.some(b => b.bono === codigo);
+                        if (!isVisible && checkExists) {
+                            // Lo añadimos al estado visual para feedback inmediato
+                            // OJO: checkExists puede ser el objeto de DB o Firestore
+                            // Normalizamos un poco si viene de Firestore
+                            const dispBono = { ...checkExists, id: checkExists.id || codigo };
+                            state.bonos.unshift(dispBono);
+                        }
+                        continue;
+                    }
+
                     processedCodes.add(codigo);
 
                     let sesiones = parseInt(getVal(['Sesiones', 'Sesiones Total', 'Cantidad']) || 1);

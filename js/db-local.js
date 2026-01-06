@@ -91,11 +91,19 @@ window.apiLocal = {
         const db = await this._getDb();
         if (!db) throw new Error("LocalDB not available");
 
+        // Check if exists by 'bono' to update instead of insert
+        const existing = await db.bonos.where('bono').equals(bonoData.bono).first();
+
         const data = {
             ...bonoData,
             updatedAt: new Date().toISOString(),
             syncStatus: bonoData.syncStatus || 'pending'
         };
+
+        if (existing) {
+            data.id = existing.id; // Preserve ID for update
+        }
+
         return await db.bonos.put(data);
     },
 
