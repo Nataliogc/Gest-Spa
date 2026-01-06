@@ -1460,7 +1460,7 @@ function renderBonosFromState() {
         filterContainer.appendChild(btn);
     }
 
-    const filtered = state.bonos.filter(b => {
+    let filtered = state.bonos.filter(b => {
         // NUEVO: Si hay búsqueda activa por searchTokens, NO aplicar filtros
         if (state.isActiveSearch) {
             return true; // Mostrar TODOS los resultados de la búsqueda
