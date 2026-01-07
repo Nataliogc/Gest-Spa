@@ -148,7 +148,7 @@
             <li><a href="index.html" class="nav-link"><i class="fas fa-home"></i> Inicio</a></li>
             <li><a href="bonos.html" class="nav-link"><i class="fas fa-ticket-alt"></i> Bonos</a></li>
 
-            <li class="menu-header" style="display:none;">MÓDULOS</li> <!-- Hidden in topbar compact mode -->
+
             <li><a href="reservas.html?type=spa" class="nav-link"><i class="fas fa-water"></i> Spa</a></li>
             <li><a href="reservas.html?type=suite" class="nav-link"><i class="fas fa-gem"></i> Suite</a></li>
             <li><a href="reservas.html?type=panacea" class="nav-link"><i class="fas fa-columns"></i> Panacea & VIP</a>
@@ -579,7 +579,7 @@
                 if (!cfg.wc_url || !cfg.wc_key) return;
 
                 const authUrl = `${cfg.wc_url.replace(/\/$/, "")}/wp-json/wc/v3/products/categories?consumer_key=${cfg.wc_key}&consumer_secret=${cfg.wc_secret}&per_page=100`;
-                const res = await fetch(`https://corsproxy.io/?${encodeURIComponent(authUrl)}`);
+                const res = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(authUrl)}`);
                 if (!res.ok) throw new Error("Error cargando categorías");
 
                 state.wcCategories = await res.json();
@@ -1017,7 +1017,7 @@
                             });
 
                             const authUrl = `${cfg.wc_url.replace(/\/$/, "")}/wp-json/wc/v3/products/batch?${queryParams.toString()}`;
-                            const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(authUrl)}`;
+                            const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(authUrl)}`;
 
                             // Body: { delete: [ id ] }
                             // Note: 'force' might not be supported in batch directly via param, but let's try pushing it.
@@ -1284,7 +1284,7 @@
                 if (isNew) {
                     // CREAR: POST Normal
                     const authUrl = `${cfg.wc_url.replace(/\/$/, "")}/wp-json/wc/v3/products?${queryParams.toString()}`;
-                    proxyUrl = `https://corsproxy.io/?${encodeURIComponent(authUrl)}`;
+                    proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(authUrl)}`;
                     fetchOptions = {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -1295,7 +1295,7 @@
                     // El proxy corsproxy.io trata PUT como GET, por eso usamos POST con _method=PUT
                     queryParams.set('_method', 'PUT');
                     const authUrl = `${cfg.wc_url.replace(/\/$/, "")}/wp-json/wc/v3/products/${wcId}?${queryParams.toString()}`;
-                    proxyUrl = `https://corsproxy.io/?${encodeURIComponent(authUrl)}`;
+                    proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(authUrl)}`;
 
                     fetchOptions = {
                         method: 'POST',  // ← IMPORTANTE: POST en vez de PUT
@@ -1456,7 +1456,7 @@
 
                     // Endpoint BATCH
                     const authUrl = `${cfg.wc_url.replace(/\/$/, "")}/wp-json/wc/v3/products/batch?${queryParams.toString()}`;
-                    const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(authUrl)}`;
+                    const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(authUrl)}`;
 
                     // Body
                     const body = {
@@ -1551,7 +1551,7 @@
                     setTimeout(() => wcSelect.style.borderColor = "#fecaca", 1000); // Back to original red-ish theme
                 }
             } else {
-                console.log("No se encontró coincidencia automática.");
+                console.log("No nidencia automática.");
             }
         }
 
@@ -1883,7 +1883,7 @@
                     });
 
                     const authUrl = `${baseUrl}${apiPath}?${queryParams.toString()}`;
-                    const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(authUrl)}`;
+                    const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(authUrl)}`;
 
                     const res = await fetch(proxyUrl);
                     if (res.status === 401) throw new Error("Error 401: Llaves incorrectas.");
@@ -2078,7 +2078,7 @@
                 alert("🗑️ Catálogo borrado correctamente.");
                 cargarCatalogoFirestore();
             } catch (error) {
-                console.error("Error al borrar:", error);
+                nsole.error("Error al borrar:", error);
             }
         }
     </script>

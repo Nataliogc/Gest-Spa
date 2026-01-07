@@ -142,7 +142,7 @@
                 const apiUrl = `${baseUrl}/wp-json/wc/v3/products/categories?consumer_key=${cfg.wc_key}&consumer_secret=${cfg.wc_secret}&per_page=100`;
 
                 // Usar proxy CORS
-                const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(apiUrl)}`;
+                const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(apiUrl)}`;
 
                 result.innerHTML = '<div class="loading">Obteniendo categorías de WooCommerce...</div>';
 

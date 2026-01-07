@@ -103,15 +103,64 @@ async function cargarCitasHoy() {
     }
 }
 
-async function cargarNotasDia() {
+async function cargarNotasDia(date) {
+    // Use provided date or default to today
+    const targetDate = date || new Date().toISOString().split('T')[0];
+
+    // Update the date picker if it exists
+    const datePicker = document.getElementById("dashboard-notes-date");
+    if (datePicker && !date) {
+        datePicker.value = targetDate;
+    }
+
     try {
-        const doc = await db.collection("spa_config").doc("notas_dia").get();
+        const doc = await db.collection("spa_notes").doc(targetDate).get();
         const el = document.getElementById("stat-notas-dia");
-        if (el) {
-            el.textContent = (doc.exists && doc.data().texto) ? doc.data().texto : "Sin notas";
+        if (!el) return;
+
+        if (doc.exists && doc.data().texto) {
+            el.textContent = doc.data().texto;
+        } else {
+            el.textContent = "Sin notas para este día.";
         }
     } catch (err) {
-        console.error("Notas error:", err);
+        console.error("Error cargando notas del día:", err);
+        const el = document.getElementById("stat-notas-dia");
+        if (el) el.textContent = "Error cargando notas";
+    }
+}
+
+function changeDashboardNotesDate(days) {
+    const datePicker = document.getElementById("dashboard-notes-date");
+    if (!datePicker) return;
+
+    const currentDate = new Date(datePicker.value || new Date());
+    currentDate.setDate(currentDate.getDate() + days);
+    const newDate = currentDate.toISOString().split('T')[0];
+
+    datePicker.value = newDate;
+    cargarNotasDia(newDate);
+}
+
+async function editNotasDia() {
+    const datePicker = document.getElementById("dashboard-notes-date");
+    const targetDate = datePicker ? datePicker.value : new Date().toISOString().split('T')[0];
+
+    const el = document.getElementById("stat-notas-dia");
+    const current = el.textContent === "Sin notas para este día." ? "" : el.textContent;
+    const nuevo = prompt(`Notas para el día ${targetDate}:`, current);
+
+    if (nuevo !== null) {
+        try {
+            await db.collection("spa_notes").doc(targetDate).set({
+                texto: nuevo.trim(),
+                updatedAt: new Date().toISOString()
+            }, { merge: true });
+            el.textContent = nuevo.trim() || "Sin notas para este día.";
+            showToast("Notas actualizadas", "success");
+        } catch (err) {
+            showToast("Error guardando notas", "error");
+        }
     }
 }
 
@@ -380,24 +429,7 @@ async function actualizarStatsInicio() {
 
 // --- ACTIONS ---
 
-async function editNotasDia() {
-    const el = document.getElementById("stat-notas-dia");
-    const current = el.textContent === "Sin notas" ? "" : el.textContent;
-    const nuevo = prompt("Notas del día:", current);
 
-    if (nuevo !== null) {
-        try {
-            await db.collection("spa_config").doc("notas_dia").set({
-                texto: nuevo.trim(),
-                updatedAt: new Date().toISOString()
-            }, { merge: true });
-            el.textContent = nuevo.trim() || "Sin notas";
-            showToast("Notas actualizadas", "success");
-        } catch (err) {
-            showToast("Error guardando notas", "error");
-        }
-    }
-}
 
 // Print Modal
 function openPrintModal() {
@@ -453,4 +485,205 @@ function generarInformeHTML(reservas, fecha) {
     `);
     w.document.close();
     closePrintModal();
+}
+
+// --- REPORTING FUNCTIONS ---
+
+window.openReportsModal = function () {
+    document.getElementById("reports-modal").style.display = "flex";
+}
+
+window.closeReportsModal = function () {
+    document.getElementById("reports-modal").style.display = "none";
+}
+
+window.generarRankingBonos = async function () {
+    const content = document.getElementById("reports-content");
+    content.innerHTML = '<div style="text-align:center; padding:40px;"><i class="fas fa-spinner fa-spin"></i> Procesando datos...</div>';
+
+    try {
+        const snap = await db.collection("spa_vouchers").get();
+        const stats = {};
+
+        snap.forEach(doc => {
+            const b = doc.data();
+            const prod = b.producto || 'Desconocido';
+            if (!stats[prod]) stats[prod] = { count: 0, revenue: 0 };
+            stats[prod].count++;
+            stats[prod].revenue += parseFloat(b.importe || 0);
+        });
+
+        const ranking = Object.entries(stats)
+            .sort((a, b) => b[1].count - a[1].count)
+            .slice(0, 10);
+
+        let html = `
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+                <h3 style="margin:0;">Ranking Top 10 Bonos (Más Vendidos)</h3>
+                <span style="font-size:0.8rem; color:#94a3b8;">Total acumulado</span>
+            </div>
+            <table style="width:100%; border-collapse: collapse;">
+                <thead>
+                    <tr style="background:#f8fafc; border-bottom:2px solid #e2e8f0;">
+                        <th style="padding:12px; text-align:left; font-size:0.75rem; color:#64748b;">POS.</th>
+                        <th style="padding:12px; text-align:left; font-size:0.75rem; color:#64748b;">PRODUCTO</th>
+                        <th style="padding:12px; text-align:right; font-size:0.75rem; color:#64748b;">UNIDADES</th>
+                        <th style="padding:12px; text-align:right; font-size:0.75rem; color:#64748b;">VALOR ESTIMADO</th>
+                    </tr>
+                </thead>
+                <tbody>
+        `;
+
+        ranking.forEach(([name, data], i) => {
+            html += `
+                <tr style="border-bottom:1px solid #f1f5f9; transition: background 0.2s;">
+                    <td style="padding:12px; font-weight:700; color:var(--accent); font-size:1.1rem;">#${i + 1}</td>
+                    <td style="padding:12px; font-weight:600; color:#334155;">${name}</td>
+                    <td style="padding:12px; text-align:right; font-weight:700; color:#1e293b;">${data.count}</td>
+                    <td style="padding:12px; text-align:right; color:#64748b; font-family:monospace;">${data.revenue.toLocaleString('es-ES', { minimumFractionDigits: 2 })}€</td>
+                </tr>
+            `;
+        });
+
+        html += '</tbody></table>';
+        content.innerHTML = html;
+        window.currentReportData = { title: "Ranking Top 10 Bonos", data: ranking };
+
+    } catch (err) {
+        content.innerHTML = `<div style="color:red; padding:20px;">Error: ${err.message}</div>`;
+    }
+}
+
+window.generarInformeServicios = async function () {
+    const content = document.getElementById("reports-content");
+    content.innerHTML = '<div style="text-align:center; padding:40px;"><i class="fas fa-spinner fa-spin"></i> Cargando datos de catálogo y ventas...</div>';
+
+    try {
+        const [vouchSnap, catSnap] = await Promise.all([
+            db.collection("spa_vouchers").get(),
+            db.collection("spa_services").get()
+        ]);
+
+        const catalog = {};
+        const normalizedCatalog = {}; // key: "normalized-name", value: realName
+
+        // Helper function to normalize service names (strip person count)
+        function normalizeServiceName(name) {
+            let normalized = name.toLowerCase().trim();
+            // Remove person count variations: (2), - 2 personas, - 2 pax, etc.
+            normalized = normalized.replace(/\s*[-–—]\s*\d+\s*(personas?|pax|pers\.?)?/gi, '');
+            normalized = normalized.replace(/\(\d+\)/g, '');
+            normalized = normalized.replace(/\s+/g, ' ').trim();
+            return normalized;
+        }
+
+        catSnap.forEach(doc => {
+            const s = doc.data();
+            const realName = s.nombre;
+            const norm = normalizeServiceName(realName);
+            catalog[realName] = { category: s.categoria || 'Sin Cat.', sold: 0, revenue: 0 };
+            normalizedCatalog[norm] = realName;
+        });
+
+        vouchSnap.forEach(doc => {
+            const b = doc.data();
+            let name = (b.producto || '').trim();
+            if (!name) return;
+
+            // Try exact case-sensitive match
+            if (catalog[name]) {
+                catalog[name].sold++;
+                catalog[name].revenue += parseFloat(b.importe || 0);
+            } else {
+                // Normalize and try to match
+                const normalizedName = normalizeServiceName(name);
+                let match = normalizedCatalog[normalizedName];
+
+                // If no exact match, try partial matching
+                if (!match) {
+                    const keys = Object.keys(normalizedCatalog);
+                    match = normalizedCatalog[keys.find(k => normalizedName.includes(k) || k.includes(normalizedName))];
+                }
+
+                if (match) {
+                    catalog[match].sold++;
+                    catalog[match].revenue += parseFloat(b.importe || 0);
+                } else {
+                    // Create new entry for unrecognized service
+                    if (!catalog[name]) catalog[name] = { category: 'Descatalogado / Externo', sold: 0, revenue: 0 };
+                    catalog[name].sold++;
+                    catalog[name].revenue += parseFloat(b.importe || 0);
+                }
+            }
+        });
+
+        const sorted = Object.entries(catalog)
+            .filter(x => x[1].sold > 0)
+            .sort((a, b) => b[1].sold - a[1].sold);
+
+        let html = `
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+                <h3 style="margin:0;">Resumen de Ventas por Servicio</h3>
+                <span style="font-size:0.8rem; color:#94a3b8;">Histórico total (Optimizado)</span>
+            </div>
+            <table style="width:100%; border-collapse: collapse;">
+                <thead>
+                    <tr style="background:#f8fafc; border-bottom:2px solid #e2e8f0;">
+                        <th style="padding:12px; text-align:left; font-size:0.75rem; color:#64748b;">SERVICIO</th>
+                        <th style="padding:12px; text-align:left; font-size:0.75rem; color:#64748b;">CATEGORÍA</th>
+                        <th style="padding:12px; text-align:right; font-size:0.75rem; color:#64748b;">VENDIDOS</th>
+                        <th style="padding:12px; text-align:right; font-size:0.75rem; color:#64748b;">TOTAL VENTAS</th>
+                    </tr>
+                </thead>
+                <tbody>
+        `;
+
+        sorted.forEach(([name, data]) => {
+            html += `
+                <tr style="border-bottom:1px solid #f1f5f9;">
+                    <td style="padding:12px; font-weight:600; color:#334155;">${name}</td>
+                    <td style="padding:12px; font-size:0.8rem;"><span style="background:#f1f5f9; padding:2px 8px; border-radius:12px; color:#64748b;">${data.category}</span></td>
+                    <td style="padding:12px; text-align:right; font-weight:700; color:#1e293b;">${data.sold}</td>
+                    <td style="padding:12px; text-align:right; color:var(--accent); font-weight:600; font-family:monospace;">${data.revenue.toLocaleString('es-ES', { minimumFractionDigits: 2 })}€</td>
+                </tr>
+            `;
+        });
+
+        html += '</tbody></table>';
+        content.innerHTML = html;
+        window.currentReportData = { title: "Ventas por Servicio", data: sorted };
+
+    } catch (err) {
+        content.innerHTML = `<div style="color:red; padding:20px;">Error: ${err.message}</div>`;
+    }
+}
+
+window.downloadReportExcel = function () {
+    if (!window.currentReportData) {
+        showToast("Primero genera un informe", "warning");
+        return;
+    }
+
+    const { title, data } = window.currentReportData;
+    let csv = "sep=,\n";
+
+    if (title.includes("Ranking")) {
+        csv += "Posicion,Producto,Cantidad,Ingresos\n";
+        data.forEach(([name, info], i) => {
+            csv += `${i + 1},"${name}",${info.count},${info.revenue.toFixed(2).replace('.', ',')}\n`;
+        });
+    } else {
+        csv += "Servicio,Categoria,Vendidos,Ingresos\n";
+        data.forEach(([name, info]) => {
+            csv += `"${name}","${info.category}",${info.sold},${info.revenue.toFixed(2).replace('.', ',')}\n`;
+        });
+    }
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.setAttribute("download", `${title.replace(/\s/g, '_')}_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
 }

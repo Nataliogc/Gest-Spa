@@ -42,7 +42,7 @@
             <li><a href="index.html" class="nav-link active"><i class="fas fa-home"></i> Inicio</a></li>
             <li><a href="bonos.html" class="nav-link"><i class="fas fa-ticket-alt"></i> Bonos</a></li>
 
-            <li class="menu-header" style="display:none;">MÓDULOS</li>
+
             <li><a href="reservas.html?type=spa" class="nav-link"><i class="fas fa-water"></i> Spa</a></li>
             <li><a href="reservas.html?type=suite" class="nav-link"><i class="fas fa-gem"></i> Suite</a></li>
             <li><a href="reservas.html?type=panacea" class="nav-link"><i class="fas fa-columns"></i> Panacea & VIP</a>
@@ -82,6 +82,9 @@
                     </div>
                     <div style="display:flex; gap: 10px;">
 
+                        <button onclick="openReportsModal()" class="btn btn-accent">
+                            <i class="fas fa-chart-line"></i> Reportes
+                        </button>
                         <button onclick="openPrintModal()" class="btn"
                             style="background: #f1f5f9; color: var(--text); border: 1px solid #e2e8f0;">
                             <i class="fas fa-print"></i> Imprimir
@@ -167,15 +170,37 @@
                     <div class="dashboard-sidebar"
                         style="display: flex; flex-direction: column; gap: 20px; overflow-y: auto;">
 
-                        <!-- Notes Card -->
+                        <!-- Notes Card with Date Selector -->
                         <div class="stat-card"
-                            style="padding: 20px; background: #fffbeb; border-left: 4px solid var(--accent); border-radius: 12px; cursor: pointer;"
-                            onclick="editNotasDia()">
-                            <h3
-                                style="color: #92400e; font-size: 0.75rem; font-weight: 700; margin-bottom: 10px; display: flex; align-items: center; gap: 8px;">
-                                <i class="fas fa-sticky-note"></i> NOTAS DEL DÍA
-                            </h3>
-                            <p id="stat-notas-dia" style="font-size: 0.95rem; line-height: 1.5; color: #78350f;">
+                            style="padding: 20px; background: #fffbeb; border-left: 4px solid var(--accent); border-radius: 12px;">
+                            <div
+                                style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
+                                <h3
+                                    style="color: #92400e; font-size: 0.75rem; font-weight: 700; margin: 0; display: flex; align-items: center; gap: 8px;">
+                                    <i class="fas fa-sticky-note"></i> NOTAS DEL DÍA
+                                </h3>
+                                <button onclick="editNotasDia()" class="btn-icon" title="Editar notas"
+                                    style="color: #92400e; background: transparent; font-size: 0.9rem;">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                            </div>
+
+                            <!-- Date Selector -->
+                            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px;">
+                                <button onclick="changeDashboardNotesDate(-1)" class="btn-icon-only"
+                                    style="border:none; background: #fef3c7; cursor:pointer; color: #92400e; padding: 4px 8px; border-radius: 6px;">
+                                    <i class="fas fa-chevron-left"></i>
+                                </button>
+                                <input type="date" id="dashboard-notes-date" onchange="cargarNotasDia(this.value)"
+                                    style="flex: 1; padding: 6px 10px; border-radius: 6px; border: 1px solid #fcd34d; font-size: 0.75rem; font-weight: 600; color: #78350f; background: #fef3c7; text-align: center;">
+                                <button onclick="changeDashboardNotesDate(1)" class="btn-icon-only"
+                                    style="border:none; background: #fef3c7; cursor:pointer; color: #92400e; padding: 4px 8px; border-radius: 6px;">
+                                    <i class="fas fa-chevron-right"></i>
+                                </button>
+                            </div>
+
+                            <p id="stat-notas-dia"
+                                style="font-size: 0.9rem; line-height: 1.5; color: #78350f; white-space: pre-wrap; max-height: 200px; overflow-y: auto;">
                                 Cargando notas...</p>
                         </div>
 
@@ -221,20 +246,33 @@
 
 
 
-    <!-- Print Modal -->
-    <div id="print-modal" class="modal" style="display: none;">
-        <div class="modal-content" style="max-width: 400px;">
-            <span class="close-btn" onclick="closePrintModal()">&times;</span>
-            <h2 style="margin-bottom: 20px;"><i class="fas fa-print"></i> Imprimir Reservas</h2>
+    <!-- Reports Modal -->
+    <div id="reports-modal" class="modal" style="display: none;">
+        <div class="modal-content" style="max-width: 900px; width: 95%;">
+            <span class="close-btn" onclick="closeReportsModal()">&times;</span>
+            <header style="border-bottom: 2px solid #f1f5f9; padding-bottom: 15px; margin-bottom: 20px;">
+                <h2 style="display: flex; align-items: center; gap: 10px; margin: 0;">
+                    <i class="fas fa-chart-bar" style="color: var(--accent);"></i> Informes Avanzados
+                </h2>
+                <div style="display: flex; gap: 10px; margin-top: 15px;">
+                    <button onclick="generarRankingBonos()" class="btn btn-sm btn-outline">Ranking Top 10 Bonos</button>
+                    <button onclick="generarInformeServicios()" class="btn btn-sm btn-outline">Ventas por
+                        Servicio</button>
+                </div>
+            </header>
 
-            <div class="form-group">
-                <label>Fecha</label>
-                <input type="date" id="print-fecha" class="param-input" style="width: 100%;">
+            <div id="reports-content" style="min-height: 400px; max-height: 70vh; overflow-y: auto;">
+                <div style="text-align: center; color: #94a3b8; padding: 40px;">
+                    <i class="fas fa-chart-pie" style="font-size: 3rem; opacity: 0.2; margin-bottom: 15px;"></i>
+                    <p>Selecciona un informe para visualizar los datos.</p>
+                </div>
             </div>
 
-            <button onclick="ejecutarImpresion()" class="btn btn-accent" style="width: 100%; margin-top: 25px;">
-                <i class="fas fa-print"></i> Generar PDF
-            </button>
+            <div style="margin-top: 20px; text-align: right; border-top: 1px solid #f1f5f9; padding-top: 15px;">
+                <button class="btn btn-outline btn-sm" onclick="downloadReportExcel()">
+                    <i class="fas fa-file-excel"></i> Descargar Excel
+                </button>
+            </div>
         </div>
     </div>
 

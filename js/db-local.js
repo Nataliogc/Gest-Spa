@@ -92,7 +92,8 @@ window.apiLocal = {
         if (!db) throw new Error("LocalDB not available");
 
         // Check if exists by 'bono' to update instead of insert
-        const existing = await db.bonos.where('bono').equals(bonoData.bono).first();
+        // Usamos toArray por si hay duplicados huérfanos que el primer cleanup no pilló
+        const existing = await db.bonos.where('bono').equals(bonoData.bono).toArray();
 
         const data = {
             ...bonoData,
@@ -100,8 +101,14 @@ window.apiLocal = {
             syncStatus: bonoData.syncStatus || 'pending'
         };
 
-        if (existing) {
-            data.id = existing.id; // Preserve ID for update
+        if (existing.length > 0) {
+            data.id = existing[0].id; // Usar el ID del primero para el 'put' (update)
+
+            // Borrar otros duplicados si existen (limpieza en caliente)
+            if (existing.length > 1) {
+                const idsToDelete = existing.slice(1).map(x => x.id);
+                await db.bonos.bulkDelete(idsToDelete);
+            }
         }
 
         return await db.bonos.put(data);
@@ -116,7 +123,11 @@ window.apiLocal = {
     async getBonoByCode(code) {
         const db = await this._getDb();
         if (!db) return null;
-        return await db.bonos.where('bono').equals(code).first();
+        // Priorizar el más reciente si hay duplicados por código (limpieza reactiva)
+        const all = await db.bonos.where('bono').equals(code).toArray();
+        if (all.length === 0) return null;
+        if (all.length === 1) return all[0];
+        return all.sort((a, b) => new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0))[0];
     },
 
     // RESERVAS

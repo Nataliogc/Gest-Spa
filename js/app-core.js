@@ -4,8 +4,8 @@
 const URL_BONOS = "https://cumbriabienestar.es/wp-json/bonos/v1/listado/";
 window.getBonoEndpoint = () => {
     const cacheBuster = `?_=${Date.now()}`;
-    // Fallback to corsproxy.io as allorigins is flaky
-    return `https://corsproxy.io/?${encodeURIComponent(URL_BONOS + cacheBuster)}`;
+    // allorigins is usually more stable than corsproxy.io
+    return `https://api.allorigins.win/raw?url=${encodeURIComponent(URL_BONOS + cacheBuster)}`;
 };
 
 window.setupNavigation = function () {

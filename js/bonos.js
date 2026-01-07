@@ -70,6 +70,13 @@ function setupBonoListeners() {
                     return;
                 }
 
+                // NIVEL 1.5: Búsqueda por número suelto (Intento inteligente de formatos)
+                // Si el usuario pone "7695", probamos LOC-202X-7695 y BONO7695
+                if (/^\d+$/.test(searchTerm)) {
+                    searchVoucherByNumericInput(searchTerm);
+                    return;
+                }
+
                 // NIVEL 2: Búsqueda con mínimo 3 caracteres → searchIndex optimizado
                 if (searchTerm.length >= 3) {
                     searchVouchersByText(searchTerm);
@@ -87,7 +94,12 @@ function setupBonoListeners() {
 
     const dateInput = document.getElementById("voucher-date");
     if (dateInput) {
-        dateInput.addEventListener("change", renderBonosFromState);
+        // Al cambiar fecha específica, recargar bonos para asegurar que se traen de DB
+        dateInput.addEventListener("change", () => {
+            // Si el usuario elige un día específico, quizás debamos ampliar el rango de fetch automáticamente
+            // Pero lo más simple es llamar a cargarBonos, la cual modificaremos para respetar esta fecha
+            cargarBonos();
+        });
     }
 
     const filterSelect = document.getElementById("voucher-filter");
@@ -132,6 +144,9 @@ function simplifyNameForMatching(name) {
     s = s.replace(/\(duo\)/g, '');
     s = s.replace(/\(pareja\)/g, '');
 
+    // NUEVO: Eliminar sufijos de cantidad numéricos como (1), (2) que vienen de WooCommerce/Excel
+    s = s.replace(/\(\d+\)/g, '');
+
     // Eliminar prefijos de categoría si están presentes con guion
     if (s.includes(" - ")) {
         const parts = s.split(" - ");
@@ -141,7 +156,15 @@ function simplifyNameForMatching(name) {
     }
 
     // Limpieza final de espacios y guiones
-    return s.replace(/[-\s]+/g, ' ').trim();
+    s = s.replace(/[-\s]+/g, ' ').trim();
+
+    // NUEVO: Tolerancia a plurales (eliminar 's' al final si existe)
+    // Esto ayuda a que "especial pareja" coincida con "especial parejas"
+    if (s.endsWith('s') && s.length > 4) {
+        s = s.slice(0, -1);
+    }
+
+    return s;
 }
 
 function findCatalogProduct(voucher) {
@@ -709,8 +732,15 @@ async function cargarBonos() {
         const filterMonthsSelect = document.getElementById('bonos-filter-months');
         const monthsBack = filterMonthsSelect ? parseFloat(filterMonthsSelect.value) || 0 : 0;
 
+        // Optimización: Si el usuario ha seleccionado una fecha específica en el filtro,
+        // usaremos esa fecha como punto de corte para asegurar que se cargan esos datos.
+        const datePickerValue = document.getElementById("voucher-date") ? document.getElementById("voucher-date").value : null;
+
         let cutoffStr;
-        if (monthsBack === 0) {
+        if (datePickerValue) {
+            cutoffStr = datePickerValue;
+            console.log(`[OPTIMIZACIÓN] Usando fecha del selector como filtro: >= ${cutoffStr}`);
+        } else if (monthsBack === 0) {
             // Solo hoy: usar fecha LOCAL (no UTC) para evitar problemas de timezone
             const today = new Date();
             const year = today.getFullYear();
@@ -1455,17 +1485,8 @@ function renderBonosFromState() {
     const filterDate = document.getElementById("voucher-date").value;
 
     // --- INJECT CLEANUP BUTTON (Admin/PowerUser) ---
-    const filterContainer = document.querySelector('.filters-row') || document.querySelector('.filters-container');
-    if (filterContainer && !document.getElementById('cleanup-btn')) {
-        const btn = document.createElement('button');
-        btn.id = 'cleanup-btn';
-        btn.innerHTML = '<i class="fas fa-trash-alt"></i> Limpiar Duplicados';
-        btn.className = 'btn-secondary'; // Use existing class
-        btn.style = "background:#ef4444; color:white; border:none; padding:8px 12px; border-radius:6px; cursor:pointer; font-size:0.85rem; font-weight:600; margin-left:10px;";
-        btn.onclick = cleanupDuplicates;
-        // Insert at the end of filters
-        filterContainer.appendChild(btn);
-    }
+    // (Removed per user request)
+
 
     let filtered = state.bonos.filter(b => {
         // NUEVO: Si hay búsqueda activa por searchTokens, NO aplicar filtros
@@ -1613,6 +1634,9 @@ function renderBonosFromState() {
         const catalogMatch = findCatalogProduct(b);
         const thumbUrl = catalogMatch && catalogMatch.imagen ? catalogMatch.imagen : 'zenith-icon.png';
 
+        // Mejorar visualización del precio: Si es 0 o vacío, intentar mostrar el del catálogo
+        const displayedPrice = (parseFloat(b.importe) > 0) ? b.importe : (catalogMatch ? catalogMatch.precio : 0);
+
         return `
         <tr>
             <td style="padding: 10px 5px;"><img src="${thumbUrl}" referrerpolicy="no-referrer" style="width: 35px; height: 35px; object-fit: cover; border-radius: 4px; border: 1px solid #e2e8f0;"></td>
@@ -1620,7 +1644,7 @@ function renderBonosFromState() {
             <td>${b.producto || '-'}</td>
             <td>${b.email || '-'}</td>
             <td>${formatDate(b.fecha)}${expiryText}</td>
-            <td style="font-weight:bold">${b.importe || 0}€</td>
+            <td style="font-weight:bold">${displayedPrice}€</td>
             <td><span class="st-badge ${badgeClass}">${statusLabel}</span></td>
             <td>
                 <button class="btn btn-outline btn-sm" onclick="openVoucherManagement('${b.bono}')">
@@ -1678,7 +1702,10 @@ async function openVoucherManagement(code) {
 
     const priceBadge = document.getElementById("vm-cat-price");
     if (priceBadge) {
-        priceBadge.textContent = (v.importe || 0) + '€';
+        // Al gestionar, mostramos el precio del bono, pero si es 0, mostramos el del catálogo (si hay match)
+        const catalogMatch = findCatalogProduct(v);
+        const displayPrice = (parseFloat(v.importe) > 0) ? v.importe : (catalogMatch ? catalogMatch.precio : 0);
+        priceBadge.textContent = displayPrice + '€';
     }
 
     // Renderizar historial de uso (async)
@@ -1793,6 +1820,19 @@ async function openVoucherManagement(code) {
             }
         } else {
             console.warn('[BONO DEBUG] No se encontró match en catálogo para:', voucher.producto);
+            // FALLBACK: Si no hay match, crear un servicio genérico con los datos del bono
+            // Esto es crucial para bonos importados que no existen en el catálogo
+            services.push({
+                itemId: 'srv_' + Math.random().toString(36).substr(2, 9),
+                name: voucher.producto || 'Servicio Desconocido',
+                sessions: detResult.total || 1,
+                space: '', // Usuario tendrá que elegir manualmente
+                used: 0,
+                validations: [],
+                precio: voucher.importe || 0,
+                pax: detResult.paxPerSession || 1,
+                is_fallback: true
+            });
         }
 
         return services;
@@ -1802,8 +1842,9 @@ async function openVoucherManagement(code) {
     let baseServices = [];
 
     // MEJORA: Verificar si items_desglosados es realmente un desglose o solo el nombre del producto
+    // PERO: Si es local (importado), SIEMPRE confiamos en el desglose guardado
     const hasRealBreakdown = v.items_desglosados && v.items_desglosados.length > 0 &&
-        !(v.items_desglosados.length === 1 && v.items_desglosados[0].name === v.producto);
+        (v.origen === 'local' || !(v.items_desglosados.length === 1 && v.items_desglosados[0].name === v.producto));
 
     if (hasRealBreakdown) {
         console.log('[BONO] Usando items_desglosados guardados:', v.items_desglosados.length, 'items');
@@ -3559,6 +3600,7 @@ window.importLocalVouchersFromExcel = function (event) {
             let importedCount = 0;
             let errorCount = 0;
             let skippedCount = 0;
+            const processedCodes = new Set();
 
             console.log(`[IMPORT] Procesando ${jsonData.length} filas desde la fila ${headerRowIndex}...`);
 
@@ -3601,9 +3643,15 @@ window.importLocalVouchersFromExcel = function (event) {
 
                     const exists = state.bonos.find(b => b.codigo === codigo || b.bono === codigo);
                     if (exists) {
-                        if (String(rawCodigo).includes("16707")) console.log("DEBUG 16707 SKIPPED (EXISTS):", exists);
-                        skippedCount++;
-                        continue;
+                        // Allow overwrite if existing date is invalid (1970)
+                        const isInvalidDate = exists.fecha && String(exists.fecha).startsWith("1970");
+                        if (!isInvalidDate) {
+                            if (String(rawCodigo).includes("16707")) console.log("DEBUG 16707 SKIPPED (EXISTS):", exists);
+                            skippedCount++;
+                            continue;
+                        } else {
+                            console.log(`[Import] Forzando actualización de bono con fecha incorrecta (1970): ${codigo}`);
+                        }
                     }
 
                     const cliente = getVal(['Cliente', 'Nombre', 'Titular', 'Customer']) || 'Cliente Importado';
@@ -3621,28 +3669,47 @@ window.importLocalVouchersFromExcel = function (event) {
                     let fecha = new Date().toISOString().split('T')[0]; // Default
 
                     if (fechaRaw) {
+                        // 1. Excel Serial Number (e.g. 45000)
                         if (typeof fechaRaw === 'number') {
-                            // Excel serial date (Excel epoch is 1899-12-30)
                             try {
-                                const d = new Date((fechaRaw - 25569) * 86400 * 1000);
-                                if (!isNaN(d.getTime())) fecha = d.toISOString().split('T')[0];
-                            } catch (e) { console.warn("Error parsing excel date:", fechaRaw); }
-                        } else if (typeof fechaRaw === 'string') {
-                            // Parse string formats
-                            const trimmed = fechaRaw.trim();
-                            // Check for DD/MM/YYYY
-                            if (trimmed.match(/^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{4}/)) {
-                                const parts = trimmed.split(/[\/\-]/);
-                                if (parts.length === 3) {
-                                    const day = parts[0].padStart(2, '0');
-                                    const month = parts[1].padStart(2, '0');
-                                    const year = parts[2];
-                                    fecha = `${year}-${month}-${day}`;
+                                // Excel serial dates start 1899-12-30. 
+                                // Add 12 hours (0.5) to avoid timezone/midnight rollovers resulting in previous day
+                                const jsDate = new Date((fechaRaw - 25569.5) * 86400 * 1000);
+                                // Add 1 day if it seems off (optional, but usually adding 12h is enough for date-only)
+                                // A safer way for pure dates:
+                                // const dateInfo = new Date((fechaRaw - 25569) * 86400 * 1000);
+
+                                if (!isNaN(jsDate.getTime())) {
+                                    // Force UTC or simple formatting to avoid shifting back
+                                    fecha = jsDate.toISOString().split('T')[0];
+
+                                    // Extra check: If year is 1970, it usually means 0 or invalid parse
+                                    if (fecha.startsWith('1970')) {
+                                        console.warn("Date parsed as 1970 (invalid?), keeping today or raw:", fecha, fechaRaw);
+                                    }
                                 }
+                            } catch (e) {
+                                console.warn("Error parsing excel date number:", fechaRaw);
+                            }
+                        }
+                        // 2. String Formats
+                        else if (typeof fechaRaw === 'string') {
+                            const trimmed = fechaRaw.trim();
+                            // A. Spanish Format: DD/MM/YYYY or D/M/YYYY
+                            // Matches 05/01/2026, 5/1/2026, etc.
+                            const spanMatch = trimmed.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+
+                            if (spanMatch) {
+                                const day = spanMatch[1].padStart(2, '0');
+                                const month = spanMatch[2].padStart(2, '0');
+                                const year = spanMatch[3];
+                                fecha = `${year}-${month}-${day}`;
                             } else {
-                                // Fallback standard
+                                // B. Fallback to standard Date parse (YYYY-MM-DD, etc.)
                                 const d = new Date(trimmed);
-                                if (!isNaN(d.getTime())) fecha = d.toISOString().split('T')[0];
+                                if (!isNaN(d.getTime())) {
+                                    fecha = d.toISOString().split('T')[0];
+                                }
                             }
                         }
                     }
@@ -3681,18 +3748,25 @@ window.importLocalVouchersFromExcel = function (event) {
                     }
 
                     if (checkExists) {
-                        console.log(`[Import] Saltando duplicado (ya existe en BD): ${codigo}`);
-                        skippedCount++;
-                        // Si existe, asegúrate de que esté en state local para que el usuario lo VEA al menos
-                        const isVisible = state.bonos.some(b => b.bono === codigo);
-                        if (!isVisible && checkExists) {
-                            // Lo añadimos al estado visual para feedback inmediato
-                            // OJO: checkExists puede ser el objeto de DB o Firestore
-                            // Normalizamos un poco si viene de Firestore
-                            const dispBono = { ...checkExists, id: checkExists.id || codigo };
-                            state.bonos.unshift(dispBono);
+                        const isInvalidDate = checkExists.fecha && String(checkExists.fecha).startsWith("1970");
+
+                        // If date is valid, we skip. If invalid (1970), we proceed to overwrite.
+                        if (!isInvalidDate) {
+                            console.log(`[Import] Saltando duplicado (ya existe en BD): ${codigo}`);
+                            skippedCount++;
+                            // Si existe, asegúrate de que esté en state local para que el usuario lo VEA al menos
+                            const isVisible = state.bonos.some(b => b.bono === codigo);
+                            if (!isVisible && checkExists) {
+                                // Lo añadimos al estado visual para feedback inmediato
+                                // OJO: checkExists puede ser el objeto de DB o Firestore
+                                // Normalizamos un poco si viene de Firestore
+                                const dispBono = { ...checkExists, id: checkExists.id || codigo };
+                                state.bonos.unshift(dispBono);
+                            }
+                            continue;
+                        } else {
+                            console.log(`[Import] Forzando actualización en BD por fecha 1970: ${codigo}`);
                         }
-                        continue;
                     }
 
                     processedCodes.add(codigo);
@@ -3833,3 +3907,644 @@ async function uploadLocalPendingToFirestore() {
         // No bloqueamos la ejecución, solo logueamos
     }
 }
+
+// --- FORCE SYNC (Manual Trigger) ---
+async function forceSyncLocalVouchers() {
+    if (!confirm("Esto forzará la subida de TODOS los bonos locales a la nube (sobreescribiendo si existen).\n\n¿Continuar?")) return;
+
+    const btn = document.getElementById("force-upload-btn");
+    const originalText = btn ? btn.innerHTML : '';
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Subiendo...';
+    }
+
+    try {
+        // Buscar bonos locales en Memoria (state) o DB
+        // Preferimos DB para estar seguros
+        const allBonos = await apiLocal.getBonos();
+        const localOnly = allBonos.filter(b => b.origen === 'local' || (b.bono && String(b.bono).startsWith('LOC-')) || (b.codigo && String(b.codigo).startsWith('LOC-')) || (b.bono && String(b.bono).startsWith('exc.Loc')));
+
+        if (localOnly.length === 0) {
+            alert("No se encontraron bonos locales para subir.");
+            return;
+        }
+
+        console.log(`[FORCE-SYNC] Encontrados ${localOnly.length} bonos locales. Iniciando subida...`);
+
+        const batchSize = 400; // Firestore batch limit is 500
+        const total = localOnly.length;
+        let processed = 0;
+        let errors = 0;
+
+        // Process in chunks
+        for (let i = 0; i < total; i += batchSize) {
+            const chunk = localOnly.slice(i, i + batchSize);
+            const batch = db.batch();
+            let opsInBatch = 0;
+
+            for (const item of chunk) {
+                if (!item.bono) continue;
+                const docRef = db.collection("spa_vouchers").doc(item.bono);
+                const dataToUpload = { ...item };
+                delete dataToUpload.id; // Clean ID
+
+                const cleanData = typeof cleanUndefined === 'function' ? cleanUndefined(dataToUpload) : dataToUpload;
+
+                batch.set(docRef, cleanData, { merge: true });
+                opsInBatch++;
+            }
+
+            if (opsInBatch > 0) {
+                await batch.commit();
+                processed += opsInBatch;
+                console.log(`[FORCE-SYNC] Lote ${i / batchSize + 1} subido (${opsInBatch} docs).`);
+
+                // Mark synced local
+                for (const item of chunk) {
+                    await apiLocal.markSynced('bonos', item.id || item.bono, item.bono);
+                }
+            }
+        }
+
+        showToast(`Subida Forzada Completa: ${processed} bonos subidos.`, "success");
+
+    } catch (err) {
+        console.error("Error Force Sync:", err);
+        alert("Error durante la subida forzada: " + err.message);
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+        }
+    }
+}
+
+
+/**
+ * Intenta buscar un bono probando varios formatos comunes dado un número
+ * Ej: entrada "123" -> Prueba LOC-2024-123, BONO123, etc.
+ */
+async function searchVoucherByNumericInput(number) {
+    const tableBody = document.getElementById("vouchers-table-body");
+    if (!tableBody) return;
+
+    tableBody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding: 20px;" class="muted">
+        <i class="fas fa-search fa-spin"></i> Probando formatos para el n° ${number}...
+    </td></tr>`;
+
+    const currentYear = new Date().getFullYear();
+    // Generar candidatos de códigos
+    const candidates = [
+        `exc.Loc ${number}`,  // Prioridad 1: Formato Importado actual
+        `LOC-${number}`,      // Prioridad 2: Formato Local estándar
+        `LOC-${new Date().getFullYear()}-${number}`, // Prioridad 3: Formato Local con año
+        `BONO${number}`,      // Prioridad 4: Bonos web
+        `${number}`,          // Prioridad 5: Coincidencia exacta (Legacy/Raw) como STRING
+        `Bono ${number}`      // Variaciones
+    ];
+
+    try {
+        // 1. Búsqueda LOCAL rápida de candidatos
+        if (window.apiLocal) {
+            for (const code of candidates) {
+                const local = await apiLocal.getBonoByCode(code);
+                if (local) {
+                    console.log(`[SMART-SEARCH] Encontrado en local: ${code}`);
+                    state.bonos = [local];
+                    state.isActiveSearch = true;
+                    renderBonosFromState();
+                    updateCount();
+                    showToast(`Bono ${code} encontrado (Local)`, 'success');
+                    return;
+                }
+            }
+        }
+
+        // 2. Si no está en local, probamos Firestore en paralelo
+        let found = null;
+        for (const code of candidates) {
+            const docRef = db.collection("spa_vouchers").doc(code);
+            const snap = await docRef.get();
+            if (snap.exists) {
+                found = { ...snap.data(), bono: code };
+                break; // Encontrado!
+            }
+        }
+
+        if (found) {
+            state.bonos = [found];
+            state.isActiveSearch = true;
+            renderBonosFromState();
+            updateCount();
+
+            // Guardar para la próxima
+            if (window.apiLocal) {
+                await apiLocal.saveBono({ ...found, syncStatus: 'synced', lastSyncAt: new Date().toISOString() });
+            }
+
+            showToast(`Bono ${found.bono} encontrado`, 'success');
+        } else {
+            // Si fallan los candidatos, intentamos la búsqueda por TEXTO (searchTokens) 
+            // como último recurso (Nivel 2)
+            console.log("[SMART-SEARCH] Candidatos fallaron, probando búsqueda por texto...");
+            searchVouchersByText(number);
+        }
+
+    } catch (err) {
+        console.error("Error en búsqueda numérica:", err);
+        searchVouchersByText(number); // Fallback
+    }
+}
+
+
+/**
+ * Helper para obtener estado formateado
+ */
+function getVoucherStatus(b) {
+    if (b.estado === 'completed') return 'completed';
+    // Lógica adicional si es necesario (ej: caducidad)
+    const now = new Date();
+    if (b.fecha_caducidad && new Date(b.fecha_caducidad) < now && b.estado !== 'completed') {
+        return 'expired';
+    }
+    return b.estado || 'pending';
+}
+
+// Ensure global access for numeric search if needed explicitly
+window.searchVoucherByNumericInput = searchVoucherByNumericInput;
+window.importLocalVouchersFromExcel = importLocalVouchersFromExcel;
+
+// --- EXPORT TO EXCEL ---
+window.exportToExcel = function () {
+    if (!state.bonos || state.bonos.length === 0) {
+        showToast("No hay bonos para exportar", "info");
+        return;
+    }
+
+    const exportData = state.bonos.map(b => ({
+        "Bono/Código": b.bono || b.codigo,
+        "Cliente": b.cliente || "Cliente Desconocido",
+        "Email": b.email || "",
+        "Producto": b.producto || "",
+        "Fecha Compra": b.fecha || "",
+        "Sesiones Totales": b.sesiones_totales || b.sesiones_total || 1,
+        "Sesiones Usadas": b.sesiones_usadas || b.sesiones_consumidas || 0,
+        "Importe (€)": b.importe || 0,
+        "Estado": getVoucherStatus(b) === 'expired' ? 'Caducado' : (b.estado === 'completed' ? 'Canjeado' : 'Activo'),
+        "Origen": b.origen || (String(b.bono).startsWith("LOC") ? "local" : "web")
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(exportData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Bonos");
+
+    const dateStr = new Date().toISOString().split('T')[0];
+    XLSX.writeFile(wb, `Bonos_Zenith_${dateStr}.xlsx`);
+};
+
+
+/**
+ * UTILIDAD DE MIGRACIÓN: Corrige bonos numéricos antiguos y fechas inválidas
+ * Uso: ejecutar fixLegacyNumericVoucherCodes() en consola
+ */
+window.fixLegacyNumericVoucherCodes = async function () {
+    if (!confirm("⚠️ ¿Estás seguro de que quieres migrar los bonos numéricos antiguos?\nEsto creará copias con códigos 'LOC-AAAA-XXXX' y eliminará los antiguos.")) return;
+
+    const numericBonos = state.bonos.filter(b => /^\d+$/.test(b.bono));
+    let migrated = 0;
+
+    console.log(`[MIGRATION] Encontrados ${numericBonos.length} bonos numéricos para corregir.`);
+
+    for (const b of numericBonos) {
+        try {
+            // 1. Calcular Año y Nueva Fecha si es errónea
+            let dateObj = new Date(b.fecha);
+            if (isNaN(dateObj.getTime()) || String(b.fecha).includes('ERROR') || String(b.fecha).length < 6) {
+                dateObj = new Date(); // Fallback a hoy si la fecha estaba mal
+                console.log(`[MIGRATION] Bono ${b.bono}: Fecha inválida '${b.fecha}'. Cambiada a HOY.`);
+            }
+            const cleanDate = dateObj.toISOString().split('T')[0];
+            const year = dateObj.getFullYear();
+
+            // 2. Nuevo Código
+            const newCode = `LOC-${year}-${b.bono}`;
+
+            // 3. Crear Nuevo Bono
+            const newBono = { ...b, bono: newCode, codigo: newCode, fecha: cleanDate, origen: 'local', updated_at: new Date().toISOString() };
+            newBono.searchTokens = generateSearchTokens(newBono);
+
+            // 4. Guardar Nuevo
+            if (window.apiLocal) await apiLocal.saveBono({ ...newBono, syncStatus: 'pending' });
+
+            // 5. Eliminar Antiguo (Local) - Dexie
+            if (window.dbLocal) {
+                await dbLocal.bonos.delete(b.bono);
+            }
+
+            migrated++;
+        } catch (e) {
+            console.error(`[MIGRATION] Error migrando bono ${b.bono}:`, e);
+        }
+    }
+
+};
+
+/**
+ * UTILIDAD MAESTRA DE REPARACIÓN: Detecta duplicados (123 vs exc.Loc 123) y borra los corruptos (1970).
+ */
+window.removeCorruptDuplicates = async function () {
+    if (!state.bonos || state.bonos.length === 0) {
+        await cargarBonos();
+    }
+
+    const allBonos = state.bonos;
+    const toDelete = [];
+    const map = new Map();
+
+    console.log(`[REPAIR] Analizando ${allBonos.length} bonos...`);
+
+    // 1. Agrupar por "Número Base"
+    // exc.Loc 17995 -> 17995
+    // 17995 -> 17995
+    // LOC-202X-17995 -> 17995
+    for (const b of allBonos) {
+        const raw = String(b.bono || b.codigo);
+        const numericPart = raw.match(/\d+$/); // Extract last sequence of digits
+        if (numericPart) {
+            const num = parseInt(numericPart[0]);
+            if (!map.has(num)) map.set(num, []);
+            map.get(num).push(b);
+        }
+    }
+
+    // 2. Analizar grupos
+    for (const [num, list] of map.entries()) {
+        if (list.length > 1) {
+            // Caso A: Conflicto Duplicado
+            // Buscar si hay alguno "bueno" (Fecha > 2000 y no 1970)
+            const good = list.find(b => b.fecha && !String(b.fecha).startsWith("1970") && !String(b.fecha).startsWith("01/01/1970"));
+            const badList = list.filter(b => !b.fecha || String(b.fecha).startsWith("1970") || String(b.fecha).startsWith("01/01/1970") || String(b.fecha).length < 6);
+
+            if (good && badList.length > 0) {
+                // Borrar los malos
+                badList.forEach(bad => {
+                    // Solo borrar si es DIFERENTE id que el bueno (por seguridad)
+                    if (bad.bono !== good.bono) {
+                        toDelete.push(bad);
+                        console.log(`[REPAIR] Detectado duplicado MALO: ${bad.bono} (Fecha: ${bad.fecha}) vs BUENO: ${good.bono} (Fecha: ${good.fecha})`);
+                    }
+                });
+            } else if (!good && badList.length > 1) {
+                // Todos malos? Borrar todos menos uno (o todos para reimportar)
+                // Estrategia: Borrar todos los numéricos puros si hay conflicto
+                badList.forEach(bad => {
+                    if (/^\d+$/.test(bad.bono)) toDelete.push(bad);
+                });
+            }
+        }
+        else if (list.length === 1) {
+            // Caso B: Único pero corrupto (1970)
+            const b = list[0];
+            const is1970 = String(b.fecha).startsWith("1970") || String(b.fecha).startsWith("01/01/1970");
+            // Solo borrar si es numérico puro o exc.Loc sin fecha válida
+            if (is1970) {
+                // Delete to allow re-import
+                toDelete.push(b);
+                console.log(`[REPAIR] Detectado CORRUPTO único: ${b.bono} (Fecha: ${b.fecha})`);
+            }
+        }
+    }
+
+    if (toDelete.length === 0) {
+        alert("✅ No se encontraron conflictos obvios de fechas (1970) o duplicados corruptos.");
+        return;
+    }
+
+    if (!confirm(`⚠️ SE HAN DETECTADO ${toDelete.length} BONOS CORRUPTOS (Fecha 1970 o duplicados).\n\nSe eliminarán para dejar solo las versiones correctas o permitir re-importación.\n\n¿Proceder?`)) return;
+
+    let deleted = 0;
+    for (const b of toDelete) {
+        try {
+            if (window.apiLocal) {
+                const localDb = await apiLocal._getDb();
+                // Try delete by key
+                await localDb.bonos.delete(b.bono);
+                // Try delete by ID if exists
+                if (b.id) await localDb.bonos.delete(b.id);
+            }
+            if (window.db) {
+                await db.collection("spa_vouchers").doc(b.bono).delete();
+            }
+            deleted++;
+        } catch (e) {
+            console.error(`Error borrando ${b.bono}`, e);
+        }
+    }
+
+    alert(`✅ Reparación completada: ${deleted} bonos eliminados.\nRecargando página...`);
+    window.location.reload();
+};
+
+/**
+ * UTILIDAD DE LIMPIEZA: Elimina bonos caducados o con fecha inválida.
+ * Uso: ejecutar cleanupVouchers() en consola
+ */
+window.cleanupVouchers = async function (deepScan = true) {
+    let toDelete = [];
+
+    // 1. Escaneo Local (State)
+    const now = new Date();
+    const localCandidates = state.bonos.filter(b => {
+        const f = b.fecha;
+        const isExcelSerial = (typeof f === 'number' && f > 20000 && f < 80000) || (/^\d{5}$/.test(String(f)));
+        const isInvalidDate = !f || String(f).includes('ERROR') || isNaN(new Date(f).getTime()) || String(f).length < 6 || isExcelSerial;
+
+        let isExpired = false;
+        if (b.fecha_caducidad) {
+            const expDate = new Date(b.fecha_caducidad);
+            if (!isNaN(expDate.getTime()) && expDate < now && b.estado !== 'completed' && b.estado !== 'agotado') {
+                isExpired = true;
+            }
+        }
+        return isInvalidDate || isExpired;
+    });
+
+    toDelete = [...localCandidates];
+
+    // 2. Escaneo Profundo en Firestore (si se solicita)
+    // Busca documentos que no se cargaron por filtro de fecha
+    if (deepScan && window.db) {
+        console.log("[CLEANUP] Iniciando escaneo profundo en Firestore para detectar fechas numéricas...");
+        try {
+            // Firestore no permite buscar fácilmente por "tipo", pero sabemos que estos inválidos 
+            // suelen tener fechas numéricas que son strings cortos o numbers.
+            // O podemos buscar por aquellos que NO tienen un guion (las fechas buenas son YYYY-MM-DD)
+
+            // Estrategia: Bajar un lote grande sin filtro de fecha (¡Cuidado con el tamaño!)
+            // Limitamos a 500 para probar.
+            const snap = await db.collection("spa_vouchers")
+                .orderBy("fecha") // Las fechas numéricas (45000) suelen quedar al principio o final dependiendo del sort strings
+                .limit(300)
+                .get();
+
+            snap.forEach(doc => {
+                const data = doc.data();
+                const f = data.fecha;
+                // Detectar Excel Serial
+                const isExcelSerial = (typeof f === 'number' && f > 20000 && f < 80000) || (/^\d{5}$/.test(String(f)));
+                // Detectar "ERROR"
+                const isError = String(f).includes('ERROR') || String(f).length < 6;
+
+                if (isExcelSerial || isError) {
+                    // Añadir si no está ya
+                    if (!toDelete.find(x => x.bono === doc.id)) {
+                        toDelete.push({ ...data, bono: doc.id, _fromFirestore: true });
+                    }
+                }
+            });
+
+        } catch (e) {
+            console.error("Error en deep scan:", e);
+        }
+    }
+
+    if (toDelete.length === 0) {
+        alert("No se encontraron bonos inválidos (ni en local ni en escaneo rápido de nube).");
+        return;
+    }
+
+    if (!confirm(`⚠️ SE VAN A ELIMINAR ${toDelete.length} BONOS INVÁLIDOS:\n` +
+        `- ${toDelete.filter(b => b._fromFirestore).length} detectados solo en Nube.\n` +
+        `- ${toDelete.length - toDelete.filter(b => b._fromFirestore).length} locales.\n\n` +
+        `Ejemplos: ${toDelete.slice(0, 3).map(b => b.bono + ' (' + b.fecha + ')').join(', ')}\n\n` +
+        `¿Estás seguro? SE BORRARÁN DE FIRESTORE Y LOCAL.`)) {
+        return;
+    }
+
+    console.log(`[CLEANUP] Borrando ${toDelete.length} items...`);
+    let deletedCount = 0;
+
+    for (const b of toDelete) {
+        try {
+            // Eliminar Local
+            if (window.dbLocal) await dbLocal.bonos.delete(b.bono);
+
+            // Eliminar Firestore
+            await db.collection("spa_vouchers").doc(b.bono).delete();
+
+            deletedCount++;
+        } catch (err) {
+            console.error(`Error borrando ${b.bono}`, err);
+        }
+    }
+
+    alert(`✅ ${deletedCount} bonos eliminados correctamente.`);
+    window.location.reload();
+};
+
+
+/**
+ * UTILIDAD DE BORRADO POR RANGO: Elimina bonos numéricos hasta un límite.
+ * Uso: deleteLegacyRange(9998)
+ */
+window.deleteLegacyRange = async function (maxId = 9998) {
+    if (!confirm(`⚠️ PELIGRO: Esto borrará TODOS los bonos que sean solo números (sin LOC-) menores o iguales a ${maxId}.\n¿Estás seguro?`)) return;
+
+    console.log(`[RANGE-DELETE] Buscando bonos numéricos <= ${maxId}...`);
+
+    // 1. Buscar candidatos (Local + Nube)
+    let toDelete = [];
+
+    // A. Local
+    const localMatches = state.bonos.filter(b => {
+        return /^\d+$/.test(String(b.bono)) && parseInt(b.bono) <= maxId;
+    });
+    toDelete = [...localMatches];
+
+    // B. Nube (Deep Scan para encontrar huerfanos)
+    if (window.db) {
+        try {
+            const snap = await db.collection("spa_vouchers").get(); // Scan completo necesario si no están ordenados numéricamente string
+            snap.forEach(doc => {
+                const id = doc.id;
+                if (/^\d+$/.test(id) && parseInt(id) <= maxId) {
+                    if (!toDelete.find(x => x.bono === id)) {
+                        toDelete.push({ bono: id });
+                    }
+                }
+            });
+        } catch (e) {
+            console.error("Error scan nube:", e);
+        }
+    }
+
+    if (toDelete.length === 0) {
+        alert("No se encontraron bonos en ese rango.");
+        return;
+    }
+
+    if (!confirm(`⚠️ SE DETECTARON ${toDelete.length} BONOS NUMÉRICOS <= ${maxId}.\nSe van a eliminar PERMANENTEMENTE.\n\nEscribe el número ${toDelete.length} para confirmar:`)) return;
+
+    console.log(`[RANGE-DELETE] Borrando ${toDelete.length} bonos...`);
+    let count = 0;
+
+    for (const b of toDelete) {
+        try {
+            if (window.dbLocal) await dbLocal.bonos.delete(b.bono);
+            await db.collection("spa_vouchers").doc(b.bono).delete();
+            count++;
+            if (count % 50 === 0) console.log(`Borrados ${count}...`);
+        } catch (e) {
+            console.error(`Fallo al borrar ${b.bono}`, e);
+        }
+    }
+
+    alert(`✅ Operación terminada. ${count} bonos eliminados.`);
+    window.location.reload();
+};
+
+/**
+ * REPARACIÓN TOTAL V3 (DEEP SCAN): Escanea toda la base de datos local para borrar de raíz.
+ */
+window.removeCorruptDuplicates = async function () {
+    const confirmScanner = confirm("⚠️ ¿Ejecutar LIMPIEZA TOTAL?\n\nEsto buscará en los miles de bonos de la base de datos local (IndexedDB) para encontrar CUALQUIER fecha 1970/inválida y borrarla de golpe tanto aquí como en la nube.\n\n¿Proceder?");
+    if (!confirmScanner) return;
+
+    let allBonos = [];
+    try {
+        if (!window.apiLocal) throw new Error("API Local no disponible");
+        const localDb = await apiLocal._getDb();
+        allBonos = await localDb.bonos.toArray();
+        console.log(`[REPAIR] Escaneando ${allBonos.length} bonos...`);
+    } catch (e) {
+        console.error("No se pudo acceder a la BD local profunda:", e);
+        alert("Error al acceder a la base de datos local. Intentaremos con los datos en memoria.");
+        allBonos = state.bonos || [];
+    }
+
+    if (allBonos.length === 0) {
+        alert("No hay bonos cargados para analizar.");
+        return;
+    }
+
+    const isBadDate = (d) => {
+        if (!d) return true;
+        const s = String(d).trim();
+        // Detectar 0, "0", "-", strings vacíos o que contienen 1970
+        if (s === '-' || s === '' || s === '0' || s.includes('1970') || s.startsWith('01/01/1970')) return true;
+        const dt = new Date(d);
+        if (!isNaN(dt.getTime()) && dt.getFullYear() < 2000) return true;
+        return false;
+    };
+
+    const map = new Map();
+    const toDelete = [];
+
+    // 1. Agrupar por id numérico o bono exacto para detectar duplicados
+    for (const b of allBonos) {
+        const rawCode = String(b.bono || b.codigo || "");
+        if (!rawCode) continue;
+
+        // Intentar sacar el número (ej: de "exc.Loc 12345" sacar "12345")
+        const match = rawCode.match(/(\d+)$/);
+        const key = match ? match[1] : rawCode;
+
+        if (!map.has(key)) map.set(key, []);
+        map.get(key).push(b);
+    }
+
+    // 2. Analizar grupos para limpieza profunda
+    for (const [key, list] of map.entries()) {
+        const badOnes = list.filter(b => isBadDate(b.fecha));
+        const goodOnes = list.filter(b => !isBadDate(b.fecha));
+
+        if (goodOnes.length > 0) {
+            // Caso A: Tenemos versiones buenas. Borramos TODAS las malas.
+            badOnes.forEach(b => toDelete.push(b));
+
+            // Caso B: Tenemos MÚLTIPLES versiones buenas (Duplicados reales). 
+            // Nos quedamos solo con la más reciente (updatedAt).
+            if (goodOnes.length > 1) {
+                goodOnes.sort((a, b) => {
+                    const dateA = new Date(a.updatedAt || 0);
+                    const dateB = new Date(b.updatedAt || 0);
+                    return dateB - dateA; // Descendente
+                });
+                // Borramos todos menos el primero
+                goodOnes.slice(1).forEach(b => toDelete.push(b));
+            }
+        } else if (badOnes.length > 0) {
+            // Caso C: Solo hay versiones malas.
+            // Si hay varias, las borramos todas menos una (para poder editarla) 
+            // O mejor: las borramos todas para re-importar limpio. 
+            // El usuario prefiere borrar masivo para re-importar.
+            badOnes.forEach(b => toDelete.push(b));
+        }
+    }
+
+    if (toDelete.length === 0) {
+        alert("✅ ¡Excelente noticia! No se han encontrado bonos con fechas 1970 o corruptas en toda la base de datos.");
+        return;
+    }
+
+    // Unificar por código de bono por si acaso
+    const uniqueToDelete = [...new Map(toDelete.map(item => [item.bono, item])).values()];
+
+    if (!confirm(`🚨 ¡ATENCIÓN! Se han encontrado ${uniqueToDelete.length} bonos corruptos.\n\n¿Quieres BORRARLOS TODOS de forma masiva ahora mismo?`)) return;
+
+    let deletedCount = 0;
+    const errors = [];
+
+    for (const b of uniqueToDelete) {
+        try {
+            // Borrar de IndexedDB
+            const localDb = await apiLocal._getDb();
+            await localDb.bonos.delete(b.bono);
+            if (b.id) await localDb.bonos.delete(b.id);
+
+            // Borrar de Firestore
+            if (window.db) {
+                await db.collection("spa_vouchers").doc(b.bono).delete();
+            }
+            deletedCount++;
+            if (deletedCount % 50 === 0) console.log(`Borrados ${deletedCount}...`);
+        } catch (e) {
+            console.error("Error borrando:", b.bono, e);
+            errors.push(b.bono);
+        }
+    }
+
+    alert(`💪 ¡LIMPIEZA COMPLETADA!\n\nSe han eliminado ${deletedCount} bonos basura.\n${errors.length > 0 ? `Hubo ${errors.length} errores.` : ""}\n\nLa página se recargará para mostrar los cambios.`);
+    window.location.reload();
+};
+
+/**
+ * DELETE VOUCHER MANUAL
+ */
+window.deleteVoucher = async function (bonoCode) {
+    if (!confirm("⚠️ ¿ESTÁS SEGURO DE BORRAR EL BONO " + bonoCode + "?\n\nEsta acción es irreversible y lo borrará de la base de datos local y nube.")) return;
+
+    try {
+        // 1. Delete from State
+        state.bonos = state.bonos.filter(b => b.bono !== bonoCode);
+        renderBonosFromState(); // Immediate UI update
+
+        // 2. Delete from Local DB
+        if (window.apiLocal) {
+            const localDb = await apiLocal._getDb();
+            await localDb.bonos.delete(bonoCode);
+        }
+
+        // 3. Delete from Firestore
+        if (window.db) {
+            await db.collection("spa_vouchers").doc(bonoCode).delete();
+            console.log(`[DELETE] Borrado de Firestore: ${bonoCode}`);
+        }
+
+        alert("✅ Bono eliminado correctamente.");
+    } catch (e) {
+        console.error("Error borrando bono:", e);
+        alert("❌ Error al borrar: " + e.message);
+    }
+};

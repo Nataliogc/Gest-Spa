@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Limpiar IndexedDB - Gest Spa</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+
+        .container {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+        }
+
+        h1 {
+            color: #333;
+            margin-top: 0;
+        }
+
+        .status {
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+            font-weight: 500;
+        }
+
+        .info {
+            background: #e3f2fd;
+            border-left: 4px solid #2196F3;
+            color: #1565c0;
+        }
+
+        .success {
+            background: #e8f5e9;
+            border-left: 4px solid #4caf50;
+            color: #2e7d32;
+        }
+
+        .error {
+            background: #ffebee;
+            border-left: 4px solid #f44336;
+            color: #c62828;
+        }
+
+        .warning {
+            background: #fff3e0;
+            border-left: 4px solid #ff9800;
+            color: #e65100;
+        }
+
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        button:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .details {
+            background: #f5f5f5;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 15px 0;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>🧹 Limpieza de IndexedDB</h1>
+
+        <div class="status info">
+            <strong>ℹ️ Información:</strong><br>
+            Esta herramienta eliminará todas las reservas antiguas de IndexedDB que no tienen el campo "collection"
+            necesario.
+            Esto solucionará el problema de las reservas que no se muestran en el calendario.
+        </div>
+
+        <div id="status"></div>
+        <div id="details"></div>
+
+        <div class="btn-group">
+            <button id="btnAnalyze" onclick="analyzeDB()">📊 Analizar Base de Datos</button>
+            <button id="btnClean" onclick="cleanDB()" disabled>🗑️ Limpiar Reservas Antiguas</button>
+            <button id="btnCleanAll" onclick="cleanAllReservas()">⚠️ Borrar TODAS las Reservas</button>
+        </div>
+
+        <div class="status warning" style="margin-top: 20px;">
+            <strong>⚠️ Advertencia:</strong><br>
+            "Limpiar Reservas Antiguas" solo borra las que no tienen el campo "collection".<br>
+            "Borrar TODAS" elimina absolutamente todas las reservas de IndexedDB.
+        </div>
+    </div>
+
+    <script>
+        const DB_NAME = 'GestSpaDB';
+        const STORE_NAME = 'reservas';
+
+        function showStatus(message, type = 'info') {
+            const statusDiv = document.getElementById('status');
+            statusDiv.className = `status ${type}`;
+            statusDiv.innerHTML = message;
+        }
+
+        function showDetails(content) {
+            const detailsDiv = document.getElementById('details');
+            detailsDiv.className = 'details';
+            detailsDiv.innerHTML = content;
+        }
+
+        async function openDB() {
+            return new Promise((resolve, reject) => {
+                const request = indexedDB.open(DB_NAME);
+                request.onsuccess = () => resolve(request.result);
+                request.onerror = () => reject(request.error);
+            });
+        }
+
+        async function analyzeDB() {
+            try {
+                showStatus('🔍 Analizando base de datos...', 'info');
+
+                const db = await openDB();
+                const transaction = db.transaction([STORE_NAME], 'readonly');
+                const store = transaction.objectStore(STORE_NAME);
+                const request = store.getAll();
+
+                request.onsuccess = () => {
+                    const allReservas = request.result;
+                    const withoutCollection = allReservas.filter(r => !r.collection);
+                    const withCollection = allReservas.filter(r => r.collection);
+
+                    let details = `<strong>Total de reservas:</strong> ${allReservas.length}<br><br>`;
+                    details += `<strong>✅ Con campo "collection":</strong> ${withCollection.length}<br>`;
+                    details += `<strong>❌ Sin campo "collection":</strong> ${withoutCollection.length}<br><br>`;
+
+                    if (withoutCollection.length > 0) {
+                        details += `<strong>Reservas sin "collection" (no se muestran):</strong><br>`;
+                        withoutCollection.forEach(r => {
+                            details += `- ID: ${r.id || r.res_id || 'N/A'} | ${r.nombre || 'Sin nombre'} | ${r.fecha || 'Sin fecha'}<br>`;
+                        });
+                    }
+
+                    showDetails(details);
+
+                    if (withoutCollection.length > 0) {
+                        showStatus(`✅ Análisis completado. Hay ${withoutCollection.length} reserva(s) antigua(s) que se pueden limpiar.`, 'success');
+                        document.getElementById('btnClean').disabled = false;
+                    } else {
+                        showStatus('✅ ¡Perfecto! Todas las reservas tienen el campo "collection". No es necesario limpiar.', 'success');
+                        document.getElementById('btnClean').disabled = true;
+                    }
+                };
+
+                request.onerror = () => {
+                    showStatus('❌ Error al leer la base de datos: ' + request.error, 'error');
+                };
+
+            } catch (error) {
+                showStatus('❌ Error al abrir la base de datos: ' + error.message, 'error');
+            }
+        }
+
+        async function cleanDB() {
+            if (!confirm('¿Estás seguro de que quieres eliminar las reservas antiguas SIN el campo "collection"?')) {
+                return;
+            }
+
+            try {
+                showStatus('🧹 Limpiando reservas antiguas...', 'info');
+
+                const db = await openDB();
+                const transaction = db.transaction([STORE_NAME], 'readwrite');
+                const store = transaction.objectStore(STORE_NAME);
+
+                // Get all reservas
+                const getAllRequest = store.getAll();
+
+                getAllRequest.onsuccess = () => {
+                    const allReservas = getAllRequest.result;
+                    const toDelete = allReservas.filter(r => !r.collection);
+
+                    let deleted = 0;
+                    toDelete.forEach(r => {
+                        const deleteRequest = store.delete(r.id);
+                        deleteRequest.onsuccess = () => deleted++;
+                    });
+
+                    transaction.oncomplete = () => {
+                        showStatus(`✅ ¡Limpieza completada! Se eliminaron ${deleted} reserva(s) antigua(s).`, 'success');
+                        showDetails(`Ahora puedes cerrar esta ventana y recargar la página de reservas.<br>Las nuevas reservas que crees aparecerán correctamente en el calendario.`);
+                        document.getElementById('btnClean').disabled = true;
+                    };
+                };
+
+                getAllRequest.onerror = () => {
+                    showStatus('❌ Error al leer reservas: ' + getAllRequest.error, 'error');
+                };
+
+            } catch (error) {
+                showStatus('❌ Error durante la limpieza: ' + error.message, 'error');
+            }
+        }
+
+        async function cleanAllReservas() {
+            if (!confirm('⚠️ ADVERTENCIA: Esto borrará TODAS las reservas de IndexedDB.\n\n¿Estás COMPLETAMENTE seguro?')) {
+                return;
+            }
+
+            if (!confirm('Esta acción NO se puede deshacer. ¿Continuar?')) {
+                return;
+            }
+
+            try {
+                showStatus('🗑️ Borrando TODAS las reservas...', 'warning');
+
+                const db = await openDB();
+                const transaction = db.transaction([STORE_NAME], 'readwrite');
+                const store = transaction.objectStore(STORE_NAME);
+
+                const clearRequest = store.clear();
+
+                clearRequest.onsuccess = () => {
+                    showStatus('✅ Todas las reservas han sido eliminadas de IndexedDB.', 'success');
+                    showDetails('La base de datos está ahora completamente vacía.<br>Puedes cerrar esta ventana y crear nuevas reservas.');
+                    document.getElementById('btnClean').disabled = true;
+                };
+
+                clearRequest.onerror = () => {
+                    showStatus('❌ Error al borrar reservas: ' + clearRequest.error, 'error');
+                };
+
+            } catch (error) {
+                showStatus('❌ Error: ' + error.message, 'error');
+            }
+        }
+
+        // Auto-analyze on load
+        window.addEventListener('load', () => {
+            setTimeout(analyzeDB, 500);
+        });
+    </script>
+</body>
+
+</html>

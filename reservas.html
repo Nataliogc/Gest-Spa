@@ -327,8 +327,7 @@
             <li><a href="index.html" class="nav-link"><i class="fas fa-home"></i> Inicio</a></li>
             <li><a href="bonos.html" class="nav-link"><i class="fas fa-ticket-alt"></i> Bonos</a></li>
 
-            <li class="menu-header" style="font-size: 0.7rem; color: #aaa; margin: 10px 0 5px 10px; font-weight: 600;">
-                MÓDULOS</li>
+
             <li><a href="reservas.html?type=spa" class="nav-link"><i class="fas fa-water"></i> Spa</a></li>
             <li><a href="reservas.html?type=suite" class="nav-link"><i class="fas fa-gem"></i> Suite</a></li>
             <li><a href="reservas.html?type=panacea" class="nav-link"><i class="fas fa-columns"></i> Panacea & VIP</a>
@@ -409,6 +408,26 @@
                 <span><i class="fas fa-circle" style="color: #f44336;"></i> Completo</span>
             </div>
         </header>
+
+        <!-- Notas del Día (Específicas de Fecha) -->
+        <div id="day-notes-container" style="margin-top: -15px; margin-bottom: 20px; display: none;">
+            <div
+                style="background: #fff8e1; border: 1px solid #ffe082; padding: 12px 18px; border-radius: 12px; display: flex; justify-content: space-between; align-items: flex-start; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
+                <div style="flex: 1;">
+                    <div
+                        style="color: #856404; font-size: 0.65rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; display: flex; align-items: center; gap: 6px;">
+                        <i class="fas fa-sticky-note"></i> NOTAS DEL DÍA
+                    </div>
+                    <div id="day-notes-text"
+                        style="font-size: 0.95rem; color: #5d4037; font-weight: 500; line-height: 1.4; white-space: pre-wrap;">
+                        Sin notas para este día.</div>
+                </div>
+                <button onclick="editDayNotes()" class="btn-icon" title="Editar notas"
+                    style="color: #856404; background: transparent;">
+                    <i class="fas fa-edit"></i>
+                </button>
+            </div>
+        </div>
 
         <!-- Dynamic Grid of Slots -->
         <!-- Dynamic Grid of Slots (Single View) -->
@@ -502,7 +521,7 @@
                 </div>
 
                 <!-- MAIN FIELDS GRID -->
-                <div
+                <div id="booking-form-grid"
                     style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; background: #fff; padding: 15px; border-radius: 10px; border: 1px solid #edf2f7; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
 
                     <!-- DATE / TIME (VISIBLE FOR RESCHEDULING) -->
@@ -527,100 +546,96 @@
                         </div>
                     </div>
 
-                    <!-- CLIENTE -->
-                    <div class="form-group" style="margin-bottom: 0;">
-                        <label
-                            style="font-size: 0.7rem; font-weight: 800; color: #4a5568; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; display: block;">Datos
-                            del Cliente</label>
-                        <input type="text" id="res-nombre" required placeholder="Nombre Completo"
-                            style="width: 100%; padding: 8px 12px; border-radius: 6px; border: 1px solid #e2e8f0; font-size: 0.9rem; transition: border-color 0.2s; outline: none; background: #f8fafc;">
+                    <!-- ROW 1: CLIENTE + PAX -->
+                    <div style="display: grid; grid-template-columns: 1fr 70px; gap: 10px; margin-bottom: 5px;">
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label
+                                style="font-size: 0.7rem; font-weight: 800; color: #4a5568; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; display: block;">Datos
+                                del Cliente</label>
+                            <input type="text" id="res-nombre" required placeholder="Nombre Completo"
+                                style="width: 100%; padding: 8px 12px; border-radius: 6px; border: 1px solid #e2e8f0; font-size: 0.9rem; transition: border-color 0.2s; outline: none; background: #f8fafc;">
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label
+                                style="font-size: 0.65rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; display: block; margin-bottom: 4px;">Pax</label>
+                            <input type="number" id="res-pax" value="2" min="1" max="25" required
+                                style="width: 100%; padding: 8px 6px; border-radius: 6px; border: 1px solid #e2e8f0; font-size: 0.9rem; text-align: center; background: #f8fafc;">
+                        </div>
                     </div>
 
-                    <!-- SERVICIO -->
-                    <div class="form-group" style="margin-bottom: 0;">
-                        <label
-                            style="font-size: 0.7rem; font-weight: 800; color: #4a5568; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; display: block;">Servicio
-                            y Categoria</label>
-                        <select id="res-servicio" required onchange="updatePackInfo(); updatePriceAutomation();"
+                    <!-- SERVICIO (Hidden for SPA) -->
+                    <div class="form-group" id="service-group" style="margin-bottom: 0; display: none;">
+                        <label id="label-service"
+                            style="font-size: 0.7rem; font-weight: 800; color: #4a5568; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; display: block;">Servicio</label>
+                        <select id="res-servicio" onchange="updatePackInfo(); updatePriceAutomation();"
                             style="width: 100%; padding: 8px 10px; border-radius: 6px; border: 1px solid #e2e8f0; font-size: 0.9rem; background: #fff; cursor: pointer; font-weight: 600; color: var(--accent);">
-                            <option value="Circuito Spa">Circuito Spa</option>
                         </select>
                     </div>
 
-                    <!-- TEL / PAX -->
-                    <div style="display: flex; gap: 10px;">
-                        <div class="form-group" id="tel-group" style="flex: 1; margin-bottom: 0;">
+                    <!-- ROW 2: TELÉFONO + ORIGEN -->
+                    <div id="tel-origen-container" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                        <div class="form-group" id="tel-group" style="margin-bottom: 0;">
                             <label
-                                style="font-size: 0.65rem; font-weight: 700; color: #94a3b8; text-transform: uppercase;">Teléfono</label>
+                                style="font-size: 0.65rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; display: block; margin-bottom: 4px;">Teléfono</label>
                             <input type="tel" id="res-tel" placeholder="XXX XXX XXX" required
                                 style="width: 100%; padding: 6px 10px; border-radius: 6px; border: 1px solid #e2e8f0; font-size: 0.85rem; background: #f8fafc;">
                         </div>
-                        <div class="form-group" style="width: 65px; margin-bottom: 0;">
+                        <div class="form-group" style="margin-bottom: 0;">
                             <label
-                                style="font-size: 0.65rem; font-weight: 700; color: #94a3b8; text-transform: uppercase;">Pax</label>
-                            <input type="number" id="res-pax" value="2" min="1" max="25" required
-                                style="width: 100%; padding: 6px; border-radius: 6px; border: 1px solid #e2e8f0; font-size: 0.85rem; text-align: center; background: #f8fafc;">
+                                style="font-size: 0.65rem; font-weight: 800; color: #4a5568; text-transform: uppercase; display: block; margin-bottom: 4px;">Origen</label>
+                            <select id="res-origen" onchange="toggleRoomField()"
+                                style="width: 100%; padding: 6px 10px; border-radius: 6px; border: 1px solid #e2e8f0; font-size: 0.85rem; background: #fff; cursor: pointer;">
+                                <option value="particular">Particular (Pago Directo)</option>
+                                <option value="hotel_inc">Hotel - Incluido</option>
+                                <option value="hotel_no_inc">Hotel - NO Incluidos</option>
+                                <option value="bono">Bono Spa (Interno)</option>
+                                <option value="smartbox">Smartbox</option>
+                                <option value="wonderbox">Wonderbox</option>
+                                <option value="ego">Ego Experiencias</option>
+                            </select>
                         </div>
                     </div>
 
-                    <!-- HOTEL / HAB / BONO / STAFF -->
-                    <div style="display: flex; flex-direction: column; gap: 8px;">
-                        <!-- STAFF (Conditional) -->
-                        <div class="form-group" id="staff-selector-group" style="margin-bottom: 0; display: none;">
+                    <!-- CONDITIONAL FIELDS ROW (Hidden by default, shown via toggleRoomField) -->
+                    <div id="extra-fields-row"
+                        style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; grid-column: 1 / -1;">
+
+                        <!-- HOTEL (Hidden by default) -->
+                        <div class="form-group" id="hotel-group" style="margin-bottom: 0; display: none;">
                             <label
-                                style="font-size: 0.65rem; font-weight: 700; color: var(--accent); text-transform: uppercase;">Terapeuta</label>
-                            <select id="booking-staff"
-                                style="width: 100%; padding: 5px 8px; border-radius: 6px; border: 1px solid #e2e8f0; font-size: 0.8rem; background: #f0fdf4;">
-                                <option value="">Seleccione...</option>
+                                style="font-size: 0.65rem; font-weight: 800; color: #4a5568; text-transform: uppercase;">Hotel</label>
+                            <select id="res-hotel"
+                                style="width: 100%; padding: 6px 10px; border-radius: 6px; border: 1px solid #e2e8f0; font-size: 0.85rem; background: #fff; cursor: pointer;">
+                                <option value="Cumbria">Cumbria</option>
+                                <option value="Guadiana">Guadiana</option>
                             </select>
                         </div>
 
-                        <div id="extra-fields-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
-                            <div class="form-group" id="hotel-group" style="display:none; margin-bottom: 0;">
-                                <label
-                                    style="font-size: 0.65rem; font-weight: 700; color: #94a3b8; text-transform: uppercase;">Hotel</label>
-                                <select id="res-hotel"
-                                    style="width: 100%; padding: 4px 8px; border-radius: 6px; border: 1px solid #e2e8f0; font-size: 0.8rem;">
-                                    <option value="Cumbria">Cumbria</option>
-                                    <option value="Guadiana">Guadiana</option>
-                                </select>
-                            </div>
-                            <div class="form-group" id="room-group" style="display:none; margin-bottom: 0;">
-                                <label
-                                    style="font-size: 0.65rem; font-weight: 700; color: #94a3b8; text-transform: uppercase;">Hab</label>
-                                <input type="text" id="res-hab" placeholder="Hab"
-                                    style="width: 100%; padding: 4px 8px; border-radius: 6px; border: 1px solid #e2e8f0; font-size: 0.8rem;">
-                            </div>
-                            <div class="form-group" id="bono-group" style="display:none; margin-bottom: 0;">
-                                <label
-                                    style="font-size: 0.65rem; font-weight: 700; color: #94a3b8; text-transform: uppercase;">Bono</label>
-                                <input type="text" id="res-bono" placeholder="ID Bono"
-                                    style="width: 100%; padding: 4px 8px; border-radius: 6px; border: 1px solid #e2e8f0; font-size: 0.8rem;">
-                            </div>
-                            <div class="form-group" id="sessions-group" style="display:none; margin-bottom: 0;">
-                                <label
-                                    style="font-size: 0.65rem; font-weight: 700; color: #94a3b8; text-transform: uppercase;">Sesiones</label>
-                                <input type="number" id="res-sesiones" value="1" min="1" max="10"
-                                    style="width: 100%; padding: 4px 8px; border-radius: 6px; border: 1px solid #e2e8f0; font-size: 0.8rem;">
-                            </div>
+                        <!-- HABITACIÓN (Hidden by default) -->
+                        <div class="form-group" id="room-group" style="margin-bottom: 0; display: none;">
+                            <label
+                                style="font-size: 0.65rem; font-weight: 800; color: #4a5568; text-transform: uppercase;">Habitación</label>
+                            <input type="text" id="res-hab" placeholder="Nº Hab"
+                                style="width: 100%; padding: 6px 10px; border-radius: 6px; border: 1px solid #e2e8f0; font-size: 0.85rem; background: #f8fafc;">
                         </div>
-                    </div>
 
-                    <!-- ORIGEN -->
-                    <div class="form-group" style="margin-bottom: 0;">
-                        <label
-                            style="font-size: 0.65rem; font-weight: 800; color: #4a5568; text-transform: uppercase;">Origen
-                            de Reserva</label>
-                        <select id="res-origen" onchange="toggleRoomField()"
-                            style="width: 100%; padding: 8px 10px; border-radius: 6px; border: 1px solid #e2e8f0; font-size: 0.9rem; background: #fff; cursor: pointer;">
-                            <option value="particular">Particular (Pago Directo)</option>
-                            <option value="hotel_inc">Hotel - Incluido</option>
-                            <option value="hotel_no_inc">Hotel - NO Incluidos</option>
-                            <option value="bono">Bono Spa (Interno)</option>
-                            <option value="smartbox">Smartbox</option>
-                            <option value="wonderbox">Wonderbox</option>
-                            <option value="ego">Ego Experiencias</option>
-                        </select>
+                        <!-- ID BONO / CUPÓN (Hidden by default) -->
+                        <div class="form-group" id="bono-group" style="margin-bottom: 0; display: none;">
+                            <label
+                                style="font-size: 0.65rem; font-weight: 800; color: #4a5568; text-transform: uppercase;">ID
+                                Bono / Cupón</label>
+                            <input type="text" id="res-bono" placeholder="Código del bono"
+                                style="width: 100%; padding: 6px 10px; border-radius: 6px; border: 1px solid #e2e8f0; font-size: 0.85rem; background: #f8fafc;">
+                        </div>
+
+                        <!-- SESIONES (Hidden by default, only for internal bonos) -->
+                        <div class="form-group" id="sessions-group" style="margin-bottom: 0; display: none;">
+                            <label
+                                style="font-size: 0.65rem; font-weight: 800; color: #4a5568; text-transform: uppercase;">Sesiones
+                                a usar</label>
+                            <input type="number" id="residences" value="1" min="1" max="10"
+                                style="width: 100%; padding: 6px 10px; border-radius: 6px; border: 1px solid #e2e8f0; font-size: 0.85rem; text-align: center; background: #f8fafc;">
+                        </div>
                     </div>
 
                     <!-- COMPLEMENTOS (NEW LOCATION) -->
@@ -853,6 +868,26 @@
             whatsappTemplate: "Hola {{nombre}}, le confirmamos su reserva en {{espacio}} para el día {{fecha}} a las {{hora}}h ({{servicio}}).\n\nRecordatorio: Si no puede acudir, rogamos nos informe con al menos 12 horas de antelación. Las cancelaciones fuera de este plazo pueden conllevar gastos de gestión. ¡Le esperamos!"
         };
 
+        async function cargarSpaConfig() {
+            try {
+                const doc = await db.collection("spa_config").doc("general").get();
+                if (doc.exists) {
+                    const data = doc.data();
+                    if (data.capacity !== undefined) {
+                        MODULES.spa.capacity = parseInt(data.capacity) || 20;
+                        spaConfig.capacity = MODULES.spa.capacity;
+                        if (currentModule.code === 'spa') currentModule.capacity = spaConfig.capacity;
+                        console.log(`Capacidad Spa: ${spaConfig.capacity}`);
+                    }
+                    if (data.cleaningTime) spaConfig.cleaningTime = parseInt(data.cleaningTime);
+                    if (data.closedDates) spaConfig.closedDates = data.closedDates;
+                    if (data.whatsappTemplate) spaConfig.whatsappTemplate = data.whatsappTemplate;
+                }
+            } catch (err) {
+                console.error("Error spa_config:", err);
+            }
+        }
+
         document.addEventListener("DOMContentLoaded", async () => {
             const picker = document.getElementById("main-date-picker");
             const urlDate = urlParams.get('date');
@@ -948,18 +983,27 @@
                 const origen = document.getElementById("res-origen").value;
                 const bonoId = document.getElementById("res-bono").value.trim();
                 const resId = document.getElementById("form-id").value;
-
                 if (origen === "bono" && bonoId) {
                     await validateBonoBalance(bonoId, resId);
                 } else {
-                    document.getElementById("res-sesiones").removeAttribute("max");
+                    const sesionesField = document.getElementById("res-sesiones");
+                    if (sesionesField) sesionesField.removeAttribute("max");
                     const notice = document.getElementById("v-balance-notice");
                     if (notice) notice.style.display = "none";
+
+                    if (currentModule.code === 'spa') {
+                        const infoContainer = document.getElementById("pack-includes-container");
+                        if (infoContainer) infoContainer.style.display = "none";
+                        const reminder = document.getElementById("pack-reminder");
+                        if (reminder) reminder.style.display = "none";
+                        return;
+                    }
                 }
             }
 
             document.getElementById("res-origen").addEventListener("change", triggerBalanceCheck);
-            document.getElementById("res-bono").addEventListener("blur", triggerBalanceCheck);
+            const bonoField = document.getElementById("res-bono");
+            if (bonoField) bonoField.addEventListener("blur", triggerBalanceCheck);
 
             // Listeners para actualizar slots disponibles en el modal
             document.getElementById("form-date").addEventListener("change", updateAvailableTimeSlots);
@@ -1354,6 +1398,28 @@
                 }
             }
 
+            // SPA-SPECIFIC UI ADJUSTMENTS
+            const serviceGroup = document.getElementById("service-group");
+            const formGrid = document.getElementById("booking-form-grid");
+
+            if (currentModule.code === 'spa') {
+                // Hide service selector for Spa (always "Circuito Spa")
+                if (serviceGroup) serviceGroup.style.display = "none";
+
+                // Auto-select Circuito Spa
+                const circuitoSpa = servicesToShow.find(s => s.nombre === 'Circuito Spa');
+                if (circuitoSpa) sel.value = circuitoSpa.nombre;
+
+                // Switch to single-column layout for better visibility
+                if (formGrid) formGrid.style.gridTemplateColumns = "1fr";
+            } else {
+                // Show service selector for other modules
+                if (serviceGroup) serviceGroup.style.display = "block";
+
+                // Restore two-column layout
+                if (formGrid) formGrid.style.gridTemplateColumns = "1fr 1fr";
+            }
+
             updatePackInfo();
         }
 
@@ -1388,6 +1454,19 @@
             if (saveBtn) saveBtn.disabled = false;
 
             if (!container || !list || !reminder) return;
+
+            // FORCE HIDE FOR SPA RESERVATIONS (Simple Slots)
+            if (currentModule.code === 'spa') {
+                container.style.display = "none";
+                reminder.style.display = "none";
+                return;
+            }
+
+            // Hide pack info for basic Circuito Spa (no extra info needed)
+            if (selService === 'Circuito Spa') {
+                container.style.display = "none";
+                return;
+            }
 
             if (!service || !service.items_incluidos || service.items_incluidos.length === 0) {
                 container.style.display = "none";
@@ -1594,6 +1673,9 @@
         async function loadReservas(date) {
             updateDateDisplay(date);
             try {
+                // Cargar Notas del Día
+                loadDayNotes(date);
+
                 // Verificar si el día está cerrado
                 if (spaConfig.closedDates.includes(date)) {
                     document.getElementById("slots-container").innerHTML = `
@@ -1829,7 +1911,7 @@
             container.innerHTML = slots.map(time => {
                 const dayReservations = currentData.filter(r => r.hora === time && r.status !== 'anulada');
                 const paxTotal = dayReservations.reduce((sum, r) => sum + (r.pax || 0), 0);
-                const maxCapacity = currentModule.capacity || spaConfig.capacity || 20;
+                const maxCapacity = spaConfig.capacity || currentModule.capacity || 20;
                 const isFull = paxTotal >= maxCapacity;
                 const isBlocked = dateBlockedSlots.includes(time);
 
@@ -2097,13 +2179,16 @@
             // Re-setup form classes
             // document.getElementById("booking-form").className = "form-grid-premium"; // Removed because we use inline styles for the modern wide layout
 
-            // Reset fields
+            // Reset fields (with null checks for optional fields)
             document.getElementById("res-nombre").value = "";
             document.getElementById("res-tel").value = "";
             document.getElementById("res-origen").value = "particular";
-            document.getElementById("res-hotel").value = "Cumbria";
-            document.getElementById("res-hab").value = "";
-            document.getElementById("res-bono").value = "";
+            const hotelField = document.getElementById("res-hotel");
+            if (hotelField) hotelField.value = "Cumbria";
+            const habField = document.getElementById("res-hab");
+            if (habField) habField.value = "";
+            const bonoFieldReset = document.getElementById("res-bono");
+            if (bonoFieldReset) bonoFieldReset.value = "";
             document.getElementById("res-pax").value = 2;
             document.getElementById("res-precio-pax").value = 0;
             document.getElementById("res-total-text").textContent = "0.00 €";
@@ -2111,7 +2196,8 @@
             obsField.value = "";
             obsField.style.height = 'auto';
             obsField.style.height = '36px'; // Set to min-height on reset
-            document.getElementById("res-sesiones").value = 1;
+            const sesionesField = document.getElementById("res-sesiones");
+            if (sesionesField) sesionesField.value = 1;
 
             // Cargar Servicios y Complementos
             populateServices();
@@ -2136,17 +2222,20 @@
 
             // STAFF SELECTOR VISIBILITY
             const staffGroup = document.getElementById("staff-selector-group");
-            if (currentModule.requiresStaff) {
-                staffGroup.style.display = "block";
-                document.getElementById("booking-staff").required = true;
+            const bookingStaff = document.getElementById("booking-staff");
+            if (staffGroup && bookingStaff) {
+                if (currentModule.requiresStaff) {
+                    staffGroup.style.display = "block";
+                    bookingStaff.required = true;
 
-                // Trigger initial load of available staff
-                if (typeof window.handleStaffFieldsChange === 'function') {
-                    window.handleStaffFieldsChange();
+                    // Trigger initial load of available staff
+                    if (typeof window.handleStaffFieldsChange === 'function') {
+                        window.handleStaffFieldsChange();
+                    }
+                } else {
+                    staffGroup.style.display = "none";
+                    bookingStaff.required = false;
                 }
-            } else {
-                staffGroup.style.display = "none";
-                document.getElementById("booking-staff").required = false;
             }
 
             // Filter Orígenes para Suite
@@ -2246,6 +2335,9 @@
                 window.currentModule = currentModule; // Ensure global ref is updated
             }
 
+            // GLOBAL ID TRACKING FALLBACK
+            window.currentEditingId = id;
+
             const isAnulada = res.status === 'anulada';
             const btnCancel = document.getElementById("btn-cancelar");
             btnCancel.style.display = isAnulada ? "none" : "block";
@@ -2320,10 +2412,10 @@
             }
             document.getElementById("res-tel").value = formattedTel;
 
-            document.getElementById("res-origen").value = res.origen || "particular";
-            document.getElementById("res-hotel").value = res.hotel || "Cumbria";
-            document.getElementById("res-hab").value = res.hab || "";
-            document.getElementById("res-bono").value = res.bono || "";
+            if (document.getElementById("res-origen")) document.getElementById("res-origen").value = res.origen || "particular";
+            if (document.getElementById("res-hotel")) document.getElementById("res-hotel").value = res.hotel || "Cumbria";
+            if (document.getElementById("res-hab")) document.getElementById("res-hab").value = res.hab || "";
+            if (document.getElementById("res-bono")) document.getElementById("res-bono").value = res.bono || "";
             document.getElementById("res-pax").value = res.pax;
             document.getElementById("res-precio-pax").value = res.precio_pax || (res.precio ? (res.precio / res.pax).toFixed(2) : 0);
             const total = res.precio_total || res.precio || 0;
@@ -2335,11 +2427,10 @@
             obsField.style.height = 'auto';
             obsField.style.height = obsField.scrollHeight + 'px';
 
-            // Cargar Servicios y Complementos antes de asignar valores
             populateServices();
             renderComplementos();
 
-            document.getElementById("res-servicio").value = res.servicio || "Circuito Spa";
+            if (document.getElementById("res-servicio")) document.getElementById("res-servicio").value = res.servicio || "Circuito Spa";
 
             // FORCE ADD SERVICE IF MISSING (Prevent empty dropdown)
             const serviceDropdown = document.getElementById("res-servicio");
@@ -2351,7 +2442,10 @@
                 serviceDropdown.value = res.servicio;
             }
             if (typeof updatePackInfo === 'function') updatePackInfo();
-            document.getElementById("res-sesiones").value = res.sesiones_consumidas || 1;
+            if (document.getElementById("res-sesiones")) document.getElementById("res-sesiones").value = res.sesiones_consumidas || 1;
+
+            // Trigger toggleRoomField to show correct fields based on origin
+            if (typeof toggleRoomField === 'function') toggleRoomField();
 
             // Marcar complementos guardados
             if (res.complementos && Array.isArray(res.complementos)) {
@@ -2469,6 +2563,7 @@
 
         function closeModal() {
             document.getElementById("booking-modal").style.display = "none";
+            window.currentEditingId = null; // Clear global ID
         }
 
         let isSavingReservation = false;
@@ -2504,11 +2599,12 @@
                 btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Guardando...';
 
                 console.log("Iniciando proceso de guardado...");
-                const id = document.getElementById("form-id").value;
+                // FORCE FALLBACK: If DOM is empty, use global variable
+                let id = document.getElementById("form-id").value || window.currentEditingId;
                 const date = document.getElementById("form-date").value;
                 const time = document.getElementById("form-time").value;
                 const pax = parseInt(document.getElementById("res-pax").value) || 0;
-                const sesionesConsumidas = parseInt(document.getElementById("res-sesiones").value) || 1;
+                const sesionesConsumidas = parseInt(document.getElementById("res-sesiones")?.value) || 1;
                 const duration = parseInt(document.getElementById("inputDuration")?.value || 60);
 
                 if (!date || !time) {
@@ -2542,8 +2638,8 @@
 
                 // 4. VERIFICACIÓN DE SALDO DE BONO (STRICT)
                 const origen = document.getElementById("res-origen").value;
-                const bonoCode = document.getElementById("res-bono").value.trim();
-                const currentSessionCount = parseInt(document.getElementById("res-sesiones").value) || 1;
+                const bonoCode = document.getElementById("res-bono")?.value.trim();
+                const currentSessionCount = parseInt(document.getElementById("res-sesiones")?.value) || 1;
 
                 if (origen === 'bono' && bonoCode) {
                     btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Verificando Bono...';
@@ -2584,22 +2680,23 @@
                 });
 
                 const payload = {
+                    collection: currentModule.collection, // CRITICAL: Required for filtering in loadReservas
                     complementos: complementos,
                     nombre: nombreField.value.trim(),
                     tel: document.getElementById("res-tel").value,
                     origen: document.getElementById("res-origen").value,
-                    hotel: document.getElementById("res-hotel").value,
-                    hab: document.getElementById("res-hab").value,
-                    bono: document.getElementById("res-bono").value,
+                    hotel: document.getElementById("res-hotel")?.value || "",
+                    hab: document.getElementById("res-hab")?.value || "",
+                    bono: document.getElementById("res-bono")?.value || "",
                     fecha: date,
                     hora: time,
                     pax: pax,
                     sesiones_consumidas: sesionesConsumidas,
-                    precio_pax: parseFloat(document.getElementById("res-precio-pax").value) || 0,
-                    precio_total: parseFloat(document.getElementById("res-precio-total").value) || 0,
-                    servicio: document.getElementById("res-servicio").value,
+                    precio_pax: parseFloat(document.getElementById("res-precio-pax")?.value) || 0,
+                    precio_total: parseFloat(document.getElementById("res-precio-total")?.value) || 0,
+                    servicio: document.getElementById("res-servicio")?.value || "",
                     duracion: duration,
-                    obs: document.getElementById("res-obs").value,
+                    obs: document.getElementById("res-obs")?.value || "",
                     updated_at: new Date().toISOString()
                 };
 
@@ -2614,11 +2711,25 @@
 
                 console.log("Payload preparado:", payload);
 
+                // PRESERVE res_id when editing
+                if (id) {
+                    const existingRes = currentData.find(r => r.id === id);
+                    if (existingRes && existingRes.res_id) {
+                        payload.res_id = existingRes.res_id;
+                    }
+                }
+
                 // 1. GUARDADO LOCAL INMEDIATO
                 if (window.apiLocal) {
-                    // Asegurar ID si es nuevo
-                    if (!payload.res_id) payload.res_id = generateUID();
-                    if (!id) id = payload.res_id; // Simular ID para local
+                    // Si ya existe un ID (edición), el res_id ya está en payload (preservado arriba)
+                    // Solo generar res_id si es NUEVA reserva
+                    if (!id) {
+                        // Es NUEVA reserva - inicializar campos
+                        payload.res_id = generateUID();
+                        payload.status = 'confirmada';
+                        payload.created_at = new Date().toISOString();
+                        id = payload.res_id; // Usar res_id como ID temporal para local
+                    }
 
                     await apiLocal.saveReserva({
                         ...payload,
@@ -2628,34 +2739,23 @@
                     if (window.updateGlobalSyncStatus) updateGlobalSyncStatus('pending');
 
                     // Actualizar UI in-memory
-                    loadReservas(date); // Recargará de local
+                    await loadReservas(date); // Recargará de local
                 }
 
                 // 2. INTENTO FIRESTORE
                 try {
                     if (id) {
-                        // Check if exists remotely? Just try update
-                        // Realmente 'id' aquí es el docID de Firestore si editamos, o undefined si es nuevo
-                        // Si es nuevo, Firestore generará uno nuevo... o usamos el res_id?
-                        // MEJOR ESTRATEGIA: Si es nuevo, dejar que Firestore genere ID, y luego actualizar local
-
-                        if (payload.created_at) {
-                            // Es edicion de existente o nuevo manual con ID?
-                            await db.collection(currentModule.collection).doc(id).update(payload);
-                        } else {
-                            // Nuevo
-                            await db.collection(currentModule.collection).add(payload);
-                        }
+                        // EDIT: Update existing reservation
+                        await db.collection(currentModule.collection).doc(id).update(payload);
+                        console.log(`Reserva actualizada en Firestore: ${id}`);
                     } else {
-                        payload.res_id = generateUID();
-                        payload.status = 'confirmada';
-                        payload.created_at = new Date().toISOString();
+                        // NEW: Create new reservation (payload ya tiene res_id, status, created_at)
                         const docRef = await db.collection(currentModule.collection).add(payload);
+                        console.log(`Nueva reserva creada en Firestore: ${docRef.id}`);
 
                         // Actualizar ID local con el de Firestore
                         if (window.apiLocal) {
                             await apiLocal.markSynced('reservas', payload.res_id, docRef.id);
-                            // Note: markSynced needs logic to update the key if it changed, or we just rely on res_id
                         }
                     }
 
@@ -2916,7 +3016,7 @@
                 const dayReservations = bookings.filter(r => r.hora === start && r.status !== 'anulada' && r.id !== excludeId);
                 const paxOccupied = dayReservations.reduce((sum, r) => sum + (r.pax || 0), 0);
                 const newPax = parseInt(document.getElementById("res-pax")?.value || 1);
-                const maxCapacity = currentModule.capacity || spaConfig.capacity || 20;
+                const maxCapacity = spaConfig.capacity || currentModule.capacity || 20;
 
                 if (paxOccupied + newPax > maxCapacity) {
                     return { nombre: "Aforo Máximo Superado", hora: start, duracion: 0 }; // Mock collision info
@@ -3250,6 +3350,102 @@
                 console.log("showPicker not supported");
             }
         }
+
+        // --- NEW TOGGLE FUNCTION FOR ADAPTIVE LAYOUT ---
+        window.toggleRoomField = function () {
+            const origen = document.getElementById("res-origen").value;
+
+            // Elements
+            const hotelGroup = document.getElementById("hotel-group");
+            const roomGroup = document.getElementById("room-group");
+            const bonoGroup = document.getElementById("bono-group");
+            const sessionsGroup = document.getElementById("sessions-group");
+            const extraContainer = document.getElementById("extra-fields-row");
+
+            // 1. Reset all to hidden
+            if (hotelGroup) hotelGroup.style.display = "none";
+            if (roomGroup) roomGroup.style.display = "none";
+            if (bonoGroup) bonoGroup.style.display = "none";
+            if (sessionsGroup) sessionsGroup.style.display = "none";
+
+            // 2. Determine visibility based on logic
+            let visibleCount = 0;
+
+            if (origen === 'hotel_inc' || origen === 'hotel_no_inc') {
+                if (hotelGroup) { hotelGroup.style.display = "block"; visibleCount++; }
+                if (roomGroup) { roomGroup.style.display = "block"; visibleCount++; }
+            }
+            else if (origen === 'bono' || origen === 'smartbox' || origen === 'wonderbox' || origen === 'ego') {
+                if (bonoGroup) { bonoGroup.style.display = "block"; visibleCount++; }
+                if (origen === 'bono') {
+                    if (sessionsGroup) { sessionsGroup.style.display = "block"; visibleCount++; }
+                }
+            }
+
+            // 3. Adapt Grid Layout
+            if (extraContainer) {
+                if (visibleCount === 0) {
+                    extraContainer.style.display = "none";
+                } else {
+                    extraContainer.style.display = "grid";
+                    extraContainer.style.gap = "10px";
+                    // If 1 item, full width. If 2+, two columns.
+                    if (visibleCount === 1) {
+                        extraContainer.style.gridTemplateColumns = "1fr";
+                    } else {
+                        extraContainer.style.gridTemplateColumns = "1fr 1fr";
+                    }
+                }
+            }
+
+            // 4. Update Validation Logic (Balance Check)
+            if (origen === 'bono') {
+                if (typeof triggerBalanceCheck === 'function') triggerBalanceCheck();
+            } else {
+                const notice = document.getElementById("v-balance-notice");
+                if (notice) notice.style.display = "none";
+            }
+        };
+
+        async function loadDayNotes(date) {
+            const container = document.getElementById("day-notes-container");
+            const textEl = document.getElementById("day-notes-text");
+            if (!container || !textEl) return;
+
+            try {
+                const doc = await db.collection("spa_notes").doc(date).get();
+                if (doc.exists && doc.data().texto) {
+                    textEl.textContent = doc.data().texto;
+                    container.style.display = "block";
+                } else {
+                    textEl.textContent = "Sin notas para este día.";
+                    container.style.display = "block";
+                }
+            } catch (err) {
+                console.error("Error loading day notes:", err);
+            }
+        }
+
+        async function editDayNotes() {
+            const date = document.getElementById("main-date-picker").value;
+            const textEl = document.getElementById("day-notes-text");
+            const current = (textEl.textContent === "Sin notas para este día.") ? "" : textEl.textContent;
+            const nuevo = prompt(`Notas para el día ${date}:`, current);
+
+            if (nuevo !== null) {
+                try {
+                    await db.collection("spa_notes").doc(date).set({
+                        texto: nuevo.trim(),
+                        updatedAt: new Date().toISOString()
+                    }, { merge: true });
+                    textEl.textContent = nuevo.trim() || "Sin notas para este día.";
+                    showToast("Notas actualizadas", "success");
+                } catch (err) {
+                    showToast("Error guardando notas", "error");
+                }
+            }
+        }
+        window.editDayNotes = editDayNotes;
 
         function changeDate(days) {
             const dateInput = document.getElementById('main-date-picker');

@@ -157,7 +157,7 @@
                 // Paso 2: Probar conectividad básica con la URL
                 addResult('📝 <strong>Paso 2:</strong> Verificando accesibilidad del sitio...', 'info');
                 try {
-                    const siteCheck = await fetch(`https://corsproxy.io/?${encodeURIComponent(cfg.wc_url)}`);
+                    const siteCheck = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(cfg.wc_url)}`);
                     if (siteCheck.ok) {
                         addResult(`✅ El sitio ${cfg.wc_url} es accesible`, 'success');
                     } else {
@@ -170,7 +170,7 @@
                 // Paso 3: Probar autenticación con WooCommerce API
                 addResult('📝 <strong>Paso 3:</strong> Probando autenticación con WooCommerce API...', 'info');
                 const authUrl = `${cfg.wc_url.replace(/\/$/, "")}/wp-json/wc/v3/system_status?consumer_key=${cfg.wc_key}&consumer_secret=${cfg.wc_secret}`;
-                const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(authUrl)}`;
+                const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(authUrl)}`;
 
                 try {
                     const authRes = await fetch(proxyUrl);
@@ -228,7 +228,7 @@
                 // Paso 4: Probar lectura de productos
                 addResult('📝 <strong>Paso 4:</strong> Intentando leer productos...', 'info');
                 const productsUrl = `${cfg.wc_url.replace(/\/$/, "")}/wp-json/wc/v3/products?consumer_key=${cfg.wc_key}&consumer_secret=${cfg.wc_secret}&per_page=1`;
-                const productsProxy = `https://corsproxy.io/?${encodeURIComponent(productsUrl)}`;
+                const productsProxy = `https://api.allorigins.win/raw?url=${encodeURIComponent(productsUrl)}`;
 
                 try {
                     const prodRes = await fetch(productsProxy);
