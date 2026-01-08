@@ -28,11 +28,20 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 function initBonos() {
-    // PREVENCIÓN: Ya no forzamos la fecha de hoy en el selector visual al cargar.
-    // Esto permite que los bonos locales de cualquier fecha se vean por defecto.
+    // RESTAURADO: Forzar fecha de hoy por defecto como pide el usuario
     const dateInput = document.getElementById("voucher-date");
     if (dateInput) {
-        dateInput.value = ""; // Vacio = Sin filtro de fecha en la tabla
+        const today = new Date();
+        const yyyy = today.getFullYear();
+        const mm = String(today.getMonth() + 1).padStart(2, '0');
+        const dd = String(today.getDate()).padStart(2, '0');
+        dateInput.value = `${yyyy}-${mm}-${dd}`;
+    }
+
+    // FIX: Default filter to "pending" (Activos) as requested
+    const filterInput = document.getElementById("voucher-filter");
+    if (filterInput) {
+        filterInput.value = "pending";
     }
 
     // Load static data
@@ -744,13 +753,14 @@ async function cargarBonos() {
             cutoffStr = datePickerValue;
             console.log(`[OPTIMIZACIÓN] Usando fecha del selector como filtro: >= ${cutoffStr}`);
         } else if (monthsBack === 0) {
-            // Solo hoy: usar fecha LOCAL (no UTC) para evitar problemas de timezone
+            // Solo hoy: usar fecha LOCAL (no UTC) y restar 1 día de margen por si acaso (Timezones)
             const today = new Date();
+            today.setDate(today.getDate() - 1); // MARGEN DE SEGURIDAD
             const year = today.getFullYear();
             const month = String(today.getMonth() + 1).padStart(2, '0');
             const day = String(today.getDate()).padStart(2, '0');
             cutoffStr = `${year}-${month}-${day}`;
-            console.log(`[OPTIMIZACIÓN] Cargando bonos de HOY (local): ${cutoffStr}`);
+            console.log(`[OPTIMIZACIÓN] Cargando bonos desde (Hoy-1): ${cutoffStr}`);
         } else {
             // Filtro por período (semanas o meses)
             const cutoffDate = new Date();
@@ -856,6 +866,7 @@ async function sincronizarConTienda(persistentData, btn, originalText) {
             cutoffStr = datePickerValue;
         } else if (monthsBack === 0) {
             const today = new Date();
+            today.setDate(today.getDate() - 1); // MARGEN DE SEGURIDAD
             const year = today.getFullYear();
             const month = String(today.getMonth() + 1).padStart(2, '0');
             const day = String(today.getDate()).padStart(2, '0');
@@ -1527,6 +1538,8 @@ function detectSessions(voucher) {
         lower.includes("dúo") ||
         lower.includes("2 pax") ||
         lower.includes("2pax") ||
+        lower.includes("para dos") ||
+        lower.includes("sueño para dos") ||
         lower.includes("couple");
 
     const isIndividual = lower.includes("individual") ||
@@ -1660,7 +1673,8 @@ function renderBonosFromState() {
                 statusMatch = (b.estado === 'expired') || (b.estado === 'pending' && checkVoucherExpiry(b));
             } else if (filterStatus === 'pending') {
                 // SOPORTE LEGACY: Aceptar 'activo' como 'pending'
-                statusMatch = (b.estado === 'pending' || b.estado === 'activo') && !checkVoucherExpiry(b);
+                // MODIFICADO: Incluir también 'partially' (En uso) como Activo
+                statusMatch = (b.estado === 'pending' || b.estado === 'activo' || b.estado === 'partially') && !checkVoucherExpiry(b);
             } else {
                 statusMatch = (b.estado === filterStatus);
             }
@@ -1678,8 +1692,18 @@ function renderBonosFromState() {
         const code = String(b.bono || b.codigo).trim();
 
         // Normalizar código: BONO7694-562 -> BONO7694
-        // Esto elimina el sufijo del item ID si existe
-        const normalizedCode = code.replace(/-\d+$/, '');
+        // FIX: Evitar recortar códigos LOC-YYYY-XXXX (que terminan en dígito)
+        let normalizedCode = code;
+        if (code.startsWith('LOC-')) {
+            // Para LOC, solo cortar si hay un CUARTO bloque (ej: LOC-2026-1234-1)
+            const parts = code.split('-');
+            if (parts.length > 3) {
+                normalizedCode = parts.slice(0, 3).join('-');
+            }
+        } else {
+            // Para BONO estándar
+            normalizedCode = code.replace(/-\d+$/, '');
+        }
 
         if (!seenCodes.has(normalizedCode)) {
             seenCodes.add(normalizedCode);
@@ -1818,7 +1842,7 @@ function updateCount() {
 function resetFilters() {
     document.getElementById("voucher-search").value = "";
     document.getElementById("voucher-date").value = "";
-    document.getElementById("voucher-filter").value = "all";
+    document.getElementById("voucher-filter").value = "pending"; // Default now is pending
     renderBonosFromState();
 }
 
@@ -1899,6 +1923,37 @@ async function openVoucherManagement(code) {
             }
 
             // SI TIENE ITEMS INCLUIDOS (PACK DESGLOSADO)
+            // HARDCODE SPECIFIC PACKS IF CATALOG IS MISSING THEM OR IS WRONG
+            // Force detection if items are missing OR if items are just the pack name repetition
+            const hasBadItems = primaryMatch.items_incluidos && primaryMatch.items_incluidos.length > 0 && primaryMatch.items_incluidos.every(i => i.toLowerCase().includes('fantasía'));
+
+            if (primaryMatch.nombre.toLowerCase().includes('fantasía para dos') && (!primaryMatch.items_incluidos || primaryMatch.items_incluidos.length === 0 || hasBadItems)) {
+                console.log('[BONO DEBUG] 🛠 Reparando items para Fantasía para dos');
+                primaryMatch.items_incluidos = [
+                    'Alojamiento y Desayuno',
+                    'Circuito Spa - 60\'',
+                    'Masaje Relax - 30\''
+                ];
+                // Force separate sessions
+                sessionsCount = 3;
+                // Force Pax to 2 for this pack
+                paxCount = 2;
+                if (detResult.paxPerSession < 2) detResult.paxPerSession = 2;
+            }
+
+            // SUEÑO PARA DOS FIX
+            if (primaryMatch.nombre.toLowerCase().includes('sueño para dos') && (!primaryMatch.items_incluidos || primaryMatch.items_incluidos.length === 0 || hasBadItems)) {
+                console.log('[BONO DEBUG] 🛠 Reparando items para Sueño para dos');
+                primaryMatch.items_incluidos = [
+                    'Alojamiento y Desayuno',
+                    'Menú en Restaurante',
+                    'Circuito Spa - 60\''
+                ];
+                sessionsCount = 3;
+                paxCount = 2;
+                if (detResult.paxPerSession < 2) detResult.paxPerSession = 2;
+            }
+
             if (primaryMatch.items_incluidos && primaryMatch.items_incluidos.length > 0) {
                 console.log('[BONO DEBUG] Desglosando pack con', primaryMatch.items_incluidos.length, 'items');
 
@@ -1998,7 +2053,12 @@ async function openVoucherManagement(code) {
 
     // MEJORA: Verificar si items_desglosados es realmente un desglose o solo el nombre del producto
     // PERO: Si es local (importado), SIEMPRE confiamos en el desglose guardado
-    const hasRealBreakdown = v.items_desglosados && v.items_desglosados.length > 0 &&
+    // FIX: "Fantasía para dos" a veces se guarda mal (3 items con el nombre del pack). Forzar redetección si ocurre.
+    const isBadFantasia = (v.producto || '').toLowerCase().match(/(fantasía para dos|sueño para dos)/) &&
+        v.items_desglosados &&
+        (v.items_desglosados.some(i => i.name.toLowerCase().match(/(fantasía para dos|sueño para dos)/)) || v.items_desglosados.every(i => i.name === v.producto));
+
+    const hasRealBreakdown = !isBadFantasia && v.items_desglosados && v.items_desglosados.length > 0 &&
         (v.origen === 'local' || !(v.items_desglosados.length === 1 && v.items_desglosados[0].name === v.producto));
 
     if (hasRealBreakdown) {
@@ -2128,7 +2188,7 @@ async function openVoucherManagement(code) {
         // Intentamos detectar si este item es un pack
         const expanded = detectServicesInProduct(itemObj, item.sessions || item.sesiones);
 
-        if (expanded.length > 1) {
+        if (false && expanded.length > 1) { // DISABLED: This causes recursion for already expanded items
             console.log(`[BONO] Expandiendo item del desglose: ${item.name} -> ${expanded.length} sub-items`);
             detectedServices.push(...expanded);
         } else {
@@ -2284,6 +2344,15 @@ async function openVoucherManagement(code) {
                             <i class="fas fa-concierge-bell"></i>
                         </button>
                     `;
+                } else if (spaceName.toLowerCase() === 'gimnasio' || spaceName.toLowerCase() === 'gym' || itemName.toLowerCase().includes('gimnasio')) {
+                    // LÓGICA GIMNASIO: Botón "Consumir" directo (Petición usuario)
+                    const isExhausted = (item.used || 0) >= (item.sessions || 1);
+                    buttonsHtml = `
+                        <button class="btn btn-sm" onclick="consumeGymSession(${idx})" ${isExhausted ? 'disabled' : ''}
+                            style="padding:2px 8px; font-size:0.7rem; background:${isExhausted ? '#94a3b8' : '#f59e0b'}; color:#fff; border:none; border-radius:4px; opacity: ${isExhausted ? 0.7 : 1}; cursor: ${isExhausted ? 'not-allowed' : 'pointer'};">
+                            <i class="fas ${isExhausted ? 'fa-check-circle' : 'fa-check'}"></i> ${isExhausted ? 'Agotado' : 'Consumir'}
+                        </button>
+                    `;
                 } else {
                     buttonsHtml += `
                         <button class="btn btn-sm" 
@@ -2312,6 +2381,11 @@ async function openVoucherManagement(code) {
                                         style="width:35px; padding:2px; font-size:0.7rem; border:1px solid #cbd5e1; border-radius:4px; text-align:center;">
                                     <span style="font-size:0.65rem; color:#64748b;">ses.</span>
                                 </div>
+                                <div style="display:flex; align-items:center; gap:2px;">
+                                    <input type="number" value="${item.pax || 1}" onchange="updateVoucherItemPax(${idx}, this.value)" 
+                                        style="width:35px; padding:2px; font-size:0.7rem; border:1px solid #cbd5e1; border-radius:4px; text-align:center;">
+                                    <span style="font-size:0.65rem; color:#64748b;">pax</span>
+                                </div>
                                 <div style="font-size:0.65rem; color:#64748b;">
                                     <i class="fas fa-map-marker-alt"></i> ${spaceName}
                                 </div>
@@ -2328,7 +2402,7 @@ async function openVoucherManagement(code) {
                         <div style="font-size:0.65rem; color:#64748b;">
                             <i class="fas fa-map-marker-alt" style="margin-right:2px;"></i>${spaceName}
                             <span style="margin-left:8px; font-weight:600; color:${isComplete ? '#16a34a' : '#334155'};">
-                                ${used}/${total} sesiones
+                                ${used}/${total} sesiones · 👥 ${item.pax || 1}
                             </span>
                         </div>
                     </div>
@@ -2363,14 +2437,66 @@ async function openVoucherManagement(code) {
     window.updateVoucherItemSession = (idx, val) => {
         state.editingVoucherItems[idx].sessions = parseInt(val) || 1;
     };
+    window.updateVoucherItemPax = (idx, val) => {
+        state.editingVoucherItems[idx].pax = parseInt(val) || 1;
+    };
     window.updateVoucherItemName = (idx, val) => {
         state.editingVoucherItems[idx].name = val;
-        const detectedSpace = getSpaceForService(val);
         if (detectedSpace) {
             state.editingVoucherItems[idx].space = detectedSpace;
+            renderEditableBreakdown();
         }
-        renderEditableBreakdown(); // Re-render to show updated space
     };
+
+    // MOVED HERE: To access renderEditableBreakdown scope
+    window.consumeGymSession = async (idx) => {
+        if (!confirm("¿Confirmar consumo de 1 sesión de GIMNASIO?")) return;
+
+        const item = state.editingVoucherItems[idx];
+
+        // 1. Incrementar uso localmente
+        item.used = (item.used || 0) + 1;
+
+        // 2. Crear registro de historial (Simular reserva finalizada)
+        const code = document.getElementById("vm-code").value || '';
+        const client = document.getElementById("vm-cliente").value || '';
+
+        const notificacion = {
+            fecha: new Date().toISOString().split('T')[0],
+            hora: new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
+            cliente: client,
+            servicio: item.name,
+            bono: code,
+            origen: 'gimnasio',
+            estado: 'finalizada', // Para que salga en historial
+            notas: 'Consumo directo desde gestión de bonos',
+            pax: item.pax || 1,
+            sesion_actual: item.used, // Ya incrementado
+            sesiones_totales: item.sessions || 1,
+            sesiones_restantes: Math.max(0, (item.sessions || 1) - item.used)
+        };
+
+        try {
+            await db.collection("reservas_gimnasio").add(notificacion);
+        } catch (e) {
+            console.warn("Fallo historial gimnasio, probando fallback", e);
+            try { await db.collection("spa_reservations").add(notificacion); } catch (e2) { }
+        }
+
+        // 3. ACTUALIZAR DOM GLOBAL (Importante para que saveVoucherChanges lea el valor correcto)
+        const globalUsedInput = document.getElementById("vm-sesiones-usadas");
+        if (globalUsedInput) {
+            globalUsedInput.value = (parseInt(globalUsedInput.value) || 0) + 1;
+        }
+
+        renderEditableBreakdown();
+        // Refresh history to show the new consumption immediately
+        if (typeof renderVoucherHistory === 'function') {
+            renderVoucherHistory(code);
+        }
+        await saveVoucherChanges();
+    };
+
 
     window.linkVoucherToCatalogProduct = () => {
         const searchVal = document.getElementById("vm-catalog-search").value;
@@ -2388,7 +2514,12 @@ async function openVoucherManagement(code) {
 
             // Calcular total de sesiones de los nuevos items
             const totalSessions = newItems.reduce((acc, curr) => acc + (curr.sessions || 1), 0);
-            const totalPax = newItems.length > 0 ? (newItems[0].pax || 1) : 1;
+            let totalPax = newItems.length > 0 ? (newItems[0].pax || 1) : 1;
+
+            // FIX: Forzar visualmente pax=2 si el nombre lo indica claramente
+            if (product.nombre.toLowerCase().includes('para dos')) {
+                totalPax = 2;
+            }
 
             // Actualizar inputs de sesiones y pax
             document.getElementById("vm-sesiones-total").value = totalSessions;
@@ -2626,11 +2757,17 @@ async function saveVoucherChanges() {
             if (window.apiLocal) await apiLocal.markSynced('bonos', code, code);
             if (window.updateGlobalSyncStatus) updateGlobalSyncStatus('synced');
             showToast("Cambios guardados y sincronizados", "success");
+
+            // CERRAR MODAL AL GUARDAR (Petición usuario)
+            if (typeof closeVoucherModal === 'function') closeVoucherModal();
         } catch (fsErr) {
             console.warn("Fallo sincronización Firestore (modo local activo):", fsErr);
             if (window.checkFirestoreError && window.checkFirestoreError(fsErr)) {
                 if (window.updateGlobalSyncStatus) updateGlobalSyncStatus('offline');
                 showToast("Guardado localmente (Sin cuota de Google)", "info");
+
+                // CERRAR MODAL TAMBIÉN EN LOCAL/OFFLINE
+                if (typeof closeVoucherModal === 'function') closeVoucherModal();
             } else {
                 throw fsErr;
             }
@@ -2647,6 +2784,49 @@ async function saveVoucherChanges() {
 
 
 // Variable global para tracking de validación de alojamiento
+window.consumeGymSession = async (idx) => {
+    if (!confirm("¿Confirmar consumo de 1 sesión de GIMNASIO?")) return;
+
+    const item = state.editingVoucherItems[idx];
+
+    // 1. Incrementar uso localmente
+    item.used = (item.used || 0) + 1;
+
+    // 2. Crear registro de historial (Simular reserva finalizada)
+    const code = document.getElementById("vm-code").value || '';
+    const client = document.getElementById("vm-cliente").value || '';
+
+    const notificacion = {
+        fecha: new Date().toISOString().split('T')[0],
+        hora: new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
+        cliente: client,
+        servicio: item.name,
+        bono: code,
+        origen: 'gimnasio',
+        estado: 'finalizada', // Para que salga en historial
+        notas: 'Consumo directo desde gestión de bonos'
+    };
+
+    try {
+        // Guardar "reserva" para historial
+        await db.collection("reservas_gimnasio").add(notificacion); // Usamos colección específica o genérica
+    } catch (e) {
+        console.warn("No se pudo guardar historial gimnasio (posiblemente falta colección), usando spa_reservations", e);
+        try {
+            await db.collection("spa_reservations").add(notificacion);
+        } catch (e2) { console.error("Fallo guardar historial", e2); }
+    }
+
+    // 3. Guardar cambios en el bono (Esto cerrará el modal por la lógica anterior, 
+    // PERO el usuario pidió 'confirmar... y dejar constancia'. Si cerramos es un flow rápido.
+    // Si queremos mantener abierto, tendríamos que llamar a un save silencioso.
+    // Vamos a usar saveVoucherChanges() que ya tiene toast y cierre, lo cual es buen feedback.)
+
+    // Actualizar visualmente antes de guardar (briefly)
+    renderEditableBreakdown();
+
+    await saveVoucherChanges();
+};
 let currentVoucherForAccommodation = null;
 
 function isAccommodationVoucher(voucher) {
@@ -3071,11 +3251,9 @@ function openLocalVoucherModal() {
         resultsDiv.style.display = 'none';
     }
 
-    // Reset categories
+    // Reset categories (Simpliifed - buttons removed)
     state.lvCurrentCategory = 'todos';
-    document.querySelectorAll('.lv-cat-btn').forEach(btn => btn.classList.remove('active'));
-    const allBtn = document.querySelector('.lv-cat-btn[onclick*="todos"]');
-    if (allBtn) allBtn.classList.add('active');
+    // document.querySelectorAll('.lv-cat-btn').forEach(btn => btn.classList.remove('active'));
 
     document.getElementById("local-voucher-modal").style.display = "flex";
 
@@ -3086,7 +3264,8 @@ function openLocalVoucherModal() {
     document.getElementById("lv-pax").value = "1";
     document.getElementById("lv-product-custom").style.display = 'none';
     document.getElementById("lv-phone").value = '';
-    document.getElementById("lv-filter-pax").value = 'any';
+    // FIXED: Element removed
+    // document.getElementById("lv-filter-pax").value = 'any';
 }
 
 function closeLocalVoucherModal() {
@@ -3112,16 +3291,22 @@ function filterLocalProducts(query) {
         else if (cat === 'pack') matchesCat = (prod.items_incluidos && prod.items_incluidos.length > 1) || (prod.nombre || '').toLowerCase().includes('pack');
         else if (cat === 'bono') matchesCat = (prod.nombre || '').toLowerCase().includes('bono') || (prod.sesiones && prod.sesiones > 1);
 
-        // FILTRO POR PAX
-        const filterPax = document.getElementById("lv-filter-pax").value;
+        // FILTRO POR PAX: Eliminado a petición (campo eliminado)
+        // const filterPax = document.getElementById("lv-filter-pax") ? document.getElementById("lv-filter-pax").value : 'any';
         let matchesPax = true;
-        if (filterPax !== 'any') {
-            const prodPax = parseInt(prod.personas || prod.pax || 1);
-            matchesPax = prodPax === parseInt(filterPax);
-        }
+        // if (filterPax !== 'any') { ... }
 
         return matchesQuery && matchesCat && matchesPax;
     });
+
+    // ORDEN INTELIGENTE
+    if (q.includes("pareja") || q.includes("duo") || q.includes("2 pax") || q.includes("doble")) {
+        filtered.sort((a, b) => {
+            const aIsCouple = (a.nombre || '').toLowerCase().includes('pareja') || (a.pax || 1) === 2 || (a.personas || 1) === 2;
+            const bIsCouple = (b.nombre || '').toLowerCase().includes('pareja') || (b.pax || 1) === 2 || (b.personas || 1) === 2;
+            return bIsCouple === aIsCouple ? 0 : bIsCouple ? 1 : -1;
+        });
+    }
 
     if (filtered.length === 0) {
         resultsDiv.innerHTML = `
@@ -3129,21 +3314,86 @@ function filterLocalProducts(query) {
                 No hay resultados. <a href="#" onclick="selectProductForLocalVoucher('custom'); return false;" style="color: var(--accent); font-weight: 600;">Crear producto personalizado</a>
             </div>`;
     } else {
-        resultsDiv.innerHTML = filtered.map(prod => `
+        resultsDiv.innerHTML = filtered.map(prod => {
+            // LOGIC FOR PAX & BADGES
+            const pax = parseInt(prod.personas || prod.pax || 1);
+            let badgesHtml = '';
+
+            // PAX BADGE
+            if (pax > 1) {
+                badgesHtml += `<span style="background:#dbeafe; color:#1e40af; padding:2px 6px; border-radius:4px; font-size:0.7em; font-weight:700; border:1px solid #bfdbfe;"><i class="fas fa-user-friends"></i> ${pax} Pers.</span>`;
+            } else {
+                badgesHtml += `<span style="background:#f8fafc; color:#64748b; padding:2px 6px; border-radius:4px; font-size:0.7em; border:1px solid #e2e8f0;">1 Pers.</span>`;
+            }
+
+            // SERVICE BADGES
+            const nameLower = (prod.nombre || '').toLowerCase();
+            const catLower = (prod.categoria || '').toLowerCase();
+            const includesSpa = nameLower.includes('spa') || nameLower.includes('circuito') || catLower.includes('spa');
+            const includesMasaje = nameLower.includes('masaje') || catLower.includes('masaje');
+            const isPack = nameLower.includes('pack') || (prod.items_incluidos && prod.items_incluidos.length > 1);
+
+            if (includesSpa) {
+                badgesHtml += ` <span style="background:#ecfeff; color:#0e7490; padding:2px 6px; border-radius:4px; font-size:0.7em; border:1px solid #cffafe; margin-left:4px;"><i class="fas fa-hot-tub"></i> Circuito</span>`;
+            }
+            if (includesMasaje) {
+                badgesHtml += ` <span style="background:#fdf4ff; color:#a21caf; padding:2px 6px; border-radius:4px; font-size:0.7em; border:1px solid #fce7f3; margin-left:4px;"><i class="fas fa-spa"></i> Masaje</span>`;
+            }
+            if (isPack) {
+                badgesHtml += ` <span style="background:#fff7ed; color:#c2410c; padding:2px 6px; border-radius:4px; font-size:0.7em; border:1px solid #ffedd5; margin-left:4px;"><i class="fas fa-box-open"></i> Pack</span>`;
+            }
+
+            // DESCRIPTION / SUBTEXT
+            let subText = "";
+
+            // Prioritize 'items_incluidos' array
+            if (prod.items_incluidos && prod.items_incluidos.length > 0) {
+                // Format: "Circuito Spa + Masaje Relax..."
+                const itemNames = prod.items_incluidos.map(i => i.name || i).join(" + ");
+                subText = `<span style="color:#334155;"><i class="fas fa-list-ul" style="font-size:0.8em; opacity:0.7;"></i> ${itemNames}</span>`;
+            }
+            // Fallback to text description or includes
+            else if (prod.incluye) {
+                const incStr = Array.isArray(prod.incluye) ? prod.incluye.join(", ") : prod.incluye;
+                subText = incStr;
+            }
+            // Last resort: Category
+            else {
+                subText = (prod.categoria || 'Servicio').toUpperCase();
+            }
+
+            return `
             <div onclick="selectProductForLocalVoucher('${prod.nombre.replace(/'/g, "\\'")}')" 
-                style="display: flex; gap: 10px; align-items: center; padding: 10px; border-bottom: 1px solid #f1f5f9; cursor: pointer; transition: background 0.2s;">
-                <img src="${prod.imagen || 'zenith-icon.png'}" style="width: 40px; height: 40px; object-fit: cover; border-radius: 4px; border: 1px solid #e2e8f0;">
-                <div style="flex: 1;">
-                    <div style="font-weight: 600; font-size: 0.85rem; color: #1e293b;">${prod.nombre}</div>
-                    <div style="font-size: 0.75rem; color: #64748b;">${prod.precio}€ · ${(prod.categoria || 'Servicio').toUpperCase()}</div>
+                style="display: flex; gap: 12px; align-items: start; padding: 12px; border-bottom: 1px solid #f1f5f9; cursor: pointer; transition: all 0.2s;"
+                onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='white'">
+                
+                <div style="position:relative; flex-shrink:0;">
+                    <img src="${prod.imagen || 'zenith-icon.png'}" style="width: 50px; height: 50px; object-fit: cover; border-radius: 8px; border: 1px solid #e2e8f0; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
+                    ${pax > 1 ? '<div style="position:absolute; bottom:-6px; right:-6px; background:#2563eb; color:white; border-radius:50%; width:20px; height:20px; font-size:0.7rem; display:flex; align-items:center; justify-content:center; font-weight:bold; border:2px solid white; box-shadow: 0 1px 2px rgba(0,0,0,0.1);">' + pax + '</div>' : ''}
+                </div>
+                
+                <div style="flex: 1; min-width:0;">
+                    <div style="display:flex; justify-content:space-between; align-items:start;">
+                        <div style="font-weight: 700; font-size: 0.95rem; color: #0f172a; line-height:1.2; margin-bottom:4px;">${prod.nombre}</div>
+                        <div style="font-weight: 800; font-size: 0.95rem; color: #059669; white-space:nowrap; margin-left:8px;">${parseFloat(prod.precio).toFixed(2)}€</div>
+                    </div>
+                    
+                    <div style="margin-bottom:6px; display:flex; flex-wrap:wrap; gap:4px; align-items:center;">
+                        ${badgesHtml}
+                    </div>
+                    
+                    <div style="font-size: 0.75rem; color: #64748b; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">
+                        ${subText}
+                    </div>
                 </div>
             </div>
-        `).join('');
+        `}).join('');
 
         resultsDiv.innerHTML += `
             <div onclick="selectProductForLocalVoucher('custom')" 
-                style="padding: 10px; text-align: center; color: #94a3b8; font-size: 0.8rem; background: #f8fafc; border-top: 1px solid #e2e8f0; cursor: pointer;">
-                <i class="fas fa-edit"></i> Definir producto personalizado
+                style="padding: 12px; text-align: center; color: #64748b; font-size: 0.85rem; background: #f8fafc; border-top: 1px solid #e2e8f0; cursor: pointer; font-weight: 500; transition: background 0.2s;"
+                 onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='#f8fafc'">
+                <i class="fas fa-plus-circle" style="color:var(--accent);"></i> Producto Personalizado
             </div>`;
     }
 
@@ -3166,7 +3416,12 @@ window.selectProductForLocalVoucher = (productName) => {
         customInput.value = '';
         customInput.focus();
         detailsDiv.style.display = 'none';
+
+        // Show price input for custom
+        const priceContainer = document.getElementById("lv-price-container");
+        if (priceContainer) priceContainer.style.display = 'block';
         priceInput.value = '';
+
         sessionsInput.value = 1;
         searchInput.value = 'PRODUCTO PERSONALIZADO';
     } else {
@@ -3177,7 +3432,33 @@ window.selectProductForLocalVoucher = (productName) => {
             customInput.style.display = 'none';
 
             // UI Details
-            document.getElementById("lv-details-name").textContent = prod.nombre;
+            // UI Details
+            // document.getElementById("lv-details-name").textContent = prod.nombre; // OLD
+
+            // BADGES GENERATION
+            const pax = parseInt(prod.personas || prod.pax || 1);
+            let badgesHtml = '';
+            if (pax > 1) {
+                badgesHtml += `<span style="background:#dbeafe; color:#1e40af; padding:2px 6px; border-radius:4px; font-size:0.7em; font-weight:700; border:1px solid #bfdbfe;"><i class="fas fa-user-friends"></i> ${pax} Pers.</span>`;
+            } else {
+                badgesHtml += `<span style="background:#f8fafc; color:#64748b; padding:2px 6px; border-radius:4px; font-size:0.75em; border:1px solid #e2e8f0; font-weight:600;">Individual</span>`;
+            }
+
+            const nameLower = (prod.nombre || '').toLowerCase();
+            const catLower = (prod.categoria || '').toLowerCase();
+            const includesSpa = nameLower.includes('spa') || nameLower.includes('circuito') || catLower.includes('spa');
+            const includesMasaje = nameLower.includes('masaje') || catLower.includes('masaje');
+            const isPack = nameLower.includes('pack') || (prod.items_incluidos && prod.items_incluidos.length > 1);
+
+            if (includesSpa) badgesHtml += ` <span style="background:#ecfeff; color:#0e7490; padding:2px 6px; border-radius:4px; font-size:0.7em; border:1px solid #cffafe; margin-left:4px;"><i class="fas fa-hot-tub"></i> Circuito</span>`;
+            if (includesMasaje) badgesHtml += ` <span style="background:#fdf4ff; color:#a21caf; padding:2px 6px; border-radius:4px; font-size:0.7em; border:1px solid #fce7f3; margin-left:4px;"><i class="fas fa-spa"></i> Masaje</span>`;
+            if (isPack) badgesHtml += ` <span style="background:#fff7ed; color:#c2410c; padding:2px 6px; border-radius:4px; font-size:0.7em; border:1px solid #ffedd5; margin-left:4px;"><i class="fas fa-box-open"></i> Pack</span>`;
+
+            // INJECT NAME AND BADGES
+            document.getElementById("lv-details-name").innerHTML = `
+                <div style="font-size:1.1rem; line-height:1.2; margin-bottom:6px;">${prod.nombre}</div>
+                <div style="display:flex; flex-wrap:wrap; gap:4px; align-items:center;">${badgesHtml}</div>
+            `;
             const imgPreview = document.getElementById("lv-img-preview");
             if (prod.imagen) {
                 imgPreview.src = prod.imagen;
@@ -3193,18 +3474,38 @@ window.selectProductForLocalVoucher = (productName) => {
             document.getElementById("lv-details-text").textContent = includesFull || "Servicio de catálogo";
             detailsDiv.style.display = 'block';
 
-            // Values
+            // Hide price input (calculated automatically)
+            const priceContainer = document.getElementById("lv-price-container");
+            if (priceContainer) priceContainer.style.display = 'none';
+
+            // Store base price in state for calculation
+            state.lvSelectedProductBasePrice = parseFloat(prod.precio) || 0;
+            state.lvSelectedProductBasePax = parseInt(prod.personas || prod.pax || 1);
+
             priceInput.value = prod.precio || 0;
 
             let totalSessions = 1;
-            if (prod.sesiones) totalSessions = prod.sesiones;
-            else if (typeof detectSessions === 'function') totalSessions = detectSessions(prod).total;
+            // FIX: If it's a Pack (has items_incluidos), default Input Sessions to 1 (Quantity of Packs), 
+            // ignoring prod.sesiones which might be the sum of internal sessions.
+            if ((prod.items_incluidos && prod.items_incluidos.length > 0) || (prod.nombre || '').toLowerCase().includes('pack')) {
+                totalSessions = 1;
+            } else if (prod.sesiones) {
+                totalSessions = prod.sesiones;
+            } else if (typeof detectSessions === 'function') {
+                totalSessions = detectSessions(prod).total;
+            }
 
             sessionsInput.value = totalSessions;
 
-            // Auto-set PAX
-            const prodPax = prod.personas || prod.pax || 1;
-            document.getElementById("lv-pax").value = String(prodPax);
+            // Auto-set PAX (Using detection logic)
+            let parsedPax = 1;
+            if (typeof detectSessions === 'function') {
+                const det = detectSessions(prod);
+                parsedPax = det.paxPerSession || 1;
+            } else {
+                parsedPax = parseInt(prod.personas || prod.pax || 1);
+            }
+            document.getElementById("lv-pax").value = String(parsedPax);
         }
     }
 }
@@ -3289,14 +3590,25 @@ function addToCartLocal() {
     if (!selected) return showToast("Primero selecciona un producto", "warning");
 
     let name = selected.nombre;
+    let price = 0;
+    const sessions = parseInt(document.getElementById("lv-sessions").value) || 1;
+    const pax = parseInt(document.getElementById("lv-pax").value) || 1;
+
     if (selected.custom) {
         name = document.getElementById("lv-product-custom").value.trim();
         if (!name) return showToast("Escribe el nombre del producto personalizado", "warning");
-    }
+        price = parseFloat(document.getElementById("lv-price").value) || 0;
+    } else {
+        // Calculate Price automatically: BasePrice * (SelectedPax / ProductBasePax)
+        const basePrice = state.lvSelectedProductBasePrice || 0;
+        const basePax = state.lvSelectedProductBasePax || 1;
 
-    const price = parseFloat(document.getElementById("lv-price").value) || 0;
-    const sessions = parseInt(document.getElementById("lv-sessions").value) || 1;
-    const pax = parseInt(document.getElementById("lv-pax").value) || 1;
+        // Logic:
+        // If BasePax = 1 (Individual) and Pax = 2 -> Price = Base * 2
+        // If BasePax = 2 (Couple) and Pax = 2 -> Price = Base * 1
+        const ratio = pax / basePax;
+        price = basePrice * ratio;
+    }
 
     // Clonar items si es del catálogo para tener desglose real
     let items = [];

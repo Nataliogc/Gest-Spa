@@ -227,6 +227,7 @@ function renderDashboard() {
                 <th style="padding: 15px 20px; font-size: 0.8rem; color: #64748b;">SERVICIO</th>
                 <th style="padding: 15px 20px; font-size: 0.8rem; color: #64748b;">TERAPEUTA</th>
                 <th style="padding: 15px 20px; font-size: 0.8rem; color: #64748b;">ESTADO</th>
+                <th style="padding: 15px 20px; font-size: 0.8rem; color: #64748b;">CONFIRMAR</th>
                 <th style="padding: 15px 20px; font-size: 0.8rem; color: #64748b;">ACCIONES</th>
             </tr>`;
 
@@ -267,6 +268,12 @@ function renderDashboard() {
             <td>${c.servicio}</td>
             ${!isGlobalSearch ? `<td>${c.terapeuta || '—'}</td>` : ''}
             <td><span class="badge ${getStatusBadgeClass(c.status)}">${c.status.toUpperCase()}</span></td>
+            <td style="text-align:center;">
+                <button class="btn-icon" title="Enviar confirmación WhatsApp" onclick="sendWhatsAppConfirmation('${c.id}', '${c.telefono || ''}', '${c.nombre.replace(/'/g, "\\'")}', '${c.fecha}', '${c.hora}', '${c.moduleType}')" style="color:#25D366;">
+                    <i class="fab fa-whatsapp" style="font-size:1.2rem;"></i>
+                    ${c.whatsappSent ? '<i class="fas fa-check-circle" style="font-size:0.6rem; color:green; vertical-align:top;"></i>' : ''}
+                </button>
+            </td>
             <td>
                 <button class="btn-icon" title="Ver detalles" onclick="goToReservationDetail('${c.id}', '${c.moduleType}')">
                     <i class="fas fa-eye"></i>
@@ -358,6 +365,46 @@ function goToReservationDetail(resId, moduleType) {
     // Redirect to reservas.html with type and date and res_id (for auto-open)
     window.location.href = `reservas.html?type=${type}&date=${cita.fecha}&res_id=${cita.id}`;
 }
+
+window.sendWhatsAppConfirmation = async function (id, telefono, cliente, fecha, hora, moduleType) {
+    if (!telefono || telefono.length < 9) {
+        // Intentar buscar el cliente para conseguir el teléfono si no viene en la cita
+        alert("No se detecta teléfono válido para este cliente.");
+        return;
+    }
+
+    // Formato fecha amigable
+    const dateObj = new Date(fecha);
+    const dateStr = dateObj.toLocaleDateString('es-ES', { day: 'numeric', month: 'long' });
+
+    // Mensaje
+    const texto = `Hola ${cliente}, le recordamos su cita en Cumbria Bienestar el ${dateStr} a las ${hora}. Por favor confirme su asistencia. Gracias.`;
+    const encodedText = encodeURIComponent(texto);
+
+    // Abrir WhatsApp
+    const url = `https://wa.me/${telefono.replace(/\s+/g, '')}?text=${encodedText}`;
+    window.open(url, '_blank');
+
+    // Marcar como enviado en la base de datos visualmente
+    try {
+        const collectionMap = {
+            'spa': 'reservas_spa',
+            'suite': 'reservas_suite',
+            'panacea': 'reservas_panacea',
+            'peluqueria': 'reservas_peluqueria'
+        };
+        const col = collectionMap[moduleType] || 'reservas_spa';
+        await db.collection(col).doc(id).update({ whatsappSent: true });
+
+        // Actualizar estado local
+        const cita = state.citas.find(c => c.id === id);
+        if (cita) cita.whatsappSent = true;
+        renderDashboard();
+
+    } catch (e) {
+        console.error("Error marcando whatsapp enviado", e);
+    }
+};
 
 async function actualizarStatsInicio() {
     const today = new Date().toISOString().split('T')[0];
