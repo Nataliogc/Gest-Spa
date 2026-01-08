@@ -2,10 +2,110 @@
 
 // --- CONSTANTES ---
 const URL_BONOS = "https://cumbriabienestar.es/wp-json/bonos/v1/listado/";
+const URL_BONOS_OPTIMIZED = "https://cumbriabienestar.es/wp-json/robahotel/v1/bonos";
+
+// --- CORS PROXY FALLBACKS ---
+const CORS_PROXIES = [
+    { name: 'AllOrigins', url: (target) => `https://api.allorigins.win/raw?url=${encodeURIComponent(target)}` },
+    { name: 'CorsAnywhere', url: (target) => `https://cors-anywhere.herokuapp.com/${target}` },
+    { name: 'ThingProxy', url: (target) => `https://thingproxy.freeboard.io/fetch/${target}` }
+];
+
+// Fetch with timeout wrapper
+window.fetchWithTimeout = async function (url, options = {}, timeout = 10000) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+    try {
+        const response = await fetch(url, {
+            ...options,
+            signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+        return response;
+    } catch (error) {
+        clearTimeout(timeoutId);
+        if (error.name === 'AbortError') {
+            const timeoutError = new Error(`Request timeout after ${timeout}ms`);
+            timeoutError.code = 'TIMEOUT';
+            throw timeoutError;
+        }
+        throw error;
+    }
+};
+
+// Get voucher endpoint with fallback support
 window.getBonoEndpoint = () => {
     const cacheBuster = `?_=${Date.now()}`;
-    // allorigins is usually more stable than corsproxy.io
-    return `https://api.allorigins.win/raw?url=${encodeURIComponent(URL_BONOS + cacheBuster)}`;
+    return URL_BONOS + cacheBuster;
+};
+
+// Fetch bonos from optimized endpoint (direct, no CORS proxy)
+window.fetchBonosDirect = async function (params = {}, timeout = 10000) {
+    const url = new URL(URL_BONOS_OPTIMIZED);
+
+    // Add query parameters
+    Object.keys(params).forEach(key => {
+        if (params[key] !== null && params[key] !== undefined && params[key] !== '') {
+            url.searchParams.append(key, params[key]);
+        }
+    });
+
+    console.log('[OPTIMIZED] Fetching from:', url.toString());
+
+    const response = await fetchWithTimeout(url.toString(), {}, timeout);
+
+    if (!response.ok) {
+        const error = new Error(`HTTP Error: ${response.status}`);
+        error.status = response.status;
+        throw error;
+    }
+
+    // Check cache status
+    const cacheStatus = response.headers.get('X-Cache');
+    if (cacheStatus) {
+        console.log(`[OPTIMIZED] Cache status: ${cacheStatus}`);
+    }
+
+    return await response.json();
+};
+
+// Try fetching with multiple CORS proxies (legacy fallback)
+window.fetchBonosWithFallback = async function (timeout = 10000) {
+    const targetUrl = getBonoEndpoint();
+    const errors = [];
+
+    // Try each CORS proxy in sequence
+    for (const proxy of CORS_PROXIES) {
+        try {
+            console.log(`[CORS] Trying ${proxy.name}...`);
+            const proxyUrl = proxy.url(targetUrl);
+            const response = await fetchWithTimeout(proxyUrl, {}, timeout);
+
+            if (!response.ok) {
+                const error = new Error(`HTTP Error: ${response.status}`);
+                error.status = response.status;
+                throw error;
+            }
+
+            console.log(`[CORS] Success with ${proxy.name}`);
+            return await response.json();
+
+        } catch (error) {
+            console.warn(`[CORS] ${proxy.name} failed:`, error.message);
+            errors.push({ proxy: proxy.name, error: error.message });
+
+            // If it's a timeout, try next proxy immediately
+            // If it's another error, also try next proxy
+            continue;
+        }
+    }
+
+    // All proxies failed
+    const aggregateError = new Error('All CORS proxies failed');
+    aggregateError.details = errors;
+    aggregateError.code = 'ALL_PROXIES_FAILED';
+    throw aggregateError;
 };
 
 window.setupNavigation = function () {

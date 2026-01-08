@@ -28,18 +28,21 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 function initBonos() {
-    // Set default date to today
+    // PREVENCIÓN: Ya no forzamos la fecha de hoy en el selector visual al cargar.
+    // Esto permite que los bonos locales de cualquier fecha se vean por defecto.
     const dateInput = document.getElementById("voucher-date");
     if (dateInput) {
-        dateInput.value = new Date().toISOString().split('T')[0];
+        dateInput.value = ""; // Vacio = Sin filtro de fecha en la tabla
     }
 
-    // Setup listeners
+    // Load static data
+    cargarCatalogoSimple();
+    loadMasterItems();
+
+    // Setup listeners (vital for interaction)
     setupBonoListeners();
 
-    // Load data
-    cargarCatalogoSimple();
-    loadMasterItems(); // Load master items for smart redirection
+    // Load data from DB
     cargarBonos();
 }
 
@@ -775,31 +778,31 @@ async function cargarBonos() {
         console.log(`[FIRESTORE] Leídos ${snapshot.size} documentos`);
 
         // GUARDAR EN LOCAL Y ACTUALIZAR ESTADO
-        for (const doc of snapshot.docs) {
+        snapshot.forEach((doc) => {
             const data = doc.data();
+            data.is_local = false; // Viene de Firestore
             persistentData[doc.id] = data;
-            if (window.apiLocal) {
-                await apiLocal.saveBono({
-                    ...data,
-                    bono: doc.id,
-                    syncStatus: 'synced',
-                    lastSyncAt: new Date().toISOString()
-                });
-            }
+        });
+
+        // --- FUSIÓN CRÍTICA: Añadir bonos locales (IndexedDB) a persistentData ---
+        if (state.bonos && state.bonos.length > 0) {
+            state.bonos.forEach(localBono => {
+                const id = localBono.bono || localBono.codigo;
+                if (!persistentData[id]) {
+                    persistentData[id] = localBono;
+                }
+            });
         }
 
+        console.log(`[CARGA] Bonos en memoria combinada: ${Object.keys(persistentData).length}`);
 
-        state.bonos = Object.values(persistentData).map(p => ({
-            ...p,
-            importe: p.importe || p.precio
-        }));
+        state.bonos = Object.values(persistentData);
         state.bonos.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
 
         renderBonosFromState();
         updateCount();
 
         // 2. Sincronización WooCommerce (solo si hay conexión)
-        // Check if getBonoEndpoint exists
         if (typeof getBonoEndpoint === 'function') {
             await sincronizarConTienda(persistentData, btn, originalText);
             if (btn) {
@@ -808,16 +811,14 @@ async function cargarBonos() {
                 btn.style.opacity = "1";
             }
         }
+
         if (window.updateGlobalSyncStatus) updateGlobalSyncStatus('synced');
         clearTimeout(watchdog);
-
-
 
     } catch (err) {
         clearTimeout(watchdog);
         if (window.checkFirestoreError && window.checkFirestoreError(err)) {
             if (window.updateGlobalSyncStatus) updateGlobalSyncStatus('offline');
-            // No borramos la tabla, dejamos los datos locales que ya se cargaron al principio
             if (btn) {
                 btn.disabled = false;
                 btn.innerHTML = btn.dataset.originalText || originalText;
@@ -828,7 +829,9 @@ async function cargarBonos() {
 
         console.error("Error cargando bonos:", err);
 
-        tableBody.innerHTML = `<tr><td colspan="7" class="error" style="text-align:center;">Error: ${err.message}</td></tr>`;
+        const tableBody = document.getElementById("vouchers-table-body");
+        if (tableBody) tableBody.innerHTML = `<tr><td colspan="7" class="error" style="text-align:center;">Error: ${err.message}</td></tr>`;
+
         if (btn) {
             btn.disabled = false;
             btn.innerHTML = btn.dataset.originalText || originalText;
@@ -839,20 +842,88 @@ async function cargarBonos() {
 
 async function sincronizarConTienda(persistentData, btn, originalText) {
     try {
-        const endpoint = getBonoEndpoint(); // From app.js
-        const res = await fetch(endpoint);
+        // Use the new optimized endpoint with intelligent fallback
+        let shopVouchers;
+        let usedOptimized = false;
 
-        if (!res.ok) throw new Error(`HTTP Error: ${res.status}`);
+        // Calculate date filter (same as Firestore query for consistency)
+        const filterMonthsSelect = document.getElementById('bonos-filter-months');
+        const monthsBack = filterMonthsSelect ? parseFloat(filterMonthsSelect.value) || 0 : 0;
+        const datePickerValue = document.getElementById("voucher-date") ? document.getElementById("voucher-date").value : null;
 
-        let shopVouchers = await res.json();
+        let cutoffStr;
+        if (datePickerValue) {
+            cutoffStr = datePickerValue;
+        } else if (monthsBack === 0) {
+            const today = new Date();
+            const year = today.getFullYear();
+            const month = String(today.getMonth() + 1).padStart(2, '0');
+            const day = String(today.getDate()).padStart(2, '0');
+            cutoffStr = `${year}-${month}-${day}`;
+        } else {
+            const cutoffDate = new Date();
+            if (monthsBack < 1) {
+                const daysBack = Math.round(monthsBack * 30);
+                cutoffDate.setDate(cutoffDate.getDate() - daysBack);
+            } else {
+                cutoffDate.setMonth(cutoffDate.getMonth() - monthsBack);
+            }
+            cutoffStr = cutoffDate.toISOString().split('T')[0];
+        }
 
-        // Handle legacy wrapper if present
-        if (shopVouchers.contents) {
+        // PRIORITY 1: Try optimized endpoint (direct, fast, cached)
+        if (typeof fetchBonosDirect === 'function') {
             try {
-                const inner = JSON.parse(shopVouchers.contents);
-                if (Array.isArray(inner)) shopVouchers = inner;
-            } catch (e) {
-                console.warn("Error parsing contents wrapper:", e);
+                console.log('[SYNC] Trying optimized endpoint (direct, no CORS proxy)...');
+                const startTime = performance.now();
+
+                shopVouchers = await fetchBonosDirect({
+                    per_page: 50,
+                    desde: cutoffStr
+                }, 10000);
+
+                const elapsed = Math.round(performance.now() - startTime);
+                console.log(`[SYNC] ✅ Optimized endpoint succeeded in ${elapsed}ms`);
+                usedOptimized = true;
+
+            } catch (optError) {
+                console.warn('[SYNC] Optimized endpoint failed:', optError.message);
+                console.log('[SYNC] Falling back to CORS proxy system...');
+
+                // PRIORITY 2: Fall back to CORS proxy system
+                if (typeof fetchBonosWithFallback === 'function') {
+                    shopVouchers = await fetchBonosWithFallback(10000);
+                } else {
+                    // PRIORITY 3: Ultimate fallback - legacy method
+                    console.warn('[SYNC] No fallback functions available, using legacy method');
+                    const endpoint = getBonoEndpoint();
+                    const res = await fetch(endpoint);
+
+                    if (!res.ok) throw new Error(`HTTP Error: ${res.status}`);
+
+                    shopVouchers = await res.json();
+
+                    // Handle legacy wrapper if present
+                    if (shopVouchers.contents) {
+                        try {
+                            const inner = JSON.parse(shopVouchers.contents);
+                            if (Array.isArray(inner)) shopVouchers = inner;
+                        } catch (e) {
+                            console.warn("Error parsing contents wrapper:", e);
+                        }
+                    }
+                }
+            }
+        } else {
+            // Optimized function not available, use fallback
+            console.warn('[SYNC] Optimized endpoint not available, using fallback');
+            if (typeof fetchBonosWithFallback === 'function') {
+                shopVouchers = await fetchBonosWithFallback(10000);
+            } else {
+                const endpoint = getBonoEndpoint();
+                const res = await fetch(endpoint);
+                if (!res.ok) throw new Error(`HTTP Error: ${res.status}`);
+                shopVouchers = await res.json();
             }
         }
 
@@ -951,17 +1022,54 @@ async function sincronizarConTienda(persistentData, btn, originalText) {
                 const topPId = b.product_id || firstItem.product_id;
                 const topVId = b.variation_id || firstItem.variation_id;
 
+                // Preparar datos a actualizar
+                const updateData = {};
+                let needsUpdate = false;
+
                 // Solo actualizamos si el bono guardado no tenía IDs o son diferentes
                 if (topPId != persisted.product_id || topVId != persisted.variation_id) {
                     console.log(`[Sync] Actualizando IDs para bono existente ${b.bono}: P:${topPId}, V:${topVId}`);
+                    updateData.product_id = topPId;
+                    updateData.variation_id = topVId;
+                    updateData.items_desglosados = b.items_desglosados || [];
+                    needsUpdate = true;
+                }
+
+                // CRÍTICO: Actualizar datos del cliente desde WooCommerce si están disponibles
+                // PROTECCIÓN: No sobrescribir si el usuario ha editado a mano (manual_update)
+                // o si los datos locales son valiosos y los de WooCommerce genéricos.
+                const isManual = persisted.manual_update === true;
+                const wooNameGeneric = !b.cliente || b.cliente.toLowerCase().includes("nombre cliente") || b.cliente.toLowerCase() === "cliente";
+
+                if (!isManual) {
+                    if (b.cliente && b.cliente !== persisted.cliente && !wooNameGeneric) {
+                        console.log(`[Sync] Actualizando nombre de cliente para ${b.bono}: "${persisted.cliente}" → "${b.cliente}"`);
+                        updateData.cliente = b.cliente;
+                        needsUpdate = true;
+                    }
+
+                    if (b.email && b.email !== persisted.email && b.email.includes("@")) {
+                        console.log(`[Sync] Actualizando email para ${b.bono}`);
+                        updateData.email = b.email;
+                        needsUpdate = true;
+                    }
+
+                    if (b.telefono && b.telefono !== persisted.telefono && b.telefono.length > 5) {
+                        console.log(`[Sync] Actualizando teléfono para ${b.bono}: "${persisted.telefono}" → "${b.telefono}"`);
+                        updateData.telefono = b.telefono;
+                        needsUpdate = true;
+                    }
+                } else {
+                    console.log(`[Sync] Saltando actualización de datos de contacto para ${b.bono} (Protección de Edición Manual activa)`);
+                }
+
+                // Actualizar searchTokens para incluir los nuevos datos
+                if (needsUpdate) {
+                    updateData.searchTokens = generateSearchTokens({ ...persisted, ...b, ...updateData });
+
                     // Limpiar undefined antes de actualizar
-                    const updateData = cleanUndefined({
-                        product_id: topPId,
-                        variation_id: topVId,
-                        items_desglosados: b.items_desglosados || [],
-                        searchTokens: generateSearchTokens(b) // Agregar searchTokens para búsqueda
-                    });
-                    batch.update(db.collection("spa_vouchers").doc(b.bono), updateData);
+                    const cleanedData = cleanUndefined(updateData);
+                    batch.update(db.collection("spa_vouchers").doc(b.bono), cleanedData);
                     ops++;
                 }
             } else {
@@ -1043,16 +1151,38 @@ async function sincronizarConTienda(persistentData, btn, originalText) {
         renderBonosFromState();
         updateCount();
 
+        // Show success message with endpoint info
+        const endpointInfo = usedOptimized ? ' (optimizado ⚡)' : ' (fallback)';
         if (newCount > 0) {
-            showToast(`${newCount} bonos nuevos sincronizados`, 'success');
+            showToast(`${newCount} bonos nuevos sincronizados${endpointInfo}`, 'success');
         } else {
-            showToast("Sincronización completada.", 'success');
+            showToast(`Sincronización completada${endpointInfo}`, 'success');
         }
 
     } catch (err) {
+        // Check if it's a Firestore quota error first
         if (window.checkFirestoreError && window.checkFirestoreError(err)) return;
-        console.warn("Sync error:", err);
-        showToast("Error en sincronización: " + err.message, "error");
+
+        // Handle different error types gracefully
+        const isTimeout = err.code === 'TIMEOUT' || err.message?.includes('timeout');
+        const isNetworkError = err.message?.includes('Failed to fetch') || err.message?.includes('NetworkError');
+        const isProxyError = err.code === 'ALL_PROXIES_FAILED';
+
+        if (isTimeout) {
+            console.warn('[SYNC] WooCommerce sync timeout - continuing with local data');
+            showToast("⚠️ Sincronización WooCommerce: Tiempo agotado. Usando datos locales.", "warning");
+        } else if (isNetworkError) {
+            console.warn('[SYNC] Network error - continuing with local data');
+            showToast("⚠️ Sin conexión a WooCommerce. Usando datos locales.", "warning");
+        } else if (isProxyError) {
+            console.warn('[SYNC] All CORS proxies failed:', err.details);
+            showToast("⚠️ No se pudo conectar con WooCommerce. Usando datos locales.", "warning");
+        } else {
+            console.warn("WooCommerce sync error:", err);
+            showToast("⚠️ Error en sincronización WooCommerce: " + err.message, "warning");
+        }
+
+        // Don't throw - allow the app to continue with local/Firestore data
     } finally {
         restoreButton(btn, originalText);
     }
@@ -1529,7 +1659,8 @@ function renderBonosFromState() {
             if (filterStatus === 'expired') {
                 statusMatch = (b.estado === 'expired') || (b.estado === 'pending' && checkVoucherExpiry(b));
             } else if (filterStatus === 'pending') {
-                statusMatch = (b.estado === 'pending') && !checkVoucherExpiry(b);
+                // SOPORTE LEGACY: Aceptar 'activo' como 'pending'
+                statusMatch = (b.estado === 'pending' || b.estado === 'activo') && !checkVoucherExpiry(b);
             } else {
                 statusMatch = (b.estado === filterStatus);
             }
@@ -1538,18 +1669,41 @@ function renderBonosFromState() {
         return dateMatch && statusMatch;
     });
 
-    // --- DEDUPLICACIÓN VISUAL ---
-    // Asegurar que solo se muestra 1 bono por Código
+
+    // --- DEDUPLICACIÓN VISUAL MEJORADA ---
+    // Asegurar que solo se muestra 1 bono por Código base (sin sufijos de item)
     const uniqueBonos = [];
     const seenCodes = new Set();
     filtered.forEach(b => {
         const code = String(b.bono || b.codigo).trim();
-        if (!seenCodes.has(code)) {
-            seenCodes.add(code);
+
+        // Normalizar código: BONO7694-562 -> BONO7694
+        // Esto elimina el sufijo del item ID si existe
+        const normalizedCode = code.replace(/-\d+$/, '');
+
+        if (!seenCodes.has(normalizedCode)) {
+            seenCodes.add(normalizedCode);
             uniqueBonos.push(b);
+        } else {
+            // Si ya existe, preferir el que NO tiene sufijo (el del plugin nuevo)
+            const existingIndex = uniqueBonos.findIndex(existing => {
+                const existingNormalized = String(existing.bono || existing.codigo).trim().replace(/-\d+$/, '');
+                return existingNormalized === normalizedCode;
+            });
+
+            if (existingIndex !== -1) {
+                const existing = uniqueBonos[existingIndex];
+                const existingCode = String(existing.bono || existing.codigo).trim();
+
+                // Si el existente tiene sufijo y el nuevo no, reemplazar
+                if (existingCode.includes('-') && !code.includes('-')) {
+                    uniqueBonos[existingIndex] = b;
+                }
+            }
         }
     });
     filtered = uniqueBonos;
+
 
     document.getElementById("voucher-count").textContent = filtered.length;
 
@@ -1696,6 +1850,7 @@ async function openVoucherManagement(code) {
     document.getElementById("vm-code").value = code;
     document.getElementById("vm-cliente").value = v.cliente || '';
     document.getElementById("vm-email").value = v.email || '';
+    document.getElementById("vm-telefono").value = v.telefono || '';
     document.getElementById("vm-producto").value = v.producto || '';
     document.getElementById("vm-fecha-compra").value = v.fecha || '';
     // document.getElementById("vm-importe").value = v.importe || 0; 
@@ -2064,23 +2219,45 @@ async function openVoucherManagement(code) {
             document.body.appendChild(dl);
         }
 
-        if (state.editingVoucherItems.length > 0) {
+        const isEditable = v.origen === 'local' || (v.bono && v.bono.includes('exc.Loc'));
+
+        if (state.editingVoucherItems.length > 0 || isEditable) {
             listDiv.innerHTML = `
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px;">
                 <div style="font-weight:700; color:#334155; font-size:0.75rem; text-transform:uppercase;">Items de Compra</div>
-            </div>`;
+                ${isEditable ? `
+                    <button class="btn btn-sm btn-outline" onclick="addVoucherItem()" style="padding:2px 8px; font-size:0.7rem;">
+                        <i class="fas fa-plus"></i> Añadir
+                    </button>
+                ` : ''}
+            </div>
+            
+            ${isEditable ? `
+                <div style="margin-bottom:12px;">
+                    <label style="font-size:0.65rem; color:#64748b; display:block; margin-bottom:4px;">VINCULAR PRODUCTO DEL CATÁLOGO</label>
+                    <div style="display:flex; gap:4px;">
+                        <input type="text" id="vm-catalog-search" list="catalog-datalist" placeholder="Buscar producto..." 
+                            style="flex:1; padding:4px 8px; font-size:0.75rem; border:1px solid #cbd5e1; border-radius:4px;">
+                        <button class="btn btn-sm btn-primary" onclick="linkVoucherToCatalogProduct()" style="padding:4px 10px;">
+                            <i class="fas fa-link"></i>
+                        </button>
+                    </div>
+                </div>
+            ` : ''}
+            `;
 
             listDiv.innerHTML += state.editingVoucherItems.map((item, idx) => {
                 const used = item.used || 0;
                 const total = item.sessions || 1;
                 const isComplete = used >= total;
                 const spaceName = item.space || 'No asignado';
+                const itemName = item.name || item.nombre || item.producto || v.producto || 'Servicio sin nombre';
 
-                // Detectar si es Hotel (para mostrar solo Gestionar)
-                const isAccommodation = spaceName.toLowerCase() === 'hotel' || item.name.toLowerCase().includes('alojamiento');
+                // Fix object reference
+                if (!item.name) item.name = itemName;
 
-                // Detectar si es Complemento (botella de cava, vino, etc.)
-                const itemNameLower = item.name.toLowerCase();
+                const isAccommodation = spaceName.toLowerCase() === 'hotel' || itemName.toLowerCase().includes('alojamiento');
+                const itemNameLower = itemName.toLowerCase();
                 const isComplement = spaceName.toLowerCase() === 'complemento' ||
                     itemNameLower.match(/(botella|cava|vino|ramo|flores|fruta|bombones|detalle)/i);
 
@@ -2094,42 +2271,54 @@ async function openVoucherManagement(code) {
                         </button>
                      `;
                 } else if (isComplement) {
-                    // COMPLEMENTOS: Solo botón de "Completar" simple (sin reserva)
                     buttonsHtml = `
-                        <button class="btn btn-sm" 
-                            onclick="validateServiceItem(${idx}, true)" 
-                            style="padding:2px 8px; font-size:0.7rem; background:#10b981; color:#fff; border:none; white-space:nowrap; border-radius:4px;">
-                            <i class="fas fa-check"></i> Completar
+                        <button class="btn btn-sm" onclick="validateServiceItem(${idx}, true)" 
+                            style="padding:2px 8px; font-size:0.7rem; background:#10b981; color:#fff; border:none; border-radius:4px;">
+                            <i class="fas fa-check"></i>
                         </button>
                     `;
                 } else if (isAccommodation) {
                     buttonsHtml = `
-                        <button class="btn btn-sm" 
-                            onclick="validateServiceItem(${idx})" 
-                            style="padding:2px 8px; font-size:0.7rem; background:#2563eb; color:#fff; border:none; white-space:nowrap; border-radius:4px;">
-                            <i class="fas fa-concierge-bell"></i> Gestionar
+                        <button class="btn btn-sm" onclick="validateServiceItem(${idx})" 
+                            style="padding:2px 8px; font-size:0.7rem; background:#2563eb; color:#fff; border:none; border-radius:4px;">
+                            <i class="fas fa-concierge-bell"></i>
                         </button>
                     `;
                 } else {
-                    // Servicios normales (Masaje, Spa, etc.)
-                    // Botón RESERVAR (Principal)
                     buttonsHtml += `
                         <button class="btn btn-sm" 
                             onclick="goToReservation('${encodeURIComponent(v.cliente || '').replace(/'/g, "%27")}', '${encodeURIComponent(item.name || '').replace(/'/g, "%27")}', '${encodeURIComponent(v.bono || v.codigo || '').replace(/'/g, "%27")}', '${encodeURIComponent(item.space || '').replace(/'/g, "%27")}')" 
-                            style="padding:2px 8px; font-size:0.7rem; background:#0ea5e9; color:#fff; border:none; white-space:nowrap; border-radius:4px; margin-right:4px;">
+                            style="padding:2px 8px; font-size:0.7rem; background:#0ea5e9; color:#fff; border:none; border-radius:4px;">
                             <i class="fas fa-calendar-alt"></i> Reservar
                         </button>
                     `;
+                }
 
-                    // Botón VALIDAR MANUAL (Secundario)
-                    buttonsHtml += `
-                        <button class="btn btn-sm" 
-                            onclick="validateServiceItem(${idx}, true)" 
-                            style="padding:2px 6px; font-size:0.7rem; background:#fff; color:#64748b; border:1px solid #cbd5e1; white-space:nowrap; border-radius:4px;"
-                            title="Consumir sesión manualmente sin reserva">
-                            <i class="fas fa-check"></i>
-                        </button>
-                    `;
+                if (isEditable) {
+                    return `
+                    <div style="background:#f8fafc; padding:8px; margin-bottom:8px; border-radius:6px; border:1px solid #e2e8f0;">
+                        <div style="display:flex; gap:4px; margin-bottom:6px;">
+                            <input type="text" value="${item.name}" onchange="updateVoucherItemName(${idx}, this.value)" 
+                                placeholder="Nombre servicio..." list="catalog-datalist"
+                                style="flex:1; padding:4px; font-size:0.75rem; border:1px solid #cbd5e1; border-radius:4px; font-weight:600;">
+                            <button onclick="removeVoucherItem(${idx})" style="background:none; border:none; color:#ef4444; padding:0 4px; cursor:pointer;">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                            <div style="display:flex; align-items:center; gap:8px;">
+                                <div style="display:flex; align-items:center; gap:2px;">
+                                    <input type="number" value="${total}" onchange="updateVoucherItemSession(${idx}, this.value)" 
+                                        style="width:35px; padding:2px; font-size:0.7rem; border:1px solid #cbd5e1; border-radius:4px; text-align:center;">
+                                    <span style="font-size:0.65rem; color:#64748b;">ses.</span>
+                                </div>
+                                <div style="font-size:0.65rem; color:#64748b;">
+                                    <i class="fas fa-map-marker-alt"></i> ${spaceName}
+                                </div>
+                            </div>
+                            <div style="display:flex; gap:4px;">${buttonsHtml}</div>
+                        </div>
+                    </div>`;
                 }
 
                 return `
@@ -2149,8 +2338,9 @@ async function openVoucherManagement(code) {
                 </div>
             `;
             }).join('');
-            listDiv.style.display = 'flex';
-        } else {
+            listDiv.style.display = 'block';
+        }
+        else {
             listDiv.innerHTML = `
                 <div style="text-align:center; padding:10px;">
                     <button class="btn btn-sm btn-outline" onclick="addVoucherItem()">
@@ -2175,10 +2365,48 @@ async function openVoucherManagement(code) {
     };
     window.updateVoucherItemName = (idx, val) => {
         state.editingVoucherItems[idx].name = val;
-        // Auto-detect space using helper (Master Items priority)
         const detectedSpace = getSpaceForService(val);
         if (detectedSpace) {
             state.editingVoucherItems[idx].space = detectedSpace;
+        }
+        renderEditableBreakdown(); // Re-render to show updated space
+    };
+
+    window.linkVoucherToCatalogProduct = () => {
+        const searchVal = document.getElementById("vm-catalog-search").value;
+        if (!searchVal) return;
+
+        const product = state.catalogProducts.find(p => p.nombre === searchVal);
+        if (product) {
+            // Reemplazar o añadir items según el producto del catálogo
+            const fakeVoucher = { ...v, producto: product.nombre, product_id: product.id };
+            const newItems = detectServicesInProduct(fakeVoucher);
+            state.editingVoucherItems = newItems;
+
+            // Actualizar el nombre del producto principal en el modal
+            document.getElementById("vm-producto").value = product.nombre;
+
+            // Calcular total de sesiones de los nuevos items
+            const totalSessions = newItems.reduce((acc, curr) => acc + (curr.sessions || 1), 0);
+            const totalPax = newItems.length > 0 ? (newItems[0].pax || 1) : 1;
+
+            // Actualizar inputs de sesiones y pax
+            document.getElementById("vm-sesiones-total").value = totalSessions;
+            document.getElementById("vm-pax-sesion").value = totalPax;
+
+            // Actualizar el precio (Badge y v.importe si el usuario no lo editó)
+            const price = parseFloat(product.precio) || 0;
+            const priceBadge = document.getElementById("vm-cat-price");
+            if (priceBadge) priceBadge.textContent = price + '€';
+
+            // Forzar actualización visual de la tarjeta de catálogo
+            document.getElementById("vm-cat-name").textContent = product.nombre;
+            if (product.imagen) document.getElementById("vm-cat-img").src = product.imagen;
+
+            renderEditableBreakdown();
+            showToast(`Vinculado a: ${product.nombre}. Sesiones y precio actualizados.`, 'success');
+        } else {
+            showToast("Producto no encontrado en el catálogo", "error");
         }
     };
 
@@ -2338,6 +2566,8 @@ async function saveVoucherChanges() {
     const code = document.getElementById("vm-code").value;
     const updates = {
         cliente: document.getElementById("vm-cliente").value,
+        email: document.getElementById("vm-email").value,
+        telefono: document.getElementById("vm-telefono").value,
         fecha_validez: document.getElementById("vm-fecha-validez").value,
         sesiones_totales: parseInt(document.getElementById("vm-sesiones-total").value) || 1,
         sesiones_usadas: parseInt(document.getElementById("vm-sesiones-usadas").value) || 0,
@@ -2821,25 +3051,25 @@ async function deleteVoucher() {
 
 function openLocalVoucherModal() {
     state.lvCart = [];
+    state.lvSelectedProduct = null;
     renderLVCart();
 
-    const select = document.getElementById("lv-product-select");
-    select.innerHTML = '<option value="">Seleccionar del catálogo...</option><option value="custom">-- Otro (Personalizado) --</option>';
-
     // Guardar lista filtrada (sin Peluquería y respetando venta_local)
-    state.lvFilteredProducts = state.catalogProducts.filter(prod => {
+    state.lvFilteredProducts = (state.catalogProducts || []).filter(prod => {
         const cat = (prod.categoria || '').toLowerCase();
         const name = (prod.nombre || '').toLowerCase();
         const isLocal = prod.venta_local !== false; // Default true
         return cat !== 'peluqueria' && !name.includes('peluquería') && isLocal;
     });
 
-    state.lvFilteredProducts.forEach(prod => {
-        select.innerHTML += `<option value="${prod.nombre}">${prod.nombre}</option>`;
-    });
-
     const searchInput = document.getElementById("lv-product-search");
     if (searchInput) searchInput.value = '';
+
+    const resultsDiv = document.getElementById("lv-search-results");
+    if (resultsDiv) {
+        resultsDiv.innerHTML = '';
+        resultsDiv.style.display = 'none';
+    }
 
     // Reset categories
     state.lvCurrentCategory = 'todos';
@@ -2853,6 +3083,10 @@ function openLocalVoucherModal() {
     document.getElementById("lv-product-details").style.display = 'none';
     document.getElementById("lv-price").value = '';
     document.getElementById("lv-sessions").value = 1;
+    document.getElementById("lv-pax").value = "1";
+    document.getElementById("lv-product-custom").style.display = 'none';
+    document.getElementById("lv-phone").value = '';
+    document.getElementById("lv-filter-pax").value = 'any';
 }
 
 function closeLocalVoucherModal() {
@@ -2860,13 +3094,16 @@ function closeLocalVoucherModal() {
 }
 
 function filterLocalProducts(query) {
-    const select = document.getElementById("lv-product-select");
-    const q = (query || document.getElementById("lv-product-search").value).toLowerCase().trim();
+    const resultsDiv = document.getElementById("lv-search-results");
+    const q = (query || "").toLowerCase().trim();
     const cat = state.lvCurrentCategory || 'todos';
 
-    select.innerHTML = '<option value="">Seleccionar del catálogo...</option><option value="custom">-- Otro (Personalizado) --</option>';
+    if (q.length === 0 && cat === 'todos') {
+        resultsDiv.style.display = 'none';
+        return;
+    }
 
-    state.lvFilteredProducts.forEach(prod => {
+    const filtered = state.lvFilteredProducts.filter(prod => {
         const matchesQuery = !q || prod.nombre.toLowerCase().includes(q);
         let matchesCat = true;
 
@@ -2875,10 +3112,101 @@ function filterLocalProducts(query) {
         else if (cat === 'pack') matchesCat = (prod.items_incluidos && prod.items_incluidos.length > 1) || (prod.nombre || '').toLowerCase().includes('pack');
         else if (cat === 'bono') matchesCat = (prod.nombre || '').toLowerCase().includes('bono') || (prod.sesiones && prod.sesiones > 1);
 
-        if (matchesQuery && matchesCat) {
-            select.innerHTML += `<option value="${prod.nombre}">${prod.nombre}</option>`;
+        // FILTRO POR PAX
+        const filterPax = document.getElementById("lv-filter-pax").value;
+        let matchesPax = true;
+        if (filterPax !== 'any') {
+            const prodPax = parseInt(prod.personas || prod.pax || 1);
+            matchesPax = prodPax === parseInt(filterPax);
         }
+
+        return matchesQuery && matchesCat && matchesPax;
     });
+
+    if (filtered.length === 0) {
+        resultsDiv.innerHTML = `
+            <div style="padding: 15px; text-align: center; color: #64748b; font-size: 0.85rem;">
+                No hay resultados. <a href="#" onclick="selectProductForLocalVoucher('custom'); return false;" style="color: var(--accent); font-weight: 600;">Crear producto personalizado</a>
+            </div>`;
+    } else {
+        resultsDiv.innerHTML = filtered.map(prod => `
+            <div onclick="selectProductForLocalVoucher('${prod.nombre.replace(/'/g, "\\'")}')" 
+                style="display: flex; gap: 10px; align-items: center; padding: 10px; border-bottom: 1px solid #f1f5f9; cursor: pointer; transition: background 0.2s;">
+                <img src="${prod.imagen || 'zenith-icon.png'}" style="width: 40px; height: 40px; object-fit: cover; border-radius: 4px; border: 1px solid #e2e8f0;">
+                <div style="flex: 1;">
+                    <div style="font-weight: 600; font-size: 0.85rem; color: #1e293b;">${prod.nombre}</div>
+                    <div style="font-size: 0.75rem; color: #64748b;">${prod.precio}€ · ${(prod.categoria || 'Servicio').toUpperCase()}</div>
+                </div>
+            </div>
+        `).join('');
+
+        resultsDiv.innerHTML += `
+            <div onclick="selectProductForLocalVoucher('custom')" 
+                style="padding: 10px; text-align: center; color: #94a3b8; font-size: 0.8rem; background: #f8fafc; border-top: 1px solid #e2e8f0; cursor: pointer;">
+                <i class="fas fa-edit"></i> Definir producto personalizado
+            </div>`;
+    }
+
+    resultsDiv.style.display = 'block';
+}
+
+window.selectProductForLocalVoucher = (productName) => {
+    const resultsDiv = document.getElementById("lv-search-results");
+    const customInput = document.getElementById("lv-product-custom");
+    const detailsDiv = document.getElementById("lv-product-details");
+    const priceInput = document.getElementById("lv-price");
+    const sessionsInput = document.getElementById("lv-sessions");
+    const searchInput = document.getElementById("lv-product-search");
+
+    resultsDiv.style.display = 'none';
+
+    if (productName === 'custom') {
+        state.lvSelectedProduct = { nombre: 'Personalizado', custom: true };
+        customInput.style.display = 'block';
+        customInput.value = '';
+        customInput.focus();
+        detailsDiv.style.display = 'none';
+        priceInput.value = '';
+        sessionsInput.value = 1;
+        searchInput.value = 'PRODUCTO PERSONALIZADO';
+    } else {
+        const prod = state.catalogProducts.find(p => p.nombre === productName);
+        if (prod) {
+            state.lvSelectedProduct = prod;
+            searchInput.value = prod.nombre;
+            customInput.style.display = 'none';
+
+            // UI Details
+            document.getElementById("lv-details-name").textContent = prod.nombre;
+            const imgPreview = document.getElementById("lv-img-preview");
+            if (prod.imagen) {
+                imgPreview.src = prod.imagen;
+                imgPreview.style.display = 'block';
+            } else {
+                imgPreview.style.display = 'none';
+            }
+
+            let includesFull = (prod.incluye && Array.isArray(prod.incluye)) ? prod.incluye.join(", ") : (prod.incluye || '');
+            if (!includesFull && prod.items_incluidos) {
+                includesFull = prod.items_incluidos.map(i => i.name || i.producto).join(", ");
+            }
+            document.getElementById("lv-details-text").textContent = includesFull || "Servicio de catálogo";
+            detailsDiv.style.display = 'block';
+
+            // Values
+            priceInput.value = prod.precio || 0;
+
+            let totalSessions = 1;
+            if (prod.sesiones) totalSessions = prod.sesiones;
+            else if (typeof detectSessions === 'function') totalSessions = detectSessions(prod).total;
+
+            sessionsInput.value = totalSessions;
+
+            // Auto-set PAX
+            const prodPax = prod.personas || prod.pax || 1;
+            document.getElementById("lv-pax").value = String(prodPax);
+        }
+    }
 }
 
 function setLVCategory(cat, btn) {
@@ -2957,19 +3285,52 @@ function checkCustomProduct(select) {
 }
 
 function addToCartLocal() {
-    const select = document.getElementById("lv-product-select");
-    let name = select.value;
-    if (name === 'custom') name = document.getElementById("lv-product-custom").value;
+    const selected = state.lvSelectedProduct;
+    if (!selected) return showToast("Primero selecciona un producto", "warning");
+
+    let name = selected.nombre;
+    if (selected.custom) {
+        name = document.getElementById("lv-product-custom").value.trim();
+        if (!name) return showToast("Escribe el nombre del producto personalizado", "warning");
+    }
 
     const price = parseFloat(document.getElementById("lv-price").value) || 0;
     const sessions = parseInt(document.getElementById("lv-sessions").value) || 1;
+    const pax = parseInt(document.getElementById("lv-pax").value) || 1;
 
-    if (!name) return showToast("Selecciona un producto", "warning");
+    // Clonar items si es del catálogo para tener desglose real
+    let items = [];
+    if (!selected.custom) {
+        if (selected.items_incluidos && selected.items_incluidos.length > 0) {
+            // Nota: NO multiplicamos por sesiones aquí, se guarda la base del producto.
+            // Si el producto dice "Circuito + Masaje", guardamos esos 2 items.
+            items = selected.items_incluidos.map(it => ({
+                name: it.name || it.producto || name,
+                sessions: it.sessions || 1,
+                space: it.space || '',
+                pax: pax
+            }));
+        } else {
+            items = [{ name, sessions: 1, space: '', pax: pax }];
+        }
+    } else {
+        items = [{ name, sessions: 1, space: '', pax: pax }];
+    }
 
-    state.lvCart.push({ name, price, sessions });
+    state.lvCart.push({
+        name,
+        price,
+        sessions,
+        pax,
+        originalProduct: selected.custom ? null : selected,
+        items_breakdown: items
+    });
+
     renderLVCart();
 
-    select.value = "";
+    // Reset current selection
+    state.lvSelectedProduct = null;
+    document.getElementById("lv-product-search").value = "";
     document.getElementById("lv-product-custom").style.display = 'none';
     document.getElementById("lv-price").value = "";
     document.getElementById("lv-sessions").value = 1;
@@ -2982,28 +3343,35 @@ function renderLVCart() {
     if (!list) return;
 
     if (state.lvCart.length === 0) {
-        list.innerHTML = `<div style="text-align: center; color: #94a3b8; font-size: 0.75rem; padding:10px;">Carrito vacío</div>`;
-        totalDisplay.textContent = "0.00€";
+        list.innerHTML = `
+            <div style="text-align: center; color: #94a3b8; font-size: 0.8rem; padding: 20px;">
+                <i class="fas fa-shopping-basket" style="font-size: 1.5rem; opacity: 0.3; display: block; margin-bottom: 8px;"></i>
+                Tu bono no tiene productos todavía
+            </div>`;
+        totalDisplay.innerHTML = "0.00€";
         return;
     }
 
-    list.innerHTML = state.lvCart.map((item, index) => `
-        <div style="display: flex; justify-content: space-between; align-items: center; background: #fff; padding: 6px; border-radius: 4px; border: 1px solid #e2e8f0; margin-bottom: 4px;">
-            <div style="flex: 1;">
-                <div style="font-weight: 600; font-size: 0.8rem;">${item.name}</div>
-                <div style="font-size: 0.7rem; color: #64748b;">
-                    ${item.sessions} ses. x ${item.price.toFixed(2)}€ = <strong>${(item.price * item.sessions).toFixed(2)}€</strong>
+    list.innerHTML = state.lvCart.map((item, index) => {
+        const itemImg = (item.originalProduct && item.originalProduct.imagen) ? item.originalProduct.imagen : 'zenith-icon.png';
+        return `
+        <div style="display: flex; gap: 10px; align-items: center; background: #fff; padding: 8px; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
+            <img src="${itemImg}" style="width: 38px; height: 38px; object-fit: cover; border-radius: 6px;">
+            <div style="flex: 1; overflow: hidden;">
+                <div style="font-weight: 700; font-size: 0.85rem; color: #1e293b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${item.name}</div>
+                <div style="font-size: 0.75rem; color: #64748b;">
+                    ${item.sessions} ses. x ${item.price.toFixed(2)}€ = <strong style="color: var(--accent);">${(item.price * item.sessions).toFixed(2)}€</strong>
                 </div>
             </div>
-            <button onclick="removeFromCart(${index})" style="background:none; border:none; color: #ef4444; cursor: pointer;">
-                <i class="fas fa-trash"></i>
+            <button onclick="removeFromCart(${index})" style="background: #fef2f2; border: 1px solid #fee2e2; color: #ef4444; width: 28px; height: 28px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s;">
+                <i class="fas fa-times"></i>
             </button>
-        </div>
-    `).join('');
+        </div>`;
+    }).join('');
 
     const totalPrice = state.lvCart.reduce((sum, i) => sum + (i.price * i.sessions), 0);
     const totalSessions = state.lvCart.reduce((sum, i) => sum + i.sessions, 0);
-    totalDisplay.textContent = `${totalPrice.toFixed(2)}€ (${totalSessions} Sesiones)`;
+    totalDisplay.innerHTML = `<span style="color: #64748b; font-weight: 400; font-size: 0.8rem; margin-right: 5px;">TOTAL:</span> ${totalPrice.toFixed(2)}€ <span style="font-size: 0.75rem; color: #94a3b8; margin-left: 5px;">(${totalSessions} Sesiones)</span>`;
 }
 
 function removeFromCart(index) {
@@ -3016,17 +3384,38 @@ async function createLocalVoucher() {
         return showToast("Añade al menos un producto al bono", "warning");
     }
 
+    const clientName = document.getElementById("lv-client").value.trim();
+    if (!clientName) return showToast("Escribe el nombre del cliente", "warning");
+
     const codeInput = document.getElementById("lv-code").value.trim();
-    const code = codeInput || `LOC-${new Date().getFullYear()}-${Math.floor(Math.random() * 10000)}`;
+    // Generación de código mejorada: LOC + Año + Secuencial aleatorio
+    const code = codeInput || `LOC-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
 
     const totalPrice = state.lvCart.reduce((sum, i) => sum + (i.price * i.sessions), 0);
     const totalSessions = state.lvCart.reduce((sum, i) => sum + i.sessions, 0);
     const productNames = state.lvCart.map(i => i.name).join(" + ");
 
+    // Consolidar desglose de items de todos los productos del carrito
+    let allItems = [];
+    state.lvCart.forEach(cartItem => {
+        if (cartItem.items_breakdown) {
+            // Multiplicamos cada item base por la cantidad de sesiones elegidas para ese producto
+            for (let s = 0; s < cartItem.sessions; s++) {
+                allItems = allItems.concat(cartItem.items_breakdown.map(it => ({
+                    ...it,
+                    itemId: 'it_' + Math.random().toString(36).substr(2, 9),
+                    used: 0
+                })));
+            }
+        }
+    });
+
     const newVoucher = {
         bono: code,
-        cliente: document.getElementById("lv-client").value,
-        email: document.getElementById("lv-email").value,
+        codigo: code,
+        cliente: clientName,
+        email: document.getElementById("lv-email").value.trim(),
+        telefono: document.getElementById("lv-phone").value.trim(),
         producto: productNames,
         precio: totalPrice,
         importe: totalPrice,
@@ -3035,8 +3424,11 @@ async function createLocalVoucher() {
         origen: 'local',
         sesiones_totales: totalSessions,
         sesiones_usadas: 0,
-        items_desglosados: state.lvCart,
-        createdAt: new Date().toISOString()
+        pax_por_sesion: state.lvCart.length > 0 ? Math.max(...state.lvCart.map(i => i.pax || 1)) : 1,
+        items_desglosados: allItems,
+        createdAt: new Date().toISOString(),
+        manual_update: true,
+        updated_at: new Date().toISOString()
     };
 
     // Generar searchTokens para que sea buscable localmente de inmediato
@@ -3791,7 +4183,7 @@ window.importLocalVouchersFromExcel = function (event) {
                         sesiones_usadas: sesionesUsadas,
                         observaciones: observaciones, // Guardamos observaciones
                         origen: 'local',
-                        estado: sesionesUsadas >= sesiones ? 'agotado' : 'activo',
+                        estado: sesionesUsadas >= sesiones ? 'agotado' : 'pending', // Usar 'pending' (Estándar App)
                         items_desglosados: [
                             {
                                 name: producto,
@@ -3833,15 +4225,15 @@ window.importLocalVouchersFromExcel = function (event) {
                 }
             }
 
-            // REFRESCAR UI (Usar la función correcta)
-            if (typeof renderBonosFromState === 'function') {
-                renderBonosFromState();
-            } else if (typeof renderBonos === 'function') {
-                renderBonos(state.bonos);
-            } else {
-                console.warn("[IMPORT] No se encontró función de renderizado. Recargando...");
-                window.location.reload();
-            }
+            // REFRESCAR UI (Limpiar filtros para asegurar que se ven los nuevos)
+            const dateInput = document.getElementById("voucher-date");
+            const monthsSelect = document.getElementById('bonos-filter-months');
+
+            if (dateInput) dateInput.value = "";
+            if (monthsSelect) monthsSelect.value = "12"; // Mostrar último año por defecto tras importar
+
+            console.log("[IMPORT] Recargando vista tras importación...");
+            await cargarBonos();
 
             let msg = `Importados: ${importedCount}.`;
             if (skippedCount > 0) msg += ` Saltados (duplicados): ${skippedCount}.`;
@@ -3994,18 +4386,35 @@ async function searchVoucherByNumericInput(number) {
     </td></tr>`;
 
     const currentYear = new Date().getFullYear();
-    // Generar candidatos de códigos
+    // Generar candidatos de códigos para búsqueda exacta rápida
     const candidates = [
-        `exc.Loc ${number}`,  // Prioridad 1: Formato Importado actual
-        `LOC-${number}`,      // Prioridad 2: Formato Local estándar
-        `LOC-${new Date().getFullYear()}-${number}`, // Prioridad 3: Formato Local con año
-        `BONO${number}`,      // Prioridad 4: Bonos web
-        `${number}`,          // Prioridad 5: Coincidencia exacta (Legacy/Raw) como STRING
-        `Bono ${number}`      // Variaciones
+        `exc.Loc ${number}`,
+        `LOC-${number}`,
+        `LOC-${new Date().getFullYear()}-${number}`,
+        `BONO${number}`,
+        `${number}`,
+        `Bono ${number}`
     ];
 
     try {
-        // 1. Búsqueda LOCAL rápida de candidatos
+        // 1. Búsqueda por COINCIDENCIA PARCIAL en el ESTADO LOCAL (Nivel 0)
+        // Esto permite que "7694" encuentre "BONO7694", "exc.Loc 7694", etc.
+        const partialMatches = state.bonos.filter(b => {
+            const id = String(b.bono || b.codigo || "").toLowerCase();
+            return id.includes(String(number).toLowerCase());
+        });
+
+        if (partialMatches.length > 0) {
+            console.log(`[SMART-SEARCH] Encontrados ${partialMatches.length} coincidencias parciales en memoria.`);
+            state.bonos = partialMatches;
+            state.isActiveSearch = true;
+            renderBonosFromState();
+            updateCount();
+            showToast(`Encontrados ${partialMatches.length} bonos coincidentes`, 'success');
+            return;
+        }
+
+        // 2. Búsqueda LOCAL rápida de candidatos exactos
         if (window.apiLocal) {
             for (const code of candidates) {
                 const local = await apiLocal.getBonoByCode(code);

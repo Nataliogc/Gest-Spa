@@ -196,6 +196,20 @@
                             <input type="email" id="vm-email" class="param-input" readonly
                                 style="padding: 4px 8px; font-size: 0.8rem; background: #e2e8f0; color: #64748b;">
                         </div>
+                        <div class="form-group" style="margin-bottom: 8px;">
+                            <input type="tel" id="vm-telefono" class="param-input" readonly placeholder="Teléfono"
+                                style="padding: 4px 8px; font-size: 0.8rem; background: #e2e8f0; color: #64748b;">
+                        </div>
+
+                        <!-- MENSAJE PERSONALIZADO -->
+                        <div style="margin-top: 15px;">
+                            <h4
+                                style="font-size: 0.7rem; text-transform: uppercase; color: #94a3b8; margin-bottom: 8px; font-weight: 700;">
+                                Mensaje Regalo</h4>
+                            <textarea id="vm-mensaje" class="param-input" placeholder="Escribe aquí una dedicatoria..."
+                                rows="3"
+                                style="padding: 6px 8px; font-size: 0.8rem; width: 100%; resize: vertical; border: 1px solid #e2e8f0; border-radius: 4px;"></textarea>
+                        </div>
                         <div style="display:grid; grid-template-columns: 1fr 1fr; gap:5px;">
                             <div class="form-group" style="margin-bottom: 0;">
                                 <label style="font-size: 0.65rem; color:#64748b;">Código</label>
@@ -290,7 +304,12 @@
 
             <!-- FOOTER: Debe estar DENTRO de modal-content -->
             <div class="modal-footer"
-                style="padding: 12px 20px; background: #f8fafc; border-top: 1px solid #e2e8f0; display: flex; justify-content: flex-end;">
+                style="padding: 12px 20px; background: #f8fafc; border-top: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center;">
+                <button type="button" id="vm-download-pdf-btn" onclick="descargarBonoPDFActual()"
+                    class="btn btn-outline"
+                    style="min-width: 140px; height: 38px; font-size: 0.85rem; border-color: #059669; color: #059669;">
+                    <i class="fas fa-file-pdf"></i> <span>Descargar PDF</span>
+                </button>
                 <button type="button" id="vm-save-btn" onclick="saveVoucherChanges()" class="btn btn-outline"
                     style="min-width: 120px; height: 38px; font-size: 0.85rem; border-color: #334155; color: #334155;">
                     <i class="fas fa-save"></i> <span>Guardar</span>
@@ -331,6 +350,13 @@
                                 style="margin-top: 5px;">
                         </div>
 
+                        <!-- TELÉFONO -->
+                        <div class="form-group" style="margin-top: 10px;">
+                            <label style="font-size: 0.8rem;">Teléfono</label>
+                            <input type="tel" id="lv-phone" class="param-input" placeholder="600 000 000"
+                                style="margin-top: 5px;">
+                        </div>
+
                         <!-- Code is optional/auto -->
                         <div class="form-group" style="margin-top: 10px;">
                             <label style="font-size: 0.8rem;">Código Bono (Opcional)</label>
@@ -349,66 +375,92 @@
 
                         <div class="form-group">
                             <label style="font-size: 0.8rem;">Producto / Servicio</label>
-                            <input type="text" id="lv-product-search" class="param-input"
-                                placeholder="🔍 Buscar en catálogo..." onkeyup="filterLocalProducts(this.value)"
-                                style="margin-top: 5px; margin-bottom: 8px; height: 32px; font-size: 0.8rem;">
+                            <div style="display: flex; gap: 8px; margin-top: 5px; margin-bottom: 8px;">
+                                <div style="position: relative; flex: 1;">
+                                    <input type="text" id="lv-product-search" class="param-input"
+                                        placeholder="🔍 Buscar en catálogo..." onkeyup="filterLocalProducts(this.value)"
+                                        style="height: 38px; font-size: 0.9rem; border: 2px solid #e2e8f0;">
+
+                                    <!-- Resultados de búsqueda dinámicos -->
+                                    <div id="lv-search-results"
+                                        style="display: none; position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid #cbd5e1; border-radius: 8px; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); z-index: 100; max-height: 250px; overflow-y: auto; margin-top: 2px;">
+                                    </div>
+                                </div>
+                                <select id="lv-filter-pax" onchange="filterLocalProducts()" class="param-input"
+                                    style="width: 110px; height: 38px; font-size: 0.75rem; border: 2px solid #e2e8f0; background: #f8fafc;">
+                                    <option value="any">Cualquier PAX</option>
+                                    <option value="1">1 Persona</option>
+                                    <option value="2">2 Personas</option>
+                                    <option value="3">3 Personas</option>
+                                    <option value="4">4 Personas</option>
+                                </select>
+                            </div>
 
                             <!-- Accesos Directos (Categorías) -->
                             <div id="lv-category-shortcuts"
-                                style="display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 10px;">
+                                style="display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 15px; margin-top: 5px;">
                                 <button type="button" class="btn btn-sm btn-outline lv-cat-btn active"
                                     onclick="setLVCategory('todos', this)"
-                                    style="font-size: 0.65rem; padding: 4px 8px; border-radius: 15px;">Todos</button>
+                                    style="font-size: 0.7rem; padding: 4px 12px; border-radius: 20px;">Todos</button>
                                 <button type="button" class="btn btn-sm btn-outline lv-cat-btn"
                                     onclick="setLVCategory('spa', this)"
-                                    style="font-size: 0.65rem; padding: 4px 8px; border-radius: 15px;">Spa</button>
+                                    style="font-size: 0.7rem; padding: 4px 12px; border-radius: 20px;">Spa</button>
                                 <button type="button" class="btn btn-sm btn-outline lv-cat-btn"
                                     onclick="setLVCategory('masaje', this)"
-                                    style="font-size: 0.65rem; padding: 4px 8px; border-radius: 15px;">Masajes</button>
+                                    style="font-size: 0.7rem; padding: 4px 12px; border-radius: 20px;">Masajes</button>
                                 <button type="button" class="btn btn-sm btn-outline lv-cat-btn"
                                     onclick="setLVCategory('pack', this)"
-                                    style="font-size: 0.65rem; padding: 4px 8px; border-radius: 15px;">Packs</button>
-                                <button type="button" class="btn btn-sm btn-outline lv-cat-btn"
-                                    onclick="setLVCategory('bono', this)"
-                                    style="font-size: 0.65rem; padding: 4px 8px; border-radius: 15px;">Bonos</button>
+                                    style="font-size: 0.7rem; padding: 4px 12px; border-radius: 20px;">Packs</button>
                             </div>
 
-                            <select id="lv-product-select" class="param-input" onchange="checkCustomProduct(this)"
-                                style="margin-top: 0;">
-                                <option value="">Seleccionar del catálogo...</option>
-                            </select>
                             <input type="text" id="lv-product-custom" class="param-input"
-                                style="display: none; margin-top: 5px;" placeholder="Nombre personalizado">
+                                style="display: none; margin-top: 5px; border-color: #f59e0b;"
+                                placeholder="Nombre de servicio personalizado...">
+
                             <div id="lv-product-details"
-                                style="font-size: 0.75rem; color: #1e40af; background: #eff6ff; padding: 10px; border-radius: 8px; border: 1px solid #bfdbfe; margin-top: 8px; display: none;">
-                                <div style="display: flex; gap: 10px; align-items: center;">
+                                style="font-size: 0.75rem; color: #1e40af; background: #eff6ff; padding: 12px; border-radius: 8px; border: 1px solid #bfdbfe; margin-top: 8px; display: none;">
+                                <div style="display: flex; gap: 12px; align-items: start;">
                                     <img id="lv-img-preview" src=""
-                                        style="width: 50px; height: 50px; object-fit: cover; border-radius: 4px; display: none; border: 1px solid #bfdbfe;">
-                                    <div id="lv-details-text" style="line-height: 1.3; font-style: italic;"></div>
+                                        style="width: 60px; height: 60px; object-fit: cover; border-radius: 6px; display: none; border: 1px solid #bfdbfe; box-shadow: 0 1px 2px rgba(0,0,0,0.1);">
+                                    <div style="flex:1;">
+                                        <div id="lv-details-name"
+                                            style="font-weight: 700; color: #1e293b; margin-bottom: 4px;"></div>
+                                        <div id="lv-details-text"
+                                            style="line-height: 1.3; font-style: italic; color: #64748b;"></div>
+                                    </div>
                                 </div>
                             </div>
-
-                            <button type="button" class="btn btn-outline" onclick="addToCartLocal()"
-                                style="width: 100%; margin-top: 10px; font-size: 0.8rem;">
-                                <i class="fas fa-plus-circle"></i> Añadir Línea al Bono
-                            </button>
                         </div>
 
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px;">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-top: 15px;">
                             <div class="form-group">
-                                <label style="font-size: 0.8rem;">Importe (€)</label>
+                                <label style="font-size: 0.8rem; color: #64748b; font-weight: 600;">Importe (€)</label>
                                 <div style="position: relative;">
                                     <input type="number" id="lv-price" class="param-input" step="0.01"
-                                        style="padding-left: 20px; margin-top: 5px;">
-                                    <span style="position: absolute; left: 8px; top: 13px; color: #aaa;">€</span>
+                                        style="padding-left: 20px; margin-top: 5px; font-weight: 700;">
+                                    <span style="position: absolute; left: 8px; top: 13px; color: #94a3b8;">€</span>
                                 </div>
                             </div>
                             <div class="form-group">
-                                <label style="font-size: 0.8rem;">Sesiones</label>
+                                <label style="font-size: 0.8rem; color: #64748b; font-weight: 600;">Sesiones</label>
                                 <input type="number" id="lv-sessions" value="1" class="param-input"
-                                    style="margin-top: 5px;">
+                                    style="margin-top: 5px; font-weight: 700; text-align: center;">
+                            </div>
+                            <div class="form-group">
+                                <label style="font-size: 0.8rem; color: #64748b; font-weight: 600;">Personas</label>
+                                <select id="lv-pax" class="param-input" style="margin-top: 5px; font-weight: 700;">
+                                    <option value="1">1 Persona</option>
+                                    <option value="2">2 Personas</option>
+                                    <option value="3">3 Personas</option>
+                                    <option value="4">4 Personas</option>
+                                </select>
                             </div>
                         </div>
+
+                        <button type="button" class="btn btn-primary" onclick="addToCartLocal()"
+                            style="width: 100%; margin-top: 15px; font-size: 0.85rem; padding: 10px; border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+                            <i class="fas fa-plus-circle"></i> Añadir al Carrito
+                        </button>
 
                         <div
                             style="grid-column: span 2; margin-top: 10px; border-top: 1px dashed #e2e8f0; padding-top: 10px;">
@@ -497,6 +549,11 @@
     <script src="firebase-config.js"></script>
     <script src="https://unpkg.com/dexie@latest/dist/dexie.js"></script>
     <script src="js/app-core.js"></script>
+
+    <!-- PDF Generation -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="js/images_data.js?v=202601072324"></script>
+    <script src="js/bono-pdf.js"></script>
 
     <script src="js/bonos.js?v=fix_textmatch_v27"></script>
     <script src="js/bonos-history-helper.js?v=fix_textmatch_v26"></script>
