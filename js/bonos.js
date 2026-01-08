@@ -357,8 +357,8 @@ function getSpaceForService(serviceName) {
 
 // Helper para redirección
 function goToReservation(client, service, code, space) {
-    service = unescape(service).trim();
-    client = unescape(client).trim();
+    service = decodeURIComponent(service).trim();
+    client = decodeURIComponent(client).trim();
     if (!confirm(`¿Ir al calendario para reservar '${service}' para ${client}?`)) return;
 
     // 1. Buscar en Master Items (Prioridad Absoluta para Espacio)
@@ -464,7 +464,8 @@ function goToReservation(client, service, code, space) {
         url = `https://nataliogc.github.io/Mesachef/restaurante.html?action=new&client=${encodeURIComponent(client)}&service=${encodeURIComponent(service)}&voucher=${code}`;
     }
 
-    window.location.href = url;
+    // Open in new tab to preserve context
+    window.open(url, '_blank');
 }
 
 async function loadMasterItems() {
@@ -952,6 +953,42 @@ async function sincronizarConTienda(persistentData, btn, originalText) {
 
         shopVouchers.forEach(b => {
             if (!b || typeof b !== 'object') return;
+
+            // DEBUG EXTREMO PARA EL USUARIO
+            if (b.bono && b.bono.includes('7699')) {
+                console.log("=== DEBUG BONO 7699 RAW ===");
+                console.log(JSON.stringify(b, null, 2));
+                console.log("Has Billing?", !!b.billing);
+                console.log("Has Flat Billing?", !!b.billing_first_name);
+                console.log("===========================");
+            }
+
+            // --- NORMALIZACIÓN DE DATOS (WooCommerce API / Custom Endpoint) ---
+            // 1. Nested Billing Object
+            if (b.billing && typeof b.billing === 'object') {
+                const fName = b.billing.first_name || '';
+                const lName = b.billing.last_name || '';
+                if (!b.cliente) b.cliente = (fName + ' ' + lName).trim();
+
+                if (!b.telefono && b.billing.phone) b.telefono = b.billing.phone;
+                if (!b.email && b.billing.email) b.email = b.billing.email;
+            }
+
+            // 2. Flat Billing Keys (billing_first_name, etc) - Common in flat JSON exports
+            if (!b.cliente) {
+                const fName = b.billing_first_name || b.first_name || '';
+                const lName = b.billing_last_name || b.last_name || '';
+                const candidate = (fName + ' ' + lName).trim();
+                if (candidate) b.cliente = candidate;
+            }
+
+            if (!b.telefono) b.telefono = b.billing_phone || b.phone || '';
+            if (!b.email) b.email = b.billing_email || b.email || '';
+
+            // Compatibility
+            if (!b.nombre && b.cliente) b.nombre = b.cliente;
+            // ------------------------------------------------
+
             const code = (b.bono || '').trim(); // Trim to ensure unique key
 
             if (!groupedVouchers[code]) {
@@ -1048,7 +1085,7 @@ async function sincronizarConTienda(persistentData, btn, originalText) {
 
                 // CRÍTICO: Actualizar datos del cliente desde WooCommerce si están disponibles
                 // PROTECCIÓN: No sobrescribir si el usuario ha editado a mano (manual_update)
-                // o si los datos locales son valiosos y los de WooCommerce genéricos.
+                // salvo que el usuario explícitamente lo fuerce (sync manual).
                 const isManual = persisted.manual_update === true;
                 const wooNameGeneric = !b.cliente || b.cliente.toLowerCase().includes("nombre cliente") || b.cliente.toLowerCase() === "cliente";
 
@@ -1071,7 +1108,7 @@ async function sincronizarConTienda(persistentData, btn, originalText) {
                         needsUpdate = true;
                     }
                 } else {
-                    console.log(`[Sync] Saltando actualización de datos de contacto para ${b.bono} (Protección de Edición Manual activa)`);
+                    console.log(`[Sync] Saltando actualización de datos (Protección manual activa): ${b.bono}`);
                 }
 
                 // Actualizar searchTokens para incluir los nuevos datos
@@ -1341,7 +1378,7 @@ function getDaysRemaining(v) {
 
 function detectSessions(voucher) {
     if (!voucher) return { total: 1, paxPerSession: 1 };
-    const productName = voucher.producto || '';
+    const productName = voucher.producto || voucher.nombre || '';
     const productId = voucher.product_id || null;
     const voucherPrice = parseFloat(voucher.importe) || parseFloat(voucher.precio) || 0;
     const quantity = parseInt(voucher.cantidad) || 0;
@@ -1773,9 +1810,31 @@ function renderBonosFromState() {
             effectivelyCompleted = b.items_desglosados.every(i => (i.used || 0) >= (i.sessions || 1));
         }
 
-        if (b.estado === 'completed') {
+        // FIX: Solo mostrar como CANJEADO si realmente se han consumido los items,
+        // ignorando el estado 'completed' si data items pendientes (salvo override manual)
+        if (b.estado === 'completed' && effectivelyCompleted) {
             badgeClass = 'st-completed';
             statusLabel = 'CANJEADO';
+        }
+        else if (b.estado === 'completed') {
+            // DB says completed, but we have pending items? Show PARTIAL/ACTIVE
+            // Trust items over generic status
+            if (effectivelyCompleted) {
+                badgeClass = 'st-completed';
+                statusLabel = 'CANJEADO';
+            } else {
+                // Items pending -> Show Partial/Active
+                // We need to decide if Partial or Active.
+                // If totalUsed > 0 or manual_update is true, maybe Partial.
+                // Let's default to EN USO if some usage, or ACTIVO if none.
+                if (realUsed > 0) {
+                    badgeClass = 'st-partial';
+                    statusLabel = 'EN USO';
+                } else {
+                    badgeClass = 'st-pending';
+                    statusLabel = 'ACTIVO';
+                }
+            }
         }
         else if (effectivelyCompleted) {
             badgeClass = 'st-completed';
@@ -1886,6 +1945,29 @@ async function openVoucherManagement(code) {
         const displayPrice = (parseFloat(v.importe) > 0) ? v.importe : (catalogMatch ? catalogMatch.precio : 0);
         priceBadge.textContent = displayPrice + '€';
     }
+
+    // --- INYECCIÓN BOTÓN REFRESH ---
+    const headerTitle = document.getElementById("vm-title-code").parentNode; // H2 container
+    if (headerTitle) {
+        // Eliminar botón previo si existe
+        const existingBtn = document.getElementById("vm-btn-refresh");
+        if (existingBtn) existingBtn.remove();
+
+        const refreshBtn = document.createElement("button");
+        refreshBtn.id = "vm-btn-refresh";
+        refreshBtn.innerHTML = '<i class="fas fa-sync-alt"></i>';
+        refreshBtn.className = "btn btn-sm btn-outline";
+        refreshBtn.style.marginLeft = "10px";
+        refreshBtn.style.border = "none";
+        refreshBtn.style.color = "#94a3b8";
+        refreshBtn.title = "Actualizar datos desde Nube/Tienda";
+        refreshBtn.onclick = (e) => {
+            e.stopPropagation();
+            syncSingleVoucher(code);
+        };
+        headerTitle.appendChild(refreshBtn);
+    }
+    // -------------------------------
 
     // Renderizar historial de uso (async)
     // renderVoucherHistory(code); // Moved to end with await
@@ -2361,6 +2443,16 @@ async function openVoucherManagement(code) {
                             <i class="fas fa-calendar-alt"></i> Reservar
                         </button>
                     `;
+                    // Añadir botón de validación manual para Restaurante/Otros
+                    if (spaceName.toLowerCase().includes('rest') || spaceName.toLowerCase().includes('hotel') || spaceName.toLowerCase().includes('comida')) {
+                        buttonsHtml += `
+                            <button class="btn btn-sm" onclick="validateManualConsumption(${idx})" title="Validar Manualmente (Generar Recibo)"
+                                style="padding:2px 8px; font-size:0.7rem; background:#64748b; color:#fff; border:none; border-radius:4px; margin-left:4px;">
+                                <i class="fas fa-file-invoice"></i>
+                            </button>
+                        `;
+                    }
+
                 }
 
                 if (isEditable) {
@@ -2497,6 +2589,70 @@ async function openVoucherManagement(code) {
         await saveVoucherChanges();
     };
 
+    window.validateManualConsumption = async (idx) => {
+        const item = state.editingVoucherItems[idx];
+        if (!confirm(`¿Generar recibo de consumo manual para '${item.name}'?\n\nEsto creará una reserva 'finalizada' en el historial.`)) return;
+
+        // 1. Incrementar uso localmente
+        item.used = (item.used || 0) + 1;
+
+        // 2. Determinar colección
+        let targetCollection = 'spa_reservations'; // Fallback
+        let origenType = 'manual';
+        const spaceLower = (item.space || '').toLowerCase();
+
+        if (spaceLower.includes('rest') || spaceLower.includes('comida')) {
+            targetCollection = 'reservas_restaurante';
+            origenType = 'restaurante';
+        } else if (spaceLower.includes('gim')) {
+            targetCollection = 'reservas_gimnasio';
+            origenType = 'gimnasio';
+        } else if (spaceLower.includes('suite')) {
+            targetCollection = 'reservas_suite';
+            origenType = 'suite';
+        } else if (spaceLower.includes('spa')) {
+            targetCollection = 'reservas_spa';
+            origenType = 'spa';
+        }
+
+        // 3. Crear registro
+        const code = document.getElementById("vm-code").value || '';
+        const client = document.getElementById("vm-cliente").value || '';
+
+        const record = {
+            fecha: new Date().toISOString().split('T')[0],
+            hora: new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
+            cliente: client,
+            servicio: item.name,
+            bono: code,
+            origen: origenType,
+            estado: 'finalizada',
+            notas: 'Validación manual desde panel',
+            pax: item.pax || 1,
+            precio_total: 0 // Asumir 0 o precio del item si lo tuviéramos
+        };
+
+        try {
+            await db.collection(targetCollection).add(record);
+            alert("Recibo generado correctamente.");
+        } catch (e) {
+            console.error("Error generando recibo:", e);
+            alert("Error al guardar el recibo: " + e.message);
+        }
+
+        // 4. Update UI
+        const globalUsedInput = document.getElementById("vm-sesiones-usadas");
+        if (globalUsedInput) {
+            globalUsedInput.value = (parseInt(globalUsedInput.value) || 0) + 1;
+        }
+
+        renderEditableBreakdown();
+        if (typeof renderVoucherHistory === 'function') {
+            renderVoucherHistory(code);
+        }
+        await saveVoucherChanges();
+    };
+
 
     window.linkVoucherToCatalogProduct = () => {
         const searchVal = document.getElementById("vm-catalog-search").value;
@@ -2625,7 +2781,14 @@ async function openVoucherManagement(code) {
     }
     document.getElementById("vm-sesiones-total").value = sessionsTotales || suggestedTotal || 1;
 
-    document.getElementById("vm-sesiones-usadas").value = v.sesiones_usadas || 0;
+    // Calcule USED dynamically from items if DB is stale
+    let suggestedUsed = detectedServices.reduce((sum, s) => sum + (s.used || 0), 0);
+    // If DB says 0 but we found used items via history sync, use that
+    let sesionesUsadas = v.sesiones_usadas || 0;
+    if (sesionesUsadas < suggestedUsed) {
+        sesionesUsadas = suggestedUsed;
+    }
+    document.getElementById("vm-sesiones-usadas").value = sesionesUsadas;
 
     let paxPorSesion = v.pax_por_sesion || v.pax_sesion;
     if ((!paxPorSesion || paxPorSesion === 1) && suggestedPax > 1) {
@@ -2709,8 +2872,16 @@ async function saveVoucherChanges() {
     };
 
     // Auto estado logic (Item-aware)
-    if (updates.items_desglosados && updates.items_desglosados.length > 0) {
-        // PACK: Completo solo si TODOS los items están completos
+    // Priority: If Global Counters say Completed (Used >= Total), force Completed.
+    // Otherwise, if items exist, rely on items state.
+
+    const globalComplete = updates.sesiones_usadas >= updates.sesiones_totales && updates.sesiones_totales > 0;
+    const globalPartial = updates.sesiones_usadas > 0;
+
+    if (globalComplete) {
+        updates.estado = 'completed';
+    } else if (updates.items_desglosados && updates.items_desglosados.length > 0) {
+        // PACK: Completo solo si TODOS los items están completos (y global no forzó completado)
         const allItemsComplete = updates.items_desglosados.every(item => (item.used || 0) >= (item.sessions || 1));
         const anyItemUsed = updates.items_desglosados.some(item => (item.used || 0) > 0);
 
@@ -2723,9 +2894,9 @@ async function saveVoucherChanges() {
         }
     } else {
         // Simple/Legacy logic
-        if (updates.sesiones_usadas >= updates.sesiones_totales) {
-            updates.estado = 'completed';
-        } else if (updates.sesiones_usadas > 0) {
+        if (globalComplete) {
+            updates.estado = 'completed'; // Redundant but clear
+        } else if (globalPartial) {
             updates.estado = 'partially';
         } else {
             updates.estado = 'pending';
@@ -3575,10 +3746,15 @@ function checkCustomProduct(select) {
             if (prod.sesiones) {
                 totalSessions = prod.sesiones;
             } else {
-                const detected = detectSessions(prod.nombre);
+                const detected = detectSessions(prod);
                 totalSessions = detected.total;
             }
             if (sessionsInput) sessionsInput.value = totalSessions;
+
+            // Auto-set PAX
+            const parsedPax = prod.personas || prod.pax || detectSessions(prod).paxPerSession || 1;
+            const paxInput = document.getElementById("lv-pax");
+            if (paxInput) paxInput.value = String(parsedPax);
         } else if (detailsDiv) {
             detailsDiv.style.display = 'none';
         }
@@ -3616,12 +3792,18 @@ function addToCartLocal() {
         if (selected.items_incluidos && selected.items_incluidos.length > 0) {
             // Nota: NO multiplicamos por sesiones aquí, se guarda la base del producto.
             // Si el producto dice "Circuito + Masaje", guardamos esos 2 items.
-            items = selected.items_incluidos.map(it => ({
-                name: it.name || it.producto || name,
-                sessions: it.sessions || 1,
-                space: it.space || '',
-                pax: pax
-            }));
+            items = selected.items_incluidos.map(it => {
+                // Si el item es un string (nombre del servicio), lo usamos
+                const itemName = (typeof it === 'string') ? it : (it.name || it.producto || name);
+                const itemSessions = (typeof it === 'object' && it.sessions) ? it.sessions : 1;
+                const itemSpace = (typeof it === 'object' && it.space) ? it.space : '';
+                return {
+                    name: itemName,
+                    sessions: itemSessions,
+                    space: itemSpace,
+                    pax: pax
+                };
+            });
         } else {
             items = [{ name, sessions: 1, space: '', pax: pax }];
         }
@@ -3867,11 +4049,27 @@ async function importExcelOrders(event) {
             'ID del pedido': 'order_id',
             'Estado del pedido': 'order_status',
             // Cliente
+            // Cliente
             'Correo electrónico del cliente': 'email',
             'Correo electrónico (facturación)': 'email_billing',
+            'Billing Email': 'email_billing',
+            'Email': 'email',
+
             'Nombre (facturación)': 'nombre',
+            'Billing First Name': 'nombre',
+            'First Name (Billing)': 'nombre',
+            'Nombre': 'nombre',
+
             'Apellidos (facturación)': 'apellidos',
+            'Billing Last Name': 'apellidos',
+            'Last Name (Billing)': 'apellidos',
+            'Apellidos': 'apellidos',
+
             'Teléfono (facturación)': 'telefono',
+            'Billing Phone': 'telefono',
+            'Phone (Billing)': 'telefono',
+            'Teléfono': 'telefono',
+            'Phone': 'telefono',
             // Fechas
             'Fecha del pedido': 'fecha',
             // Producto
@@ -4061,12 +4259,127 @@ async function importExcelOrders(event) {
         }
 
     } catch (err) {
-        console.error("Error importando Excel:", err);
-        showToast("Error al procesar el archivo: " + err.message, "error");
+        console.error("Error importando excel:", err);
+        showToast("Error importando: " + err.message, "error");
+    } finally {
+        // Reset input para permitir reimportar el mismo archivo
+        if (event && event.target) event.target.value = '';
+    }
+}
+
+// --- SYNC SINGLE VOUCHER (Manual Refresh) ---
+async function syncSingleVoucher(code) {
+    const btn = document.getElementById("vm-btn-refresh");
+    if (btn) {
+        btn.innerHTML = '<i class="fas fa-spin fa-sync"></i>';
+        btn.disabled = true;
     }
 
-    // Reset input para permitir reimportar el mismo archivo
-    event.target.value = '';
+    try {
+        console.log(`[DiffSync] Forzando actualización individual para: ${code}`);
+        let shopVouchers = [];
+
+        // Try Optimized Endpoint with Search
+        if (typeof fetchBonosDirect === 'function') {
+            let desdeForced;
+            try {
+                const oneYearAgo = new Date();
+                oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 5); // Look back 5 years to be safe
+                desdeForced = oneYearAgo.toISOString().split('T')[0];
+
+                console.log(`[DiffSync] Fetching with date ${desdeForced} to find ${code}...`);
+                // [PROTECTED LOGIC] INCREASED PER_PAGE IS CRITICAL
+                // Sending both per_page and limit to ensure different API versions respect it
+                const params = { desde: desdeForced, per_page: 999, limit: 999 };
+                shopVouchers = await fetchBonosDirect(params, 15000);
+            } catch (e) {
+                console.warn("[DiffSync] Opt failed", e);
+                if (typeof fetchBonosWithFallback === 'function') {
+                    // Fallback should also receive max items
+                    shopVouchers = await fetchBonosWithFallback({ desde: desdeForced, per_page: 999, limit: 999 }, 15000);
+                }
+            }
+        } else {
+            // Legacy Fallback (no params supported here usually)
+            const endpoint = getBonoEndpoint();
+            const res = await fetch(endpoint);
+            shopVouchers = await res.json();
+            if (shopVouchers.contents) shopVouchers = JSON.parse(shopVouchers.contents);
+        }
+
+        if (!Array.isArray(shopVouchers)) shopVouchers = [];
+
+        // Find OUR voucher
+        const targetBono = shopVouchers.find(b => {
+            const rawCode = (b.bono || '').trim();
+            if (rawCode === code) return true;
+            if (code.includes(b.order_id)) return true; // Loose match WC123 vs 123
+            return false;
+        });
+
+        if (targetBono) {
+            console.log("[DiffSync] Found in API:", targetBono);
+
+            // [PROTECTED LOGIC] DATA NORMALIZATION
+            // Handles both nested 'billing' (new API) and flat 'billing_' (legacy/custom)
+            // DO NOT REMOVE BILLING SUPPORT.
+            const b = targetBono;
+            // 1. Nested Billing
+            if (b.billing && typeof b.billing === 'object') {
+                const fName = b.billing.first_name || '';
+                const lName = b.billing.last_name || '';
+                if (!b.cliente) b.cliente = (fName + ' ' + lName).trim();
+                if (!b.telefono && b.billing.phone) b.telefono = b.billing.phone;
+                if (!b.email && b.billing.email) b.email = b.billing.email;
+            }
+            // 2. Flat Billing
+            if (!b.cliente) {
+                const fName = b.billing_first_name || b.first_name || '';
+                const lName = b.billing_last_name || b.last_name || '';
+                const candidate = (fName + ' ' + lName).trim();
+                if (candidate) b.cliente = candidate;
+            }
+            if (!b.telefono) b.telefono = b.billing_phone || b.phone || '';
+            if (!b.email) b.email = b.billing_email || b.email || '';
+            if (!b.nombre && b.cliente) b.nombre = b.cliente;
+
+            // UPDATE FIRESTORE
+            const updateData = {};
+            if (b.cliente) updateData.cliente = b.cliente;
+            if (b.telefono) updateData.telefono = b.telefono;
+            if (b.email) updateData.email = b.email;
+
+            if (Object.keys(updateData).length > 0) {
+                await db.collection("spa_vouchers").doc(code).update(updateData);
+                console.log("[DiffSync] Firestore Updated:", updateData);
+
+                // Update Local State for immediate feedback
+                const localIdx = state.bonos.findIndex(lb => lb.bono === code);
+                if (localIdx >= 0) {
+                    state.bonos[localIdx] = { ...state.bonos[localIdx], ...updateData };
+                    document.getElementById("vm-cliente").value = updateData.cliente || '';
+                    document.getElementById("vm-telefono").value = updateData.telefono || '';
+                    document.getElementById("vm-email").value = updateData.email || '';
+                    showToast("Datos actualizados desde la tienda", "success");
+                }
+            } else {
+                showToast("No hay datos nuevos en la tienda", "info");
+            }
+
+        } else {
+            console.warn("[DiffSync] Bono not found in recent API response");
+            showToast(`No se encontró el bono en los últimos 5 años (Fetched ${shopVouchers.length} items)`, "warning");
+        }
+
+    } catch (e) {
+        console.error("[DiffSync] Error:", e);
+        showToast("Error al refrescar: " + e.message, "error");
+    } finally {
+        if (btn) {
+            btn.innerHTML = '<i class="fas fa-sync-alt"></i>';
+            btn.disabled = false;
+        }
+    }
 }
 
 // Mapear estados de WooCommerce a estados internos

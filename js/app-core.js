@@ -71,8 +71,24 @@ window.fetchBonosDirect = async function (params = {}, timeout = 10000) {
 };
 
 // Try fetching with multiple CORS proxies (legacy fallback)
-window.fetchBonosWithFallback = async function (timeout = 10000) {
-    const targetUrl = getBonoEndpoint();
+window.fetchBonosWithFallback = async function (params = {}, timeout = 10000) {
+    // Handle overload: shift if first arg is number
+    if (typeof params === 'number') {
+        timeout = params;
+        params = {};
+    }
+
+    let targetUrl = getBonoEndpoint();
+
+    // Append params to targetUrl
+    const urlObj = new URL(targetUrl);
+    Object.keys(params).forEach(key => {
+        if (params[key] !== null && params[key] !== undefined) {
+            urlObj.searchParams.append(key, params[key]);
+        }
+    });
+    targetUrl = urlObj.toString();
+
     const errors = [];
 
     // Try each CORS proxy in sequence
@@ -567,7 +583,7 @@ class SyncManager {
                     const { syncStatus, lastSyncAt, ...payload } = item;
 
                     // Subir a Firestore
-                    await db.collection('spa_vouchers').doc(docId).set(payload, { merge: true });
+                    await db.collection('spa_vouchers').doc(String(docId)).set(payload, { merge: true });
 
                     // Marcar como synced localmente
                     await apiLocal.markSynced('bonos', item.id, docId);

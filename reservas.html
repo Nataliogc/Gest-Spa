@@ -633,7 +633,7 @@
                             <label
                                 style="font-size: 0.65rem; font-weight: 800; color: #4a5568; text-transform: uppercase;">Sesiones
                                 a usar</label>
-                            <input type="number" id="residences" value="1" min="1" max="10"
+                            <input type="number" id="res-sesiones" value="1" min="1" max="10"
                                 style="width: 100%; padding: 6px 10px; border-radius: 6px; border: 1px solid #e2e8f0; font-size: 0.85rem; text-align: center; background: #f8fafc;">
                         </div>
                     </div>
@@ -1811,7 +1811,12 @@
                 const snapshot = await db.collection(currentModule.collection).where("fecha", "==", date).get();
                 const remoteData = [];
                 snapshot.forEach(doc => {
-                    remoteData.push({ id: doc.id, ...doc.data(), collection: currentModule.collection });
+                    const d = doc.data();
+                    // DEBUG: Trace Suite reservations
+                    if (currentModule.code === 'suite') {
+                        console.log("DEBUG SUITE LOAD:", doc.id, d.fecha, d.hora, d);
+                    }
+                    remoteData.push({ id: doc.id, ...d, collection: currentModule.collection });
                 });
 
                 // Sync Remote -> Local
@@ -2776,6 +2781,13 @@
                 // Limpieza final
                 closeModal();
                 clearPendingVoucher();
+
+                // CLEANUP URL to prevent loop
+                if (window.history.replaceState) {
+                    const cleanUrl = window.location.protocol + "//" + window.location.host + window.location.pathname + "?type=" + currentModule.code + "&date=" + date;
+                    window.history.replaceState({ path: cleanUrl }, "", cleanUrl);
+                }
+
                 // loadReservas(date); // Ya llamado arriba en local path
 
             } catch (err) {
@@ -2896,6 +2908,10 @@
 
                     // 1. Mostrar reservas existentes
                     if (isOccupied) {
+                        // DEBUG: Trace Suite Rendering
+                        if (currentModule.code === 'suite') {
+                            bookingsInSlot.forEach(b => console.log(`DEBUG SUITE RENDER slot=${timeLabel}:`, b.nombre, b.hora));
+                        }
                         bookingsInSlot.forEach(booking => {
                             const [bh, bm] = booking.hora.split(':').map(Number);
                             const bStart = bh * 60 + bm;

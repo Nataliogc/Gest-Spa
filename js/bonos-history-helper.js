@@ -23,7 +23,7 @@ async function renderVoucherHistory(bonoCode, internalValidations = []) {
     try {
         let allReservations = [];
         // Colecciones donde buscar reservas
-        const collections = ['reservas_spa', 'reservas_suite', 'reservas_panacea', 'reservas_peluqueria', 'reservas_vip', 'reservas_restaurante', 'reservas_gimnasio'];
+        const collections = ['reservas_spa', 'reservas_suite', 'reservas_panacea', 'reservas_peluqueria', 'reservas_vip', 'reservas_restaurante', 'reservas_gimnasio', 'reservas_rest', 'reservas_menu'];
 
         console.log(`[HISTORY] Buscando historial para bono: '${bonoCode}' en colecciones:`, collections);
 
@@ -88,6 +88,36 @@ async function renderVoucherHistory(bonoCode, internalValidations = []) {
             }
         }
 
+        // 5. MERGE LOCAL PENDING RESERVATIONS (Sync Delay mitigation)
+        if (window.apiLocal && typeof apiLocal.getPendingSync === 'function') {
+            try {
+                const localPending = await apiLocal.getPendingSync('reservas');
+                const cleanBono = bonoCode.replace(/\s+/g, '');
+
+                localPending.forEach(loc => {
+                    const locBono = (loc.bono || '').replace(/\s+/g, '');
+                    // Match by bono code (exact or stripped) or Email if available
+                    // We only check bono here for simplicity as pending items usually have it
+                    if (locBono === cleanBono || (loc.bono === bonoCode)) {
+                        // Avoid duplicates if already found in Firestore (rare race conn)
+                        if (!allReservations.some(r => r.id === loc.id)) {
+                            // Infer collection/color
+                            let col = loc.collection || 'reservas_spa';
+                            if (loc.servicio && loc.servicio.toLowerCase().includes('suite')) col = 'reservas_suite';
+
+                            allReservations.push({
+                                ...loc,
+                                _col: col,
+                                _isLocal: true // Marker for UI
+                            });
+                        }
+                    }
+                });
+            } catch (e) {
+                console.warn("[HISTORY] Error checking local pending:", e);
+            }
+        }
+
         // --- MERGE INTERNAL VALIDATIONS ---
         // ... (keep as is) ...
         if (internalValidations && internalValidations.length > 0) {
@@ -143,7 +173,7 @@ async function renderVoucherHistory(bonoCode, internalValidations = []) {
             else if (res._col === 'reservas_panacea' || res._col === 'reservas_vip') { typeLabel = "TRATAMIENTO"; typeColor = "#ec4899"; } // Pink
             else if (res._col === 'reservas_peluqueria') { typeLabel = "PELUQUERÍA"; typeColor = "#f59e0b"; } // Amber
             else if (res._col === 'reservas_peluqueria') { typeLabel = "PELUQUERÍA"; typeColor = "#f59e0b"; } // Amber
-            else if (res._col === 'reservas_restaurante') { typeLabel = "RESTAURANTE"; typeColor = "#f97316"; } // Orange
+            else if (res._col === 'reservas_restaurante' || res._col === 'reservas_rest' || res._col === 'reservas_menu') { typeLabel = "RESTAURANTE"; typeColor = "#f97316"; } // Orange
             else if (res._col === 'reservas_gimnasio') { typeLabel = "GIMNASIO"; typeColor = "#6366f1"; } // Indigo
             else if (res._col === 'internal') {
                 const srv = (res.servicio || '').toLowerCase();
