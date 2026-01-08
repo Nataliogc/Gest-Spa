@@ -3348,7 +3348,7 @@ function renderLVCart() {
                 <i class="fas fa-shopping-basket" style="font-size: 1.5rem; opacity: 0.3; display: block; margin-bottom: 8px;"></i>
                 Tu bono no tiene productos todavía
             </div>`;
-        totalDisplay.innerHTML = "0.00€";
+        if (totalDisplay) totalDisplay.innerHTML = "0.00€";
         return;
     }
 
@@ -3371,7 +3371,9 @@ function renderLVCart() {
 
     const totalPrice = state.lvCart.reduce((sum, i) => sum + (i.price * i.sessions), 0);
     const totalSessions = state.lvCart.reduce((sum, i) => sum + i.sessions, 0);
-    totalDisplay.innerHTML = `<span style="color: #64748b; font-weight: 400; font-size: 0.8rem; margin-right: 5px;">TOTAL:</span> ${totalPrice.toFixed(2)}€ <span style="font-size: 0.75rem; color: #94a3b8; margin-left: 5px;">(${totalSessions} Sesiones)</span>`;
+    if (totalDisplay) {
+        totalDisplay.innerHTML = `<span style="color: #64748b; font-weight: 400; font-size: 0.8rem; margin-right: 5px;">TOTAL:</span> ${totalPrice.toFixed(2)}€ <span style="font-size: 0.75rem; color: #94a3b8; margin-left: 5px;">(${totalSessions} Sesiones)</span>`;
+    }
 }
 
 function removeFromCart(index) {
