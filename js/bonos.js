@@ -558,11 +558,34 @@ async function searchVoucherByCode(code) {
 
         // 2. SI NO ESTÁ EN LOCAL, BUSCAR EN FIRESTORE
         console.log(`[LOCAL-FIRST] Bono ${code} no hallado en local, consultando Firestore...`);
-        const docRef = db.collection("spa_vouchers").doc(code);
-        const docSnap = await docRef.get();
 
-        if (docSnap.exists) {
-            const voucher = { ...docSnap.data(), bono: code };
+        // Helper para intentar leer varios formatos de ID
+        const tryFetch = async (idCandidates) => {
+            for (const id of idCandidates) {
+                if (!id) continue;
+                console.log(`[SEARCH] Probando ID: "${id}"...`);
+                const docSnap = await db.collection("spa_vouchers").doc(id).get();
+                if (docSnap.exists) return { ...docSnap.data(), bono: id };
+            }
+            return null;
+        };
+
+        // Generar candidatos de ID
+        const candidates = [code];
+
+        // Si parece un exc.Loc, normalizarlo al formato estándar 'exc.Loc 12345'
+        // Esto ayuda si el usuario escribe 'excloc 12345' o 'EXC.LOC 12345'
+        if (code.match(/^exc\.?loc/i)) {
+            const number = code.match(/\d+/);
+            if (number) {
+                candidates.push(`exc.Loc ${number[0]}`); // Estándar
+                candidates.push(`exc.Loc${number[0]}`); // Compacto
+            }
+        }
+
+        const voucher = await tryFetch(candidates);
+
+        if (voucher) {
             state.bonos = [voucher];
             state.isActiveSearch = true;
             renderBonosFromState();
@@ -3819,6 +3842,43 @@ function checkCustomProduct(select) {
     }
 }
 
+// Función para recalcular precio con descuento
+window.updateLocalPriceWithDiscount = () => {
+    // Si es producto custom, el precio base es el que pone el usuario, el descuento aplica sobre eso?
+    // Habitualmente en custom, pones el precio final directamente. 
+    // Pero si el usuario quiere usar el campo dto, lo permitimos.
+
+    let basePrice = 0;
+
+    if (state.lvSelectedProduct) {
+        if (state.lvSelectedProduct.custom) {
+            // Para custom, difícil saber el "base" original si ya editó el input.
+            // Asumimos que el input tiene el precio.
+            // Para simplificar: En custom NO aplicamos recálculo automático si no hay base conocida.
+            return;
+        } else {
+            // Producto de catálogo: Recalcular desde base
+            const pBase = state.lvSelectedProductBasePrice || 0;
+            const pPaxBase = state.lvSelectedProductBasePax || 1;
+            const currentPax = parseInt(document.getElementById("lv-pax").value) || 1;
+            const ratio = currentPax / pPaxBase;
+            basePrice = pBase * ratio;
+        }
+    } else {
+        return;
+    }
+
+    const discount = parseFloat(document.getElementById("lv-discount").value) || 0;
+    const finalPrice = basePrice * (1 - (discount / 100));
+
+    document.getElementById("lv-price").value = finalPrice.toFixed(2);
+};
+
+// Hookear cambio de pax para que también recalcule con descuento
+// (Necesitamos asegurar que el listener de pax llame a esto)
+// En HTML: id="lv-pax" ... podríamos añadir onchange="updateLocalPriceWithDiscount()"
+// Pero como ya existe lógica quizás, mejor lo hacemos en addToCartLocal o inyectamos.
+
 function addToCartLocal() {
     const selected = state.lvSelectedProduct;
     if (!selected) return showToast("Primero selecciona un producto", "warning");
@@ -3827,6 +3887,9 @@ function addToCartLocal() {
     let price = 0;
     const sessions = parseInt(document.getElementById("lv-sessions").value) || 1;
     const pax = parseInt(document.getElementById("lv-pax").value) || 1;
+    const discountVal = parseFloat(document.getElementById("lv-discount").value) || 0; // Renomed to avoid collision
+
+    console.log("[CART] Adding:", name, "Pax:", pax, "Dto:", discountVal);
 
     if (selected.custom) {
         name = document.getElementById("lv-product-custom").value.trim();
@@ -3837,21 +3900,28 @@ function addToCartLocal() {
         const basePrice = state.lvSelectedProductBasePrice || 0;
         const basePax = state.lvSelectedProductBasePax || 1;
 
-        // Logic:
-        // If BasePax = 1 (Individual) and Pax = 2 -> Price = Base * 2
-        // If BasePax = 2 (Couple) and Pax = 2 -> Price = Base * 1
         const ratio = pax / basePax;
-        price = basePrice * ratio;
+        let calculatedPrice = basePrice * ratio;
+
+        // Aplicar descuento
+        if (discountVal > 0) {
+            calculatedPrice = calculatedPrice * (1 - (discountVal / 100));
+        }
+
+        price = calculatedPrice;
     }
 
     // Clonar items si es del catálogo para tener desglose real
     let items = [];
     if (!selected.custom) {
         if (selected.items_incluidos && selected.items_incluidos.length > 0) {
-            // Nota: NO multiplicamos por sesiones aquí, se guarda la base del producto.
-            // Si el producto dice "Circuito + Masaje", guardamos esos 2 items.
+            // Distribuir precio entre items (Proporcional o al primero)
+            // Simplificación: Todo el precio al primer item o dividido igual?
+            // Mejor: Dividido igual para que la suma de historial tenga sentido si se consumen por separado.
+            const itemCount = selected.items_incluidos.length;
+            const pricePerItem = price / itemCount;
+
             items = selected.items_incluidos.map(it => {
-                // Si el item es un string (nombre del servicio), lo usamos
                 const itemName = (typeof it === 'string') ? it : (it.name || it.producto || name);
                 const itemSessions = (typeof it === 'object' && it.sessions) ? it.sessions : 1;
                 const itemSpace = (typeof it === 'object' && it.space) ? it.space : '';
@@ -3859,23 +3929,28 @@ function addToCartLocal() {
                     name: itemName,
                     sessions: itemSessions,
                     space: itemSpace,
-                    pax: pax
+                    pax: pax,
+                    price: pricePerItem // VITAL PARA HISTORIAL
                 };
             });
         } else {
-            items = [{ name, sessions: 1, space: '', pax: pax }];
+            items = [{ name, sessions: 1, space: '', pax: pax, price: price }];
         }
     } else {
-        items = [{ name, sessions: 1, space: '', pax: pax }];
+        items = [{ name, sessions: 1, space: '', pax: pax, price: price }];
     }
 
+    // Nombre final con descuento para claridad
+    const finalName = discountVal > 0 ? `${name} (-${discountVal}%)` : name;
+
     state.lvCart.push({
-        name,
+        name: finalName,
         price,
         sessions,
         pax,
         originalProduct: selected.custom ? null : selected,
-        items_breakdown: items
+        items_breakdown: items,
+        discount_percent: discountVal
     });
 
     renderLVCart();
@@ -3885,6 +3960,7 @@ function addToCartLocal() {
     document.getElementById("lv-product-search").value = "";
     document.getElementById("lv-product-custom").style.display = 'none';
     document.getElementById("lv-price").value = "";
+    document.getElementById("lv-discount").value = "0";
     document.getElementById("lv-sessions").value = 1;
     document.getElementById("lv-product-details").style.display = 'none';
 }

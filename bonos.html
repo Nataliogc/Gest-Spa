@@ -417,7 +417,8 @@
                             </div>
                         </div>
 
-                        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-top: 15px;">
+                        <div
+                            style="display: grid; grid-template-columns: 1fr 0.8fr 0.8fr 1.2fr; gap: 10px; margin-top: 15px;">
                             <div class="form-group" id="lv-price-container">
                                 <label style="font-size: 0.8rem; color: #64748b; font-weight: 600;">Importe (€)</label>
                                 <div style="position: relative;">
@@ -425,6 +426,13 @@
                                         style="padding-left: 20px; margin-top: 5px; font-weight: 700;">
                                     <span style="position: absolute; left: 8px; top: 13px; color: #94a3b8;">€</span>
                                 </div>
+                            </div>
+                            <!-- DESCUENTO -->
+                            <div class="form-group">
+                                <label style="font-size: 0.8rem; color: #64748b; font-weight: 600;">Dto. %</label>
+                                <input type="number" id="lv-discount" value="0" min="0" max="100" class="param-input"
+                                    onkeyup="updateLocalPriceWithDiscount()" onchange="updateLocalPriceWithDiscount()"
+                                    style="margin-top: 5px; font-weight: 700; text-align: center; color: #e11d48;">
                             </div>
                             <div class="form-group">
                                 <label style="font-size: 0.8rem; color: #64748b; font-weight: 600;">Sesiones</label>
