@@ -226,6 +226,28 @@
                                     </div>
                                 </div>
 
+                                <!-- HORARIOS SEMANALES -->
+                                <div class="stat-card" style="margin-top: 30px; border-left: 4px solid var(--accent);">
+                                    <div
+                                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                                        <h3 style="margin: 0; font-size: 1rem; color: var(--text);">
+                                            <i class="fas fa-clock"></i> Horarios de Turnos (Semanal)
+                                        </h3>
+                                        <button onclick="copyMondayToWeekdays()" class="btn btn-outline btn-sm"
+                                            title="Copiar horario de Lunes a V-J">
+                                            <i class="fas fa-copy"></i> Copiar Lunes a Laborables
+                                        </button>
+                                    </div>
+                                    <p class="muted" style="font-size: 0.75rem; margin-bottom: 15px;">Define las horas
+                                        de inicio de los turnos separadas por comas (Ej: 10:00, 11:30).</p>
+
+                                    <div id="cfg-schedule-container" style="display: grid; gap: 10px;">
+                                        <!-- JS Render Schedule Rows -->
+                                        <div style="text-align: center; padding: 20px; color: #94a3b8;">Cargando
+                                            horarios...</div>
+                                    </div>
+                                </div>
+
                                 <button onclick="saveSpaSettings()" class="btn btn-accent"
                                     style="width: 100%; margin-top: 25px; justify-content: center; height: 45px; font-weight: 600;">
                                     <i class="fas fa-save"></i> Guardar Configuración Spa

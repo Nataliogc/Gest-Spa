@@ -172,8 +172,6 @@ async function renderVoucherHistory(bonoCode, internalValidations = []) {
             else if (res._col === 'reservas_suite') { typeLabel = "SUITE"; typeColor = "#8b5cf6"; } // Violet
             else if (res._col === 'reservas_panacea' || res._col === 'reservas_vip') { typeLabel = "TRATAMIENTO"; typeColor = "#ec4899"; } // Pink
             else if (res._col === 'reservas_peluqueria') { typeLabel = "PELUQUERÍA"; typeColor = "#f59e0b"; } // Amber
-            else if (res._col === 'reservas_peluqueria') { typeLabel = "PELUQUERÍA"; typeColor = "#f59e0b"; } // Amber
-            else if (res._col === 'reservas_restaurante' || res._col === 'reservas_rest' || res._col === 'reservas_menu') { typeLabel = "RESTAURANTE"; typeColor = "#f97316"; } // Orange
             else if (res._col === 'reservas_gimnasio') { typeLabel = "GIMNASIO"; typeColor = "#6366f1"; } // Indigo
             else if (res._col === 'internal') {
                 const srv = (res.servicio || '').toLowerCase();
@@ -184,14 +182,28 @@ async function renderVoucherHistory(bonoCode, internalValidations = []) {
                     typeLabel = "CANJEADO";
                     typeColor = "#10b981"; // Emerald
                 }
-            } // Emerald
-
-            if (res.origen && res.origen.includes('hotel')) {
-                typeLabel += " (HOTEL)";
             }
 
-            // Precio
-            const precio = res.precio_total ? parseFloat(res.precio_total).toFixed(2) + '€' : '-';
+            // Override for Restaurant services stored in SPA/Other collections
+            const srvLower = (res.servicio || '').toLowerCase();
+            let isRestaurant = false;
+            if (['reservas_restaurante', 'reservas_rest', 'reservas_menu'].includes(res._col) ||
+                srvLower.includes('restaurante') || srvLower.includes('menu') || srvLower.includes('menú')) {
+                typeLabel = "RESTAURANTE";
+                typeColor = "#f97316"; // Orange
+                isRestaurant = true;
+            }
+
+            // Precio handling
+            let precioDisplay = res.precio_total ? parseFloat(res.precio_total).toFixed(2) + '€' : '-';
+            // Force "Incluido" for vouchers or Restaurant items in voucher view
+            if (res.origen === 'bono' || isRestaurant) {
+                precioDisplay = '<span style="color:#10b981; font-weight:600; font-size:0.75rem;">Incluido</span>';
+            }
+
+            // Friendly ID handling
+            const safeId = res.id ? String(res.id) : '';
+            const displayId = res.id_reserva || res.localizador || res.numero_reserva || res.id_ticket || res.ticket_id || res.id_friendly || (safeId.length > 6 ? '#' + safeId.substring(0, 6) : '#' + safeId);
 
             if (res._col === 'internal') {
                 // Manual Validation Item - Show Alert with Details
@@ -221,11 +233,46 @@ Confirmada por: ${res.validado_por || 'Sistema'}
                             </div>
                         </div>
                         <div style="text-align:right;">
-                            <div style="font-weight:700; font-size:0.9rem; color:#334155;">${precio}</div>
+                            <div style="font-weight:700; font-size:0.9rem; color:#334155;">${precioDisplay}</div>
                             <span class="badge badge-green" style="font-size:0.65rem;">Validado</span>
                         </div>
                     </div>
                     `;
+            } else if (isRestaurant) {
+                // RESTAURANT DISPLAY (No external link, show alert)
+                const detailText = `
+RESERVA DE RESTAURANTE
+--------------------------------
+ID: ${displayId}
+Fecha: ${date} - ${res.hora}h
+Servicio: ${res.servicio}
+Pax: ${res.pax}
+Cliente: ${res.cliente || res.nombre || '-'}
+Teléfono: ${res.telefono || '-'}
+Observaciones: ${res.observaciones || '-'}
+                    `.trim();
+
+                return `
+                    <div onclick="alert(\`${detailText}\`)" style="cursor:pointer; display:flex; justify-content:space-between; align-items:center; padding: 10px 0; border-bottom: 1px solid #f1f5f9;" title="Ver Detalles Restaurante">
+                        <div style="flex: 1;">
+                            <div style="display:flex; align-items:center; gap: 8px;">
+                                <span style="background:${typeColor}; color:white; font-size:0.65rem; padding: 2px 6px; border-radius:4px; font-weight:700;">${typeLabel}</span>
+                                <div style="font-weight:600; font-size:0.85rem; color:#1e293b;">
+                                    ${date} - ${res.hora}h <i class="fas fa-utensils" style="font-size:0.7em; color:#f97316; margin-left:4px;"></i>
+                                </div>
+                            </div>
+                            <div style="font-size:0.75rem; color:#64748b; margin-top:2px;">
+                                ${res.servicio} (${res.pax} pax) <span style="color:#cbd5e1; margin-left:4px;">${displayId}</span>
+                            </div>
+                        </div>
+                        <div style="text-align:right;">
+                            <div style="font-weight:700; font-size:0.9rem; color:#334155;">${precioDisplay}</div>
+                            ${res.fecha < new Date().toISOString().split('T')[0]
+                        ? '<span class="badge badge-gray" style="font-size:0.65rem;">Pasada</span>'
+                        : '<span class="badge badge-green" style="font-size:0.65rem;">Activa</span>'}
+                        </div>
+                    </div>
+                `;
             } else {
                 // Standard Reservation - Link to Calendar
                 // Determinar módulo para el link
@@ -266,7 +313,7 @@ Confirmada por: ${res.validado_por || 'Sistema'}
                             ` : ''}
                         </div>
                         <div style="text-align:right;">
-                            <div style="font-weight:700; font-size:0.9rem; color:#334155;">${precio}</div>
+                            <div style="font-weight:700; font-size:0.9rem; color:#334155;">${precioDisplay}</div>
                             <span class="badge badge-blue" style="font-size:0.65rem; margin-top:4px; display:inline-block;">CONSUMIDO</span>
                         </div>
                     </div>
@@ -274,7 +321,7 @@ Confirmada por: ${res.validado_por || 'Sistema'}
                 }
 
                 return `
-                    <a href="reservas.html?fecha=${res.fecha}&id=${res.id}&type=${moduleTypeForLink}" target="_blank" style="text-decoration:none; display:flex; justify-content:space-between; align-items:center; padding: 10px 0; border-bottom: 1px solid #f1f5f9; cursor:pointer;" title="Ver en Calendario">
+                    <a href="reservas.html?date=${res.fecha}&id=${res.id}&type=${moduleTypeForLink}" target="_blank" style="text-decoration:none; display:flex; justify-content:space-between; align-items:center; padding: 10px 0; border-bottom: 1px solid #f1f5f9; cursor:pointer;" title="Ver en Calendario">
                         <div style="flex: 1;">
                             <div style="display:flex; align-items:center; gap: 8px;">
                                 <span style="background:${typeColor}; color:white; font-size:0.65rem; padding: 2px 6px; border-radius:4px; font-weight:700;">${typeLabel}</span>
@@ -283,11 +330,11 @@ Confirmada por: ${res.validado_por || 'Sistema'}
                                 </div>
                             </div>
                             <div style="font-size:0.75rem; color:#64748b; margin-top:2px;">
-                                ${res.servicio} (${res.pax} pax)
+                                ${res.servicio} (${res.pax} pax) <span style="color:#cbd5e1; margin-left:4px;">${displayId}</span>
                             </div>
                         </div>
                         <div style="text-align:right;">
-                            <div style="font-weight:700; font-size:0.9rem; color:#334155;">${precio}</div>
+                            <div style="font-weight:700; font-size:0.9rem; color:#334155;">${precioDisplay}</div>
                             ${res.fecha < new Date().toISOString().split('T')[0]
                         ? '<span class="badge badge-gray" style="font-size:0.65rem;">Pasada</span>'
                         : '<span class="badge badge-green" style="font-size:0.65rem;">Activa</span>'}

@@ -1,6 +1,6 @@
 // config.js - Lógica de Configuración del Sistema
 
-const state = {
+const spaConfigState = {
     spaConfig: {
         capacity: 20,
         cleaningTime: 30,
@@ -14,8 +14,30 @@ const state = {
     masterItems: [],
     spaces: [],
     complementos: [],
-    catalogServices: [] // Para contar usos
+    catalogServices: [], // Para contar usos
+    schedules: null
 };
+
+const DAYS_MAP = {
+    'monday': 'Lunes',
+    'tuesday': 'Martes',
+    'wednesday': 'Miércoles',
+    'thursday': 'Jueves',
+    'friday': 'Viernes',
+    'saturday': 'Sábado',
+    'sunday': 'Domingo'
+};
+
+const DEFAULT_SCHEDULE = {
+    monday: ["10:00", "11:00", "12:15", "13:30", "15:45", "16:45", "18:00", "19:00", "20:30"],
+    tuesday: ["10:00", "11:00", "12:15", "13:30", "15:45", "16:45", "18:00", "19:00", "20:30"],
+    wednesday: ["10:00", "11:00", "12:15", "13:30", "15:45", "16:45", "18:00", "19:00", "20:30"],
+    thursday: ["10:00", "11:00", "12:15", "13:30", "15:45", "16:45", "18:00", "19:00", "20:30"],
+    friday: ["10:00", "11:00", "12:15", "13:30", "15:45", "16:45", "18:00", "19:00", "20:30"],
+    saturday: ["10:00", "11:00", "12:15", "13:30", "15:45", "16:45", "18:00", "19:00", "20:30"],
+    sunday: ["10:00", "11:00", "12:15", "13:30"]
+};
+
 
 // --- INIT ---
 document.addEventListener("DOMContentLoaded", () => {
@@ -44,9 +66,16 @@ async function cargarSpaConfig() {
     try {
         const doc = await db.collection("spa_config").doc("settings").get();
         if (doc.exists) {
-            state.spaConfig = { ...state.spaConfig, ...doc.data() };
+            spaConfigState.spaConfig = { ...spaConfigState.spaConfig, ...doc.data() };
+
+            // Ensure schedules exist
+            if (!spaConfigState.spaConfig.schedules) {
+                spaConfigState.spaConfig.schedules = JSON.parse(JSON.stringify(DEFAULT_SCHEDULE));
+            }
+
             updateSettingsUI();
             renderClosedDates();
+            renderScheduleEditor();
         }
     } catch (err) {
         console.error("Error cargando spa_config:", err);
@@ -55,13 +84,13 @@ async function cargarSpaConfig() {
 
 function updateSettingsUI() {
     const ids = {
-        "cfg-spa-capacity": state.spaConfig.capacity,
-        "cfg-spa-cleaning": state.spaConfig.cleaningTime,
-        "cfg-whatsapp-template": state.spaConfig.whatsappTemplate,
-        "cfg-wc-url": state.spaConfig.wc_url,
-        "cfg-wc-key": state.spaConfig.wc_key,
-        "cfg-wc-secret": state.spaConfig.wc_secret,
-        "cfg-wc-push-key": state.spaConfig.wc_push_key
+        "cfg-spa-capacity": spaConfigState.spaConfig.capacity,
+        "cfg-spa-cleaning": spaConfigState.spaConfig.cleaningTime,
+        "cfg-whatsapp-template": spaConfigState.spaConfig.whatsappTemplate,
+        "cfg-wc-url": spaConfigState.spaConfig.wc_url,
+        "cfg-wc-key": spaConfigState.spaConfig.wc_key,
+        "cfg-wc-secret": spaConfigState.spaConfig.wc_secret,
+        "cfg-wc-push-key": spaConfigState.spaConfig.wc_push_key
     };
     for (const [id, val] of Object.entries(ids)) {
         const el = document.getElementById(id);
@@ -80,16 +109,46 @@ async function saveSpaSettings() {
     const wcSecret = document.getElementById("cfg-wc-secret").value.trim();
     const wcPushKey = document.getElementById("cfg-wc-push-key").value.trim();
 
-    state.spaConfig.capacity = capacity;
-    state.spaConfig.cleaningTime = cleaning;
-    state.spaConfig.whatsappTemplate = template;
-    state.spaConfig.wc_url = wcUrl;
-    state.spaConfig.wc_key = wcKey;
-    state.spaConfig.wc_secret = wcSecret;
-    state.spaConfig.wc_push_key = wcPushKey;
+    spaConfigState.spaConfig.capacity = capacity;
+    spaConfigState.spaConfig.cleaningTime = cleaning;
+    spaConfigState.spaConfig.whatsappTemplate = template;
+    spaConfigState.spaConfig.wc_url = wcUrl;
+    spaConfigState.spaConfig.wc_key = wcKey;
+    spaConfigState.spaConfig.wc_secret = wcSecret;
+    spaConfigState.spaConfig.wc_key = wcKey;
+    spaConfigState.spaConfig.wc_secret = wcSecret;
+    spaConfigState.spaConfig.wc_push_key = wcPushKey;
+
+    // Save Schedules
+    const newSchedules = {};
+    const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+    days.forEach(day => {
+        const input = document.getElementById(`sched-${day}`);
+        if (input) {
+            const val = input.value.trim();
+            console.log(`[DEBUG] Found input for ${day}:`, val);
+            // Parse comma separated
+            const slots = val.split(',').map(s => s.trim()).filter(s => /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/.test(s));
+            // Sort times
+            slots.sort();
+            newSchedules[day] = slots;
+        } else {
+            console.warn(`[DEBUG] Input not found for ${day}`);
+            newSchedules[day] = spaConfigState.spaConfig.schedules ? (spaConfigState.spaConfig.schedules[day] || []) : [];
+        }
+    });
+
+    console.log("[DEBUG] New Schedules Object:", newSchedules);
+    spaConfigState.spaConfig.schedules = newSchedules;
+
+    // Force create a plain object for saving to ensure no reference issues
+    const payload = JSON.parse(JSON.stringify(spaConfigState.spaConfig));
+    payload.schedules = newSchedules; // Ensure it is definitely there
+
+    console.log("[DEBUG] Saving SPA Config (PAYLOAD):", payload);
 
     try {
-        await db.collection("spa_config").doc("settings").set(state.spaConfig);
+        await db.collection("spa_config").doc("settings").set(payload);
         showToast("Configuración guardada", "success");
     } catch (err) {
         showToast("Error guardando: " + err.message, "error");
@@ -101,14 +160,14 @@ function renderClosedDates() {
     const list = document.getElementById("cfg-closed-dates-list");
     if (!list) return;
 
-    if (!state.spaConfig.closedDates || state.spaConfig.closedDates.length === 0) {
+    if (!spaConfigState.spaConfig.closedDates || spaConfigState.spaConfig.closedDates.length === 0) {
         list.innerHTML = `<div class="muted" style="padding: 10px; text-align: center; font-size: 0.75rem;">No hay días de cierre configurados</div>`;
         return;
     }
 
-    state.spaConfig.closedDates.sort();
+    spaConfigState.spaConfig.closedDates.sort();
 
-    list.innerHTML = state.spaConfig.closedDates.map(date => `
+    list.innerHTML = spaConfigState.spaConfig.closedDates.map(date => `
         <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 12px; background: white; border-radius: 6px; border: 1px solid var(--border); margin-bottom: 2px;">
             <span style="font-size: 0.8rem; font-weight: 500;"><i class="fas fa-calendar-day" style="color: var(--accent); margin-right: 8px;"></i>${formatDate(date)}</span>
             <button onclick="removeClosedDate('${date}')" style="background:none; border:none; color:#ff5252; cursor:pointer; padding: 4px;"><i class="fas fa-trash-alt"></i></button>
@@ -121,8 +180,8 @@ function addClosedDate() {
     const date = input.value;
     if (!date) return;
 
-    if (!state.spaConfig.closedDates.includes(date)) {
-        state.spaConfig.closedDates.push(date);
+    if (!spaConfigState.spaConfig.closedDates.includes(date)) {
+        spaConfigState.spaConfig.closedDates.push(date);
         renderClosedDates();
         input.value = "";
     } else {
@@ -131,16 +190,58 @@ function addClosedDate() {
 }
 
 function removeClosedDate(date) {
-    state.spaConfig.closedDates = state.spaConfig.closedDates.filter(d => d !== date);
+    spaConfigState.spaConfig.closedDates = spaConfigState.spaConfig.closedDates.filter(d => d !== date);
     renderClosedDates();
+}
+
+// --- SCHEDULE EDITOR ---
+function renderScheduleEditor() {
+    const container = document.getElementById("cfg-schedule-container");
+    if (!container) return;
+
+    if (!spaConfigState.spaConfig.schedules) {
+        spaConfigState.spaConfig.schedules = JSON.parse(JSON.stringify(DEFAULT_SCHEDULE));
+    }
+
+    const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+
+    container.innerHTML = days.map(day => {
+        const slots = spaConfigState.spaConfig.schedules[day] || [];
+        const label = DAYS_MAP[day] || day;
+        const value = slots.join(', ');
+
+        return `
+        <div style="display: grid; grid-template-columns: 100px 1fr; gap: 10px; align-items: start; background: #fff; padding: 15px; border: 1px solid #e2e8f0; border-radius: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
+            <div style="font-weight: 600; font-size: 0.9rem; color: #1e293b; text-transform: capitalize; padding-top: 8px;">${label}</div>
+            <textarea id="sched-${day}" rows="3" placeholder="Ej: 10:00, 11:15..." 
+                class="param-input" style="width: 100%; font-family: monospace; resize: vertical; padding: 10px; border-color: #cbd5e1; line-height: 1.5;">${value}</textarea>
+        </div>
+        `;
+    }).join('');
+}
+
+function copyMondayToWeekdays() {
+    const mondayInput = document.getElementById("sched-monday");
+    if (!mondayInput) return;
+
+    const val = mondayInput.value;
+    const weekdays = ['tuesday', 'wednesday', 'thursday', 'friday'];
+
+    if (confirm("¿Copiar el horario del Lunes a Martes, Miércoles, Jueves y Viernes?")) {
+        weekdays.forEach(day => {
+            const el = document.getElementById(`sched-${day}`);
+            if (el) el.value = val;
+        });
+        showToast("Horario copiado L -> V", "success");
+    }
 }
 
 // --- CATALOG SERVICES (for counting) ---
 async function cargarCatalogServices() {
     try {
         const snapshot = await db.collection("spa_services").where("active", "!=", false).get();
-        state.catalogServices = [];
-        snapshot.forEach(doc => state.catalogServices.push({ id: doc.id, ...doc.data() }));
+        spaConfigState.catalogServices = [];
+        snapshot.forEach(doc => spaConfigState.catalogServices.push({ id: doc.id, ...doc.data() }));
     } catch (err) {
         console.error("Error cargando catálogo:", err);
     }
@@ -150,8 +251,8 @@ async function cargarCatalogServices() {
 async function cargarMasterItems() {
     try {
         const snapshot = await db.collection("spa_item_master").orderBy("name", "asc").get();
-        state.masterItems = [];
-        snapshot.forEach(doc => state.masterItems.push({ id: doc.id, ...doc.data() }));
+        spaConfigState.masterItems = [];
+        snapshot.forEach(doc => spaConfigState.masterItems.push({ id: doc.id, ...doc.data() }));
         renderMasterItems();
     } catch (err) {
         console.error("Error items maestros:", err);
@@ -162,7 +263,7 @@ function renderMasterItems() {
     const list = document.getElementById("master-items-tbody");
     if (!list) return;
 
-    if (state.masterItems.length === 0) {
+    if (spaConfigState.masterItems.length === 0) {
         list.innerHTML = `<tr><td colspan="5" style="padding: 30px; text-align: center; color: #94a3b8;">No hay items configurados.</td></tr>`;
         return;
     }
@@ -173,11 +274,11 @@ function renderMasterItems() {
         return complementoKeywords.some(keyword => lowerName.includes(keyword));
     };
 
-    list.innerHTML = state.masterItems.map(item => {
+    list.innerHTML = spaConfigState.masterItems.map(item => {
         const isComplement = isComplemento(item.name);
 
         // Contar cuántos productos usan este item
-        const usageCount = state.catalogServices.filter(service => {
+        const usageCount = spaConfigState.catalogServices.filter(service => {
             if (!service.items_incluidos || !Array.isArray(service.items_incluidos)) return false;
             return service.items_incluidos.some(includedItem =>
                 includedItem.toLowerCase().trim() === item.name.toLowerCase().trim()
@@ -199,7 +300,7 @@ function renderMasterItems() {
                 ${isComplement ? '<span class="muted text-xs">N/A</span>' :
                 `<select onchange="updateMasterItemField('${item.id}', 'space', this.value)" class="param-input" style="width:100%;">
                     <option value="" ${!item.space ? 'selected' : ''}>Sin asignar</option>
-                    ${state.spaces.map(s => `<option value="${s.code}" ${item.space === s.code ? 'selected' : ''}>${s.name}</option>`).join('')}
+                    ${spaConfigState.spaces.map(s => `<option value="${s.code}" ${item.space === s.code ? 'selected' : ''}>${s.name}</option>`).join('')}
                 </select>`
             }
             </td>
@@ -231,7 +332,7 @@ async function updateMasterItemField(id, field, value) {
 
 function showItemUsage(itemId, itemName) {
     // Encontrar productos que usan este item
-    const usedByProducts = state.catalogServices.filter(service => {
+    const usedByProducts = spaConfigState.catalogServices.filter(service => {
         if (!service.items_incluidos || !Array.isArray(service.items_incluidos)) return false;
         return service.items_incluidos.some(includedItem =>
             includedItem.toLowerCase().trim() === itemName.toLowerCase().trim()
@@ -288,7 +389,7 @@ async function addMasterItem() {
     if (!name || !name.trim()) return;
 
     const normName = normalizeItemName(name);
-    const exists = state.masterItems.some(i => normalizeItemName(i.name) === normName);
+    const exists = spaConfigState.masterItems.some(i => normalizeItemName(i.name) === normName);
     if (exists) {
         showToast("Este item ya existe (o uno muy similar) en el catálogo maestro", "warning");
         return;
@@ -396,7 +497,7 @@ async function syncExistingItemsToMaster() {
             }
         });
 
-        const existing = new Set(state.masterItems.map(i => normalizeItemName(i.name)));
+        const existing = new Set(spaConfigState.masterItems.map(i => normalizeItemName(i.name)));
         const newItems = [...allItems].filter(n => !existing.has(normalizeItemName(n)));
 
         if (newItems.length === 0) return showToast("Todo actualizado", "info");
@@ -435,8 +536,8 @@ async function syncExistingItemsToMaster() {
 async function cargarSpaces() {
     try {
         const snapshot = await db.collection("spa_spaces").orderBy("name", "asc").get();
-        state.spaces = [];
-        snapshot.forEach(doc => state.spaces.push({ id: doc.id, ...doc.data() }));
+        spaConfigState.spaces = [];
+        snapshot.forEach(doc => spaConfigState.spaces.push({ id: doc.id, ...doc.data() }));
         renderSpaces();
         renderMasterItems(); // Refresh dropdowns
     } catch (err) {
@@ -448,14 +549,14 @@ function renderSpaces() {
     const grid = document.getElementById("spaces-grid");
     if (!grid) return;
 
-    if (state.spaces.length === 0) {
+    if (spaConfigState.spaces.length === 0) {
         grid.innerHTML = `<div class="muted" style="grid-column:1/-1; text-align:center; padding:30px;">No hay salas. Crea la primera.</div>`;
         return;
     }
 
     const typeLabels = { 'private': 'Privada', 'circuit': 'Circuito', 'service': 'Servicios', 'other': 'Otro' };
 
-    grid.innerHTML = state.spaces.map(s => `
+    grid.innerHTML = spaConfigState.spaces.map(s => `
         <div style="background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 15px; border-top: 4px solid ${s.color || '#8b5cf6'};">
             <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 10px;">
                 <div>
@@ -488,7 +589,7 @@ function openSpaceModal(id = null) {
     document.getElementById("space-modal-title").textContent = "Nueva Sala";
 
     if (id) {
-        const s = state.spaces.find(x => x.id === id);
+        const s = spaConfigState.spaces.find(x => x.id === id);
         if (s) {
             document.getElementById("space-modal-title").textContent = "Editar Sala";
             document.getElementById("space-id").value = s.id;
@@ -550,8 +651,8 @@ async function deleteSpace(id) {
 async function cargarComplementos() {
     try {
         const snapshot = await db.collection("spa_complementos").orderBy("nombre", "asc").get();
-        state.complementos = [];
-        snapshot.forEach(doc => state.complementos.push({ id: doc.id, ...doc.data() }));
+        spaConfigState.complementos = [];
+        snapshot.forEach(doc => spaConfigState.complementos.push({ id: doc.id, ...doc.data() }));
         renderComplementos();
     } catch (err) {
         console.error("Error complementos:", err);
@@ -562,12 +663,12 @@ function renderComplementos() {
     const list = document.getElementById("complementos-tbody");
     if (!list) return;
 
-    if (state.complementos.length === 0) {
+    if (spaConfigState.complementos.length === 0) {
         list.innerHTML = `<tr><td colspan="5" style="text-align:center; padding:20px;" class="muted">No hay complementos.</td></tr>`;
         return;
     }
 
-    list.innerHTML = state.complementos.map(c => `
+    list.innerHTML = spaConfigState.complementos.map(c => `
         <tr style="opacity: ${c.active === false ? 0.5 : 1};">
             <td style="font-weight: 500;">${c.nombre}</td>
             <td><span class="badge badge-outline">${c.categoria || 'Var'}</span></td>
@@ -587,7 +688,7 @@ function openComplementoModal(id = null) {
     document.getElementById("complemento-modal-title").textContent = "Nuevo Complemento";
 
     if (id) {
-        const c = state.complementos.find(x => x.id === id);
+        const c = spaConfigState.complementos.find(x => x.id === id);
         if (c) {
             document.getElementById("complemento-modal-title").textContent = "Editar Complemento";
             document.getElementById("complemento-id").value = c.id;

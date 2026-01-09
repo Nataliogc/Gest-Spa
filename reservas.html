@@ -19,6 +19,13 @@
             margin-top: 20px;
         }
 
+        /* Fix scrolling on this page */
+        .main-content {
+            overflow-y: auto !important;
+            padding-bottom: 50px;
+            /* Space for footer/scroll */
+        }
+
         .slot-card {
             background: #fff;
             padding: 15px;
@@ -729,19 +736,33 @@
         window.getDailyStaffAvailability = function (moduleType, date) {
             console.log('[STUB] getDailyStaffAvailability called for:', moduleType, date);
 
-            // Retornar objeto con disponibilidad ilimitada para todos los slots
             const availability = {};
 
-            // Generar slots de 15 minutos de 10:00 a 21:45
-            for (let h = 10; h <= 21; h++) {
-                for (let m of [0, 15, 30, 45]) {
-                    if (h === 21 && m > 45) continue; // Último slot 21:45
-                    const time = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
-                    availability[time] = 10; // Alta disponibilidad (10 terapeutas disponibles)
+            // Valid Slots Logic
+            let validSlots = [];
+            const daysMap = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+            const dateObj = new Date(date);
+            const dayName = daysMap[dateObj.getDay()];
+
+            // Use global schedule if available
+            if (window.SPA_SCHEDULES && window.SPA_SCHEDULES[dayName]) {
+                validSlots = window.SPA_SCHEDULES[dayName];
+            } else {
+                // Fallback: Generar slots de 15 minutos de 10:00 a 21:45
+                for (let h = 10; h <= 21; h++) {
+                    for (let m of [0, 15, 30, 45]) {
+                        if (h === 21 && m > 45) continue;
+                        validSlots.push(`${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`);
+                    }
                 }
             }
 
-            console.log('[STUB] Returning high availability for all slots');
+            // Populate availability
+            validSlots.forEach(time => {
+                availability[time] = 10; // Mock high availability
+            });
+
+            console.log(`[STUB] Returning availability for ${validSlots.length} slots`);
             return Promise.resolve(availability);
         };
 
@@ -867,9 +888,11 @@
             closedDates: [],
             whatsappTemplate: "Hola {{nombre}}, le confirmamos su reserva en {{espacio}} para el día {{fecha}} a las {{hora}}h ({{servicio}}).\n\nRecordatorio: Si no puede acudir, rogamos nos informe con al menos 12 horas de antelación. Las cancelaciones fuera de este plazo pueden conllevar gastos de gestión. ¡Le esperamos!"
         };
+        window.SPA_SCHEDULES = null;
 
         async function cargarSpaConfig() {
             try {
+                // Cargar General (Legacy / Split config)
                 const doc = await db.collection("spa_config").doc("general").get();
                 if (doc.exists) {
                     const data = doc.data();
@@ -877,12 +900,34 @@
                         MODULES.spa.capacity = parseInt(data.capacity) || 20;
                         spaConfig.capacity = MODULES.spa.capacity;
                         if (currentModule.code === 'spa') currentModule.capacity = spaConfig.capacity;
-                        console.log(`Capacidad Spa: ${spaConfig.capacity}`);
                     }
                     if (data.cleaningTime) spaConfig.cleaningTime = parseInt(data.cleaningTime);
                     if (data.closedDates) spaConfig.closedDates = data.closedDates;
                     if (data.whatsappTemplate) spaConfig.whatsappTemplate = data.whatsappTemplate;
                 }
+
+                // Cargar Settings (New Unified Config with Schedules)
+                const settingsDoc = await db.collection("spa_config").doc("settings").get();
+                if (settingsDoc.exists) {
+                    const settings = settingsDoc.data();
+                    console.log("[DEBUG] cargarSpaConfig raw settings:", settings); // Log raw data
+
+                    if (settings.schedules) {
+                        window.SPA_SCHEDULES = settings.schedules;
+                        console.log("Horarios dinámicos cargados:", window.SPA_SCHEDULES);
+                    } else {
+                        console.warn("[DEBUG] Settings doc exists but 'schedules' field is missing or empty.");
+                    }
+                    // Override with settings if present (migrating to settings doc)
+                    if (settings.capacity) {
+                        spaConfig.capacity = parseInt(settings.capacity);
+                        if (currentModule.code === 'spa') currentModule.capacity = spaConfig.capacity;
+                    }
+                    if (settings.cleaningTime) spaConfig.cleaningTime = parseInt(settings.cleaningTime);
+                    if (settings.closedDates) spaConfig.closedDates = settings.closedDates;
+                    if (settings.whatsappTemplate) spaConfig.whatsappTemplate = settings.whatsappTemplate;
+                }
+
             } catch (err) {
                 console.error("Error spa_config:", err);
             }
@@ -1042,11 +1087,23 @@
 
                 // 2. Obtener slots base según módulo
                 let slots = [];
-                const dateObj = new Date(date + 'T00:00:00');
+                // Use T12:00:00 to avoid timezone issues with getDay()
+                const dateObj = new Date(date + 'T12:00:00');
                 const isSun = dateObj.getDay() === 0;
 
                 if (currentModule.code === 'spa') {
-                    slots = isSun ? currentModule.slotsSun : currentModule.slotsWeek;
+                    // Dynamic Schedule logic
+                    const daysMap = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+                    const dayName = daysMap[dateObj.getDay()];
+
+                    console.log("[DEBUG] updateAvailableTimeSlots", { date, dayName, schedules: window.SPA_SCHEDULES });
+
+                    if (window.SPA_SCHEDULES && window.SPA_SCHEDULES[dayName] && window.SPA_SCHEDULES[dayName].length > 0) {
+                        slots = window.SPA_SCHEDULES[dayName];
+                    } else {
+                        // Fallback
+                        slots = isSun ? currentModule.slotsSun : currentModule.slotsWeek;
+                    }
                 } else {
                     // Generar slots de 15min hasta cierre
                     const closingH = isSun ? 15 : 22;
@@ -1658,17 +1715,7 @@
             }
         }
 
-        async function cargarSpaConfig() {
-            try {
-                const doc = await db.collection("spa_config").doc("settings").get();
-                if (doc.exists) {
-                    spaConfig = { ...spaConfig, ...doc.data() };
-                }
-            } catch (err) {
-                if (window.checkFirestoreError && window.checkFirestoreError(err)) return;
-                console.error("Error loading spa_config:", err);
-            }
-        }
+
 
         async function loadReservas(date) {
             updateDateDisplay(date);
@@ -1906,9 +1953,26 @@
                 return;
             }
 
-            const date = new Date(dateString);
+            // Crear fecha segura (mediodía) para evitar problemas de timezone
+            const date = new Date(dateString + 'T12:00:00');
             const isSunday = date.getDay() === 0;
-            const slots = isSunday ? currentModule.slotsSun : currentModule.slotsWeek;
+
+            let slots = [];
+            if (currentModule.code === 'spa') {
+                const daysMap = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+                const dayName = daysMap[date.getDay()];
+
+                console.log("[DEBUG] renderSlots", { dateString, dayName, hasSchedules: !!window.SPA_SCHEDULES, schedules: window.SPA_SCHEDULES });
+
+                if (window.SPA_SCHEDULES && window.SPA_SCHEDULES[dayName] && window.SPA_SCHEDULES[dayName].length > 0) {
+                    slots = window.SPA_SCHEDULES[dayName];
+                } else {
+                    console.warn("[DEBUG] Using fallback slots for", dayName);
+                    slots = isSunday ? currentModule.slotsSun : currentModule.slotsWeek;
+                }
+            } else {
+                slots = isSunday ? currentModule.slotsSun : currentModule.slotsWeek;
+            }
             const container = document.getElementById("slots-container");
 
             const dateBlockedSlots = (spaConfig.blockedSlots && spaConfig.blockedSlots[dateString]) || [];
@@ -2014,6 +2078,10 @@
             }
 
             const body = document.getElementById("details-table-body");
+
+            // Update Title with Count
+            const titleEl = document.getElementById("details-title");
+            if (titleEl) titleEl.textContent = `Reservas para las ${time}h (${list.length})`;
 
             if (list.length === 0) {
                 body.innerHTML = '<tr><td colspan="10" style="text-align: center; color: #999; padding: 20px;">No hay reservas para este turno.</td></tr>';
@@ -2650,7 +2718,18 @@
                     btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Verificando Bono...';
 
                     // a) Obtener datos del bono
-                    const vDoc = await db.collection("spa_vouchers").doc(bonoCode).get();
+                    let vDoc = await db.collection("spa_vouchers").doc(bonoCode).get();
+
+                    // FALLBACK: Intentar con espacio al final (bug antiguo de generación)
+                    if (!vDoc.exists) {
+                        const codeWithSpace = bonoCode + ' ';
+                        const vDocSpace = await db.collection("spa_vouchers").doc(codeWithSpace).get();
+                        if (vDocSpace.exists) {
+                            vDoc = vDocSpace;
+                            console.log("Detectado bono con espacio al final (Legacy fix)");
+                        }
+                    }
+
                     if (!vDoc.exists) {
                         alert("El código de bono introducido no existe.");
                         return;
@@ -2725,17 +2804,17 @@
                 }
 
                 // 1. GUARDADO LOCAL INMEDIATO
-                if (window.apiLocal) {
-                    // Si ya existe un ID (edición), el res_id ya está en payload (preservado arriba)
-                    // Solo generar res_id si es NUEVA reserva
-                    if (!id) {
-                        // Es NUEVA reserva - inicializar campos
-                        payload.res_id = generateUID();
-                        payload.status = 'confirmada';
-                        payload.created_at = new Date().toISOString();
-                        id = payload.res_id; // Usar res_id como ID temporal para local
-                    }
+                let isNew = false;
+                if (!id) {
+                    isNew = true;
+                    // Es NUEVA reserva - inicializar campos
+                    payload.res_id = generateUID();
+                    payload.status = 'confirmada';
+                    payload.created_at = new Date().toISOString();
+                    id = payload.res_id; // Para local usamos el res_id como ID
+                }
 
+                if (window.apiLocal) {
                     await apiLocal.saveReserva({
                         ...payload,
                         id: id,
@@ -2749,12 +2828,19 @@
 
                 // 2. INTENTO FIRESTORE
                 try {
-                    if (id) {
+                    if (!isNew && id) { // Only update if it existed BEFORE (not just generated above)
                         // EDIT: Update existing reservation
+                        // Verify if doc exists first or just update? Update fails if not exists.
+                        // Since we are here and not isNew, it implies it was loaded from DB.
+                        // However, if we are in "Local First", it might be a local-only ID?
+                        // If it's local only, update checks might fail.
+                        // But for now, let's fix the immediate bug: new reservations trying to update.
+
                         await db.collection(currentModule.collection).doc(id).update(payload);
                         console.log(`Reserva actualizada en Firestore: ${id}`);
                     } else {
-                        // NEW: Create new reservation (payload ya tiene res_id, status, created_at)
+                        // NEW: Create new reservation
+                        // We use .add() to let Firestore generate the Doc ID
                         const docRef = await db.collection(currentModule.collection).add(payload);
                         console.log(`Nueva reserva creada en Firestore: ${docRef.id}`);
 
@@ -2780,6 +2866,30 @@
 
                 // Limpieza final
                 closeModal();
+
+                // ------------------------------------------------------------------
+                // AUTO-CLOSE TAB logic (User Request: "una vez realizada... se cierra")
+                // Only if opened via window.open (has opener) AND is a voucher reservation
+                // ------------------------------------------------------------------
+                if (window.opener && !window.opener.closed && payload.origen === 'bono' && payload.bono) {
+                    console.log("[AUTO-CLOSE] Notifying opener about voucher reservation:", payload.bono);
+                    try {
+                        window.opener.postMessage({
+                            type: 'RESERVATION_COMPLETED',
+                            code: payload.bono,
+                            item: payload.servicio,
+                            qty: sesionesConsumidas
+                        }, '*'); // In production, replace '*' with specific origin if needed
+                    } catch (errMsg) {
+                        console.warn("[AUTO-CLOSE] Failed to postMessage:", errMsg);
+                    }
+
+                    // Small delay to ensure message sent, then close
+                    setTimeout(() => {
+                        window.close();
+                    }, 500);
+                }
+                // ------------------------------------------------------------------
                 clearPendingVoucher();
 
                 // CLEANUP URL to prevent loop

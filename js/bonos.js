@@ -358,7 +358,54 @@ function getSpaceForService(serviceName) {
 }
 
 // Helper para redirección
-function goToReservation(client, service, code, space) {
+// Helper para redirección a gestión de restaurante
+async function openRestauranteFromVoucher(client, service, code, space, pax, phone) {
+    // Path absoluto hardcoded para integración local fiable
+    const basePath = "file:///C:/Users/comun/Documents/GitHub/gestion-Salones/restaurante.html";
+
+    // Ensure config is loaded
+    if (!spaConfigState.spaConfig || (!spaConfigState.spaConfig.wc_url && !spaConfigState.spaConfig.whatsappTemplate)) {
+        if (typeof cargarSpaConfig === 'function') {
+            console.log("Loading Spa Config before opening restaurant...");
+            await cargarSpaConfig();
+        }
+    }
+
+    const params = new URLSearchParams({
+        client: client || '',
+        phone: phone || '',
+        voucher: code || '',
+        source: 'bono',
+        service: service || 'Restaurante',
+        pax: pax || '1'
+    });
+
+    // Detectar Hotel Context
+    let hotelContext = 'Guadiana';
+    const config = spaConfigState.spaConfig || {};
+    const urlCheck = config.wc_url && config.wc_url.toLowerCase().includes('cumbria');
+    const templateCheck = config.whatsappTemplate && config.whatsappTemplate.toLowerCase().includes('cumbria');
+
+    // Debug
+    console.log("[Restaurant] URL Check:", urlCheck, "Template Check:", templateCheck, "WC:", config.wc_url);
+
+    if (urlCheck || templateCheck) {
+        hotelContext = 'Cumbria';
+    }
+
+    // Append Hotel
+    params.append('hotel', hotelContext);
+
+    const url = `${basePath}?${params.toString()}`;
+
+    console.log(`[RESTAURANTE] Abriendo integración externa: ${url}`);
+
+    // Abrir en nueva pestaña
+    window.open(url, '_blank');
+}
+
+// Helper para redirección
+async function goToReservation(client, service, code, space, pax) {
     service = decodeURIComponent(service).trim();
     client = decodeURIComponent(client).trim();
     if (!confirm(`¿Ir al calendario para reservar '${service}' para ${client}?`)) return;
@@ -459,12 +506,21 @@ function goToReservation(client, service, code, space) {
     // LE PONGO UN ALERT TEMPORAL:
     // alert(debugMsg);
 
+    // Si es hotel/restaurante, redirigir al proyecto independiente (gestion-Salones)
+    if (type === 'hotel' || type === 'restaurante' || type === 'rest' || (type || '').toLowerCase().includes('restaurante') || (type || '').toLowerCase() === 'rest') {
+        // Find voucher object to get phone number
+        const voucherObj = state.bonos.find(b => b.bono === code || b.codigo === code);
+        const clientPhone = voucherObj ? voucherObj.telefono : '';
+        // Use pax passed from button, fallback to voucher pax or 1
+        const finalPax = pax || (voucherObj ? (voucherObj.pax || voucherObj.pax_adultos) : '1');
+
+        await openRestauranteFromVoucher(client, service, code, type, finalPax, clientPhone);
+        return;
+    }
+
     let url = `reservas.html?type=${type}&action=new&client=${encodeURIComponent(client)}&service=${encodeURIComponent(service)}&voucher=${code}`;
 
-    // Si es hotel/restaurante, redirigir al proyecto independiente (Mesachef)
-    if (type === 'hotel' || type === 'restaurante' || type === 'rest' || (type || '').toLowerCase().includes('restaurante')) {
-        url = `https://nataliogc.github.io/Mesachef/restaurante.html?action=new&client=${encodeURIComponent(client)}&service=${encodeURIComponent(service)}&voucher=${code}`;
-    }
+    // fallback legacy Mesachef check removed as it is superseded by openRestauranteFromVoucher logic above
 
     // Open in new tab to preserve context
     window.open(url, '_blank');
@@ -2002,8 +2058,7 @@ async function openVoucherManagement(code) {
     }
     // -------------------------------
 
-    // Renderizar historial de uso (async)
-    // renderVoucherHistory(code); // Moved to end with await
+    // -------------------------------
 
     // --- Vincular con Catálogo y Detectar Servicios ---
     const catalogInfo = document.getElementById("vm-catalog-info");
@@ -2469,28 +2524,28 @@ async function openVoucherManagement(code) {
                         </button>
                     `;
                 } else {
-                    buttonsHtml += `
-                        <button class="btn btn-sm" 
-                            onclick="goToReservation('${encodeURIComponent(v.cliente || '').replace(/'/g, "%27")}', '${encodeURIComponent(item.name || '').replace(/'/g, "%27")}', '${encodeURIComponent(v.bono || v.codigo || '').replace(/'/g, "%27")}', '${encodeURIComponent(item.space || '').replace(/'/g, "%27")}')" 
+                    buttonsHtml = `
+                        <button class="btn btn-sm"
+                            onclick="goToReservation('${encodeURIComponent(v.cliente || '').replace(/'/g, "%27")}', '${encodeURIComponent(item.name || '').replace(/'/g, "%27")}', '${encodeURIComponent(v.bono || v.codigo || '').replace(/'/g, "%27")}', '${encodeURIComponent(item.space || '').replace(/'/g, "%27")}', ${item.pax || 1})"
                             style="padding:2px 8px; font-size:0.7rem; background:#0ea5e9; color:#fff; border:none; border-radius:4px;">
                             <i class="fas fa-calendar-alt"></i> Reservar
                         </button>
                     `;
+
                     // Añadir botón de validación manual para Restaurante/Otros
                     if (spaceName.toLowerCase().includes('rest') || spaceName.toLowerCase().includes('hotel') || spaceName.toLowerCase().includes('comida')) {
                         buttonsHtml += `
-                            <button class="btn btn-sm" onclick="validateManualConsumption(${idx})" title="Validar Manualmente (Generar Recibo)"
-                                style="padding:2px 8px; font-size:0.7rem; background:#64748b; color:#fff; border:none; border-radius:4px; margin-left:4px;">
-                                <i class="fas fa-file-invoice"></i>
-                            </button>
-                        `;
+                                <button class="btn btn-sm" onclick="validateManualConsumption(${idx})" title="Validar Manualmente (Generar Recibo)"
+                                    style="padding:2px 8px; font-size:0.7rem; background:#64748b; color:#fff; border:none; border-radius:4px; margin-left:4px;">
+                                    <i class="fas fa-file-invoice"></i>
+                                </button>
+                            `;
                     }
-
                 }
 
                 if (isEditable) {
                     return `
-                    <div style="background:#f8fafc; padding:8px; margin-bottom:8px; border-radius:6px; border:1px solid #e2e8f0;">
+                        <div style="background:#f8fafc; padding:8px; margin-bottom:8px; border-radius:6px; border:1px solid #e2e8f0;">
                         <div style="display:flex; gap:4px; margin-bottom:6px;">
                             <input type="text" value="${item.name}" onchange="updateVoucherItemName(${idx}, this.value)" 
                                 placeholder="Nombre servicio..." list="catalog-datalist"
@@ -2507,7 +2562,7 @@ async function openVoucherManagement(code) {
                                     <span style="font-size:0.65rem; color:#64748b;">ses.</span>
                                 </div>
                                 <div style="display:flex; align-items:center; gap:2px;">
-                                    <input type="number" value="${item.pax || 1}" onchange="updateVoucherItemPax(${idx}, this.value)" 
+                                    <input type="number" value="${item.pax || 1}" onchange="updateVoucherItemPax(${idx}, this.value); this.parentElement.parentElement.parentElement.querySelector('button[onclick^=goToReservation]').setAttribute('onclick', \`goToReservation('\${encodeURIComponent('${v.cliente || ''}').replace(/'/g, "%27")}', '\${encodeURIComponent(state.editingVoucherItems[${idx}].name || '').replace(/'/g, "%27")}', '\${encodeURIComponent('${v.bono || v.codigo || ''}').replace(/'/g, "%27")}', '\${encodeURIComponent(state.editingVoucherItems[${idx}].space || '').replace(/'/g, "%27")}', \${this.value})\`);" 
                                         style="width:35px; padding:2px; font-size:0.7rem; border:1px solid #cbd5e1; border-radius:4px; text-align:center;">
                                     <span style="font-size:0.65rem; color:#64748b;">pax</span>
                                 </div>
@@ -2517,11 +2572,11 @@ async function openVoucherManagement(code) {
                             </div>
                             <div style="display:flex; gap:4px;">${buttonsHtml}</div>
                         </div>
-                    </div>`;
+                    </div > `;
                 }
 
                 return `
-                <div style="display:flex; justify-content:space-between; align-items:center; background:${isComplete ? '#f0fdf4' : '#fff'}; padding:8px; margin-bottom:4px; border-radius:6px; border:1px solid ${isComplete ? '#86efac' : '#e2e8f0'}; gap:8px;">
+                        < div style = "display:flex; justify-content:space-between; align-items:center; background:${isComplete ? '#f0fdf4' : '#fff'}; padding:8px; margin-bottom:4px; border-radius:6px; border:1px solid ${isComplete ? '#86efac' : '#e2e8f0'}; gap:8px;" >
                     <div style="display: flex; flex-direction: column; flex: 1; overflow:hidden; gap:2px;">
                         <div style="font-size:0.8rem; font-weight:600; color:#334155;">${item.name}</div>
                         <div style="font-size:0.65rem; color:#64748b;">
@@ -2535,17 +2590,17 @@ async function openVoucherManagement(code) {
                          ${buttonsHtml}
                     </div>
                 </div>
-            `;
+                        `;
             }).join('');
             listDiv.style.display = 'block';
         }
         else {
             listDiv.innerHTML = `
-                <div style="text-align:center; padding:10px;">
-                    <button class="btn btn-sm btn-outline" onclick="addVoucherItem()">
-                        <i class="fas fa-plus"></i> Añadir primer servicio
-                    </button>
-                </div>`;
+                        <div style="text-align:center; padding:10px;">
+                            <button class="btn btn-sm btn-outline" onclick="addVoucherItem()">
+                                <i class="fas fa-plus"></i> Añadir primer servicio
+                            </button>
+                </div> `;
             listDiv.style.display = 'block';
         }
     }
@@ -2624,7 +2679,7 @@ async function openVoucherManagement(code) {
 
     window.validateManualConsumption = async (idx) => {
         const item = state.editingVoucherItems[idx];
-        if (!confirm(`¿Generar recibo de consumo manual para '${item.name}'?\n\nEsto creará una reserva 'finalizada' en el historial.`)) return;
+        if (!confirm(`¿Generar recibo de consumo manual para '${item.name}' ?\n\nEsto creará una reserva 'finalizada' en el historial.`)) return;
 
         // 1. Incrementar uso localmente
         item.used = (item.used || 0) + 1;
@@ -2795,12 +2850,19 @@ async function openVoucherManagement(code) {
                         // Para Hotel, suele ser único item, así que es más seguro
                         if (s === 'hotel' && ((h.origen || '').toLowerCase().includes('hotel') || h._col === 'reservas_restaurante')) spaceMatch = true;
 
-                        // Para Restaurante explícito
-                        if ((s === 'restaurante' || s === 'rest') && h._col === 'reservas_restaurante') spaceMatch = true;
+                        // Para Restaurante explícito (Check all collections and also "spa" collection if name matches)
+                        const hSrv = (h.servicio || '').toLowerCase();
+                        const isRestCollection = ['reservas_restaurante', 'reservas_rest', 'reservas_menu'].includes(h._col);
+                        const isRestName = hSrv.includes('restaurante') || hSrv.includes('menu') || hSrv.includes('menú');
+
+                        if ((s === 'restaurante' || s === 'rest')) {
+                            if (isRestCollection || isRestName) spaceMatch = true;
+                        }
 
                         // Para Spa/Masaje, confiamos en el nombre. 
                         // Solo si el item es MUY genérico (ej: "Bono Spa") habilitamos match por colección
-                        if (s === 'spa' && h._col === 'reservas_spa') spaceMatch = true;
+                        // Evitamos match si es Restaurante
+                        if (s === 'spa' && h._col === 'reservas_spa' && !isRestName) spaceMatch = true;
                     }
 
                     return nameMatch || spaceMatch;
@@ -2818,7 +2880,7 @@ async function openVoucherManagement(code) {
                     // Yes, sync with reality.
                     if (computedUsed > (item.used || 0)) {
                         item.used = computedUsed;
-                        console.log(`[BONO] Auto-updated item '${item.name}' used -> ${computedUsed}`);
+                        console.log(`[BONO] Auto - updated item '${item.name}' used -> ${computedUsed} `);
                     }
                 }
             });
@@ -2892,7 +2954,7 @@ async function openVoucherManagement(code) {
     }
 
     badge.textContent = label;
-    badge.className = `st-badge st-${displayStatus}`;
+    badge.className = `st - badge st - ${displayStatus} `;
 
     // Ocultar botones "Canjear 1" y "Total" si tiene múltiples ítems o si NO es multi-sesión
     const hasMultipleItems = state.editingVoucherItems.length > 1;
@@ -2907,6 +2969,18 @@ async function openVoucherManagement(code) {
     }, 100);
 
     // Historico renderizado arriba
+
+    // --- RENDER HISTORY (ROBUST) ---
+    try {
+        if (typeof renderVoucherHistory === 'function') {
+            // Pass items_desglosados to show internal validations (like Accommodation)
+            await renderVoucherHistory(code, v.items_desglosados || []);
+        }
+    } catch (hErr) {
+        console.warn("[BONO] Warning rendering history:", hErr);
+        // Don't block modal opening if history fails
+    }
+    // --------------------------------
 
     document.getElementById("voucher-modal").style.display = "flex";
 }
@@ -3280,7 +3354,7 @@ function validateServiceItem(itemIndex, isManual = false) {
 
     // CASO 2: MANUAL VALIDATION (Solicitada explícitamente)
     if (isManual) {
-        if (!confirm(`¿Confirmas que quieres validar 1 sesión de "${item.name}" MANUALMENTE?\n\nEsto descontará una sesión sin pasar por el calendario.`)) {
+        if (!confirm(`¿Confirmas que quieres validar 1 sesión de "${item.name}" MANUALMENTE ?\n\nEsto descontará una sesión sin pasar por el calendario.`)) {
             return;
         }
         console.log('[DEBUG] Validación simple manual confirmada');
@@ -3431,6 +3505,28 @@ async function confirmAccommodationRedemption() {
 
         if (!code) throw new Error("No se encontró el código del bono");
 
+        // --- NEW: PROPAGATE PHONE & UPDATE STATE ---
+        let phoneUpdated = false;
+        if (telefono && (!voucher.telefono || voucher.telefono !== telefono)) {
+            voucher.telefono = telefono;
+            phoneUpdated = true;
+
+            // Update in local state array immediately
+            const stateIdx = state.bonos.findIndex(b => b.bono === code);
+            if (stateIdx !== -1) {
+                state.bonos[stateIdx].telefono = telefono;
+            }
+
+            // Background update to Firestore for the root document field
+            try {
+                db.collection("spa_vouchers").doc(code).update({ telefono: telefono });
+                console.log("[PHONE] Teléfono actualizado en bono raíz:", telefono);
+            } catch (err) {
+                console.warn("[PHONE] Error actualizando teléfono raíz:", err);
+            }
+        }
+        // -------------------------------------------
+
         // Incrementar uso del servicio individual
         item.used = (item.used || 0) + 1;
 
@@ -3438,13 +3534,14 @@ async function confirmAccommodationRedemption() {
         if (!item.validations) item.validations = [];
         item.validations.push(validationData);
 
-        // Guardar usando función que limpia undefined fields
+        // Guardar usando función que limpia undefined fields y guarda el desglose
         await saveServiceBreakdownToFirestore(code);
 
         showToast("Alojamiento validado correctamente", "success");
         closeAccommodationValidation();
 
-        // Actualizar vista
+        // Actualizar vista - Force re-read from updated state
+        // Re-open Management Panel to reflect changes
         openVoucherManagement(code);
 
     } catch (error) {
@@ -3586,13 +3683,13 @@ function filterLocalProducts(query) {
             const isPack = nameLower.includes('pack') || (prod.items_incluidos && prod.items_incluidos.length > 1);
 
             if (includesSpa) {
-                badgesHtml += ` <span style="background:#ecfeff; color:#0e7490; padding:2px 6px; border-radius:4px; font-size:0.7em; border:1px solid #cffafe; margin-left:4px;"><i class="fas fa-hot-tub"></i> Circuito</span>`;
+                badgesHtml += `<span style="background:#ecfeff; color:#0e7490; padding:2px 6px; border-radius:4px; font-size:0.7em; border:1px solid #cffafe; margin-left:4px;"><i class="fas fa-hot-tub"></i> Circuito</span>`;
             }
             if (includesMasaje) {
-                badgesHtml += ` <span style="background:#fdf4ff; color:#a21caf; padding:2px 6px; border-radius:4px; font-size:0.7em; border:1px solid #fce7f3; margin-left:4px;"><i class="fas fa-spa"></i> Masaje</span>`;
+                badgesHtml += `<span style="background:#fdf4ff; color:#a21caf; padding:2px 6px; border-radius:4px; font-size:0.7em; border:1px solid #fce7f3; margin-left:4px;"><i class="fas fa-spa"></i> Masaje</span>`;
             }
             if (isPack) {
-                badgesHtml += ` <span style="background:#fff7ed; color:#c2410c; padding:2px 6px; border-radius:4px; font-size:0.7em; border:1px solid #ffedd5; margin-left:4px;"><i class="fas fa-box-open"></i> Pack</span>`;
+                badgesHtml += `<span style="background:#fff7ed; color:#c2410c; padding:2px 6px; border-radius:4px; font-size:0.7em; border:1px solid #ffedd5; margin-left:4px;"><i class="fas fa-box-open"></i> Pack</span>`;
             }
 
             // DESCRIPTION / SUBTEXT
@@ -3615,9 +3712,9 @@ function filterLocalProducts(query) {
             }
 
             return `
-            <div onclick="selectProductForLocalVoucher('${prod.nombre.replace(/'/g, "\\'")}')" 
-                style="display: flex; gap: 12px; align-items: start; padding: 12px; border-bottom: 1px solid #f1f5f9; cursor: pointer; transition: all 0.2s;"
-                onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='white'">
+                <div onclick="selectProductForLocalVoucher('${prod.nombre.replace(/'/g, "\\'")}')" 
+            style="display: flex; gap: 12px; align-items: start; padding: 12px; border-bottom: 1px solid #f1f5f9; cursor: pointer; transition: all 0.2s;"
+            onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='white'">
                 
                 <div style="position:relative; flex-shrink:0;">
                     <img src="${prod.imagen || 'zenith-icon.png'}" style="width: 50px; height: 50px; object-fit: cover; border-radius: 8px; border: 1px solid #e2e8f0; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
@@ -3639,12 +3736,12 @@ function filterLocalProducts(query) {
                     </div>
                 </div>
             </div>
-        `}).join('');
+                `}).join('');
 
         resultsDiv.innerHTML += `
-            <div onclick="selectProductForLocalVoucher('custom')" 
-                style="padding: 12px; text-align: center; color: #64748b; font-size: 0.85rem; background: #f8fafc; border-top: 1px solid #e2e8f0; cursor: pointer; font-weight: 500; transition: background 0.2s;"
-                 onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='#f8fafc'">
+            <div onclick="selectProductForLocalVoucher('custom')"
+            style="padding: 12px; text-align: center; color: #64748b; font-size: 0.85rem; background: #f8fafc; border-top: 1px solid #e2e8f0; cursor: pointer; font-weight: 500; transition: background 0.2s;"
+            onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='#f8fafc'">
                 <i class="fas fa-plus-circle" style="color:var(--accent);"></i> Producto Personalizado
             </div>`;
     }
@@ -3688,6 +3785,7 @@ window.selectProductForLocalVoucher = (productName) => {
             // document.getElementById("lv-details-name").textContent = prod.nombre; // OLD
 
             // BADGES GENERATION
+            // BADGES GENERATION
             const pax = parseInt(prod.personas || prod.pax || 1);
             let badgesHtml = '';
             if (pax > 1) {
@@ -3702,9 +3800,9 @@ window.selectProductForLocalVoucher = (productName) => {
             const includesMasaje = nameLower.includes('masaje') || catLower.includes('masaje');
             const isPack = nameLower.includes('pack') || (prod.items_incluidos && prod.items_incluidos.length > 1);
 
-            if (includesSpa) badgesHtml += ` <span style="background:#ecfeff; color:#0e7490; padding:2px 6px; border-radius:4px; font-size:0.7em; border:1px solid #cffafe; margin-left:4px;"><i class="fas fa-hot-tub"></i> Circuito</span>`;
-            if (includesMasaje) badgesHtml += ` <span style="background:#fdf4ff; color:#a21caf; padding:2px 6px; border-radius:4px; font-size:0.7em; border:1px solid #fce7f3; margin-left:4px;"><i class="fas fa-spa"></i> Masaje</span>`;
-            if (isPack) badgesHtml += ` <span style="background:#fff7ed; color:#c2410c; padding:2px 6px; border-radius:4px; font-size:0.7em; border:1px solid #ffedd5; margin-left:4px;"><i class="fas fa-box-open"></i> Pack</span>`;
+            if (includesSpa) badgesHtml += `<span style="background:#ecfeff; color:#0e7490; padding:2px 6px; border-radius:4px; font-size:0.7em; border:1px solid #cffafe; margin-left:4px;"><i class="fas fa-hot-tub"></i> Circuito</span>`;
+            if (includesMasaje) badgesHtml += `<span style="background:#fdf4ff; color:#a21caf; padding:2px 6px; border-radius:4px; font-size:0.7em; border:1px solid #fce7f3; margin-left:4px;"><i class="fas fa-spa"></i> Masaje</span>`;
+            if (isPack) badgesHtml += `<span style="background:#fff7ed; color:#c2410c; padding:2px 6px; border-radius:4px; font-size:0.7em; border:1px solid #ffedd5; margin-left:4px;"><i class="fas fa-box-open"></i> Pack</span>`;
 
             // INJECT NAME AND BADGES
             document.getElementById("lv-details-name").innerHTML = `
@@ -3983,18 +4081,18 @@ function renderLVCart() {
     list.innerHTML = state.lvCart.map((item, index) => {
         const itemImg = (item.originalProduct && item.originalProduct.imagen) ? item.originalProduct.imagen : 'zenith-icon.png';
         return `
-        <div style="display: flex; gap: 10px; align-items: center; background: #fff; padding: 8px; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
-            <img src="${itemImg}" style="width: 38px; height: 38px; object-fit: cover; border-radius: 6px;">
-            <div style="flex: 1; overflow: hidden;">
-                <div style="font-weight: 700; font-size: 0.85rem; color: #1e293b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${item.name}</div>
-                <div style="font-size: 0.75rem; color: #64748b;">
-                    ${item.sessions} ses. x ${item.price.toFixed(2)}€ = <strong style="color: var(--accent);">${(item.price * item.sessions).toFixed(2)}€</strong>
+            <div style="display: flex; gap: 10px; align-items: center; background: #fff; padding: 8px; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
+                <img src="${itemImg}" style="width: 38px; height: 38px; object-fit: cover; border-radius: 6px;">
+                <div style="flex: 1; overflow: hidden;">
+                    <div style="font-weight: 700; font-size: 0.85rem; color: #1e293b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${item.name}</div>
+                    <div style="font-size: 0.75rem; color: #64748b;">
+                        ${item.sessions} ses. x ${item.price.toFixed(2)}€ = <strong style="color: var(--accent);">${(item.price * item.sessions).toFixed(2)}€</strong>
+                    </div>
                 </div>
-            </div>
-            <button onclick="removeFromCart(${index})" style="background: #fef2f2; border: 1px solid #fee2e2; color: #ef4444; width: 28px; height: 28px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s;">
-                <i class="fas fa-times"></i>
-            </button>
-        </div>`;
+                <button onclick="removeFromCart(${index})" style="background: #fef2f2; border: 1px solid #fee2e2; color: #ef4444; width: 28px; height: 28px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s;">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>`;
     }).join('');
 
     const totalPrice = state.lvCart.reduce((sum, i) => sum + (i.price * i.sessions), 0);
@@ -4018,7 +4116,7 @@ async function createLocalVoucher() {
     if (!clientName) return showToast("Escribe el nombre del cliente", "warning");
 
     const codeInput = document.getElementById("lv-code").value.trim();
-    // Generación de código mejorada: LOC + Año + Secuencial aleatorio
+    // Generación de código mejorada: LOC + Año + Secuencial aleatorio (SIN ESPACIOS AL FINAL)
     const code = codeInput || `LOC-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
 
     const totalPrice = state.lvCart.reduce((sum, i) => sum + (i.price * i.sessions), 0);
@@ -4240,7 +4338,7 @@ async function importExcelOrders(event) {
             const orderKey = mapped.order_number || mapped.order_id;
             if (!orderKey) continue;
 
-            const bonoCode = `WC${orderKey}`;
+            const bonoCode = `WC${orderKey} `;
 
             if (!orders[bonoCode]) {
                 orders[bonoCode] = {
@@ -4260,7 +4358,7 @@ async function importExcelOrders(event) {
         let updated = 0;
 
         const orderCodes = Object.keys(orders);
-        console.log(`Pedidos únicos detectados: ${orderCodes.length}`);
+        console.log(`Pedidos únicos detectados: ${orderCodes.length} `);
 
         // 2. PROCESAR CADA PEDIDO AGRUPADO
         for (const code of orderCodes) {
@@ -4314,7 +4412,7 @@ async function importExcelOrders(event) {
                         totalSesiones += det.total;
                     }
 
-                    productNames.push(`${qty > 1 ? qty + 'x ' : ''}${item.producto}`);
+                    productNames.push(`${qty > 1 ? qty + 'x ' : ''}${item.producto} `);
                     totalPrice += price; // El precio de la fila generalmente es el total de esa línea
                 });
 
@@ -4328,7 +4426,7 @@ async function importExcelOrders(event) {
 
                     // Chequeo simple: Si el existente tiene menos items desglosados, actualizar
                     if ((existingData.items_desglosados || []).length < itemsDesglosados.length) {
-                        console.log(`[UPDATE] Actualizando bono ${code} con más items (${itemsDesglosados.length} vs ${existingData.items_desglosados?.length})`);
+                        console.log(`[UPDATE] Actualizando bono ${code} con más items(${itemsDesglosados.length} vs ${existingData.items_desglosados?.length})`);
 
                         await docRef.update({
                             items_desglosados: itemsDesglosados,
@@ -4410,7 +4508,7 @@ async function syncSingleVoucher(code) {
     }
 
     try {
-        console.log(`[DiffSync] Forzando actualización individual para: ${code}`);
+        console.log(`[DiffSync] Forzando actualización individual para: ${code} `);
         let shopVouchers = [];
 
         // Try Optimized Endpoint with Search
@@ -4502,7 +4600,7 @@ async function syncSingleVoucher(code) {
 
         } else {
             console.warn("[DiffSync] Bono not found in recent API response");
-            showToast(`No se encontró el bono en los últimos 5 años (Fetched ${shopVouchers.length} items)`, "warning");
+            showToast(`No se encontró el bono en los últimos 5 años(Fetched ${shopVouchers.length} items)`, "warning");
         }
 
     } catch (e) {
@@ -4555,7 +4653,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // BÚSQUEDA DIRECTA: Si escribe un código exacto (LOC-XXXX o BONOXXXX), buscar solo ese documento
             if (searchTerm.match(/^(LOC-|BONO)\d+/i)) {
                 const codigo = searchTerm.toUpperCase();
-                console.log(`[BÚSQUEDA DIRECTA] Buscando código específico: ${codigo}`);
+                console.log(`[BÚSQUEDA DIRECTA] Buscando código específico: ${codigo} `);
 
                 try {
                     const doc = await db.collection("spa_vouchers").doc(codigo).get();
@@ -4566,7 +4664,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         const existingIndex = state.bonos.findIndex(b => b.bono === doc.id);
                         if (existingIndex === -1) {
                             state.bonos.unshift(bonoData); // Añadir al principio
-                            console.log(`[BÚSQUEDA DIRECTA] ✓ Bono ${doc.id} encontrado (1 lectura)`);
+                            console.log(`[BÚSQUEDA DIRECTA] ✓ Bono ${doc.id} encontrado(1 lectura)`);
                         } else {
                             console.log(`[BÚSQUEDA DIRECTA] ✓ Bono ${doc.id} ya estaba cargado`);
                         }
@@ -4580,7 +4678,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         console.log(`[BÚSQUEDA DIRECTA] ✗ Bono ${codigo} no existe en la base de datos`);
                     }
                 } catch (err) {
-                    console.warn(`[BÚSQUEDA DIRECTA] Error: ${err.message}`);
+                    console.warn(`[BÚSQUEDA DIRECTA]Error: ${err.message} `);
                 }
             }
 
@@ -4737,7 +4835,7 @@ window.importLocalVouchersFromExcel = function (event) {
                 if (rowStr.includes('codigo') || rowStr.includes('código') || rowStr.includes('bono') || rowStr.includes('code')) {
                     headerRowIndex = i;
                     foundHeader = true;
-                    console.log(`[IMPORT] Cabecera detectada en fila ${i}:`, row);
+                    console.log(`[IMPORT] Cabecera detectada en fila ${i}: `, row);
                     break;
                 }
             }
@@ -4788,7 +4886,7 @@ window.importLocalVouchersFromExcel = function (event) {
                     }
 
                     // AÑADIR PREFIJO "exc.Loc " si no lo tiene
-                    const codigo = String(rawCodigo).startsWith("exc.Loc") ? rawCodigo : `exc.Loc ${rawCodigo}`;
+                    const codigo = String(rawCodigo).startsWith("exc.Loc") ? rawCodigo : `exc.Loc ${rawCodigo} `;
 
                     if (String(rawCodigo).includes("16707")) {
                         console.log("DEBUG 16707 FOUND:", { rawCodigo, codigo, row });
@@ -4803,7 +4901,7 @@ window.importLocalVouchersFromExcel = function (event) {
                             skippedCount++;
                             continue;
                         } else {
-                            console.log(`[Import] Forzando actualización de bono con fecha incorrecta (1970): ${codigo}`);
+                            console.log(`[Import] Forzando actualización de bono con fecha incorrecta(1970): ${codigo} `);
                         }
                     }
 
@@ -4857,7 +4955,7 @@ window.importLocalVouchersFromExcel = function (event) {
                                 const day = spanMatch[1].padStart(2, '0');
                                 const month = spanMatch[2].padStart(2, '0');
                                 const year = spanMatch[3];
-                                fecha = `${year}-${month}-${day}`;
+                                fecha = `${year} -${month} -${day} `;
                             } else {
                                 // B. Fallback to standard Date parse (YYYY-MM-DD, etc.)
                                 const d = new Date(trimmed);
@@ -4885,7 +4983,7 @@ window.importLocalVouchersFromExcel = function (event) {
                     // VALIDACIÓN DE DUPLICADOS ROBUSTA (ASYNC)
                     // 1. Verificar si ya lo hemos procesado en ESTE lote
                     if (processedCodes.has(codigo)) {
-                        console.log(`[Import] Saltando duplicado (en lote): ${codigo}`);
+                        console.log(`[Import] Saltando duplicado(en lote): ${codigo} `);
                         skippedCount++;
                         continue;
                     }
@@ -4906,7 +5004,7 @@ window.importLocalVouchersFromExcel = function (event) {
 
                         // If date is valid, we skip. If invalid (1970), we proceed to overwrite.
                         if (!isInvalidDate) {
-                            console.log(`[Import] Saltando duplicado (ya existe en BD): ${codigo}`);
+                            console.log(`[Import] Saltando duplicado(ya existe en BD): ${codigo} `);
                             skippedCount++;
                             // Si existe, asegúrate de que esté en state local para que el usuario lo VEA al menos
                             const isVisible = state.bonos.some(b => b.bono === codigo);
@@ -4919,7 +5017,7 @@ window.importLocalVouchersFromExcel = function (event) {
                             }
                             continue;
                         } else {
-                            console.log(`[Import] Forzando actualización en BD por fecha 1970: ${codigo}`);
+                            console.log(`[Import] Forzando actualización en BD por fecha 1970: ${codigo} `);
                         }
                     }
 
@@ -4974,7 +5072,7 @@ window.importLocalVouchersFromExcel = function (event) {
                         }
                         console.log(`[IMPORT] Bono ${newBono.bono} subido a Firestore ✅`);
                     } catch (fsErr) {
-                        console.warn(`[IMPORT] ⚠ Fallo subida Firestore para ${newBono.bono}. Permanece en local (pending).`, fsErr);
+                        console.warn(`[IMPORT] ⚠ Fallo subida Firestore para ${newBono.bono}. Permanece en local(pending).`, fsErr);
                     }
 
                     // Actualizar estado local
@@ -4998,8 +5096,8 @@ window.importLocalVouchersFromExcel = function (event) {
             await cargarBonos();
 
             let msg = `Importados: ${importedCount}.`;
-            if (skippedCount > 0) msg += ` Saltados (duplicados): ${skippedCount}.`;
-            if (errorCount > 0) msg += ` Ignorados/Error: ${errorCount}.`;
+            if (skippedCount > 0) msg += ` Saltados(duplicados): ${skippedCount}.`;
+            if (errorCount > 0) msg += ` Ignorados / Error: ${errorCount}.`;
 
             showToast(msg, importedCount > 0 ? "success" : "info");
 
@@ -5022,7 +5120,7 @@ async function uploadLocalPendingToFirestore() {
         const pending = await apiLocal.getPendingSync('bonos');
         if (pending.length === 0) return;
 
-        console.log(`[SYNC-UP] Subiendo ${pending.length} bonos pendientes a la nube...`);
+        console.log(`[SYNC - UP] Subiendo ${pending.length} bonos pendientes a la nube...`);
         const batch = db.batch();
         let batchedCount = 0;
 
@@ -5045,7 +5143,7 @@ async function uploadLocalPendingToFirestore() {
 
         if (batchedCount > 0) {
             await batch.commit();
-            console.log(`[SYNC-UP] ${batchedCount} bonos subidos correctamente.`);
+            console.log(`[SYNC - UP] ${batchedCount} bonos subidos correctamente.`);
 
             // Marcar como synced en local
             for (const item of pending) {
@@ -5084,7 +5182,7 @@ async function forceSyncLocalVouchers() {
             return;
         }
 
-        console.log(`[FORCE-SYNC] Encontrados ${localOnly.length} bonos locales. Iniciando subida...`);
+        console.log(`[FORCE - SYNC] Encontrados ${localOnly.length} bonos locales.Iniciando subida...`);
 
         const batchSize = 400; // Firestore batch limit is 500
         const total = localOnly.length;
@@ -5112,7 +5210,7 @@ async function forceSyncLocalVouchers() {
             if (opsInBatch > 0) {
                 await batch.commit();
                 processed += opsInBatch;
-                console.log(`[FORCE-SYNC] Lote ${i / batchSize + 1} subido (${opsInBatch} docs).`);
+                console.log(`[FORCE - SYNC] Lote ${i / batchSize + 1} subido(${opsInBatch} docs).`);
 
                 // Mark synced local
                 for (const item of chunk) {
@@ -5143,19 +5241,19 @@ async function searchVoucherByNumericInput(number) {
     const tableBody = document.getElementById("vouchers-table-body");
     if (!tableBody) return;
 
-    tableBody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding: 20px;" class="muted">
-        <i class="fas fa-search fa-spin"></i> Probando formatos para el n° ${number}...
-    </td></tr>`;
+    tableBody.innerHTML = `< tr > <td colspan="7" style="text-align:center; padding: 20px;" class="muted">
+                    <i class="fas fa-search fa-spin"></i> Probando formatos para el n° ${number}...
+                </td></tr > `;
 
     const currentYear = new Date().getFullYear();
     // Generar candidatos de códigos para búsqueda exacta rápida
     const candidates = [
-        `exc.Loc ${number}`,
-        `LOC-${number}`,
-        `LOC-${new Date().getFullYear()}-${number}`,
-        `BONO${number}`,
-        `${number}`,
-        `Bono ${number}`
+        `exc.Loc ${number} `,
+        `LOC - ${number} `,
+        `LOC - ${new Date().getFullYear()} -${number} `,
+        `BONO${number} `,
+        `${number} `,
+        `Bono ${number} `
     ];
 
     try {
@@ -5167,7 +5265,7 @@ async function searchVoucherByNumericInput(number) {
         });
 
         if (partialMatches.length > 0) {
-            console.log(`[SMART-SEARCH] Encontrados ${partialMatches.length} coincidencias parciales en memoria.`);
+            console.log(`[SMART - SEARCH] Encontrados ${partialMatches.length} coincidencias parciales en memoria.`);
             state.bonos = partialMatches;
             state.isActiveSearch = true;
             renderBonosFromState();
@@ -5181,12 +5279,12 @@ async function searchVoucherByNumericInput(number) {
             for (const code of candidates) {
                 const local = await apiLocal.getBonoByCode(code);
                 if (local) {
-                    console.log(`[SMART-SEARCH] Encontrado en local: ${code}`);
+                    console.log(`[SMART - SEARCH] Encontrado en local: ${code} `);
                     state.bonos = [local];
                     state.isActiveSearch = true;
                     renderBonosFromState();
                     updateCount();
-                    showToast(`Bono ${code} encontrado (Local)`, 'success');
+                    showToast(`Bono ${code} encontrado(Local)`, 'success');
                     return;
                 }
             }
@@ -5293,13 +5391,13 @@ window.fixLegacyNumericVoucherCodes = async function () {
             let dateObj = new Date(b.fecha);
             if (isNaN(dateObj.getTime()) || String(b.fecha).includes('ERROR') || String(b.fecha).length < 6) {
                 dateObj = new Date(); // Fallback a hoy si la fecha estaba mal
-                console.log(`[MIGRATION] Bono ${b.bono}: Fecha inválida '${b.fecha}'. Cambiada a HOY.`);
+                console.log(`[MIGRATION] Bono ${b.bono}: Fecha inválida '${b.fecha}'.Cambiada a HOY.`);
             }
             const cleanDate = dateObj.toISOString().split('T')[0];
             const year = dateObj.getFullYear();
 
             // 2. Nuevo Código
-            const newCode = `LOC-${year}-${b.bono}`;
+            const newCode = `LOC - ${year} -${b.bono} `;
 
             // 3. Crear Nuevo Bono
             const newBono = { ...b, bono: newCode, codigo: newCode, fecha: cleanDate, origen: 'local', updated_at: new Date().toISOString() };
@@ -5315,7 +5413,7 @@ window.fixLegacyNumericVoucherCodes = async function () {
 
             migrated++;
         } catch (e) {
-            console.error(`[MIGRATION] Error migrando bono ${b.bono}:`, e);
+            console.error(`[MIGRATION] Error migrando bono ${b.bono}: `, e);
         }
     }
 
@@ -5392,7 +5490,7 @@ window.removeCorruptDuplicates = async function () {
         return;
     }
 
-    if (!confirm(`⚠️ SE HAN DETECTADO ${toDelete.length} BONOS CORRUPTOS (Fecha 1970 o duplicados).\n\nSe eliminarán para dejar solo las versiones correctas o permitir re-importación.\n\n¿Proceder?`)) return;
+    if (!confirm(`⚠️ SE HAN DETECTADO ${toDelete.length} BONOS CORRUPTOS(Fecha 1970 o duplicados).\n\nSe eliminarán para dejar solo las versiones correctas o permitir re - importación.\n\n¿Proceder ? `)) return;
 
     let deleted = 0;
     for (const b of toDelete) {
@@ -5409,7 +5507,7 @@ window.removeCorruptDuplicates = async function () {
             }
             deleted++;
         } catch (e) {
-            console.error(`Error borrando ${b.bono}`, e);
+            console.error(`Error borrando ${b.bono} `, e);
         }
     }
 
@@ -5485,11 +5583,11 @@ window.cleanupVouchers = async function (deepScan = true) {
         return;
     }
 
-    if (!confirm(`⚠️ SE VAN A ELIMINAR ${toDelete.length} BONOS INVÁLIDOS:\n` +
+    if (!confirm(`⚠️ SE VAN A ELIMINAR ${toDelete.length} BONOS INVÁLIDOS: \n` +
         `- ${toDelete.filter(b => b._fromFirestore).length} detectados solo en Nube.\n` +
         `- ${toDelete.length - toDelete.filter(b => b._fromFirestore).length} locales.\n\n` +
-        `Ejemplos: ${toDelete.slice(0, 3).map(b => b.bono + ' (' + b.fecha + ')').join(', ')}\n\n` +
-        `¿Estás seguro? SE BORRARÁN DE FIRESTORE Y LOCAL.`)) {
+        `Ejemplos: ${toDelete.slice(0, 3).map(b => b.bono + ' (' + b.fecha + ')').join(', ')} \n\n` +
+        `¿Estás seguro ? SE BORRARÁN DE FIRESTORE Y LOCAL.`)) {
         return;
     }
 
@@ -5506,7 +5604,7 @@ window.cleanupVouchers = async function (deepScan = true) {
 
             deletedCount++;
         } catch (err) {
-            console.error(`Error borrando ${b.bono}`, err);
+            console.error(`Error borrando ${b.bono} `, err);
         }
     }
 
@@ -5520,9 +5618,9 @@ window.cleanupVouchers = async function (deepScan = true) {
  * Uso: deleteLegacyRange(9998)
  */
 window.deleteLegacyRange = async function (maxId = 9998) {
-    if (!confirm(`⚠️ PELIGRO: Esto borrará TODOS los bonos que sean solo números (sin LOC-) menores o iguales a ${maxId}.\n¿Estás seguro?`)) return;
+    if (!confirm(`⚠️ PELIGRO: Esto borrará TODOS los bonos que sean solo números(sin LOC -) menores o iguales a ${maxId}.\n¿Estás seguro ? `)) return;
 
-    console.log(`[RANGE-DELETE] Buscando bonos numéricos <= ${maxId}...`);
+    console.log(`[RANGE - DELETE] Buscando bonos numéricos <= ${maxId}...`);
 
     // 1. Buscar candidatos (Local + Nube)
     let toDelete = [];
@@ -5555,9 +5653,9 @@ window.deleteLegacyRange = async function (maxId = 9998) {
         return;
     }
 
-    if (!confirm(`⚠️ SE DETECTARON ${toDelete.length} BONOS NUMÉRICOS <= ${maxId}.\nSe van a eliminar PERMANENTEMENTE.\n\nEscribe el número ${toDelete.length} para confirmar:`)) return;
+    if (!confirm(`⚠️ SE DETECTARON ${toDelete.length} BONOS NUMÉRICOS <= ${maxId}.\nSe van a eliminar PERMANENTEMENTE.\n\nEscribe el número ${toDelete.length} para confirmar: `)) return;
 
-    console.log(`[RANGE-DELETE] Borrando ${toDelete.length} bonos...`);
+    console.log(`[RANGE - DELETE] Borrando ${toDelete.length} bonos...`);
     let count = 0;
 
     for (const b of toDelete) {
@@ -5567,11 +5665,11 @@ window.deleteLegacyRange = async function (maxId = 9998) {
             count++;
             if (count % 50 === 0) console.log(`Borrados ${count}...`);
         } catch (e) {
-            console.error(`Fallo al borrar ${b.bono}`, e);
+            console.error(`Fallo al borrar ${b.bono} `, e);
         }
     }
 
-    alert(`✅ Operación terminada. ${count} bonos eliminados.`);
+    alert(`✅ Operación terminada.${count} bonos eliminados.`);
     window.location.reload();
 };
 
@@ -5662,7 +5760,7 @@ window.removeCorruptDuplicates = async function () {
     // Unificar por código de bono por si acaso
     const uniqueToDelete = [...new Map(toDelete.map(item => [item.bono, item])).values()];
 
-    if (!confirm(`🚨 ¡ATENCIÓN! Se han encontrado ${uniqueToDelete.length} bonos corruptos.\n\n¿Quieres BORRARLOS TODOS de forma masiva ahora mismo?`)) return;
+    if (!confirm(`🚨 ¡ATENCIÓN! Se han encontrado ${uniqueToDelete.length} bonos corruptos.\n\n¿Quieres BORRARLOS TODOS de forma masiva ahora mismo ? `)) return;
 
     let deletedCount = 0;
     const errors = [];
@@ -5686,7 +5784,7 @@ window.removeCorruptDuplicates = async function () {
         }
     }
 
-    alert(`💪 ¡LIMPIEZA COMPLETADA!\n\nSe han eliminado ${deletedCount} bonos basura.\n${errors.length > 0 ? `Hubo ${errors.length} errores.` : ""}\n\nLa página se recargará para mostrar los cambios.`);
+    alert(`💪 ¡LIMPIEZA COMPLETADA!\n\nSe han eliminado ${deletedCount} bonos basura.\n${errors.length > 0 ? `Hubo ${errors.length} errores.` : ""} \n\nLa página se recargará para mostrar los cambios.`);
     window.location.reload();
 };
 
@@ -5710,7 +5808,7 @@ window.deleteVoucher = async function (bonoCode) {
         // 3. Delete from Firestore
         if (window.db) {
             await db.collection("spa_vouchers").doc(bonoCode).delete();
-            console.log(`[DELETE] Borrado de Firestore: ${bonoCode}`);
+            console.log(`[DELETE] Borrado de Firestore: ${bonoCode} `);
         }
 
         alert("✅ Bono eliminado correctamente.");
@@ -5719,3 +5817,33 @@ window.deleteVoucher = async function (bonoCode) {
         alert("❌ Error al borrar: " + e.message);
     }
 };
+
+// ----------------------------------------------------------
+// GLOBAL LISTENER FOR RESERVATION TAB COMPLETION
+// ----------------------------------------------------------
+window.addEventListener('message', async (event) => {
+    // Basic security check (though file:// context is loose)
+    // if (event.origin !== "http://trusted.com") return; 
+
+    if (event.data && (event.data.type === 'RESERVATION_COMPLETED' || event.data.type === 'RESTAURANT_RESERVATION_CREATED')) {
+        console.log("[BONO] Received reservation completion:", event.data);
+        const code = event.data.code || event.data.voucher; // Normalize 'code' or 'voucher'
+
+
+        // Only refresh if the modal is currently open for this voucher
+        const currentModalCode = document.getElementById("vm-code")?.value;
+        if (currentModalCode === code) {
+            showToast(`Reserva confirmada(${event.data.item || 'Servicio'})`, "success");
+
+            // CRITICAL: Wait for Firestore propagation
+            console.log("[BONO] Waiting for Firestore propagation...");
+            await new Promise(resolve => setTimeout(resolve, 2000));
+
+            // 1. Sync data in background (updates state and DB)
+            await syncSingleVoucher(code);
+
+            // 2. Refresh UI to show new usage/history
+            openVoucherManagement(code);
+        }
+    }
+});
