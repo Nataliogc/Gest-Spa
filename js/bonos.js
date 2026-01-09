@@ -408,6 +408,10 @@ async function openRestauranteFromVoucher(client, service, code, space, pax, pho
 async function goToReservation(client, service, code, space, pax) {
     service = decodeURIComponent(service).trim();
     client = decodeURIComponent(client).trim();
+    code = decodeURIComponent(code).trim();
+    space = decodeURIComponent(space || '').trim();
+    // pax is usually a number or unencoded string, but safe to decode if string
+    if (typeof pax === 'string') pax = decodeURIComponent(pax).trim();
     if (!confirm(`¿Ir al calendario para reservar '${service}' para ${client}?`)) return;
 
     // 1. Buscar en Master Items (Prioridad Absoluta para Espacio)

@@ -23,7 +23,7 @@ async function renderVoucherHistory(bonoCode, internalValidations = []) {
     try {
         let allReservations = [];
         // Colecciones donde buscar reservas
-        const collections = ['reservas_spa', 'reservas_suite', 'reservas_panacea', 'reservas_peluqueria', 'reservas_vip', 'reservas_restaurante', 'reservas_gimnasio', 'reservas_rest', 'reservas_menu'];
+        const collections = ['reservas_spa', 'reservas_suite', 'reservas_panacea', 'reservas_peluqueria', 'reservas_vip', 'reservas_restaurante', 'reservas_gimnasio', 'reservas_rest', 'reservas_menu', 'reservas', 'reservas_evento'];
 
         console.log(`[HISTORY] Buscando historial para bono: '${bonoCode}' en colecciones:`, collections);
 
@@ -57,7 +57,20 @@ async function renderVoucherHistory(bonoCode, internalValidations = []) {
                     });
                 }
 
-                // 3. Fallback: Búsqueda por código sin espacios
+                // 3. Fallback: Búsqueda por código sin espacios (TRIMMED) - FIX CRÍTICO
+                const trimmedCode = bonoCode.trim();
+                if (trimmedCode !== bonoCode) {
+                    const snapTrim = await db.collection(col).where("bono", "==", trimmedCode).get();
+                    snapTrim.forEach(doc => {
+                        const d = doc.data();
+                        const alreadyAdded = allReservations.some(r => r.id === doc.id);
+                        if (!alreadyAdded && d.status !== 'anulada') {
+                            allReservations.push({ ...d, _col: col, id: doc.id });
+                        }
+                    });
+                }
+
+                // 4. Fallback: Búsqueda por código sin espacios internos (si aplica)
                 if (bonoCode.includes(' ')) {
                     const cleanCode = bonoCode.replace(/\s+/g, '');
                     const snap2 = await db.collection(col).where("bono", "==", cleanCode).get();
