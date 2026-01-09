@@ -74,11 +74,13 @@ function setupBonoListeners() {
 
             // BÚSQUEDA INTELIGENTE CON 3 NIVELES:
             if (searchTerm.length > 0) {
-                // NIVEL 1: Código exacto de bono (LOC-YYYY-XXXX o BONOXXXX) → 1 lectura
-                const isVoucherCode = /^(LOC-\d{4}-\d+|BONO\d+)$/i.test(searchTerm.toUpperCase());
+                // NIVEL 1: Código exacto de bono (LOC-YYYY-XXXX, BONOXXXX o exc.Loc XXXX) → 1 lectura
+                // Regex ampliada para incluir exc.Loc y variantes con puntos/espacios
+                const isVoucherCode = /^(LOC-\d{4}-\d+|BONO\d+|EXC\.?LOC[-\s]*\d+)$/i.test(searchTerm.toUpperCase());
 
                 if (isVoucherCode) {
-                    searchVoucherByCode(searchTerm.toUpperCase());
+                    searchVoucherByCode(searchTerm); // Pasar original para mantener formato si importa
+
                     return;
                 }
 
@@ -749,12 +751,35 @@ async function cargarBonos() {
         // usaremos esa fecha como punto de corte para asegurar que se cargan esos datos.
         const datePickerValue = document.getElementById("voucher-date") ? document.getElementById("voucher-date").value : null;
 
+
+        // LOGIC FIX: Prioritize Range Dropdown (monthsBack) if selected (Value != 0)
+        // Only use Date Picker if Range is "Today" (0) or default.
+        // This prevents the default "Today" in date picker from overriding the "Last Year" selection.
+
         let cutoffStr;
-        if (datePickerValue) {
+
+        if (monthsBack !== 0) {
+            // Priority 1: User selected a specific period (Week, Month, Year)
+            const cutoffDate = new Date();
+
+            // Si es 0.25 (semana), calcular 7 días atrás
+            if (monthsBack < 1) {
+                const daysBack = Math.round(monthsBack * 30); // 0.25 * 30 ≈ 7 días
+                cutoffDate.setDate(cutoffDate.getDate() - daysBack);
+                console.log(`[OPTIMIZACIÓN] Cargando bonos desde: últimos ${daysBack} días (Prioridad Rango)`);
+            } else {
+                cutoffDate.setMonth(cutoffDate.getMonth() - monthsBack);
+                console.log(`[OPTIMIZACIÓN] Cargando bonos desde: últimos ${monthsBack} meses (Prioridad Rango)`);
+            }
+            cutoffStr = cutoffDate.toISOString().split('T')[0];
+
+        } else if (datePickerValue) {
+            // Priority 2: Use specific date from picker (only if Range is default/0)
             cutoffStr = datePickerValue;
             console.log(`[OPTIMIZACIÓN] Usando fecha del selector como filtro: >= ${cutoffStr}`);
-        } else if (monthsBack === 0) {
-            // Solo hoy: usar fecha LOCAL (no UTC) y restar 1 día de margen por si acaso (Timezones)
+
+        } else {
+            // Priority 3: Default to Today-1
             const today = new Date();
             today.setDate(today.getDate() - 1); // MARGEN DE SEGURIDAD
             const year = today.getFullYear();
@@ -762,21 +787,6 @@ async function cargarBonos() {
             const day = String(today.getDate()).padStart(2, '0');
             cutoffStr = `${year}-${month}-${day}`;
             console.log(`[OPTIMIZACIÓN] Cargando bonos desde (Hoy-1): ${cutoffStr}`);
-        } else {
-            // Filtro por período (semanas o meses)
-            const cutoffDate = new Date();
-
-            // Si es 0.25 (semana), calcular 7 días atrás
-            if (monthsBack < 1) {
-                const daysBack = Math.round(monthsBack * 30); // 0.25 * 30 ≈ 7 días
-                cutoffDate.setDate(cutoffDate.getDate() - daysBack);
-                console.log(`[OPTIMIZACIÓN] Cargando bonos desde: últimos ${daysBack} días`);
-            } else {
-                cutoffDate.setMonth(cutoffDate.getMonth() - monthsBack);
-                console.log(`[OPTIMIZACIÓN] Cargando bonos desde: últimos ${monthsBack} meses`);
-            }
-
-            cutoffStr = cutoffDate.toISOString().split('T')[0];
         }
 
         // Carga con filtro de fecha (máximo 1 año)
@@ -2654,6 +2664,32 @@ async function openVoucherManagement(code) {
     };
 
 
+    // Nueva función para recalcular precio visualmente al cambiar pax
+    window.updatePriceBadge = () => {
+        const prodName = document.getElementById("vm-producto").value;
+        const pax = parseInt(document.getElementById("vm-pax-sesion").value) || 1;
+        const product = state.catalogProducts.find(p => p.nombre === prodName);
+
+        if (product) {
+            const basePrice = parseFloat(product.precio) || 0;
+            const basePax = parseInt(product.personas || product.pax || 1);
+            const ratio = pax / basePax;
+            const finalPrice = basePrice * ratio;
+
+            const priceBadge = document.getElementById("vm-cat-price");
+            if (priceBadge) priceBadge.textContent = finalPrice.toFixed(2) + '€';
+        }
+    };
+
+    // Attach listener if not already attached (safe to re-attach if using onclick or ensuring single init, but here we are in a closure potentially)
+    // Better: Helper checks if listener exists or we just use 'onchange' attribute logic via setter if possible.
+    // Simplest: Assign onclick/onchange directly to element
+    const paxInput = document.getElementById("vm-pax-sesion");
+    if (paxInput) {
+        paxInput.onchange = window.updatePriceBadge;
+        paxInput.onkeyup = window.updatePriceBadge; // For smoother UX
+    }
+
     window.linkVoucherToCatalogProduct = () => {
         const searchVal = document.getElementById("vm-catalog-search").value;
         if (!searchVal) return;
@@ -2681,10 +2717,14 @@ async function openVoucherManagement(code) {
             document.getElementById("vm-sesiones-total").value = totalSessions;
             document.getElementById("vm-pax-sesion").value = totalPax;
 
-            // Actualizar el precio (Badge y v.importe si el usuario no lo editó)
-            const price = parseFloat(product.precio) || 0;
+            // CALCULAR PRECIO DINÁMICO (Lógica portada de openLocalVoucherModal)
+            const basePrice = parseFloat(product.precio) || 0;
+            const basePax = parseInt(product.personas || product.pax || 1);
+            const ratio = totalPax / basePax;
+            const finalPrice = basePrice * ratio;
+
             const priceBadge = document.getElementById("vm-cat-price");
-            if (priceBadge) priceBadge.textContent = price + '€';
+            if (priceBadge) priceBadge.textContent = finalPrice.toFixed(2) + '€';
 
             // Forzar actualización visual de la tarjeta de catálogo
             document.getElementById("vm-cat-name").textContent = product.nombre;
@@ -2867,9 +2907,24 @@ async function saveVoucherChanges() {
         sesiones_usadas: parseInt(document.getElementById("vm-sesiones-usadas").value) || 0,
         pax_por_sesion: parseInt(document.getElementById("vm-pax-sesion").value) || 1,
         notas_internas: document.getElementById("vm-notas").value,
-        items_desglosados: state.editingVoucherItems || [],
+        producto: document.getElementById("vm-producto").value,
+        items_desglosados: cleanUndefined(state.editingVoucherItems || []),
         manual_update: true
     };
+
+    // RECALCULATE PRICE FOR SAVING (Consistency with Visual Badge)
+    const prodName = updates.producto;
+    const finalProduct = state.catalogProducts.find(p => p.nombre === prodName);
+    if (finalProduct) {
+        const basePrice = parseFloat(finalProduct.precio) || 0;
+        const basePax = parseInt(finalProduct.personas || finalProduct.pax || 1);
+        const currentPax = updates.pax_por_sesion;
+        // Logic: If I have 2 pax and base is 1, price doubles.
+        // If I have 2 pax and base is 2 (e.g. Couple pack), price is base.
+        const ratio = currentPax / basePax;
+        updates.importe = basePrice * ratio;
+        updates.precio = updates.importe; // Mantener consistencia precio/importe
+    }
 
     // Auto estado logic (Item-aware)
     // Priority: If Global Counters say Completed (Used >= Total), force Completed.
@@ -2908,23 +2963,26 @@ async function saveVoucherChanges() {
         btnText.textContent = "GUARDANDO...";
 
         const bonoData = { ...updates, bono: code };
+        const cleanBonoData = cleanUndefined(bonoData);
 
         // 1. GUARDADO LOCAL INMEDIATO
         if (window.apiLocal) {
-            await apiLocal.saveBono({ ...bonoData, syncStatus: 'pending' });
+            await apiLocal.saveBono({ ...cleanBonoData, syncStatus: 'pending' });
             if (window.updateGlobalSyncStatus) updateGlobalSyncStatus('pending');
         }
 
         // UI Update inmediata en el state
         const idx = state.bonos.findIndex(b => (b.bono || b.codigo) === code);
         if (idx !== -1) {
-            state.bonos[idx] = { ...state.bonos[idx], ...updates };
+            state.bonos[idx] = { ...state.bonos[idx], ...cleanBonoData };
             renderBonosFromState();
         }
 
         // 2. INTENTO FIRESTORE (Background-ish)
         try {
-            await db.collection("spa_vouchers").doc(code).set(updates, { merge: true });
+            // Ensure updates is also clean for Firestore
+            const cleanUpdates = cleanUndefined(updates);
+            await db.collection("spa_vouchers").doc(code).set(cleanUpdates, { merge: true });
             if (window.apiLocal) await apiLocal.markSynced('bonos', code, code);
             if (window.updateGlobalSyncStatus) updateGlobalSyncStatus('synced');
             showToast("Cambios guardados y sincronizados", "success");
@@ -4692,9 +4750,10 @@ window.importLocalVouchersFromExcel = function (event) {
                         if (typeof fechaRaw === 'number') {
                             try {
                                 // Excel serial dates start 1899-12-30. 
-                                // Add 12 hours (0.5) to avoid timezone/midnight rollovers resulting in previous day
-                                const jsDate = new Date((fechaRaw - 25569.5) * 86400 * 1000);
-                                // Add 1 day if it seems off (optional, but usually adding 12h is enough for date-only)
+                                // FIX: Add 12 hours (+0.5) to target Noon to avoid midnight rollover issues
+                                // Previous code subtracted 0.5 (-25569.5) which shifted to Previous Day Noon.
+                                // Correct formula: (Raw - 25569 + 0.5)
+                                const jsDate = new Date((fechaRaw - 25569 + 0.5) * 86400 * 1000);
                                 // A safer way for pure dates:
                                 // const dateInfo = new Date((fechaRaw - 25569) * 86400 * 1000);
 
