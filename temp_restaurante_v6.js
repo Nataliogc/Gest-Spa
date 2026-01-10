@@ -1,11 +1,11 @@
 /**
- * BRIDGE SCRIPT V6.0 - RESTAURANT INTEGRATION (AGGRESSIVE PATCH)
+ * BRIDGE SCRIPT V7.0 - RESTAURANT INTEGRATION (WITH DIRECT VOUCHER UPDATE)
  * -----------------------------------------
  * Append this code to the END of js/restaurante.js in 'gestion-Salones'
  */
 
 (function () {
-    console.log("[Bridge] v6.0 Loading (Aggressive Mode)...");
+    console.log("[Bridge] v7.0 Loading (Aggressive Mode + Direct Voucher Update)...");
 
     // 1. URL Parameter Parsing
     const urlParams = new URLSearchParams(window.location.search);
@@ -45,9 +45,169 @@
         localStorage.setItem('mesaChef_hotel', hotelParam);
     }
 
-    // UI Pre-filling
-    window.addEventListener('DOMContentLoaded', async () => {
-        // Show banner
+    // 3.5 Initialize secondary Firebase for Gest-Spa (to update vouchers directly)
+    let gestSpaDb = null;
+    const initGestSpaFirebase = () => {
+        const gestSpaConfig = {
+            apiKey: "AIzaSyBhEbjopBY41V5rExPbsgkZMQueRIQIk",
+            authDomain: "gest-spa.firebaseapp.com",
+            projectId: "gest-spa",
+            storageBucket: "gest-spa.appspot.com",
+            messagingSenderId: "982069965360",
+            appId: "1:982069965360:web:f10b51551ed913c506b3f5"
+        };
+
+        try {
+            // Check if firebase is available
+            if (typeof firebase === 'undefined') {
+                console.log("[Bridge] Firebase not available, skipping secondary init.");
+                return;
+            }
+
+            // Initialize secondary app if not already done
+            let gestSpaApp;
+            try {
+                gestSpaApp = firebase.app('gestSpaApp');
+            } catch (e) {
+                gestSpaApp = firebase.initializeApp(gestSpaConfig, 'gestSpaApp');
+            }
+
+            gestSpaDb = gestSpaApp.firestore();
+            gestSpaDb.settings({ experimentalForceLongPolling: true });
+            console.log("[Bridge] Gest-Spa Firebase initialized successfully.");
+        } catch (error) {
+            console.error("[Bridge] Error initializing Gest-Spa Firebase:", error);
+        }
+    };
+
+    // Initialize when Firebase is loaded
+    if (typeof firebase !== 'undefined') {
+        initGestSpaFirebase();
+    } else {
+        // Wait for firebase to load
+        window.addEventListener('load', () => {
+            setTimeout(initGestSpaFirebase, 500);
+        });
+    }
+
+    // 3.6 Queue voucher update via localStorage (CORS-safe for file:// protocol)
+    // bonos.js will check for pending updates when it loads
+    const updateVoucherSessions = async (reservationId) => {
+        try {
+            console.log(`[Bridge] Queueing voucher update for ${voucherParam}...`);
+
+            // Get existing pending reservations or create empty array
+            const pendingKey = 'pendingVoucherReservations';
+            let pending = [];
+            try {
+                pending = JSON.parse(localStorage.getItem(pendingKey) || '[]');
+            } catch (e) {
+                pending = [];
+            }
+
+            // Add new pending reservation
+            const reservationData = {
+                voucherCode: voucherParam,
+                serviceName: serviceParam || 'Restaurante',
+                reservationId: reservationId,
+                timestamp: new Date().toISOString(),
+                client: clientParam,
+                pax: paxParam
+            };
+
+            pending.push(reservationData);
+
+            // Save back to localStorage
+            localStorage.setItem(pendingKey, JSON.stringify(pending));
+
+            console.log("[Bridge] Reservation queued for voucher update:", reservationData);
+            showBridgeToast("✅ Reserva guardada - Refresca bonos para ver cambios");
+
+        } catch (error) {
+            console.error("[Bridge] Error queueing voucher update:", error);
+        }
+    };
+
+
+    // UI Pre-filling - Wait for modal to be visible
+    const fillModalFields = () => {
+        console.log("[Bridge] Attempting to fill modal fields...");
+
+        // Check if the modal is TRULY visible (using computed style, not inline style)
+        const modal = document.getElementById('modalReserva');
+        if (!modal) {
+            console.log("[Bridge] Modal element not found, will retry...");
+            return false;
+        }
+
+        // Use getComputedStyle to get the ACTUAL display value (including CSS classes)
+        const computedStyle = window.getComputedStyle(modal);
+        const isModalVisible = computedStyle.display !== 'none' && computedStyle.visibility !== 'hidden';
+
+        if (!isModalVisible) {
+            console.log("[Bridge] Modal not visible yet (display:", computedStyle.display, "), will retry...");
+            return false;
+        }
+
+        console.log("[Bridge] Modal is visible, filling fields...");
+
+        // Auto-fill client name
+        if (clientParam) {
+            const n = document.getElementById('campoNombre');
+            if (n) { n.value = clientParam; n.dispatchEvent(new Event('input')); }
+        }
+
+        // Auto-fill phone
+        if (phoneParam) {
+            const t = document.getElementById('campoTelefono');
+            if (t) { t.value = phoneParam; t.dispatchEvent(new Event('input')); }
+        }
+
+        // Auto-fill pax
+        if (paxParam) {
+            const p = document.getElementById('campoPax');
+            if (p) { p.value = paxParam; p.dispatchEvent(new Event('change')); }
+        }
+
+        // Check "Servicio Incluido" checkbox to show the type selector
+        const checkInc = document.getElementById('checkServicioIncluido');
+        if (checkInc && !checkInc.checked) {
+            checkInc.checked = true;
+            checkInc.dispatchEvent(new Event('change'));
+        }
+
+        // Wait a bit for the DOM to update after checking the box
+        setTimeout(() => {
+            // Select "Spa (Nº Bono)" in the service type dropdown
+            const tipoInc = document.getElementById('tipoIncluido');
+            if (tipoInc) {
+                tipoInc.value = 'spa';
+                tipoInc.dispatchEvent(new Event('change'));
+                console.log("[Bridge] Set tipoIncluido to 'spa'");
+            }
+
+            // Wait for Bono field to become visible
+            setTimeout(() => {
+                // Fill the voucher number
+                const cBono = document.getElementById('campoBono');
+                if (cBono && voucherParam) {
+                    cBono.value = voucherParam;
+                    cBono.dispatchEvent(new Event('input'));
+                    console.log("[Bridge] Set campoBono to:", voucherParam);
+                }
+
+                showBridgeToast("✓ Campos de Bono Pre-rellenados");
+            }, 100);
+        }, 100);
+
+        return true;
+    };
+
+    // Use MutationObserver to detect when modal opens
+    const initBridge = () => {
+        console.log("[Bridge] Initializing bridge script...");
+
+        // Show banner immediately
         const title = document.querySelector('.modal-title') || document.querySelector('h5');
         if (title && !title.innerText.includes('BONO')) {
             const badge = document.createElement('span');
@@ -58,22 +218,51 @@
             title.appendChild(badge);
         }
 
-        // Auto-fill fields
-        if (clientParam) {
-            const n = document.getElementById('campoNombre');
-            if (n) n.value = clientParam;
+        // Setup observer for modal visibility
+        const observer = new MutationObserver((mutations) => {
+            for (const mutation of mutations) {
+                if (mutation.type === 'attributes' || mutation.type === 'childList') {
+                    if (fillModalFields()) {
+                        observer.disconnect();
+                        console.log("[Bridge] Fields filled, observer disconnected.");
+                        return;
+                    }
+                }
+            }
+        });
+
+        // Start observing the body for changes (modal being added/shown)
+        observer.observe(document.body, {
+            childList: true,
+            subtree: true,
+            attributes: true,
+            attributeFilter: ['class', 'style']
+        });
+
+        // Also try immediately and with a fallback interval
+        if (!fillModalFields()) {
+            // Retry every 500ms for up to 30 seconds
+            let attempts = 0;
+            const maxAttempts = 60;
+            const interval = setInterval(() => {
+                attempts++;
+                if (fillModalFields() || attempts >= maxAttempts) {
+                    clearInterval(interval);
+                    if (attempts >= maxAttempts) {
+                        console.log("[Bridge] Max attempts reached, stopping retry.");
+                    }
+                }
+            }, 500);
         }
-        if (phoneParam) {
-            const t = document.getElementById('campoTelefono');
-            if (t) t.value = phoneParam;
-        }
-        if (paxParam) {
-            const p = document.getElementById('campoPax');
-            if (p) { p.value = paxParam; p.dispatchEvent(new Event('change')); }
-        }
-        const checkInc = document.getElementById('checkServicioIncluido');
-        if (checkInc) { checkInc.checked = true; }
-    });
+    };
+
+    // Run immediately if DOM is already loaded, otherwise wait for DOMContentLoaded
+    if (document.readyState === 'loading') {
+        window.addEventListener('DOMContentLoaded', initBridge);
+    } else {
+        // DOM already loaded, run immediately
+        initBridge();
+    }
 
 
     // 4. FIRESTORE INTERCEPTION (Logic)
@@ -139,17 +328,33 @@
         }
     };
 
-    const notifyOpener = (id) => {
+    const notifyOpener = async (id) => {
         console.log(`[Bridge] Notifying opener. ResID: ${id}`);
+
+        // FIRST: Update voucher directly in Gest-Spa database
+        await updateVoucherSessions(id);
+
+        // THEN: Try to notify opener window (may fail with file:// protocol)
         if (window.opener) {
-            window.opener.postMessage({
-                type: 'RESERVATION_COMPLETED',
-                code: voucherParam,
-                item: serviceParam || 'Restaurante',
-                reservationId: id
-            }, '*');
-            setTimeout(() => window.close(), 1000);
+            try {
+                window.opener.postMessage({
+                    type: 'RESERVATION_COMPLETED',
+                    code: voucherParam,
+                    item: serviceParam || 'Restaurante',
+                    reservationId: id
+                }, '*');
+            } catch (e) {
+                console.log("[Bridge] postMessage failed (expected with file:// protocol):", e);
+            }
         }
+
+        // Close window after a delay
+        showBridgeToast("✅ Reserva vinculada correctamente");
+        setTimeout(() => {
+            if (window.opener) {
+                window.close();
+            }
+        }, 2000);
     };
 
     // 5. APPLY PATCHES (Aggressive)

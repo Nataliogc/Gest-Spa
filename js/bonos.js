@@ -51,9 +51,278 @@ function initBonos() {
     // Setup listeners (vital for interaction)
     setupBonoListeners();
 
+    // Check for pending restaurant reservations waiting in localStorage
+    processPendingVoucherReservations();
+
+    // NEW: Listen for reservation completion messages from restaurant window
+    window.addEventListener('message', async (event) => {
+        if (event.data && event.data.type === 'RESERVATION_COMPLETED') {
+            console.log('[BONOS] Received RESERVATION_COMPLETED message:', event.data);
+
+            const { code, item, reservationId } = event.data;
+
+            if (!code) {
+                console.warn('[BONOS] No voucher code in message, ignoring.');
+                return;
+            }
+
+            showToast('✅ Reserva de Restaurante completada. Actualizando bono...', 'success');
+
+            try {
+                // Find the voucher in state or fetch it
+                let voucher = state.bonos.find(b => b.bono === code || b.codigo === code);
+
+                if (!voucher) {
+                    // Try to fetch from Firestore
+                    const doc = await db.collection('spa_vouchers').doc(code).get();
+                    if (doc.exists) {
+                        voucher = { ...doc.data(), bono: code };
+                    }
+                }
+
+                if (voucher) {
+                    // Update the voucher's desglosados to mark the item as used
+                    let desglosados = voucher.desglosados || [];
+                    let updated = false;
+
+                    for (let i = 0; i < desglosados.length; i++) {
+                        const d = desglosados[i];
+                        // Match by service name (item) and check if it has remaining sessions
+                        const itemName = (d.name || d.nombre || '').toLowerCase();
+                        const searchItem = (item || 'restaurante').toLowerCase();
+
+                        if (itemName.includes(searchItem) || searchItem.includes('restaurante')) {
+                            const usadas = d.usadas || 0;
+                            const total = d.sesiones || d.total || 1;
+
+                            if (usadas < total) {
+                                desglosados[i].usadas = usadas + 1;
+                                desglosados[i].lastReservationId = reservationId;
+                                desglosados[i].lastReservationDate = new Date().toISOString();
+                                updated = true;
+                                console.log(`[BONOS] Incremented usage for '${itemName}': ${usadas} -> ${usadas + 1}`);
+                                break;
+                            }
+                        }
+                    }
+
+                    if (updated) {
+                        // Save updated voucher to Firestore
+                        await db.collection('spa_vouchers').doc(code).update({
+                            desglosados: desglosados,
+                            updatedAt: new Date().toISOString()
+                        });
+
+                        // Also update local storage
+                        if (window.apiLocal) {
+                            await apiLocal.saveBono({ ...voucher, desglosados, syncStatus: 'synced' });
+                        }
+
+                        // Refresh the voucher list
+                        cargarBonos();
+
+                        // If the voucher modal is currently open, refresh it
+                        const openCode = document.querySelector('#modal-voucher-code')?.textContent;
+                        if (openCode && (openCode === code || openCode.includes(code))) {
+                            console.log('[BONOS] Refreshing open voucher modal...');
+                            openVoucherManagement(code);
+                        }
+
+                        showToast(`Bono ${code} actualizado. Sesión descontada.`, 'success');
+                    } else {
+                        console.warn('[BONOS] Could not find matching item to decrement in desglosados.');
+                        showToast('Reserva guardada, pero no se pudo actualizar el bono automáticamente.', 'warning');
+                    }
+                } else {
+                    console.warn('[BONOS] Voucher not found:', code);
+                    showToast('Reserva guardada. Recarga los bonos para ver cambios.', 'info');
+                }
+            } catch (err) {
+                console.error('[BONOS] Error processing reservation completion:', err);
+                showToast('Error al actualizar el bono: ' + err.message, 'error');
+            }
+        }
+    });
+
+    // NEW: Process pending voucher reservations from localStorage (from restaurant bridge)
+    processPendingVoucherReservations();
+
     // Load data from DB
     cargarBonos();
 }
+
+// Process pending restaurant reservations stored in localStorage by the bridge script
+async function processPendingVoucherReservations() {
+    const pendingKey = 'pendingVoucherReservations';
+    let pending = [];
+    try {
+        const stored = localStorage.getItem('pendingVoucherReservations');
+        pending = stored ? JSON.parse(stored) : [];
+    } catch (e) {
+        console.error('[BONOS] Error parsing pending reservations:', e);
+    }
+
+    console.log(`[BONOS] Checking pending voucher reservations... Found: ${pending.length}`);
+
+    if (!pending || pending.length === 0) return;
+
+    const processed = [];
+    for (const reservation of pending) {
+        try {
+            const { voucherCode, serviceName, reservationId, timestamp, client, pax } = reservation;
+
+            if (!voucherCode) continue;
+
+            console.log(`[BONOS] Processing pending reservation for voucher ${voucherCode}...`);
+
+            // ALWAYS fetch fresh from Firestore to ensure desglosados are loaded
+            let voucher = null;
+            let docId = voucherCode;
+
+            try {
+                // First try by document ID
+                let doc = await db.collection('spa_vouchers').doc(voucherCode).get();
+
+                // If doc exists but has no desglosados, try querying by 'bono' field
+                if (!doc.exists || !(doc.data()?.desglosados?.length > 0)) {
+                    console.log(`[BONOS] Doc ID lookup failed or empty, trying query by 'bono' field...`);
+
+                    const querySnap = await db.collection('spa_vouchers')
+                        .where('bono', '==', voucherCode)
+                        .limit(1)
+                        .get();
+
+                    if (!querySnap.empty) {
+                        doc = querySnap.docs[0];
+                        docId = doc.id;
+                        console.log(`[BONOS] Found voucher by 'bono' field query. DocId: ${docId}`);
+                    }
+                }
+
+                if (doc.exists || doc.data) {
+                    const data = typeof doc.data === 'function' ? doc.data() : doc.data;
+                    voucher = { ...data, bono: voucherCode, _docId: docId };
+                    console.log(`[BONOS] Voucher loaded. DocId: ${docId}, Desglosados count:`, (voucher.desglosados || []).length);
+                }
+            } catch (fsErr) {
+                console.warn(`[BONOS] Firestore fetch failed, trying local state...`, fsErr);
+                voucher = state.bonos.find(b => b.bono === voucherCode || b.codigo === voucherCode);
+            }
+
+            if (!voucher) {
+                console.warn(`[BONOS] Voucher ${voucherCode} not found, skipping...`);
+                processed.push(reservation); // Mark as processed to avoid infinite loop
+                continue;
+            }
+
+            // Update items_desglosados (the actual field name in Firestore)
+            let desglosados = voucher.items_desglosados || voucher.desglosados || [];
+            let updated = false;
+            const serviceNorm = (serviceName || 'restaurante').toLowerCase();
+
+            console.log(`[BONOS] Searching for restaurant item. Service: '${serviceNorm}'. Items count:`, desglosados.length);
+
+            for (let i = 0; i < desglosados.length; i++) {
+                const d = desglosados[i];
+                const itemName = (d.name || d.nombre || '').toLowerCase();
+
+                console.log(`[BONOS] Checking item ${i}: '${itemName}'`);
+
+                // Match restaurant services - broadened conditions
+                const isRestaurant =
+                    itemName.includes('restaurante') ||
+                    itemName.includes('menú') ||
+                    itemName.includes('menu') ||
+                    itemName.includes('rest') ||
+                    serviceNorm.includes(itemName) ||
+                    itemName.includes(serviceNorm) ||
+                    serviceNorm.includes('restaurante') ||
+                    serviceNorm.includes('menu');
+
+                if (isRestaurant) {
+                    // Use 'used' field (as in Firestore) or fallback to 'usadas'
+                    const usadas = d.used ?? d.usadas ?? 0;
+                    const total = d.sessions || d.sesiones || d.total || 1;
+
+                    console.log(`[BONOS] Match found! Item: '${itemName}', Used: ${usadas}/${total}`);
+
+                    if (usadas < total) {
+                        // Update both field names for compatibility
+                        desglosados[i].used = usadas + 1;
+                        desglosados[i].usadas = usadas + 1;
+                        desglosados[i].lastReservationId = reservationId;
+                        desglosados[i].lastReservationDate = timestamp;
+                        updated = true;
+                        console.log(`[BONOS] Incremented usage for '${itemName}': ${usadas} -> ${usadas + 1}`);
+                        break;
+                    } else {
+                        console.log(`[BONOS] Item '${itemName}' already at max usage (${usadas}/${total})`);
+                    }
+                }
+            }
+
+            if (updated) {
+                // Save voucher update to Firestore (use _docId which may differ from voucherCode)
+                const updateDocId = voucher._docId || voucherCode;
+                const currentUsed = voucher.sesiones_usadas || 0;
+                await db.collection('spa_vouchers').doc(updateDocId).update({
+                    items_desglosados: desglosados,
+                    sesiones_usadas: currentUsed + 1,
+                    updatedAt: new Date().toISOString()
+                });
+                console.log(`[BONOS] Firestore updated for doc ${updateDocId}`);
+
+                // Update local storage
+                if (window.apiLocal) {
+                    await apiLocal.saveBono({ ...voucher, items_desglosados: desglosados, syncStatus: 'synced' });
+                }
+
+                // ALSO: Create a reservation record in reservas_restaurante for history
+                const resDate = new Date(timestamp);
+                const reservaRecord = {
+                    bono: voucherCode,
+                    origen: 'bono',
+                    cliente: client || voucher.cliente || '',
+                    nombre: client || voucher.cliente || '',
+                    telefono: voucher.telefono || '',
+                    pax: parseInt(pax) || 2,
+                    fecha: resDate.toISOString().split('T')[0],
+                    hora: resDate.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
+                    servicio: serviceName || 'Menú en Restaurante',
+                    status: 'confirmada',
+                    createdAt: timestamp,
+                    external_id: reservationId,
+                    notes: 'Reserva desde bono de restaurant'
+                };
+
+                try {
+                    await db.collection('reservas_restaurante').add(reservaRecord);
+                    console.log('[BONOS] Created reservation record for history:', reservaRecord);
+                } catch (histErr) {
+                    console.warn('[BONOS] Could not create history record:', histErr);
+                }
+
+                showToast(`✅ Bono ${voucherCode} actualizado con reserva de restaurante`, 'success');
+            }
+
+            processed.push(reservation);
+
+        } catch (err) {
+            console.error('[BONOS] Error processing pending reservation:', err);
+            processed.push(reservation); // Mark as processed to avoid retrying failed ones
+        }
+    }
+
+    // Remove processed reservations from localStorage
+    if (processed.length > 0) {
+        const remaining = pending.filter(p => !processed.some(
+            pr => pr.voucherCode === p.voucherCode && pr.reservationId === p.reservationId
+        ));
+        localStorage.setItem(pendingKey, JSON.stringify(remaining));
+        console.log(`[BONOS] Processed ${processed.length} pending reservations, ${remaining.length} remaining`);
+    }
+}
+
 
 function setupBonoListeners() {
     const syncBtn = document.getElementById("sync-vouchers-btn");
@@ -2854,12 +3123,17 @@ async function openVoucherManagement(code) {
                         // Para Hotel, suele ser único item, así que es más seguro
                         if (s === 'hotel' && ((h.origen || '').toLowerCase().includes('hotel') || h._col === 'reservas_restaurante')) spaceMatch = true;
 
-                        // Para Restaurante explícito (Check all collections and also "spa" collection if name matches)
-                        const hSrv = (h.servicio || '').toLowerCase();
-                        const isRestCollection = ['reservas_restaurante', 'reservas_rest', 'reservas_menu'].includes(h._col);
-                        const isRestName = hSrv.includes('restaurante') || hSrv.includes('menu') || hSrv.includes('menú');
+                        // FIX: Restaurant Matching Logic
+                        const hSrv = (h.servicio || '').toLowerCase(); // DEFINE hSrv FIRST
 
-                        if ((s === 'restaurante' || s === 'rest')) {
+                        // Allow match if collection is restaurant-related OR service name is clearly restaurant
+                        const isRestCollection = ['reservas_restaurante', 'reservas_rest', 'reservas_menu', 'reservas', 'reservas_evento'].includes(h._col);
+                        const isRestName = hSrv.includes('restaurante') || hSrv.includes('menu') || hSrv.includes('menú') || hSrv.includes('almuerzo') || hSrv.includes('cena');
+
+                        // Check if ITEM is restaurant related (by space OR by name)
+                        const isItemRest = (s === 'restaurante' || s === 'rest' || s === 'restauracion') || iName.includes('restaurante') || iName.includes('menu') || iName.includes('menú');
+
+                        if (isItemRest) {
                             if (isRestCollection || isRestName) spaceMatch = true;
                         }
 
