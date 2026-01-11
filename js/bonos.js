@@ -55,97 +55,53 @@ function initBonos() {
     processPendingVoucherReservations();
 
     // NEW: Listen for reservation completion messages from restaurant window
+    // NEW: Listen for reservation completion messages from restaurant window (Cross-Window Communication)
     window.addEventListener('message', async (event) => {
-        if (event.data && event.data.type === 'RESERVATION_COMPLETED') {
-            console.log('[BONOS] Received RESERVATION_COMPLETED message:', event.data);
+        if (event.data && (event.data.type === 'RESERVATION_COMPLETED' || event.data.type === 'RESTAURANT_RESERVATION_CREATED')) {
+            console.log('[BONOS] Received reservation completion message:', event.data);
 
-            const { code, item, reservationId } = event.data;
+            const { code, voucher } = event.data;
+            const finalCode = code || voucher;
 
-            if (!code) {
-                console.warn('[BONOS] No voucher code in message, ignoring.');
-                return;
+            if (!finalCode) {
+                console.warn('[BONOS] No voucher code in message, checking all pending reservations.');
+            } else {
+                showToast(`✅ Reserva confirmada para ${finalCode}. Actualizando...`, 'success');
             }
 
-            showToast('✅ Reserva de Restaurante completada. Actualizando bono...', 'success');
+            // CRITICAL: The bridge script stores the reservation in localStorage.
+            // We call processPendingVoucherReservations to handle the Firestore update.
+            console.log('[BONOS] Triggering pending reservation processing...');
+            await processPendingVoucherReservations();
 
-            try {
-                // Find the voucher in state or fetch it
-                let voucher = state.bonos.find(b => b.bono === code || b.codigo === code);
-
-                if (!voucher) {
-                    // Try to fetch from Firestore
-                    const doc = await db.collection('spa_vouchers').doc(code).get();
-                    if (doc.exists) {
-                        voucher = { ...doc.data(), bono: code };
-                    }
-                }
-
-                if (voucher) {
-                    // Update the voucher's desglosados to mark the item as used
-                    let desglosados = voucher.desglosados || [];
-                    let updated = false;
-
-                    for (let i = 0; i < desglosados.length; i++) {
-                        const d = desglosados[i];
-                        // Match by service name (item) and check if it has remaining sessions
-                        const itemName = (d.name || d.nombre || '').toLowerCase();
-                        const searchItem = (item || 'restaurante').toLowerCase();
-
-                        if (itemName.includes(searchItem) || searchItem.includes('restaurante')) {
-                            const usadas = d.usadas || 0;
-                            const total = d.sesiones || d.total || 1;
-
-                            if (usadas < total) {
-                                desglosados[i].usadas = usadas + 1;
-                                desglosados[i].lastReservationId = reservationId;
-                                desglosados[i].lastReservationDate = new Date().toISOString();
-                                updated = true;
-                                console.log(`[BONOS] Incremented usage for '${itemName}': ${usadas} -> ${usadas + 1}`);
-                                break;
-                            }
-                        }
-                    }
-
-                    if (updated) {
-                        // Save updated voucher to Firestore
-                        await db.collection('spa_vouchers').doc(code).update({
-                            desglosados: desglosados,
-                            updatedAt: new Date().toISOString()
-                        });
-
-                        // Also update local storage
-                        if (window.apiLocal) {
-                            await apiLocal.saveBono({ ...voucher, desglosados, syncStatus: 'synced' });
-                        }
-
-                        // Refresh the voucher list
-                        cargarBonos();
-
-                        // If the voucher modal is currently open, refresh it
-                        const openCode = document.querySelector('#modal-voucher-code')?.textContent;
-                        if (openCode && (openCode === code || openCode.includes(code))) {
-                            console.log('[BONOS] Refreshing open voucher modal...');
-                            openVoucherManagement(code);
-                        }
-
-                        showToast(`Bono ${code} actualizado. Sesión descontada.`, 'success');
-                    } else {
-                        console.warn('[BONOS] Could not find matching item to decrement in desglosados.');
-                        showToast('Reserva guardada, pero no se pudo actualizar el bono automáticamente.', 'warning');
-                    }
-                } else {
-                    console.warn('[BONOS] Voucher not found:', code);
-                    showToast('Reserva guardada. Recarga los bonos para ver cambios.', 'info');
-                }
-            } catch (err) {
-                console.error('[BONOS] Error processing reservation completion:', err);
-                showToast('Error al actualizar el bono: ' + err.message, 'error');
+            // Additional insurance: if a code was provided, sync that specific voucher
+            if (finalCode) {
+                await syncSingleVoucher(finalCode);
+                // Dispatch event to refresh UI components (including the modal)
+                window.dispatchEvent(new CustomEvent('vouchers-updated', { detail: { code: finalCode, source: 'message-integration' } }));
             }
         }
     });
 
-    // NEW: Process pending voucher reservations from localStorage (from restaurant bridge)
-    processPendingVoucherReservations();
+    // NEW: Handle global vouchers-updated event
+    window.addEventListener('vouchers-updated', (e) => {
+        console.log('[BONOS] vouchers-updated event received:', e.detail);
+        cargarBonos();
+
+        // Also refresh open modal if it's the same voucher
+        const openCode = document.querySelector('#vm-title-code')?.textContent;
+        const codeUpdated = e.detail?.code;
+        if (openCode && (!codeUpdated || openCode.includes(codeUpdated))) {
+            console.log('[BONOS] Refreshing open modal...');
+            openVoucherManagement(openCode);
+        }
+    });
+
+    // NEW: Check for pending reservations when window gains focus
+    window.addEventListener('focus', () => {
+        console.log('[BONOS] Window focused, checking for pending reservations...');
+        processPendingVoucherReservations();
+    });
 
     // Load data from DB
     cargarBonos();
@@ -184,7 +140,7 @@ async function processPendingVoucherReservations() {
                 let doc = await db.collection('spa_vouchers').doc(voucherCode).get();
 
                 // If doc exists but has no desglosados, try querying by 'bono' field
-                if (!doc.exists || !(doc.data()?.desglosados?.length > 0)) {
+                if (!doc.exists || !(doc.data()?.items_desglosados?.length > 0 || doc.data()?.desglosados?.length > 0)) {
                     console.log(`[BONOS] Doc ID lookup failed or empty, trying query by 'bono' field...`);
 
                     const querySnap = await db.collection('spa_vouchers')
@@ -202,7 +158,6 @@ async function processPendingVoucherReservations() {
                 if (doc.exists || doc.data) {
                     const data = typeof doc.data === 'function' ? doc.data() : doc.data;
                     voucher = { ...data, bono: voucherCode, _docId: docId };
-                    console.log(`[BONOS] Voucher loaded. DocId: ${docId}, Desglosados count:`, (voucher.desglosados || []).length);
                 }
             } catch (fsErr) {
                 console.warn(`[BONOS] Firestore fetch failed, trying local state...`, fsErr);
@@ -215,101 +170,112 @@ async function processPendingVoucherReservations() {
                 continue;
             }
 
-            // Update items_desglosados (the actual field name in Firestore)
-            let desglosados = voucher.items_desglosados || voucher.desglosados || [];
+            // Normalize for consistent mapping
+            const v = normalizeVoucher(voucher);
+            let items = v.items || [];
             let updated = false;
             const serviceNorm = (serviceName || 'restaurante').toLowerCase();
 
-            console.log(`[BONOS] Searching for restaurant item. Service: '${serviceNorm}'. Items count:`, desglosados.length);
+            console.log(`[BONOS] Searching for restaurant item. Service: '${serviceNorm}'. Items count:`, items.length);
 
-            for (let i = 0; i < desglosados.length; i++) {
-                const d = desglosados[i];
-                const itemName = (d.name || d.nombre || '').toLowerCase();
+            for (let i = 0; i < items.length; i++) {
+                const itemName = items[i].name.toLowerCase();
+                const itemUsed = items[i].used || 0;
+                const itemTotal = items[i].sessions || 1;
 
-                console.log(`[BONOS] Checking item ${i}: '${itemName}'`);
+                console.log(`[BONOS] Testing match: Item[${i}]='${itemName}' (Used:${itemUsed}/${itemTotal}) vs Service='${serviceNorm}'`);
 
                 // Match restaurant services - broadened conditions
-                const isRestaurant =
+                const isRestaurantMatch =
                     itemName.includes('restaurante') ||
                     itemName.includes('menú') ||
                     itemName.includes('menu') ||
                     itemName.includes('rest') ||
                     serviceNorm.includes(itemName) ||
                     itemName.includes(serviceNorm) ||
-                    serviceNorm.includes('restaurante') ||
-                    serviceNorm.includes('menu');
+                    (serviceNorm.includes('restaurante') && itemName.includes('restaurante')) ||
+                    (serviceNorm.includes('menu') && itemName.includes('menu'));
 
-                if (isRestaurant) {
-                    // Use 'used' field (as in Firestore) or fallback to 'usadas'
-                    const usadas = d.used ?? d.usadas ?? 0;
-                    const total = d.sessions || d.sesiones || d.total || 1;
-
-                    console.log(`[BONOS] Match found! Item: '${itemName}', Used: ${usadas}/${total}`);
-
-                    if (usadas < total) {
+                if (isRestaurantMatch) {
+                    console.log(`[BONOS] Found restaurant match for item: '${items[i].name}'`);
+                    if (itemUsed < itemTotal) {
                         // Update both field names for compatibility
-                        desglosados[i].used = usadas + 1;
-                        desglosados[i].usadas = usadas + 1;
-                        desglosados[i].lastReservationId = reservationId;
-                        desglosados[i].lastReservationDate = timestamp;
+                        items[i].used = itemUsed + 1;
+                        items[i].usadas = items[i].used;
+                        items[i].lastReservationId = reservationId;
+                        items[i].lastReservationDate = timestamp;
                         updated = true;
-                        console.log(`[BONOS] Incremented usage for '${itemName}': ${usadas} -> ${usadas + 1}`);
+                        console.log(`[BONOS] SUCCESS: Incremented usage for '${items[i].name}': ${itemUsed} -> ${items[i].used}`);
                         break;
                     } else {
-                        console.log(`[BONOS] Item '${itemName}' already at max usage (${usadas}/${total})`);
+                        console.log(`[BONOS] Item '${items[i].name}' is already complete (${itemUsed}/${itemTotal})`);
                     }
                 }
             }
 
             if (updated) {
-                // Save voucher update to Firestore (use _docId which may differ from voucherCode)
+                // Save voucher update to Firestore
                 const updateDocId = voucher._docId || voucherCode;
-                const currentUsed = voucher.sesiones_usadas || 0;
+                const totalUsed = items.reduce((sum, item) => sum + (item.used || 0), 0);
+
+                // Calculate final status for persistence
+                const finalV = normalizeVoucher({ ...voucher, items_desglosados: items, sesiones_usadas: totalUsed });
+                const finalStatus = finalV.effectivelyCompleted ? 'completed' : 'partially';
+
+                console.log(`[BONOS] Updating Firestore doc ${updateDocId}. New total usado: ${totalUsed}, estado: ${finalStatus}`);
+
                 await db.collection('spa_vouchers').doc(updateDocId).update({
-                    items_desglosados: desglosados,
-                    sesiones_usadas: currentUsed + 1,
+                    items_desglosados: items,
+                    sesiones_usadas: totalUsed,
+                    estado: finalStatus,
                     updatedAt: new Date().toISOString()
                 });
-                console.log(`[BONOS] Firestore updated for doc ${updateDocId}`);
 
                 // Update local storage
                 if (window.apiLocal) {
-                    await apiLocal.saveBono({ ...voucher, items_desglosados: desglosados, syncStatus: 'synced' });
+                    await apiLocal.saveBono({ ...voucher, items_desglosados: items, sesiones_usadas: totalUsed, estado: finalStatus, syncStatus: 'synced' });
                 }
 
-                // ALSO: Create a reservation record in reservas_restaurante for history
+                // Create a reservation record in reservas_restaurante for history
                 const resDate = new Date(timestamp);
+                const resTime = resDate.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
                 const reservaRecord = {
                     bono: voucherCode,
                     origen: 'bono',
                     cliente: client || voucher.cliente || '',
                     nombre: client || voucher.cliente || '',
                     telefono: voucher.telefono || '',
-                    pax: parseInt(pax) || 2,
+                    pax: parseInt(pax) || (voucher.pax || 1),
                     fecha: resDate.toISOString().split('T')[0],
-                    hora: resDate.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
+                    hora: resTime,
                     servicio: serviceName || 'Menú en Restaurante',
                     status: 'confirmada',
                     createdAt: timestamp,
                     external_id: reservationId,
-                    notes: 'Reserva desde bono de restaurant'
+                    notes: 'Reserva desde bono de restaurante'
                 };
+
+                console.log(`[BONOS] Creating history record in reservas_restaurante:`, reservaRecord);
 
                 try {
                     await db.collection('reservas_restaurante').add(reservaRecord);
-                    console.log('[BONOS] Created reservation record for history:', reservaRecord);
                 } catch (histErr) {
                     console.warn('[BONOS] Could not create history record:', histErr);
                 }
 
                 showToast(`✅ Bono ${voucherCode} actualizado con reserva de restaurante`, 'success');
+
+                // Dispatch targeted event
+                window.dispatchEvent(new CustomEvent('vouchers-updated', { detail: { code: voucherCode, source: 'pending-item-process' } }));
+            } else {
+                console.warn(`[BONOS] FAILED to match any item for '${serviceName}' in voucher ${voucherCode}`);
             }
 
             processed.push(reservation);
 
         } catch (err) {
             console.error('[BONOS] Error processing pending reservation:', err);
-            processed.push(reservation); // Mark as processed to avoid retrying failed ones
+            processed.push(reservation);
         }
     }
 
@@ -319,7 +285,7 @@ async function processPendingVoucherReservations() {
             pr => pr.voucherCode === p.voucherCode && pr.reservationId === p.reservationId
         ));
         localStorage.setItem(pendingKey, JSON.stringify(remaining));
-        console.log(`[BONOS] Processed ${processed.length} pending reservations, ${remaining.length} remaining`);
+        console.log(`[BONOS] Cleanup: Processed ${processed.length} pending reservations, ${remaining.length} remaining in storage`);
     }
 }
 
@@ -388,6 +354,30 @@ function setupBonoListeners() {
     const filterSelect = document.getElementById("voucher-filter");
     if (filterSelect) {
         filterSelect.addEventListener("change", renderBonosFromState);
+    }
+
+    // Phone Format Listeners
+    const phoneInputs = ["lv-phone", "vm-telefono", "av-telefono"];
+    phoneInputs.forEach(id => {
+        const input = document.getElementById(id);
+        if (input) {
+            input.addEventListener("input", () => formatPhoneNumber(input));
+            // Format initial values
+            formatPhoneNumber(input);
+        }
+    });
+
+}
+
+function formatPhoneNumber(input) {
+    if (!input) return;
+    let v = input.value.replace(/\D/g, '').substring(0, 9);
+    if (v.length > 6) {
+        input.value = v.slice(0, 3) + ' ' + v.slice(3, 6) + ' ' + v.slice(6);
+    } else if (v.length > 3) {
+        input.value = v.slice(0, 3) + ' ' + v.slice(3);
+    } else {
+        input.value = v;
     }
 }
 
@@ -622,6 +612,7 @@ function getSpaceForService(serviceName) {
     // 3. Fallback to implicit logic (legacy)
     if (nameLower.includes('spa')) return 'spa';
     if (nameLower.includes('hotel') || nameLower.includes('alojamiento')) return 'hotel';
+    if (nameLower.includes('restaurante') || nameLower.includes('menú') || nameLower.includes('menu') || nameLower.includes('comida') || nameLower.includes('cena')) return 'Restaurante';
 
     return '';
 }
@@ -855,6 +846,110 @@ async function cargarCatalogoSimple() {
     }
 }
 
+
+
+/**
+ * Búsqueda inteligente para inputs puramente numéricos
+ * Intenta adivinar si es un BONO (BONOXXXX), un LOC (LOC-YYYY-XXXX) o un exc.Loc
+ */
+async function searchVoucherByNumericInput(numStr) {
+    if (!numStr) return;
+
+    // 1. Intentar construir variantes comunes
+    // Variante A: BONOXXXX
+    const candidateBono = `BONO${numStr}`;
+
+    // Variante B: LOC con año actual (LOC-202X-XXXX)
+    const currentYear = new Date().getFullYear();
+    const candidateLoc = `LOC-${currentYear}-${numStr}`;
+    const candidateLocLastYear = `LOC-${currentYear - 1}-${numStr}`;
+
+    // Variante C: Búsqueda textual amplia (último recurso)
+
+    console.log(`[NUMERIC SEARCH] Probando variantes para "${numStr}":`, candidateBono, candidateLoc);
+
+    // Mostrar feedback
+    const tableBody = document.getElementById("vouchers-table-body");
+    if (tableBody) {
+        tableBody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding: 20px;" class="muted">
+            <i class="fas fa-search fa-spin"></i> Buscando variante numérica <strong>${numStr}</strong>...
+        </td></tr>`;
+    }
+
+    // Estrategia: Buscar primero por BONOXXXX (más probable si son cortos)
+    // Si no, buscar por LOC actual
+    // Si no, usar búsqueda textual general que busca en 'searchTokens' (incluye el número suelto)
+
+    // 1. Buscar BONO...
+    const bonoMatch = await searchVoucherByCodeInternal(candidateBono);
+    if (bonoMatch) {
+        finishSearch([bonoMatch]);
+        return;
+    }
+
+    // 2. Buscar LOC actual...
+    const locMatch = await searchVoucherByCodeInternal(candidateLoc);
+    if (locMatch) { finishSearch([locMatch]); return; }
+
+    // 2b. Buscar LOC año anterior...
+    const locMatchLast = await searchVoucherByCodeInternal(candidateLocLastYear);
+    if (locMatchLast) { finishSearch([locMatchLast]); return; }
+
+    // 1b. INTENTO EXTRA: Buscar "bono7683" (minúscula) por si acaso
+    const candidateBonoLower = `bono${numStr}`;
+    const bonoMatchLower = await searchVoucherByCodeInternal(candidateBonoLower);
+    if (bonoMatchLower) { finishSearch([bonoMatchLower]); return; }
+
+    // 3. Fallback: Búsqueda textual por el número exacto
+    // Esto llamará a Firestore con array-contains
+    searchVouchersByText(numStr);
+}
+
+// Helper interno para reusar lógica de búsqueda exacta sin tocar DOM intermedio
+async function searchVoucherByCodeInternal(code) {
+    if (!code) return null;
+    try {
+        console.log(`[SEARCH INTERNAL] Buscando: ${code}`);
+
+        // Local check
+        if (window.apiLocal) {
+            const local = await apiLocal.getBonoByCode(code);
+            if (local) {
+                console.log(`[SEARCH INTERNAL] Encontrado Local: ${code}`);
+                return local;
+            }
+        }
+
+        // Cloud check - STEP 1: Direct Doc ID
+        if (window.db) {
+            const docRef = db.collection("spa_vouchers").doc(code);
+            const docSnap = await docRef.get();
+            if (docSnap.exists) {
+                console.log(`[SEARCH INTERNAL] Encontrado en Nube (ID directo): ${code}`);
+                return { ...docSnap.data(), bono: code };
+            }
+
+            // Cloud check - STEP 2: Query by field 'bono' (Fallback if ID differs)
+            // Solo si el código parece un ID válido (mayúsculas o números)
+            console.log(`[SEARCH INTERNAL] No encontrado por ID, probando query campo 'bono' == ${code}`);
+            const querySnap = await db.collection("spa_vouchers").where("bono", "==", code).limit(1).get();
+            if (!querySnap.empty) {
+                const doc = querySnap.docs[0];
+                console.log(`[SEARCH INTERNAL] Encontrado en Nube (Query field): ${doc.id}`);
+                return { ...doc.data(), bono: doc.id }; // Use actual ID
+            }
+        }
+    } catch (e) { console.error(`[SEARCH ERROR] ${code}`, e); }
+    return null;
+}
+
+function finishSearch(results) {
+    state.bonos = results;
+    state.isActiveSearch = true; // IMPORTANT: Bypass filters
+    renderBonosFromState();
+    updateCount();
+    showToast(`Encontrado: ${results[0].bono}`, "success");
+}
 
 /**
  * Búsqueda directa optimizada por código de bono
@@ -1313,17 +1408,27 @@ async function sincronizarConTienda(persistentData, btn, originalText) {
         // Agrupar por código de bono para evitar duplicados y fusionar items
         const groupedVouchers = {};
 
-        shopVouchers.forEach(b => {
+        shopVouchers.forEach((b, idx) => {
             if (!b || typeof b !== 'object') return;
 
-            // DEBUG EXTREMO PARA EL USUARIO
-            if (b.bono && b.bono.includes('7699')) {
-                console.log("=== DEBUG BONO 7699 RAW ===");
+            // DEBUG EXTREMO PARA EL USUARIO (7683)
+            if (b.bono && (b.bono.includes('7683') || b.bono.includes('7699'))) {
+                console.log("=== DEBUG BONO TARGET RAW ===");
                 console.log(JSON.stringify(b, null, 2));
                 console.log("Has Billing?", !!b.billing);
-                console.log("Has Flat Billing?", !!b.billing_first_name);
+                console.log("Prices:", {
+                    precio: b.precio,
+                    importe: b.importe,
+                    total: b.total,
+                    order_total: b.order_total,
+                    line_total: b.line_total,
+                    subtotal: b.subtotal,
+                    item_total: b.item_total
+                });
                 console.log("===========================");
             }
+            // Duplicate debug logging removed to clean up output
+            // (The specific debug for 7683 is sufficient)
 
             // --- NORMALIZACIÓN DE DATOS (WooCommerce API / Custom Endpoint) ---
             // 1. Nested Billing Object
@@ -1347,30 +1452,99 @@ async function sincronizarConTienda(persistentData, btn, originalText) {
             if (!b.telefono) b.telefono = b.billing_phone || b.phone || '';
             if (!b.email) b.email = b.billing_email || b.email || '';
 
+            // 2.5 NORMALIZACIÓN DE FECHA (WooCommerce puede usar varios nombres)
+            if (!b.fecha || b.fecha === '-') {
+                b.fecha = b.fecha_compra || b.date_created || b.order_date || b.created_at || '';
+                // Si es datetime, extraer solo la fecha
+                if (b.fecha && b.fecha.includes(' ')) {
+                    b.fecha = b.fecha.split(' ')[0];
+                }
+            }
+
             // Compatibility
             if (!b.nombre && b.cliente) b.nombre = b.cliente;
+
+            // 3. NORMALIZACIÓN DE PRECIO (WooCommerce usa varios nombres de campo)
+            // Check all possible price field names
+            let foundPrice = parseFloat(b.precio) || parseFloat(b.importe) || 0;
+
+            if (foundPrice === 0) {
+                // Try common WooCommerce field names
+                // FIX: Prioritize LINE-specific totals over ORDER totals to avoid double counting
+                foundPrice = parseFloat(b.line_total) || parseFloat(b.subtotal) ||
+                    parseFloat(b.item_total) || parseFloat(b.amount) ||
+                    parseFloat(b.total) || parseFloat(b.order_total) ||
+                    parseFloat(b.price) || parseFloat(b.value) ||
+                    parseFloat(b.order_subtotal) || 0;
+            }
+
+            // Try nested structures (items_desglosados from optimized plugin)
+            if (foundPrice === 0 && b.items_desglosados && Array.isArray(b.items_desglosados)) {
+                foundPrice = b.items_desglosados.reduce((sum, item) => {
+                    return sum + (parseFloat(item.precio) || parseFloat(item.price) ||
+                        parseFloat(item.total) || parseFloat(item.line_total) || 0);
+                }, 0);
+            }
+
+            // Try line_items array (WooCommerce standard format)
+            if (foundPrice === 0 && b.line_items && Array.isArray(b.line_items)) {
+                foundPrice = b.line_items.reduce((sum, item) => {
+                    return sum + (parseFloat(item.total) || parseFloat(item.subtotal) ||
+                        parseFloat(item.price) || 0);
+                }, 0);
+            }
+
+            if (foundPrice > 0) {
+                b.precio = foundPrice;
+                b.importe = foundPrice;
+            }
             // ------------------------------------------------
 
             const code = (b.bono || '').trim(); // Trim to ensure unique key
 
             if (!groupedVouchers[code]) {
-                // Primer encuentro: Inicializar
-                groupedVouchers[code] = { ...b, bono: code }; // Ensure trimmed code in object
-                groupedVouchers[code].items_desglosados = []; // Iniciamos lista de items
+                // Primer encuentro
 
-                // Añadir el item actual como primer sub-item
-                groupedVouchers[code].items_desglosados.push({
-                    name: b.producto,
-                    price: parseFloat(b.precio || b.importe || 0),
-                    product_id: b.product_id,
-                    variation_id: b.variation_id, // Capturar ID de variación
-                    sessions: 1,
-                    pax: 1
-                });
+                // DETECCIÓN INTELIGENTE: Si ya viene desglosado (Plugin Optimizado), usarlo tal cual.
+                if (b.items_desglosados && Array.isArray(b.items_desglosados) && b.items_desglosados.length > 0) {
+                    // CALCULAR PRECIO REAL SUMANDO DESGLOSE (Porque el root precio puede ser parcial)
+                    const realTotal = b.items_desglosados.reduce((sum, i) => sum + (parseFloat(i.price || i.precio || 0)), 0);
+
+                    groupedVouchers[code] = {
+                        ...b,
+                        bono: code,
+                        precio: realTotal,
+                        importe: realTotal,
+                        // Asegurar fecha
+                        fecha: b.fecha || b.date_created || new Date().toISOString()
+                    };
+                    // NO hacemos push manual porque ya tenemos la lista completa
+                } else {
+                    // MODO LEGACY (WooCommerce estándar o filas sueltas): Construir array manualmente
+                    groupedVouchers[code] = { ...b, bono: code };
+                    groupedVouchers[code].items_desglosados = [];
+
+                    groupedVouchers[code].items_desglosados.push({
+                        name: b.producto,
+                        price: parseFloat(b.precio || b.importe || 0),
+                        product_id: b.product_id,
+                        variation_id: b.variation_id,
+                        sessions: 1,
+                        pax: 1
+                    });
+                }
             } else {
                 // Duplicado detected: Fusionar
                 const existing = groupedVouchers[code];
 
+                // FIX: Si el existente YA era un bono completo (optimizado), IGNORAR duplicados exactos del plugin
+                // (Evita sumar dos veces si el plugin manda el mismo pedido por duplicado o paginación)
+                if (existing.items_desglosados && existing.items_desglosados.length > 0 && b.items_desglosados && b.items_desglosados.length > 0) {
+                    console.log(`[SYNC] Ignorando duplicado completo para ${code} (ya procesado)`);
+                    return;
+                }
+
+                // SÓLO FUSIONAR SI ESTAMOS EN MODO LEGACY (filas sueltas construyéndose)
                 // 1. Sumar precio
                 const priceExisting = parseFloat(existing.precio || existing.importe || 0);
                 const priceNew = parseFloat(b.precio || b.importe || 0);
@@ -1901,13 +2075,21 @@ function detectSessions(voucher) {
                     // No aplicar ratio a sesiones, es un pack especial
                     // El precio alto es por ser un pack premium, no más sesiones
                     console.log(`[DETECT] Pack especial detectado: ${lower}, ratio ${ratio} ignorado para sesiones`);
-                } else if (isBono || ratio > 3) {
-                    total = (catalogMatch.sesiones || 1) * ratio;
                 } else {
-                    if (lower.includes("pareja") || lower.includes("duo")) {
-                        pax = 2;
-                    } else {
+                    // EXCEPCIÓN DE SEGURIDAD: "Sesión de XX" (sin bono/pack explícito) = 1 siempre
+                    const isExplicitSingle = lower.match(/sesi[oó]n\s+de\s+\d+/i);
+
+                    if (isExplicitSingle && !lower.includes("bono") && !lower.includes("pack") && !lower.includes("+")) {
+                        console.log(`[DETECT] 'Sesión de XX' detectado: ignorando ratio por precio (Total=1)`);
+                    } else if (isBono || ratio > 3) {
                         total = (catalogMatch.sesiones || 1) * ratio;
+                    } else {
+                        // Fallback standard
+                        if (lower.includes("pareja") || lower.includes("duo")) {
+                            pax = 2;
+                        } else {
+                            total = (catalogMatch.sesiones || 1) * ratio;
+                        }
                     }
                 }
             }
@@ -2017,6 +2199,59 @@ async function autoFixVoucherSessions() {
     }
 }
 
+// --- NORMALIZATION ---
+/**
+ * Normaliza un objeto bono para que tenga una estructura de datos consistente,
+ * independientemente de su origen (Excel, WooCommerce, Firestore) o nombres de campos legacy.
+ * @param {Object} v - El bono original
+ * @returns {Object} - El bono normalizado
+ */
+function normalizeVoucher(v) {
+    if (!v) return null;
+
+    // 1. Unificar Desglose de Items
+    const rawItems = v.items_desglosados || v.desglosados || [];
+    const normalizedItems = rawItems.map(item => {
+        const used = item.used ?? item.usadas ?? 0;
+        const sessions = item.sessions ?? item.sesiones ?? item.total ?? 1;
+        const pax = item.pax ?? (v.pax || v.pax_adultos || 1);
+        const name = item.name || item.nombre || item.producto || '';
+        const space = (item.space || '').toLowerCase();
+
+        return {
+            ...item,
+            name,
+            used,
+            sessions,
+            pax,
+            space,
+            isComplete: used >= sessions
+        };
+    });
+
+    // 2. Calcular Totales
+    const dbTotal = v.sesiones_totales || v.sesiones_total || (normalizedItems.length > 0 ? normalizedItems.reduce((sum, i) => sum + i.sessions, 0) : 1);
+    const dbUsed = v.sesiones_usadas || (normalizedItems.length > 0 ? normalizedItems.reduce((sum, i) => sum + i.used, 0) : 0);
+
+    // 3. Determinar Estado de Completado Real
+    let effectivelyCompleted = false;
+    if (normalizedItems.length > 0) {
+        effectivelyCompleted = normalizedItems.every(i => i.isComplete);
+    } else {
+        effectivelyCompleted = dbUsed >= dbTotal && dbTotal > 0;
+    }
+
+    return {
+        ...v,
+        normalized: true,
+        items: normalizedItems,
+        totalSessions: dbTotal,
+        usedSessions: dbUsed,
+        effectivelyCompleted,
+        isExpired: checkVoucherExpiry(v)
+    };
+}
+
 // --- RENDER ---
 function renderBonosFromState() {
     const tbody = document.getElementById("vouchers-table-body");
@@ -2049,6 +2284,15 @@ function renderBonosFromState() {
                 ? b.searchTokens.some(t => t.includes(searchTerm))
                 : false;
 
+            // DETECTAR BÚSQUEDA POR CÓDIGO DE BONO (contiene números)
+            const isCodeSearch = /\d+/.test(searchTerm);
+            const matchesBono = bonoStr.includes(searchTerm);
+
+            // Si busca por código y hay coincidencia exacta, IGNORAR filtros de fecha/estado
+            if (isCodeSearch && matchesBono) {
+                return true; // Mostrar este bono sin aplicar filtros
+            }
+
             if (!matchesTokens &&
                 !clienteStr.includes(searchTerm) &&
                 !bonoStr.includes(searchTerm) &&
@@ -2059,13 +2303,13 @@ function renderBonosFromState() {
             }
         }
 
-        // Fecha
+        // Fecha (solo aplica si NO hay búsqueda por código)
         let dateMatch = true;
         if (filterDate && b.fecha) {
             dateMatch = String(b.fecha).startsWith(filterDate);
         }
 
-        // Estado
+        // Estado (solo aplica si NO hay búsqueda por código)
         let statusMatch = true;
         if (filterStatus !== 'all') {
             if (filterStatus === 'expired') {
@@ -2155,69 +2399,35 @@ function renderBonosFromState() {
     }
 
     tbody.innerHTML = filtered.map(b => {
+        const v = normalizeVoucher(b);
+
         let badgeClass = 'st-pending';
         let statusLabel = 'ACTIVO';
-        const isExpired = checkVoucherExpiry(b);
 
+        // Determinar visualización basada en normalización
+        if (v.effectivelyCompleted || b.estado === 'completed') {
+            badgeClass = 'st-completed';
+            statusLabel = 'CANJEADO';
+        } else if (v.isExpired || b.estado === 'expired') {
+            badgeClass = 'st-expired';
+            statusLabel = 'CADUCADO';
+        } else if (v.usedSessions > 0 || b.estado === 'partially') {
+            badgeClass = 'st-partial';
+            statusLabel = `PARCIAL ${v.usedSessions}/${v.totalSessions}`;
+        }
+
+        // Sugerencias de corrección (Mantenemos lógica UI legacy)
         const det = detectSessions(b);
         const dbTotal = b.sesiones_totales || b.sesiones_total || 1;
         const dbPax = b.pax_por_sesion || b.pax_sesion || 1;
-
-        // Determine effective status
-        const realUsed = b.sesiones_usadas || 0;
-        const realTotal = dbTotal;
-
-        let effectivelyCompleted = realUsed >= realTotal && realTotal > 0;
-        if (b.items_desglosados && b.items_desglosados.length > 0) {
-            effectivelyCompleted = b.items_desglosados.every(i => (i.used || 0) >= (i.sessions || 1));
-        }
-
-        // FIX: Solo mostrar como CANJEADO si realmente se han consumido los items,
-        // ignorando el estado 'completed' si data items pendientes (salvo override manual)
-        if (b.estado === 'completed' && effectivelyCompleted) {
-            badgeClass = 'st-completed';
-            statusLabel = 'CANJEADO';
-        }
-        else if (b.estado === 'completed') {
-            // DB says completed, but we have pending items? Show PARTIAL/ACTIVE
-            // Trust items over generic status
-            if (effectivelyCompleted) {
-                badgeClass = 'st-completed';
-                statusLabel = 'CANJEADO';
-            } else {
-                // Items pending -> Show Partial/Active
-                // We need to decide if Partial or Active.
-                // If totalUsed > 0 or manual_update is true, maybe Partial.
-                // Let's default to EN USO if some usage, or ACTIVO if none.
-                if (realUsed > 0) {
-                    badgeClass = 'st-partial';
-                    statusLabel = 'EN USO';
-                } else {
-                    badgeClass = 'st-pending';
-                    statusLabel = 'ACTIVO';
-                }
-            }
-        }
-        else if (effectivelyCompleted) {
-            badgeClass = 'st-completed';
-            statusLabel = 'CANJEADO';
-        }
-        else if (b.estado === 'expired') { badgeClass = 'st-expired'; statusLabel = 'CADUCADO'; }
-        else if (b.estado === 'partially' || realUsed > 0) {
-            badgeClass = 'st-partial';
-            statusLabel = `PARCIAL ${realUsed}/${dbTotal}`;
-        }
-
-
-        // Confiamos en el estado explícito 'completed' - si fue marcado como completo, se muestra como completo
-
-        // Si detectamos más sesiones o pax de los que dice la base de datos
         if (b.estado !== 'completed' && ((dbTotal === 1 && det.total > 1) || (dbPax === 1 && det.paxPerSession > 1))) {
             const label = det.total > 1 ? `${det.total} ses` : `${det.paxPerSession} pax`;
             statusLabel += ` <i class="fas fa-exclamation-triangle" title="Sugerencia: ${det.total} ses / ${det.paxPerSession} pax. Abre para corregir."></i> ${label}`;
         }
 
-        if ((b.estado === 'pending' || b.estado === 'activo') && isExpired) {
+
+        // Confiamos en el estado explícito 'completed' - si fue marcado como completo, se muestra como completo
+        if ((b.estado === 'pending' || b.estado === 'activo') && v.isExpired) {
             badgeClass = 'st-expired'; statusLabel = 'CADUCADO (Auto)';
         }
 
@@ -2241,8 +2451,8 @@ function renderBonosFromState() {
             <td style="padding: 10px 5px;"><img src="${thumbUrl}" referrerpolicy="no-referrer" style="width: 35px; height: 35px; object-fit: cover; border-radius: 4px; border: 1px solid #e2e8f0;"></td>
             <td style="font-weight:600">${b.bono || '-'}</td>
             <td>${b.producto || '-'}</td>
-            <td>${b.email || '-'}</td>
-            <td>${formatDate(b.fecha)}${expiryText}</td>
+            <td>${b.cliente || '-'}</td>
+            <td>${formatDate(b.fecha || b.fecha_compra || b.date_created)}${expiryText}</td>
             <td style="font-weight:bold">${displayedPrice}€</td>
             <td><span class="st-badge ${badgeClass}">${statusLabel}</span></td>
             <td>
@@ -2296,15 +2506,25 @@ async function openVoucherManagement(code) {
     document.getElementById("vm-cliente").value = v.cliente || '';
     document.getElementById("vm-email").value = v.email || '';
     document.getElementById("vm-telefono").value = v.telefono || '';
+    if (document.getElementById("vm-telefono")) {
+        formatPhoneNumber(document.getElementById("vm-telefono"));
+    }
     document.getElementById("vm-producto").value = v.producto || '';
-    document.getElementById("vm-fecha-compra").value = v.fecha || '';
+    document.getElementById("vm-fecha-compra").value = v.fecha || v.fecha_compra || v.date_created || '';
+    // Mostrar campo de fecha de compra SOLO para bonos locales (exc.Loc)
+    const fechaCompraContainer = document.getElementById("vm-fecha-compra-container");
+    if (fechaCompraContainer) {
+        const isLocalVoucher = code && (code.toLowerCase().includes('loc') || code.toLowerCase().includes('exc'));
+        fechaCompraContainer.style.display = isLocalVoucher ? 'block' : 'none';
+    }
     // document.getElementById("vm-importe").value = v.importe || 0; 
 
     const priceBadge = document.getElementById("vm-cat-price");
     if (priceBadge) {
         // Al gestionar, mostramos el precio del bono, pero si es 0, mostramos el del catálogo (si hay match)
         const catalogMatch = findCatalogProduct(v);
-        const displayPrice = (parseFloat(v.importe) > 0) ? v.importe : (catalogMatch ? catalogMatch.precio : 0);
+        const bonoPrice = parseFloat(v.importe) || parseFloat(v.precio) || 0;
+        const displayPrice = (bonoPrice > 0) ? bonoPrice : (catalogMatch ? catalogMatch.precio : 0);
         priceBadge.textContent = displayPrice + '€';
     }
 
@@ -2849,7 +3069,7 @@ async function openVoucherManagement(code) {
                 }
 
                 return `
-                        < div style = "display:flex; justify-content:space-between; align-items:center; background:${isComplete ? '#f0fdf4' : '#fff'}; padding:8px; margin-bottom:4px; border-radius:6px; border:1px solid ${isComplete ? '#86efac' : '#e2e8f0'}; gap:8px;" >
+                        <div style="display:flex; justify-content:space-between; align-items:center; background:${isComplete ? '#f0fdf4' : '#fff'}; padding:8px; margin-bottom:4px; border-radius:6px; border:1px solid ${isComplete ? '#86efac' : '#e2e8f0'}; gap:8px;">
                     <div style="display: flex; flex-direction: column; flex: 1; overflow:hidden; gap:2px;">
                         <div style="font-size:0.8rem; font-weight:600; color:#334155;">${item.name}</div>
                         <div style="font-size:0.65rem; color:#64748b;">
@@ -3016,19 +3236,28 @@ async function openVoucherManagement(code) {
 
 
     // Nueva función para recalcular precio visualmente al cambiar pax
+    // NOTA: Preserva el precio original de WooCommerce si existe
     window.updatePriceBadge = () => {
         const prodName = document.getElementById("vm-producto").value;
         const pax = parseInt(document.getElementById("vm-pax-sesion").value) || 1;
         const product = state.catalogProducts.find(p => p.nombre === prodName);
 
-        if (product) {
-            const basePrice = parseFloat(product.precio) || 0;
-            const basePax = parseInt(product.personas || product.pax || 1);
-            const ratio = pax / basePax;
-            const finalPrice = basePrice * ratio;
+        // Preservar precio original del bono de WooCommerce
+        const originalBonoPrice = parseFloat(v.importe) || parseFloat(v.precio) || 0;
+        const priceBadge = document.getElementById("vm-cat-price");
 
-            const priceBadge = document.getElementById("vm-cat-price");
-            if (priceBadge) priceBadge.textContent = finalPrice.toFixed(2) + '€';
+        if (priceBadge) {
+            if (originalBonoPrice > 0) {
+                // Mantener precio original del bono (WooCommerce)
+                priceBadge.textContent = originalBonoPrice + '€';
+            } else if (product) {
+                // Solo si no hay precio original, calcular desde catálogo
+                const basePrice = parseFloat(product.precio) || 0;
+                const basePax = parseInt(product.personas || product.pax || 1);
+                const ratio = pax / basePax;
+                const finalPrice = basePrice * ratio;
+                priceBadge.textContent = finalPrice.toFixed(2) + '€';
+            }
         }
     };
 
@@ -3068,14 +3297,24 @@ async function openVoucherManagement(code) {
             document.getElementById("vm-sesiones-total").value = totalSessions;
             document.getElementById("vm-pax-sesion").value = totalPax;
 
-            // CALCULAR PRECIO DINÁMICO (Lógica portada de openLocalVoucherModal)
-            const basePrice = parseFloat(product.precio) || 0;
-            const basePax = parseInt(product.personas || product.pax || 1);
-            const ratio = totalPax / basePax;
-            const finalPrice = basePrice * ratio;
-
+            // PRESERVAR PRECIO ORIGINAL DE WOOCOMMERCE (NO sobrescribir con catálogo)
+            // Solo usar precio del catálogo si el bono NO tiene precio
+            const originalBonoPrice = parseFloat(v.importe) || parseFloat(v.precio) || 0;
             const priceBadge = document.getElementById("vm-cat-price");
-            if (priceBadge) priceBadge.textContent = finalPrice.toFixed(2) + '€';
+
+            if (priceBadge) {
+                if (originalBonoPrice > 0) {
+                    // Mantener precio original del bono (WooCommerce)
+                    priceBadge.textContent = originalBonoPrice + '€';
+                } else {
+                    // Solo si no hay precio original, usar el del catálogo
+                    const basePrice = parseFloat(product.precio) || 0;
+                    const basePax = parseInt(product.personas || product.pax || 1);
+                    const ratio = totalPax / basePax;
+                    const finalPrice = basePrice * ratio;
+                    priceBadge.textContent = finalPrice.toFixed(2) + '€';
+                }
+            }
 
             // Forzar actualización visual de la tarjeta de catálogo
             document.getElementById("vm-cat-name").textContent = product.nombre;
@@ -3287,6 +3526,15 @@ async function saveVoucherChanges() {
         manual_update: true
     };
 
+    // Guardar fecha de compra solo para bonos locales (exc.Loc)
+    const isLocalVoucher = code && (code.toLowerCase().includes('loc') || code.toLowerCase().includes('exc'));
+    if (isLocalVoucher) {
+        const fechaCompra = document.getElementById("vm-fecha-compra").value;
+        if (fechaCompra) {
+            updates.fecha = fechaCompra;
+        }
+    }
+
     // RECALCULATE PRICE FOR SAVING (Consistency with Visual Badge)
     const prodName = updates.producto;
     const finalProduct = state.catalogProducts.find(p => p.nombre === prodName);
@@ -3467,11 +3715,13 @@ function marcarCompleto() {
     // IMPORTANTE: También marcar todos los items individuales como completos si existen 
     if (state.editingVoucherItems && state.editingVoucherItems.length > 0) {
         state.editingVoucherItems.forEach(item => {
-            item.used = item.sessions || 1;
+            const sessionsTotal = item.sessions || item.sesiones || 1;
+            item.used = sessionsTotal;
+            item.usadas = sessionsTotal;
         });
         // Refrescar el desglose visual en el modal si es necesario
-        if (typeof openVoucherManagement.renderEditableBreakdown === 'function') {
-            openVoucherManagement.renderEditableBreakdown();
+        if (typeof renderEditableBreakdown === 'function') {
+            renderEditableBreakdown();
         }
     }
 
@@ -3685,9 +3935,10 @@ async function saveServiceBreakdownToFirestore(voucherCode) {
         const itemsToSave = state.editingVoucherItems.map(item => ({
             itemId: item.itemId || ('srv_' + Math.random().toString(36).substr(2, 9)),
             name: item.name || '',
-            sessions: item.sessions || 1,
+            sessions: item.sessions || item.sesiones || 1,
             space: item.space || '',
-            used: item.used || 0,
+            used: item.used || item.usadas || 0,
+            usadas: item.used || item.usadas || 0, // Duplicate for compatibility
             validations: item.validations || [],
             pax: item.pax || 1,
             precio: item.precio || 0,
@@ -4787,30 +5038,42 @@ async function syncSingleVoucher(code) {
 
     try {
         console.log(`[DiffSync] Forzando actualización individual para: ${code} `);
-        let shopVouchers = [];
 
-        // Try Optimized Endpoint with Search
+        // 1. FIRST FETCH FROM FIRESTORE (Usage source of truth)
+        const doc = await db.collection('spa_vouchers').doc(code).get();
+        if (doc.exists) {
+            const firestoreData = doc.data();
+            console.log("[DiffSync] Firestore Data fetched:", firestoreData);
+
+            // Update local state
+            const localIdx = state.bonos.findIndex(lb => lb.bono === code || lb.codigo === code);
+            if (localIdx >= 0) {
+                state.bonos[localIdx] = { ...state.bonos[localIdx], ...firestoreData };
+            }
+
+            // Trigger UI Refresh for this voucher specifically
+            window.dispatchEvent(new CustomEvent('vouchers-updated', { detail: { code, source: 'manual-sync-firestore' } }));
+        }
+
+        // 2. THEN FETCH FROM SHOP API (Customer info / WooCommerce source)
+        let shopVouchers = [];
         if (typeof fetchBonosDirect === 'function') {
             let desdeForced;
             try {
                 const oneYearAgo = new Date();
-                oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 5); // Look back 5 years to be safe
+                oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 5);
                 desdeForced = oneYearAgo.toISOString().split('T')[0];
 
                 console.log(`[DiffSync] Fetching with date ${desdeForced} to find ${code}...`);
-                // [PROTECTED LOGIC] INCREASED PER_PAGE IS CRITICAL
-                // Sending both per_page and limit to ensure different API versions respect it
                 const params = { desde: desdeForced, per_page: 999, limit: 999 };
                 shopVouchers = await fetchBonosDirect(params, 15000);
             } catch (e) {
                 console.warn("[DiffSync] Opt failed", e);
                 if (typeof fetchBonosWithFallback === 'function') {
-                    // Fallback should also receive max items
                     shopVouchers = await fetchBonosWithFallback({ desde: desdeForced, per_page: 999, limit: 999 }, 15000);
                 }
             }
         } else {
-            // Legacy Fallback (no params supported here usually)
             const endpoint = getBonoEndpoint();
             const res = await fetch(endpoint);
             shopVouchers = await res.json();
@@ -4819,22 +5082,20 @@ async function syncSingleVoucher(code) {
 
         if (!Array.isArray(shopVouchers)) shopVouchers = [];
 
-        // Find OUR voucher
         const targetBono = shopVouchers.find(b => {
             const rawCode = (b.bono || '').trim();
             if (rawCode === code) return true;
-            if (code.includes(b.order_id)) return true; // Loose match WC123 vs 123
+            if (code.includes(b.order_id)) return true;
             return false;
         });
 
         if (targetBono) {
             console.log("[DiffSync] Found in API:", targetBono);
-
-            // [PROTECTED LOGIC] DATA NORMALIZATION
-            // Handles both nested 'billing' (new API) and flat 'billing_' (legacy/custom)
-            // DO NOT REMOVE BILLING SUPPORT.
             const b = targetBono;
-            // 1. Nested Billing
+
+            // --- NORMALIZACIÓN ROBUSTA (Igual que en sincronización masiva) ---
+
+            // 1. Contacto
             if (b.billing && typeof b.billing === 'object') {
                 const fName = b.billing.first_name || '';
                 const lName = b.billing.last_name || '';
@@ -4842,7 +5103,6 @@ async function syncSingleVoucher(code) {
                 if (!b.telefono && b.billing.phone) b.telefono = b.billing.phone;
                 if (!b.email && b.billing.email) b.email = b.billing.email;
             }
-            // 2. Flat Billing
             if (!b.cliente) {
                 const fName = b.billing_first_name || b.first_name || '';
                 const lName = b.billing_last_name || b.last_name || '';
@@ -4853,33 +5113,55 @@ async function syncSingleVoucher(code) {
             if (!b.email) b.email = b.billing_email || b.email || '';
             if (!b.nombre && b.cliente) b.nombre = b.cliente;
 
-            // UPDATE FIRESTORE
             const updateData = {};
+
+            // 2. Precio Real (Sumando desglose si existe)
+            if (b.items_desglosados && Array.isArray(b.items_desglosados) && b.items_desglosados.length > 0) {
+                const realTotal = b.items_desglosados.reduce((sum, i) => sum + (parseFloat(i.price || i.precio || 0)), 0);
+                b.precio = realTotal;
+                b.importe = realTotal;
+                updateData.precio = realTotal;
+                updateData.importe = realTotal;
+                updateData.items_desglosados = b.items_desglosados; // Guardar desglose
+            } else {
+                // Fallback precio simple
+                updateData.precio = parseFloat(b.precio || b.importe || 0);
+                updateData.importe = updateData.precio;
+            }
+
+            // 3. Fecha (Fallback a date_created)
+            if (!b.fecha && b.date_created) {
+                b.fecha = b.date_created;
+                updateData.fecha = b.fecha;
+            }
+
+            // Merge explicit contact updates if any
             if (b.cliente) updateData.cliente = b.cliente;
             if (b.telefono) updateData.telefono = b.telefono;
             if (b.email) updateData.email = b.email;
 
             if (Object.keys(updateData).length > 0) {
                 await db.collection("spa_vouchers").doc(code).update(updateData);
-                console.log("[DiffSync] Firestore Updated:", updateData);
+                console.log("[DiffSync] Firestore Updated with Shop Info:", updateData);
 
-                // Update Local State for immediate feedback
-                const localIdx = state.bonos.findIndex(lb => lb.bono === code);
+                const localIdx = state.bonos.findIndex(lb => lb.bono === code || lb.codigo === code);
                 if (localIdx >= 0) {
                     state.bonos[localIdx] = { ...state.bonos[localIdx], ...updateData };
-                    document.getElementById("vm-cliente").value = updateData.cliente || '';
-                    document.getElementById("vm-telefono").value = updateData.telefono || '';
-                    document.getElementById("vm-email").value = updateData.email || '';
-                    showToast("Datos actualizados desde la tienda", "success");
+                    if (document.getElementById("vm-code")?.value === code) {
+                        document.getElementById("vm-cliente").value = updateData.cliente || '';
+                        document.getElementById("vm-telefono").value = updateData.telefono || '';
+                        document.getElementById("vm-email").value = updateData.email || '';
+                    }
                 }
-            } else {
-                showToast("No hay datos nuevos en la tienda", "info");
             }
-
+            showToast("Sincronización completa", "success");
         } else {
-            console.warn("[DiffSync] Bono not found in recent API response");
-            showToast(`No se encontró el bono en los últimos 5 años(Fetched ${shopVouchers.length} items)`, "warning");
+            console.warn("[DiffSync] Bono not found in Shop API, but Firestore sync completed.");
+            showToast("Bono actualizado desde servidor local", "info");
         }
+
+        // Trigger UI Refresh
+        window.dispatchEvent(new CustomEvent('vouchers-updated', { detail: { code, source: 'manual-sync' } }));
 
     } catch (e) {
         console.error("[DiffSync] Error:", e);
@@ -5233,7 +5515,7 @@ window.importLocalVouchersFromExcel = function (event) {
                                 const day = spanMatch[1].padStart(2, '0');
                                 const month = spanMatch[2].padStart(2, '0');
                                 const year = spanMatch[3];
-                                fecha = `${year} -${month} -${day} `;
+                                fecha = `${year}-${month}-${day}`;
                             } else {
                                 // B. Fallback to standard Date parse (YYYY-MM-DD, etc.)
                                 const d = new Date(trimmed);
@@ -5515,94 +5797,7 @@ async function forceSyncLocalVouchers() {
  * Intenta buscar un bono probando varios formatos comunes dado un número
  * Ej: entrada "123" -> Prueba LOC-2024-123, BONO123, etc.
  */
-async function searchVoucherByNumericInput(number) {
-    const tableBody = document.getElementById("vouchers-table-body");
-    if (!tableBody) return;
-
-    tableBody.innerHTML = `< tr > <td colspan="7" style="text-align:center; padding: 20px;" class="muted">
-                    <i class="fas fa-search fa-spin"></i> Probando formatos para el n° ${number}...
-                </td></tr > `;
-
-    const currentYear = new Date().getFullYear();
-    // Generar candidatos de códigos para búsqueda exacta rápida
-    const candidates = [
-        `exc.Loc ${number} `,
-        `LOC - ${number} `,
-        `LOC - ${new Date().getFullYear()} -${number} `,
-        `BONO${number} `,
-        `${number} `,
-        `Bono ${number} `
-    ];
-
-    try {
-        // 1. Búsqueda por COINCIDENCIA PARCIAL en el ESTADO LOCAL (Nivel 0)
-        // Esto permite que "7694" encuentre "BONO7694", "exc.Loc 7694", etc.
-        const partialMatches = state.bonos.filter(b => {
-            const id = String(b.bono || b.codigo || "").toLowerCase();
-            return id.includes(String(number).toLowerCase());
-        });
-
-        if (partialMatches.length > 0) {
-            console.log(`[SMART - SEARCH] Encontrados ${partialMatches.length} coincidencias parciales en memoria.`);
-            state.bonos = partialMatches;
-            state.isActiveSearch = true;
-            renderBonosFromState();
-            updateCount();
-            showToast(`Encontrados ${partialMatches.length} bonos coincidentes`, 'success');
-            return;
-        }
-
-        // 2. Búsqueda LOCAL rápida de candidatos exactos
-        if (window.apiLocal) {
-            for (const code of candidates) {
-                const local = await apiLocal.getBonoByCode(code);
-                if (local) {
-                    console.log(`[SMART - SEARCH] Encontrado en local: ${code} `);
-                    state.bonos = [local];
-                    state.isActiveSearch = true;
-                    renderBonosFromState();
-                    updateCount();
-                    showToast(`Bono ${code} encontrado(Local)`, 'success');
-                    return;
-                }
-            }
-        }
-
-        // 2. Si no está en local, probamos Firestore en paralelo
-        let found = null;
-        for (const code of candidates) {
-            const docRef = db.collection("spa_vouchers").doc(code);
-            const snap = await docRef.get();
-            if (snap.exists) {
-                found = { ...snap.data(), bono: code };
-                break; // Encontrado!
-            }
-        }
-
-        if (found) {
-            state.bonos = [found];
-            state.isActiveSearch = true;
-            renderBonosFromState();
-            updateCount();
-
-            // Guardar para la próxima
-            if (window.apiLocal) {
-                await apiLocal.saveBono({ ...found, syncStatus: 'synced', lastSyncAt: new Date().toISOString() });
-            }
-
-            showToast(`Bono ${found.bono} encontrado`, 'success');
-        } else {
-            // Si fallan los candidatos, intentamos la búsqueda por TEXTO (searchTokens) 
-            // como último recurso (Nivel 2)
-            console.log("[SMART-SEARCH] Candidatos fallaron, probando búsqueda por texto...");
-            searchVouchersByText(number);
-        }
-
-    } catch (err) {
-        console.error("Error en búsqueda numérica:", err);
-        searchVouchersByText(number); // Fallback
-    }
-}
+// [DUPLICATE REMOVED: Usar implementación al inicio del archivo]
 
 
 /**
@@ -6096,32 +6291,4 @@ window.deleteVoucher = async function (bonoCode) {
     }
 };
 
-// ----------------------------------------------------------
-// GLOBAL LISTENER FOR RESERVATION TAB COMPLETION
-// ----------------------------------------------------------
-window.addEventListener('message', async (event) => {
-    // Basic security check (though file:// context is loose)
-    // if (event.origin !== "http://trusted.com") return; 
 
-    if (event.data && (event.data.type === 'RESERVATION_COMPLETED' || event.data.type === 'RESTAURANT_RESERVATION_CREATED')) {
-        console.log("[BONO] Received reservation completion:", event.data);
-        const code = event.data.code || event.data.voucher; // Normalize 'code' or 'voucher'
-
-
-        // Only refresh if the modal is currently open for this voucher
-        const currentModalCode = document.getElementById("vm-code")?.value;
-        if (currentModalCode === code) {
-            showToast(`Reserva confirmada(${event.data.item || 'Servicio'})`, "success");
-
-            // CRITICAL: Wait for Firestore propagation
-            console.log("[BONO] Waiting for Firestore propagation...");
-            await new Promise(resolve => setTimeout(resolve, 2000));
-
-            // 1. Sync data in background (updates state and DB)
-            await syncSingleVoucher(code);
-
-            // 2. Refresh UI to show new usage/history
-            openVoucherManagement(code);
-        }
-    }
-});

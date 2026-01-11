@@ -340,3 +340,100 @@ function getSpaceName(code) {
     };
     return names[code] || code;
 }
+
+// === NEW: Optimized Daily Availability (Batch for Timeline) ===
+async function getStaffExceptionsForDate(date) {
+    try {
+        const snap = await db.collection("spa_staff_availability").where("date", "==", date).get();
+        const exceptions = {};
+        snap.forEach(doc => {
+            const data = doc.data();
+            exceptions[data.staff_id] = data;
+        });
+        return exceptions;
+    } catch (e) {
+        console.error("Error fetching staff exceptions:", e);
+        return {};
+    }
+}
+
+window.getDailyStaffAvailability = async function (roomCode, date) {
+    if (!roomCode || !date) return {};
+
+    try {
+        // 1. Fetch all necessary data in parallel (3 reads total)
+        // Note: getActiveStaff is cached (0 reads if hot)
+        const [allStaff, dayBookings, exceptions] = await Promise.all([
+            getActiveStaff(),
+            getAllBookingsForDate(date),
+            getStaffExceptionsForDate(date)
+        ]);
+
+        // 2. Filter Staff for this Room
+        const pool = STAFF_POOLS[roomCode] || [roomCode];
+        const normalizedPool = pool.map(p => normalizeRoomCode(p));
+
+        const roomStaff = allStaff.filter(staff => {
+            const assigned = staff.assigned_rooms || [];
+            return assigned.some(r => normalizedPool.includes(normalizeRoomCode(r)));
+        });
+
+        const availabilityMap = {};
+
+        // 3. Generate all 15-min slots for the day (Standard Spa operating hours)
+        const slots = [];
+        // Use noon to avoid timezone shift on day detection
+        const dateObj = new Date(date + 'T12:00:00');
+        const isSun = dateObj.getDay() === 0;
+        const closingH = isSun ? 15 : 22; // Dom hasta 15h, resto hasta 22h
+
+        for (let h = 10; h < closingH; h++) {
+            for (let m of [0, 15, 30, 45]) {
+                if (h === 21 && m > 45) continue; // Cierre a las 22:00
+                const time = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+                slots.push(time);
+            }
+        }
+
+        // 4. Check availability for each slot (In-Memory)
+        const duration = 60; // Validar disponibilidad para una reserva estándar de 1h
+        const dayOfWeek = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'][dateObj.getDay()];
+
+        for (const time of slots) {
+            let count = 0;
+
+            for (const staff of roomStaff) {
+                // A. Check Schedule / Exception
+                let isAvailable = false;
+                const exc = exceptions[staff.id];
+
+                if (exc) {
+                    if (exc.status === 'custom') {
+                        isAvailable = isTimeInShifts(time, exc.custom_schedule.shifts, duration);
+                    }
+                    // if 'unavailable', remains false
+                } else {
+                    // Default Schedule
+                    const sched = staff.default_schedule ? staff.default_schedule[dayOfWeek] : null;
+                    if (sched && sched.enabled) {
+                        isAvailable = isTimeInShifts(time, sched.shifts, duration);
+                    }
+                }
+
+                // B. Check Bookings Collision
+                if (isAvailable) {
+                    if (!isStaffBookedInMemory(staff.id, dayBookings, time, duration, null)) {
+                        count++;
+                    }
+                }
+            }
+            availabilityMap[time] = count;
+        }
+
+        return availabilityMap;
+
+    } catch (err) {
+        console.error("Error inside getDailyStaffAvailability:", err);
+        return {};
+    }
+};

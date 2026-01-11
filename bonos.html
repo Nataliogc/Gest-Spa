@@ -48,6 +48,7 @@
                 <ul class="dropdown-menu">
                     <li><a href="personal.html"><i class="fas fa-user-tie"></i> Personal</a></li>
                     <li><a href="catalogo.html"><i class="fas fa-book-open"></i> Catálogo</a></li>
+                    <li><a href="pedidos-wc.html"><i class="fas fa-shopping-cart"></i> Pedidos WC</a></li>
                     <li><a href="configuracion.html"><i class="fas fa-cogs"></i> Ajustes</a></li>
                 </ul>
             </li>
@@ -149,7 +150,7 @@
                                 <th style="width: 50px;"></th> <!-- Thumbnail -->
                                 <th>Bono</th>
                                 <th>Producto</th>
-                                <th>Email</th>
+                                <th>Cliente</th>
                                 <th>Fecha</th>
                                 <th>Precio</th>
                                 <th>Estado</th>
@@ -226,6 +227,14 @@
                             <div class="form-group" style="margin-bottom: 0;">
                                 <label style="font-size: 0.65rem; color:#64748b;">Validez</label>
                                 <input type="date" id="vm-fecha-validez" class="param-input"
+                                    style="padding: 4px 8px; font-size: 0.75rem;">
+                            </div>
+                        </div>
+                        <!-- FECHA DE COMPRA - Solo para bonos locales -->
+                        <div id="vm-fecha-compra-container" style="display:none; margin-top: 8px;">
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label style="font-size: 0.65rem; color:#64748b;">Fecha de Compra</label>
+                                <input type="date" id="vm-fecha-compra" class="param-input"
                                     style="padding: 4px 8px; font-size: 0.75rem;">
                             </div>
                         </div>
@@ -514,9 +523,7 @@
                 </div>
                 <div class="form-group">
                     <label style="font-size: 0.8rem; font-weight: 600;">Teléfono de Contacto</label>
-                    <input type="tel" id="av-telefono" class="param-input" required
-                        oninput="let v=this.value.replace(/\D/g,'').substring(0,9); if(v.length>6) this.value=v.slice(0,3)+' '+v.slice(3,6)+' '+v.slice(6); else if(v.length>3) this.value=v.slice(0,3)+' '+v.slice(3); else this.value=v;"
-                        style="margin-top: 5px;">
+                    <input type="tel" id="av-telefono" class="param-input" required style="margin-top: 5px;">
                 </div>
                 <div class="form-group" style="margin-bottom: 0;">
                     <label style="font-size: 0.8rem; font-weight: 600;">Nº de Reserva de Hotel</label>

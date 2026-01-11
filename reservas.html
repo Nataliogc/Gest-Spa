@@ -579,6 +579,20 @@
                         </select>
                     </div>
 
+                    <!-- STAFF SELECTOR (Injected) -->
+                    <div class="form-group" id="staff-selector-group"
+                        style="display: none; margin-bottom: 0; grid-column: 1 / -1;">
+                        <label
+                            style="font-size: 0.7rem; font-weight: 800; color: #4a5568; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; display: block;">Terapeuta</label>
+                        <div style="display: flex; gap: 10px; align-items: center;">
+                            <select id="booking-staff"
+                                style="flex: 1; padding: 8px 10px; border-radius: 6px; border: 1px solid #e2e8f0; font-size: 0.9rem; background: #fff; cursor: pointer;">
+                                <option value="">Seleccionar...</option>
+                            </select>
+                            <span id="staff-availability-msg" style="font-size: 0.8rem; font-weight: 600;"></span>
+                        </div>
+                    </div>
+
                     <!-- ROW 2: TELÉFONO + ORIGEN -->
                     <div id="tel-origen-container" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
                         <div class="form-group" id="tel-group" style="margin-bottom: 0;">
@@ -1118,7 +1132,7 @@
                 // 3. Obtener disponibilidad de personal si el módulo lo requiere
                 let staffAvailability = {};
                 if (currentModule.requiresStaff && typeof getDailyStaffAvailability === 'function') {
-                    staffAvailability = await getDailyStaffAvailability(date, currentModule.code);
+                    staffAvailability = await getDailyStaffAvailability(currentModule.code, date);
                 }
 
                 // 4. Filtrar slots válidos
@@ -1442,8 +1456,26 @@
                 sel.appendChild(opt);
             });
 
-            // Auto-select if there's only one option (typical for SPA) or if previously selected
-            if (servicesToShow.length === 1) {
+            // LOGIC: Default selection
+            // If Panacea/VIP, we want NO selection by default (force user to choose)
+            // unless we are editing an existing reservation (handled by editBooking setting value)
+            if (currentModule.code === 'panacea' || currentModule.code === 'vip') {
+                const placeholder = document.createElement("option");
+                placeholder.value = "";
+                placeholder.textContent = "Selecciona un servicio...";
+                placeholder.disabled = true;
+                placeholder.selected = true;
+                sel.prepend(placeholder);
+
+                // If we had a value before (and it exists in the new list), restore it
+                // Otherwise, the placeholder remains selected
+                if (currentVal && servicesToShow.some(s => s.nombre === currentVal)) {
+                    sel.value = currentVal;
+                } else {
+                    sel.value = "";
+                }
+            } else if (servicesToShow.length === 1) {
+                // Auto-select if there's only one option (typical for SPA)
                 sel.value = servicesToShow[0].nombre;
             } else if (currentVal && servicesToShow.some(s => s.nombre === currentVal)) {
                 sel.value = currentVal;
@@ -2200,6 +2232,44 @@
             updateTotal();
         }
 
+        // Helper to restrict origins based on room type
+        function filterOriginOptions() {
+            const origenSel = document.getElementById("res-origen");
+            if (!origenSel) return;
+
+            const allowedOrigins = {
+                'suite': ['particular', 'hotel_inc', 'hotel_no_inc', 'bono'],
+                'panacea': ['particular', 'bono'],
+                'vip': ['particular', 'bono']
+            };
+
+            // Use currentModule.code (more reliable) or moduleType
+            const code = (window.currentModule && window.currentModule.code) ? window.currentModule.code : window.moduleType;
+            const allowed = allowedOrigins[code];
+
+            if (allowed) {
+                let currentValValid = false;
+                for (let i = 0; i < origenSel.options.length; i++) {
+                    const opt = origenSel.options[i];
+                    const isValid = allowed.includes(opt.value);
+                    opt.style.display = isValid ? "block" : "none";
+                    if (opt.selected && isValid) currentValValid = true;
+                }
+
+                // If current selection is invalid (hidden), switch to first allowed
+                if (!currentValValid) {
+                    if (allowed.includes('particular')) origenSel.value = 'particular';
+                    else origenSel.value = allowed[0];
+                    toggleRoomField(); // Refresh UI
+                }
+            } else {
+                // Show all
+                for (let i = 0; i < origenSel.options.length; i++) {
+                    origenSel.options[i].style.display = "block";
+                }
+            }
+        }
+
         async function showBookingForm() {
             if (!selectedTime) return;
 
@@ -2311,22 +2381,8 @@
                 }
             }
 
-            // Filter Orígenes para Suite
-            const origenSel = document.getElementById("res-origen");
-            if (moduleType === 'suite') {
-                for (let i = 0; i < origenSel.options.length; i++) {
-                    const opt = origenSel.options[i];
-                    const valid = ['particular', 'hotel_inc', 'hotel_no_inc', 'bono'].includes(opt.value);
-                    opt.style.display = valid ? "block" : "none";
-                }
-                if (!['particular', 'hotel_inc', 'hotel_no_inc', 'bono'].includes(origenSel.value)) {
-                    origenSel.value = 'particular';
-                }
-            } else {
-                for (let i = 0; i < origenSel.options.length; i++) {
-                    origenSel.options[i].style.display = "block";
-                }
-            }
+            // NEW: Centralized Origin Filter
+            filterOriginOptions();
 
             // Ocultar precio por persona en Suite
             const pricePaxGroup = document.getElementById("price-group");
@@ -2485,7 +2541,10 @@
             }
             document.getElementById("res-tel").value = formattedTel;
 
-            if (document.getElementById("res-origen")) document.getElementById("res-origen").value = res.origen || "particular";
+            if (document.getElementById("res-origen")) {
+                document.getElementById("res-origen").value = res.origen || "particular";
+                filterOriginOptions(); // Ensure options are filtered correctly for this module
+            }
             if (document.getElementById("res-hotel")) document.getElementById("res-hotel").value = res.hotel || "Cumbria";
             if (document.getElementById("res-hab")) document.getElementById("res-hab").value = res.hab || "";
             if (document.getElementById("res-bono")) document.getElementById("res-bono").value = res.bono || "";
@@ -2917,38 +2976,47 @@
                     const vDoc = await db.collection("spa_vouchers").doc(bonoId).get();
                     if (vDoc.exists) {
                         const vData = vDoc.data();
-                        const newUsed = (vData.sesiones_usadas || 0) + consumed;
+                        const newUsedTotal = (vData.sesiones_usadas || 0) + consumed;
 
                         const updates = {
-                            sesiones_usadas: newUsed,
+                            sesiones_usadas: newUsedTotal,
                             last_updated: new Date().toISOString()
                         };
 
                         // 1. Sincronizar con el desglose de items (Packs)
-                        if (vData.items_desglosados && Array.isArray(vData.items_desglosados) && serviceName) {
+                        const items = vData.items_desglosados || vData.desglosados || [];
+                        if (items.length > 0 && serviceName) {
                             const normalizedSearch = serviceName.toLowerCase().trim();
                             let itemMatched = false;
 
-                            vData.items_desglosados.forEach(item => {
-                                const itemName = (item.name || '').toLowerCase().trim();
+                            items.forEach(item => {
+                                const itemName = (item.name || item.nombre || '').toLowerCase().trim();
                                 if (itemName === normalizedSearch || normalizedSearch.includes(itemName) || itemName.includes(normalizedSearch)) {
-                                    item.used = (item.used || 0) + consumed;
+                                    // Update both field names for compatibility
+                                    const currentUsed = item.used ?? item.usadas ?? 0;
+                                    item.used = currentUsed + consumed;
+                                    item.usadas = item.used;
                                     itemMatched = true;
                                 }
                             });
 
                             if (itemMatched) {
-                                updates.items_desglosados = vData.items_desglosados;
+                                // Save to the primary field
+                                updates.items_desglosados = items;
                             }
                         }
 
                         // 2. Recalcular estado basado en items si existen
                         if (updates.items_desglosados) {
-                            const allComplete = updates.items_desglosados.every(i => (i.used || 0) >= (i.sessions || 1));
+                            const allComplete = updates.items_desglosados.every(i => {
+                                const used = i.used ?? i.usadas ?? 0;
+                                const total = i.sessions ?? i.sesiones ?? i.total ?? 1;
+                                return used >= total;
+                            });
                             updates.estado = allComplete ? 'completed' : 'partially';
                         } else {
                             // Logic estándar por sesiones
-                            updates.estado = (newUsed >= (vData.sesiones_totales || 1)) ? 'completed' : 'partially';
+                            updates.estado = (newUsedTotal >= (vData.sesiones_totales || 1)) ? 'completed' : 'partially';
                         }
 
                         await db.collection("spa_vouchers").doc(bonoId).update(updates);

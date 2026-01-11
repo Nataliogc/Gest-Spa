@@ -402,49 +402,111 @@
 
     <!-- MODAL: DAY DETAIL -->
     <div id="day-detail-modal" class="modal" style="display: none;">
-        <div class="modal-content glass" style="max-width: 500px;">
-            <div class="modal-header">
-                <h3 id="day-detail-date">Detalles del día</h3>
-                <span class="close-modal" onclick="closeDayDetailModal()">&times;</span>
+        <div class="modal-content glass" style="max-width: 480px; border-radius: 16px; overflow: hidden;">
+            <!-- Header con fecha destacada -->
+            <div
+                style="background: linear-gradient(135deg, #d4a03d 0%, #c9963a 100%); padding: 20px 25px; border-bottom: none;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <h3 id="day-detail-date" style="margin: 0; color: #1a1a2e; font-size: 1.2rem; font-weight: 600;">
+                        viernes, 9 de enero de 2026
+                    </h3>
+                    <span class="close-modal" onclick="closeDayDetailModal()"
+                        style="color: #1a1a2e; opacity: 0.7; cursor: pointer; font-size: 1.5rem; line-height: 1;">&times;</span>
+                </div>
             </div>
-            <form id="day-detail-form" onsubmit="saveDayAvailability(event)">
+
+            <form id="day-detail-form" onsubmit="saveDayAvailability(event)" style="padding: 25px;">
                 <input type="hidden" id="day-detail-date-value">
 
-                <div class="form-group">
-                    <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px;">
-                        <input type="radio" name="day-status" value="available" checked>
-                        <span>🟢 Usar horario base (por defecto)</span>
-                    </label>
-
-                    <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px;">
-                        <input type="radio" name="day-status" value="unavailable">
-                        <span>🔴 Marcar como no disponible</span>
-                    </label>
-                    <div id="unavailable-reason-container" style="margin-left: 30px; margin-bottom: 15px;">
-                        <input type="text" id="day-reason" placeholder="Motivo (opcional)" style="width: 100%;">
-                    </div>
-
-                    <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px;">
-                        <input type="radio" name="day-status" value="custom">
-                        <span>🟠 Definir horario personalizado</span>
-                    </label>
-                    <div id="custom-schedule-container" style="margin-left: 30px;">
-                        <div id="custom-shifts-container">
-                            <!-- JS Render -->
+                <!-- OPCIÓN 1: Horario Base -->
+                <label class="day-option-card"
+                    style="display: flex; align-items: center; gap: 15px; padding: 16px; margin-bottom: 12px; 
+                    background: #f8fafc; border: 2px solid #e2e8f0; border-radius: 12px; cursor: pointer; transition: all 0.2s;">
+                    <input type="radio" name="day-status" value="available" checked
+                        style="width: 20px; height: 20px; accent-color: #10b981;">
+                    <div style="flex: 1;">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span
+                                style="width: 10px; height: 10px; background: #10b981; border-radius: 50%; display: inline-block;"></span>
+                            <span style="font-weight: 600; color: #1e293b; font-size: 0.95rem;">USAR HORARIO BASE</span>
                         </div>
-                        <button type="button" onclick="addCustomShift()" class="btn btn-outline btn-sm"
-                            style="margin-top: 5px;">
-                            <i class="fas fa-plus"></i> Añadir turno
-                        </button>
+                        <span id="day-base-schedule-info"
+                            style="font-size: 0.8rem; color: #64748b; margin-left: 18px;">(10:00-18:00)</span>
                     </div>
+                </label>
+
+                <!-- OPCIÓN 2: No Disponible -->
+                <label class="day-option-card"
+                    style="display: flex; align-items: center; gap: 15px; padding: 16px; margin-bottom: 12px; 
+                    background: #f8fafc; border: 2px solid #e2e8f0; border-radius: 12px; cursor: pointer; transition: all 0.2s;">
+                    <input type="radio" name="day-status" value="unavailable"
+                        style="width: 20px; height: 20px; accent-color: #ef4444;">
+                    <div style="flex: 1;">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span
+                                style="width: 10px; height: 10px; background: #ef4444; border-radius: 50%; display: inline-block;"></span>
+                            <span style="font-weight: 600; color: #1e293b; font-size: 0.95rem;">MARCAR COMO NO
+                                DISPONIBLE</span>
+                        </div>
+                    </div>
+                </label>
+                <!-- Motivo (se muestra cuando se selecciona no disponible) -->
+                <div id="unavailable-reason-container" style="margin-left: 35px; margin-bottom: 15px; display: none;">
+                    <input type="text" id="day-reason" placeholder="Motivo (opcional)"
+                        style="width: 100%; padding: 10px 12px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 0.9rem;">
                 </div>
 
-                <button type="submit" class="btn btn-accent" style="width: 100%; margin-top: 20px;">
+                <!-- OPCIÓN 3: Horario Personalizado -->
+                <label class="day-option-card"
+                    style="display: flex; align-items: center; gap: 15px; padding: 16px; margin-bottom: 12px; 
+                    background: #f8fafc; border: 2px solid #e2e8f0; border-radius: 12px; cursor: pointer; transition: all 0.2s;">
+                    <input type="radio" name="day-status" value="custom"
+                        style="width: 20px; height: 20px; accent-color: #f97316;">
+                    <div style="flex: 1;">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span
+                                style="width: 10px; height: 10px; background: #f97316; border-radius: 50%; display: inline-block;"></span>
+                            <span style="font-weight: 600; color: #1e293b; font-size: 0.95rem;">DEFINIR HORARIO
+                                PERSONALIZADO</span>
+                        </div>
+                    </div>
+                </label>
+                <!-- Turnos personalizados (se muestra cuando se selecciona personalizado) -->
+                <div id="custom-schedule-container" style="margin-left: 35px; display: none;">
+                    <div id="custom-shifts-container" style="margin-bottom: 10px;">
+                        <!-- JS Render -->
+                    </div>
+                    <button type="button" onclick="addCustomShift()" class="btn btn-outline btn-sm"
+                        style="font-size: 0.8rem; padding: 6px 12px; border-radius: 6px;">
+                        <i class="fas fa-plus"></i> Añadir turno
+                    </button>
+                </div>
+
+                <!-- Botón Guardar -->
+                <button type="submit" class="btn btn-accent" style="width: 100%; margin-top: 20px; padding: 14px; font-size: 1rem; font-weight: 600; border-radius: 10px; 
+                    background: linear-gradient(135deg, #d4a03d 0%, #c9963a 100%); border: none; color: #1a1a2e;">
                     <i class="fas fa-save"></i> Guardar
                 </button>
             </form>
         </div>
     </div>
+
+    <!-- Estilos adicionales para las opciones del día -->
+    <style>
+        .day-option-card:hover {
+            border-color: #cbd5e1 !important;
+            background: #f1f5f9 !important;
+        }
+
+        .day-option-card:has(input:checked) {
+            border-color: #d4a03d !important;
+            background: #fffbeb !important;
+        }
+
+        #day-detail-modal .modal-content {
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+        }
+    </style>
 
     <!-- Scripts -->
     <script src="personal.js"></script>
