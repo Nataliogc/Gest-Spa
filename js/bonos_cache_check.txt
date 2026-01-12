@@ -1,0 +1,2 @@
+// Force cache bust
+console.log('[CACHE BUST] bonos.js loaded at: ' + new Date().toISOString());

@@ -1,5 +1,6 @@
 // bonos.js - Lógica de Gestión de Bonos
 // Versión Consolidada con Carrito, Reservas y Utilidades Locales
+console.log('[BONOS.JS] ✅ Loaded at:', new Date().toISOString(), '- Build: ID-First-Matching-v2');
 
 // Estado local específico para Bonos
 const state = {
@@ -2443,8 +2444,19 @@ function renderBonosFromState() {
         const catalogMatch = findCatalogProduct(b);
         const thumbUrl = catalogMatch && catalogMatch.imagen ? catalogMatch.imagen : 'zenith-icon.png';
 
-        // Mejorar visualización del precio: Si es 0 o vacío, intentar mostrar el del catálogo
-        const displayedPrice = (parseFloat(b.importe) > 0) ? b.importe : (catalogMatch ? catalogMatch.precio : 0);
+        // Mejorar visualización del precio: Si es 0 o vacío, intentar mostrar el del catálogo (con multiplicador)
+        let displayedPrice = parseFloat(b.importe) || 0;
+        if (displayedPrice === 0 && catalogMatch) {
+            const basePrice = parseFloat(catalogMatch.precio) || 0;
+            const det = detectSessions(b);
+            const basePax = parseInt(catalogMatch.personas || catalogMatch.pax || 1);
+            const baseSessions = parseInt(catalogMatch.sesiones || 1);
+
+            const paxRatio = det.paxPerSession / basePax;
+            const sessionsRatio = det.total / baseSessions;
+
+            displayedPrice = (basePrice * paxRatio * sessionsRatio).toFixed(2);
+        }
 
         return `
         <tr>
@@ -2496,8 +2508,15 @@ function clearSearch() {
 
 
 async function openVoucherManagement(code) {
+    // Mostrar modal inmediatamente para mejor sensación de carga
+    const modal = document.getElementById("voucher-modal");
+    if (modal) modal.style.display = "flex";
+
     const v = state.bonos.find(b => b.bono === code);
-    if (!v) return;
+    if (!v) {
+        if (modal) modal.style.display = "none";
+        return;
+    }
 
     const detected = detectSessions(v);
 
@@ -2510,22 +2529,52 @@ async function openVoucherManagement(code) {
         formatPhoneNumber(document.getElementById("vm-telefono"));
     }
     document.getElementById("vm-producto").value = v.producto || '';
-    document.getElementById("vm-fecha-compra").value = v.fecha || v.fecha_compra || v.date_created || '';
-    // Mostrar campo de fecha de compra SOLO para bonos locales (exc.Loc)
+    const rawDate = v.fecha || v.fecha_compra || v.date_created || '';
+    document.getElementById("vm-fecha-compra").value = formatDateToISO(rawDate);
+
+    // Mostrar campo de fecha de compra SIEMPRE que haya una fecha disponible (Universal visibility)
     const fechaCompraContainer = document.getElementById("vm-fecha-compra-container");
     if (fechaCompraContainer) {
-        const isLocalVoucher = code && (code.toLowerCase().includes('loc') || code.toLowerCase().includes('exc'));
-        fechaCompraContainer.style.display = isLocalVoucher ? 'block' : 'none';
+        fechaCompraContainer.style.display = rawDate ? 'block' : 'none';
     }
     // document.getElementById("vm-importe").value = v.importe || 0; 
 
     const priceBadge = document.getElementById("vm-cat-price");
     if (priceBadge) {
-        // Al gestionar, mostramos el precio del bono, pero si es 0, mostramos el del catálogo (si hay match)
+        // Al gestionar, intentamos mostrar siempre el precio CALCULADO si hay match en catálogo
+        // Esto ayuda a detectar descuadres inmediatamente
         const catalogMatch = findCatalogProduct(v);
         const bonoPrice = parseFloat(v.importe) || parseFloat(v.precio) || 0;
-        const displayPrice = (bonoPrice > 0) ? bonoPrice : (catalogMatch ? catalogMatch.precio : 0);
-        priceBadge.textContent = displayPrice + '€';
+
+        if (catalogMatch) {
+            const sessions = v.sesiones_totales || v.sesiones_total || detected.total || 1;
+            const pax = v.pax_por_sesion || v.pax_sesion || detected.paxPerSession || 1;
+            const basePrice = parseFloat(catalogMatch.precio) || 0;
+            const basePax = parseInt(catalogMatch.personas || catalogMatch.pax || 1);
+            const baseSessions = parseInt(catalogMatch.sesiones || 1);
+
+            const calculated = basePrice * (pax / basePax) * (sessions / baseSessions);
+
+            // PRIORIDAD: Mostrar precio pagado si existe, sino el calculado
+            if (bonoPrice > 0) {
+                priceBadge.textContent = bonoPrice.toFixed(2) + '€';
+            } else {
+                priceBadge.textContent = calculated.toFixed(2) + '€';
+            }
+
+            // Si hay descuadre con el pagado, lo indicamos visualmente
+            if (bonoPrice > 0 && Math.abs(bonoPrice - calculated) > 0.05) {
+                priceBadge.style.background = '#f59e0b'; // Naranja para advertencia
+                priceBadge.title = `Pagado: ${bonoPrice}€ / Catálogo: ${calculated.toFixed(2)}€`;
+            } else {
+                priceBadge.style.background = '#15803d'; // Verde estándar
+                priceBadge.title = "";
+            }
+        } else {
+            priceBadge.textContent = (bonoPrice > 0 ? bonoPrice : 0) + '€';
+            priceBadge.style.background = '#15803d';
+            priceBadge.title = "";
+        }
     }
 
     // --- INYECCIÓN BOTÓN REFRESH ---
@@ -2572,16 +2621,22 @@ async function openVoucherManagement(code) {
             // Unificamos con la detección global de sesiones del bono
             let sessionsCount = primaryMatch.sesiones || 1;
 
-            // Si es un pack o bono detectado con más de 1 sesión
-            if ((sessionsCount === 1 || sessionsCount === null) && detResult.total > 1) {
+            // SI HAY VARIATION_ID o PRODUCT_ID, CONFIAR CIEGAMENTE EN EL CATÁLOGO (Online sales)
+            const hasExplicitId = voucher.variation_id || voucher.product_id;
+            if (hasExplicitId && primaryMatch.sesiones) {
+                sessionsCount = primaryMatch.sesiones;
+                console.log('[BONO DEBUG] ID detectado, forzando sesiones del catálogo:', sessionsCount);
+            } else if ((sessionsCount === 1 || sessionsCount === null) && detResult.total > 1) {
                 sessionsCount = detResult.total;
             } else if (overrideTotal !== null) {
-                // Si forzamos total (ej: desde sincronización), lo respetamos
                 sessionsCount = overrideTotal;
             }
 
             let paxCount = primaryMatch.pax || 1;
-            if (paxCount === 1 && detResult.paxPerSession > 1) {
+            if (hasExplicitId && primaryMatch.pax) {
+                paxCount = primaryMatch.pax;
+                console.log('[BONO DEBUG] ID detectado, forzando pax del catálogo:', paxCount);
+            } else if (paxCount === 1 && detResult.paxPerSession > 1) {
                 paxCount = detResult.paxPerSession;
             }
 
@@ -2620,24 +2675,19 @@ async function openVoucherManagement(code) {
             if (primaryMatch.items_incluidos && primaryMatch.items_incluidos.length > 0) {
                 console.log('[BONO DEBUG] Desglosando pack con', primaryMatch.items_incluidos.length, 'items');
 
-                // IMPORTANTE: Cada item del pack debe repartirse las sesiones
-                // Si el pack tiene 2 items y total es 2, cada uno tiene 1.
                 const itemsCount = primaryMatch.items_incluidos.length;
                 const sessionsPerItem = Math.max(1, Math.round(sessionsCount / itemsCount));
 
-                // MOSTRAR CADA ITEM COMO UNA LÍNEA SEPARADA
                 primaryMatch.items_incluidos.forEach(itemName => {
-                    // Intentar encontrar cada item en el catálogo para obtener su imagen
                     const itemCatalog = state.catalogProducts.find(p =>
                         p.nombre.toLowerCase().trim() === itemName.toLowerCase().trim() ||
                         p.nombre.toLowerCase().includes(itemName.toLowerCase().trim())
                     );
 
-                    // Detect SPACE properly using Master Items
                     const detectedSpace = getSpaceForService(itemName) || itemCatalog?.espacio || primaryMatch.espacio || '';
 
                     services.push({
-                        itemId: 'srv_' + Math.random().toString(36).substr(2, 9), // ID único
+                        itemId: 'srv_' + Math.random().toString(36).substr(2, 9),
                         name: itemName.trim(),
                         imagen: itemCatalog?.imagen || primaryMatch.imagen,
                         descripcion: itemCatalog?.descripcion || `Parte del pack: ${primaryMatch.nombre}`,
@@ -2646,50 +2696,28 @@ async function openVoucherManagement(code) {
                         used: 0,
                         validations: [],
                         precio: 0,
-                        pax: paxCount
+                        pax: paxCount,
+                        wc_id: itemCatalog?.wc_id || null,
+                        product_id: itemCatalog?.id || null
                     });
                 });
             } else {
-                console.log('[BONO DEBUG] No tiene items_incluidos, usando lógica estándar');
-                // SI NO, MODALIDAD ESTÁNDAR (O INTENTO DE PARSEO DE STRING SI TIENE "+")
-                if (primaryMatch.nombre.includes("+") && !primaryMatch.nombre.toLowerCase().includes("pack")) {
-                    // Intento muy básico de separar "Circuito + Masaje" si no está definido en catálogo
-                    const parts = primaryMatch.nombre.split("+");
-                    const itemsCount = parts.length;
-                    const sessionsPerItem = Math.max(1, Math.round(sessionsCount / itemsCount));
+                console.log('[BONO DEBUG] No tiene items_incluidos, usando producto base:', primaryMatch.nombre);
+                // CASO NORMAL
+                const detectedSpace = getSpaceForService(primaryMatch.nombre) || primaryMatch.espacio || '';
 
-                    parts.forEach(part => {
-                        const partName = part.trim();
-                        const detectedSpace = getSpaceForService(partName) || primaryMatch.espacio || '';
-
-                        services.push({
-                            name: partName,
-                            imagen: primaryMatch.imagen,
-                            descripcion: primaryMatch.descripcion,
-                            sessions: sessionsPerItem,
-                            space: detectedSpace,
-                            used: 0,
-                            validations: [],
-                            precio: 0,
-                            pax: paxCount
-                        });
-                    });
-                } else {
-                    // CASO NORMAL
-                    const detectedSpace = getSpaceForService(primaryMatch.nombre) || primaryMatch.espacio || '';
-
-                    services.push({
-                        name: primaryMatch.nombre,
-                        imagen: primaryMatch.imagen,
-                        descripcion: primaryMatch.descripcion || primaryMatch.incluye || '',
-                        sessions: sessionsCount,
-                        space: detectedSpace,
-                        used: 0,
-                        validations: [],
-                        precio: primaryMatch.precio || 0,
-                        pax: paxCount
-                    });
-                }
+                services.push({
+                    itemId: 'srv_' + Math.random().toString(36).substr(2, 9),
+                    name: primaryMatch.nombre,
+                    imagen: primaryMatch.imagen,
+                    descripcion: primaryMatch.descripcion || primaryMatch.incluye || '',
+                    sessions: sessionsCount,
+                    space: detectedSpace,
+                    used: 0,
+                    validations: [],
+                    precio: primaryMatch.precio || 0,
+                    pax: paxCount
+                });
             }
         } else {
             console.warn('[BONO DEBUG] No se encontró match en catálogo para:', voucher.producto);
@@ -2737,79 +2765,93 @@ async function openVoucherManagement(code) {
 
         // Enriquecer con datos del catálogo (especialmente 'space' si falta o es incorrecto)
         baseServices = v.items_desglosados.map(item => {
-            // FORCE RE-CHECK of space using Master Items / Helper
-            // This fixes cases where 'spa' was saved incorrectly for 'Hotel' items
+            // Normalize name: trim, lowercase, collapse multiple spaces
+            const itemName = (item.name || '').trim().toLowerCase().replace(/\s+/g, ' ');
+            const normalizedName = itemName.replace(/\s*-\s*\d+['"]?\s*(min|minutos)?/gi, '').trim();
+
+            // PRIORITY 1: Match by variation_id or product_id if available (from WooCommerce sync)
+            let catalogItem = null;
+            if (item.variation_id || item.product_id || item.wc_id || item.id) {
+                const vIdStr = item.variation_id ? String(item.variation_id).trim() : '';
+                const pIdStr = item.product_id ? String(item.product_id).trim() : '';
+                const wcIdStr = item.wc_id ? String(item.wc_id).trim() : '';
+                const itemIdStr = item.id ? String(item.id).trim() : '';
+
+                catalogItem = state.catalogProducts.find(p => {
+                    const catalogWcId = p.wc_id ? String(p.wc_id).trim() : '';
+                    const catalogFirestoreId = p.id || '';
+                    // Match by wc_id (WooCommerce ID) or Firestore doc ID
+                    return (vIdStr && (catalogWcId === vIdStr || catalogFirestoreId === `wc-${vIdStr}`)) ||
+                        (pIdStr && (catalogWcId === pIdStr || catalogFirestoreId === `wc-${pIdStr}`)) ||
+                        (wcIdStr && catalogWcId === wcIdStr) ||
+                        (itemIdStr && catalogFirestoreId === itemIdStr);
+                });
+
+                if (catalogItem) {
+                    console.log(`[ENRICH] ✓ Matched by ID: ${item.name} -> Catalog: ${catalogItem.nombre} (wc_id: ${catalogItem.wc_id})`);
+                }
+            }
+
+            // PRIORITY 2: Fallback to name-based matching if no ID match (important for local vouchers!)
+            if (!catalogItem) {
+                catalogItem = state.catalogProducts.find(p => {
+                    const catalogName = p.nombre.trim().toLowerCase().replace(/\s+/g, ' ');
+                    const catalogNormalized = catalogName.replace(/\s*-\s*\d+['"]?\s*(min|minutos)?/gi, '').trim();
+                    // Match exacto o normalizado
+                    if (catalogName === itemName || catalogNormalized === normalizedName) return true;
+                    // Coincidencia parcial
+                    if (catalogName.includes(normalizedName) || normalizedName.includes(catalogNormalized)) return true;
+                    // Coincidencia por palabras clave
+                    const itemWords = normalizedName.split(/\s+/).filter(w => w.length > 3);
+                    const catalogWords = catalogNormalized.split(/\s+/).filter(w => w.length > 3);
+                    const commonWords = itemWords.filter(w => catalogWords.includes(w));
+                    return commonWords.length >= 2;
+                });
+
+                if (catalogItem) {
+                    console.log(`[ENRICH] ⚠ Matched by NAME: ${item.name} -> Catalog: ${catalogItem.nombre} (wc_id: ${catalogItem.wc_id})`);
+                    // IMPORTANT: Update item with catalog IDs for local vouchers
+                    item.wc_id = catalogItem.wc_id;
+                    item.id = catalogItem.id;
+                    item.product_id = catalogItem.product_id || catalogItem.wc_id;
+                } else {
+                    console.warn(`[ENRICH] ✗ No match found for: ${item.name}`);
+                }
+            } else {
+                // Update IDs even if matched by ID (to ensure consistency)
+                item.wc_id = catalogItem.wc_id;
+                item.id = catalogItem.id;
+                item.product_id = catalogItem.product_id || catalogItem.wc_id;
+            }
+
+            // 1. FORCE RE-CHECK of space using Master Items / Helper
             const detectedSpace = getSpaceForService(item.name);
             if (detectedSpace && detectedSpace !== item.space) {
                 console.log(`[FIX] Actualizando espacio para '${item.name}': ${item.space} -> ${detectedSpace}`);
                 item.space = detectedSpace;
             }
 
-            // Buscar en catálogo para obtener espacio si aún no tiene
+            // 2. Si aún no tiene espacio, intentar asignar
             if (!item.space) {
-                const itemName = (item.name || '').toLowerCase();
-                // Normalizar nombre: quitar duraciones como "- 60'", "- 90'", etc.
-                const normalizedName = itemName.replace(/\s*-\s*\d+['"]?\s*(min|minutos)?/gi, '').trim();
-
                 // REGLA ESPECÍFICA: Alojamiento siempre es Hotel
                 if (normalizedName.includes('alojamiento')) {
                     item.space = 'Hotel';
-                    console.log('[DEBUG] 🏨 Regla forzada: Alojamiento -> Hotel');
                 }
                 // REGLA ESPECÍFICA: Complementos comunes
                 else if (normalizedName.match(/(botella|cava|vino|ramo|flores|fruta|bombones|detalle)/i)) {
                     item.space = 'Complemento';
-                    console.log('[DEBUG] 🎁 Regla forzada: Complemento detectado');
                 }
-                else {
-                    // Try Master Items/Helper with normalized name (stripped duration)
-                    const detected = getSpaceForService(normalizedName);
-
-                    if (detected) {
-                        item.space = detected;
-                        console.log('[DEBUG] Space detected via Master/Helper:', detected);
-                    } else {
-                        const catalogItem = state.catalogProducts.find(p => {
-                            const catalogName = p.nombre.toLowerCase();
-                            const catalogNormalized = catalogName.replace(/\s*-\s*\d+['"]?\s*(min|minutos)?/gi, '').trim();
-
-                            // Intentar coincidencia exacta primero
-                            if (catalogName === itemName || catalogNormalized === normalizedName) return true;
-
-                            // Luego coincidencia parcial (contiene)
-                            if (catalogName.includes(normalizedName) || normalizedName.includes(catalogNormalized)) return true;
-
-                            // Finalmente, coincidencia por palabras clave
-                            const itemWords = normalizedName.split(/\s+/);
-                            const catalogWords = catalogNormalized.split(/\s+/);
-                            const commonWords = itemWords.filter(w => w.length > 3 && catalogWords.includes(w));
-                            return commonWords.length >= 2; // Al menos 2 palabras en común
-                        });
-
-                        if (catalogItem) {
-                            item.space = catalogItem.espacio || '';
-                            console.log('[DEBUG] ✓ Enriquecido:', item.name, '-> space:', item.space, 'desde:', catalogItem.nombre);
-                        } else {
-                            // Fallback: usar espacio del producto principal
-                            item.space = fallbackSpace;
-                            if (fallbackSpace) {
-                                console.log('[DEBUG] ⚠ No en catálogo, usando espacio del pack:', item.name, '-> space:', item.space);
-                            } else {
-                                console.warn('[DEBUG] ✗ No encontrado y sin fallback:', item.name);
-                            }
-                        }
-                    }
+                else if (catalogItem) {
+                    item.space = catalogItem.espacio || '';
+                } else if (fallbackSpace) {
+                    item.space = fallbackSpace;
                 }
-            } else {
-                console.log('[DEBUG] Item ya tiene space:', item.name, '->', item.space);
             }
 
             // CRÍTICO: Re-detectar sesiones si el item tiene un número incorrecto
-            // Esto corrige items como "Bono Masaje (5+1)" que vienen con sessions:1 de la DB
             if (!item.sessions || item.sessions === 1) {
                 const sessionsResult = detectSessions({ producto: item.name });
                 if (sessionsResult.total > 1) {
-                    console.log(`[DEBUG] 🔄 Redetectando sesiones para "${item.name}": ${item.sessions || 1} -> ${sessionsResult.total}`);
                     item.sessions = sessionsResult.total;
                 }
             }
@@ -2819,13 +2861,20 @@ async function openVoucherManagement(code) {
                 item.itemId = 'srv_' + Math.random().toString(36).substr(2, 9);
             }
 
-            // Asegurar que tenga los campos necesarios
+            // Asegurar que tenga los campos necesarios e IDs del catálogo
             return {
                 ...item,
                 itemId: item.itemId,
                 used: item.used || 0,
                 validations: item.validations || [],
-                space: item.space || ''
+                space: item.space || '',
+                // CRITICAL: Include ALL IDs - from original item (which may have been updated during matching)
+                // or from catalogItem if available
+                variation_id: item.variation_id || null,
+                product_id: item.product_id || item.wc_id || null,
+                wc_id: item.wc_id || catalogItem?.wc_id || item.variation_id || null,
+                id: item.id || catalogItem?.id || null,
+                catalog_id: catalogItem?.id || item.id || null
             };
         });
         console.log('[DEBUG] BaseServices después de enriquecimiento:', baseServices.map(s => ({ name: s.name, space: s.space })));
@@ -3071,7 +3120,10 @@ async function openVoucherManagement(code) {
                 return `
                         <div style="display:flex; justify-content:space-between; align-items:center; background:${isComplete ? '#f0fdf4' : '#fff'}; padding:8px; margin-bottom:4px; border-radius:6px; border:1px solid ${isComplete ? '#86efac' : '#e2e8f0'}; gap:8px;">
                     <div style="display: flex; flex-direction: column; flex: 1; overflow:hidden; gap:2px;">
-                        <div style="font-size:0.8rem; font-weight:600; color:#334155;">${item.name}</div>
+                        <div style="font-size:0.8rem; font-weight:600; color:#334155;">
+                            ${item.name} 
+                            <span style="font-size:0.65rem; color:#94a3b8; font-weight:400; margin-left:4px;">ID: ${item.wc_id || item.product_id || item.id || 'N/A'}</span>
+                        </div>
                         <div style="font-size:0.65rem; color:#64748b;">
                             <i class="fas fa-map-marker-alt" style="margin-right:2px;"></i>${spaceName}
                             <span style="margin-left:8px; font-weight:600; color:${isComplete ? '#16a34a' : '#334155'};">
@@ -3109,9 +3161,16 @@ async function openVoucherManagement(code) {
     };
     window.updateVoucherItemSession = (idx, val) => {
         state.editingVoucherItems[idx].sessions = parseInt(val) || 1;
+        // Actualizar el global para mantener consistencia
+        const newTotal = state.editingVoucherItems.reduce((acc, curr) => acc + (curr.sessions || 1), 0);
+        document.getElementById("vm-sesiones-total").value = newTotal;
+        window.updatePriceBadge();
     };
     window.updateVoucherItemPax = (idx, val) => {
         state.editingVoucherItems[idx].pax = parseInt(val) || 1;
+        // Actualizar el global para mantener consistencia (asumiendo que todos los items deben tener el mismo pax)
+        document.getElementById("vm-pax-sesion").value = val;
+        window.updatePriceBadge();
     };
     window.updateVoucherItemName = (idx, val) => {
         state.editingVoucherItems[idx].name = val;
@@ -3235,39 +3294,101 @@ async function openVoucherManagement(code) {
     };
 
 
-    // Nueva función para recalcular precio visualmente al cambiar pax
-    // NOTA: Preserva el precio original de WooCommerce si existe
+    // Nueva función para recalcular precio visualmente al cambiar pax o sesiones
     window.updatePriceBadge = () => {
         const prodName = document.getElementById("vm-producto").value;
         const pax = parseInt(document.getElementById("vm-pax-sesion").value) || 1;
-        const product = state.catalogProducts.find(p => p.nombre === prodName);
+        const totalSessions = parseInt(document.getElementById("vm-sesiones-total").value) || 1;
 
-        // Preservar precio original del bono de WooCommerce
-        const originalBonoPrice = parseFloat(v.importe) || parseFloat(v.precio) || 0;
+        // Usar findCatalogProduct de forma robusta
+        const product = findCatalogProduct({
+            producto: prodName,
+            variation_id: v.variation_id,
+            product_id: v.product_id
+        });
+
         const priceBadge = document.getElementById("vm-cat-price");
+        if (!priceBadge) return;
 
-        if (priceBadge) {
+        // Preservar precio original del bono de WooCommerce para comparación
+        const originalBonoPrice = parseFloat(v.importe) || parseFloat(v.precio) || 0;
+
+        if (product) {
+            const basePrice = parseFloat(product.precio) || 0;
+            const basePax = parseInt(product.personas || product.pax || 1);
+            const baseSessions = parseInt(product.sesiones || 1);
+
+            const paxRatio = pax / basePax;
+            const sessionsRatio = totalSessions / baseSessions;
+            const calculatedPrice = basePrice * paxRatio * sessionsRatio;
+
+            // PRIORIDAD: Mostrar precio pagado si existe
             if (originalBonoPrice > 0) {
-                // Mantener precio original del bono (WooCommerce)
-                priceBadge.textContent = originalBonoPrice + '€';
-            } else if (product) {
-                // Solo si no hay precio original, calcular desde catálogo
-                const basePrice = parseFloat(product.precio) || 0;
-                const basePax = parseInt(product.personas || product.pax || 1);
-                const ratio = pax / basePax;
-                const finalPrice = basePrice * ratio;
-                priceBadge.textContent = finalPrice.toFixed(2) + '€';
+                priceBadge.textContent = originalBonoPrice.toFixed(2) + '€';
+            } else {
+                priceBadge.textContent = calculatedPrice.toFixed(2) + '€';
             }
+
+            // Si hay descuadre, añadir tooltip y cambiar color a naranja
+            if (originalBonoPrice > 0 && Math.abs(originalBonoPrice - calculatedPrice) > 0.05) {
+                priceBadge.style.background = '#f59e0b'; // Advertencia
+                priceBadge.title = `Pagado: ${originalBonoPrice}€ / Catálogo: ${calculatedPrice.toFixed(2)}€`;
+            } else {
+                priceBadge.style.background = '#15803d'; // Verde
+                priceBadge.title = "";
+            }
+        } else if (originalBonoPrice > 0) {
+            priceBadge.textContent = originalBonoPrice + '€';
+            priceBadge.style.background = '#15803d'; // Verde
+            priceBadge.title = "";
+        } else {
+            priceBadge.textContent = '0.00€';
+            priceBadge.style.background = '#64748b'; // Gris
+            priceBadge.title = "";
         }
     };
 
-    // Attach listener if not already attached (safe to re-attach if using onclick or ensuring single init, but here we are in a closure potentially)
-    // Better: Helper checks if listener exists or we just use 'onchange' attribute logic via setter if possible.
-    // Simplest: Assign onclick/onchange directly to element
+    // Función para sincronizar los PAX y Sesiones de los items internos con los campos globales
+    window.updateBreakdownFromGlobalInputs = () => {
+        const globalPax = parseInt(document.getElementById("vm-pax-sesion").value) || 1;
+        const globalSessions = parseInt(document.getElementById("vm-sesiones-total").value) || 1;
+
+        if (state.editingVoucherItems && state.editingVoucherItems.length > 0) {
+            // 1. Sincronizar PAX para todos los items
+            state.editingVoucherItems.forEach(item => {
+                item.pax = globalPax;
+            });
+
+            // 2. Redistribuir Sesiones (Más balanceado)
+            const itemCount = state.editingVoucherItems.length;
+            if (itemCount === 1) {
+                state.editingVoucherItems[0].sessions = globalSessions;
+            } else {
+                let remaining = globalSessions;
+                state.editingVoucherItems.forEach((item, i) => {
+                    const share = Math.floor(remaining / (itemCount - i));
+                    item.sessions = Math.max(0, share);
+                    remaining -= share;
+                });
+            }
+        }
+
+        // Refrescar visualmente los "muñecos" y datos
+        renderEditableBreakdown();
+        // También actualizar precio
+        window.updatePriceBadge();
+    };
+
+    // Attach listeners for visual updates (Price and Breakdown)
     const paxInput = document.getElementById("vm-pax-sesion");
     if (paxInput) {
-        paxInput.onchange = window.updatePriceBadge;
-        paxInput.onkeyup = window.updatePriceBadge; // For smoother UX
+        paxInput.onchange = window.updateBreakdownFromGlobalInputs;
+        paxInput.onkeyup = window.updateBreakdownFromGlobalInputs;
+    }
+    const sessionsInput = document.getElementById("vm-sesiones-total");
+    if (sessionsInput) {
+        sessionsInput.onchange = window.updateBreakdownFromGlobalInputs;
+        sessionsInput.onkeyup = window.updateBreakdownFromGlobalInputs;
     }
 
     window.linkVoucherToCatalogProduct = () => {
@@ -3458,7 +3579,13 @@ async function openVoucherManagement(code) {
 
         if (allItemsComplete) displayStatus = 'completed';
         else if (anyItemUsed) displayStatus = 'partially';
-        else displayStatus = 'pending';
+        else if (v.estado === 'completed') {
+            // SI LA BASE DE DATOS DICE COMPLETADO PERO NO HAY USO: 
+            // Probablemente sea un estado manual o de importación. Lo respetamos pero avisamos.
+            displayStatus = 'completed';
+        } else {
+            displayStatus = 'pending';
+        }
     }
 
     let label = statusMap[displayStatus] || displayStatus.toUpperCase();
@@ -3471,7 +3598,7 @@ async function openVoucherManagement(code) {
     }
 
     badge.textContent = label;
-    badge.className = `st - badge st - ${displayStatus} `;
+    badge.className = `st-badge st-${displayStatus}`;
 
     // Ocultar botones "Canjear 1" y "Total" si tiene múltiples ítems o si NO es multi-sesión
     const hasMultipleItems = state.editingVoucherItems.length > 1;
@@ -3499,89 +3626,170 @@ async function openVoucherManagement(code) {
     }
     // --------------------------------
 
-    document.getElementById("voucher-modal").style.display = "flex";
+    // Actualizar precio y breakdown visualmente al abrir
+    window.updateBreakdownFromGlobalInputs();
+
+    // Show/hide Re-sync button
+    const resyncBtn = document.getElementById("vm-resync-btn");
+    if (resyncBtn) {
+        // Show button if manually updated OR if price is missing/zero
+        const isManuallyUpdated = v.manual_update === true;
+        const hasMissingPrice = !v.importe || parseFloat(v.importe) === 0;
+        const isWooCommerceVoucher = v.origen !== 'local';
+        const isLocalVoucher = (v.bono || '').startsWith('exc.Loc') || (v.bono || '').startsWith('LOC-');
+
+        // Only show for WooCommerce vouchers, NEVER for local vouchers
+        if (isWooCommerceVoucher && !isLocalVoucher && (isManuallyUpdated || hasMissingPrice)) {
+            resyncBtn.style.display = "block";
+            if (hasMissingPrice) {
+                resyncBtn.title = "Precio faltante - Click para sincronizar desde WooCommerce";
+                resyncBtn.style.borderColor = "#dc2626";
+                resyncBtn.style.color = "#dc2626";
+            }
+        } else {
+            resyncBtn.style.display = "none";
+        }
+    }
 }
 
 function closeVoucherModal() {
-    document.getElementById("voucher-modal").style.display = "none";
+    const modal = document.getElementById("voucher-modal");
+    if (modal) {
+        modal.style.display = "none";
+    }
 }
 
 async function saveVoucherChanges() {
-    const btn = document.getElementById("vm-save-btn");
-    const btnText = btn.querySelector("span");
-    const originalText = btnText.textContent;
+    let btn, btnText, originalText;
 
-    const code = document.getElementById("vm-code").value;
-    const updates = {
-        cliente: document.getElementById("vm-cliente").value,
-        email: document.getElementById("vm-email").value,
-        telefono: document.getElementById("vm-telefono").value,
-        fecha_validez: document.getElementById("vm-fecha-validez").value,
-        sesiones_totales: parseInt(document.getElementById("vm-sesiones-total").value) || 1,
-        sesiones_usadas: parseInt(document.getElementById("vm-sesiones-usadas").value) || 0,
-        pax_por_sesion: parseInt(document.getElementById("vm-pax-sesion").value) || 1,
-        notas_internas: document.getElementById("vm-notas").value,
-        producto: document.getElementById("vm-producto").value,
-        items_desglosados: cleanUndefined(state.editingVoucherItems || []),
-        manual_update: true
-    };
+    try {
+        btn = document.getElementById("vm-save-btn");
+        if (!btn) {
+            console.error("[SAVE] Botón vm-save-btn no encontrado");
+            showToast("Error: Botón de guardado no encontrado", "error");
+            return;
+        }
 
-    // Guardar fecha de compra solo para bonos locales (exc.Loc)
-    const isLocalVoucher = code && (code.toLowerCase().includes('loc') || code.toLowerCase().includes('exc'));
-    if (isLocalVoucher) {
-        const fechaCompra = document.getElementById("vm-fecha-compra").value;
+        btnText = btn.querySelector("span");
+        if (!btnText) {
+            console.error("[SAVE] Span del botón no encontrado");
+            showToast("Error: Estructura del botón incorrecta", "error");
+            return;
+        }
+
+        originalText = btnText.textContent;
+
+        const codeEl = document.getElementById("vm-code");
+        if (!codeEl) {
+            console.error("[SAVE] Elemento vm-code no encontrado");
+            showToast("Error: Código de bono no encontrado", "error");
+            return;
+        }
+        const code = codeEl.value;
+        if (!code) {
+            showToast("Error: No hay código de bono", "error");
+            return;
+        }
+
+        // Asegurar que los items del breakdown están sincronizados antes de guardar
+        if (window.updateBreakdownFromGlobalInputs) window.updateBreakdownFromGlobalInputs();
+
+        const getInputValue = (id, defaultValue = '') => {
+            const el = document.getElementById(id);
+            if (!el) {
+                console.warn(`[SAVE] Elemento DOM con ID '${id}' no encontrado. Usando valor por defecto: ${defaultValue}`);
+                return defaultValue;
+            }
+            return el.value;
+        };
+
+        const updates = {
+            cliente: getInputValue("vm-cliente"),
+            email: getInputValue("vm-email"),
+            telefono: getInputValue("vm-telefono"),
+            fecha_validez: getInputValue("vm-fecha-validez"),
+            sesiones_totales: parseInt(getInputValue("vm-sesiones-total", '1')) || 1,
+            sesiones_usadas: parseInt(getInputValue("vm-sesiones-usadas", '0')) || 0,
+            pax_por_sesion: parseInt(getInputValue("vm-pax-sesion", '1')) || 1,
+            notas_internas: getInputValue("vm-notas"),
+            producto: getInputValue("vm-producto"),
+            items_desglosados: cleanUndefined(state.editingVoucherItems || []),
+            manual_update: true
+        };
+
+        // Guardar fecha de compra
+        const fechaCompra = getInputValue("vm-fecha-compra");
         if (fechaCompra) {
             updates.fecha = fechaCompra;
         }
-    }
 
-    // RECALCULATE PRICE FOR SAVING (Consistency with Visual Badge)
-    const prodName = updates.producto;
-    const finalProduct = state.catalogProducts.find(p => p.nombre === prodName);
-    if (finalProduct) {
-        const basePrice = parseFloat(finalProduct.precio) || 0;
-        const basePax = parseInt(finalProduct.personas || finalProduct.pax || 1);
-        const currentPax = updates.pax_por_sesion;
-        // Logic: If I have 2 pax and base is 1, price doubles.
-        // If I have 2 pax and base is 2 (e.g. Couple pack), price is base.
-        const ratio = currentPax / basePax;
-        updates.importe = basePrice * ratio;
-        updates.precio = updates.importe; // Mantener consistencia precio/importe
-    }
+        // Get voucher from state to access variation_id and product_id
+        const v = state.bonos.find(b => b.bono === code);
 
-    // Auto estado logic (Item-aware)
-    // Priority: If Global Counters say Completed (Used >= Total), force Completed.
-    // Otherwise, if items exist, rely on items state.
+        // RECALCULATE PRICE FOR SAVING - ONLY for local vouchers without a fixed WC price
+        // If voucher has a fixed importe/precio from WooCommerce, preserve it
+        const hasFixedWCPrice = v && (v.importe > 0 || v.precio > 0) && v.origen !== 'local';
 
-    const globalComplete = updates.sesiones_usadas >= updates.sesiones_totales && updates.sesiones_totales > 0;
-    const globalPartial = updates.sesiones_usadas > 0;
+        if (!hasFixedWCPrice) {
+            // Only recalculate for local vouchers or those without a fixed price
+            const prodName = updates.producto;
+            const finalProduct = findCatalogProduct({
+                producto: prodName,
+                variation_id: v?.variation_id,
+                product_id: v?.product_id
+            });
 
-    if (globalComplete) {
-        updates.estado = 'completed';
-    } else if (updates.items_desglosados && updates.items_desglosados.length > 0) {
-        // PACK: Completo solo si TODOS los items están completos (y global no forzó completado)
-        const allItemsComplete = updates.items_desglosados.every(item => (item.used || 0) >= (item.sessions || 1));
-        const anyItemUsed = updates.items_desglosados.some(item => (item.used || 0) > 0);
+            if (finalProduct) {
+                const basePrice = parseFloat(finalProduct.precio) || 0;
+                const basePax = parseInt(finalProduct.personas || finalProduct.pax || 1);
+                const baseSessions = parseInt(finalProduct.sesiones || 1);
 
-        if (allItemsComplete) {
-            updates.estado = 'completed';
-        } else if (anyItemUsed) {
-            updates.estado = 'partially';
+                const paxRatio = updates.pax_por_sesion / basePax;
+                const sessionsRatio = updates.sesiones_totales / baseSessions;
+
+                updates.importe = basePrice * paxRatio * sessionsRatio;
+                updates.precio = updates.importe; // Mantener consistencia precio/importe
+                console.log(`[SAVE] Precio recalculado para bono local: ${updates.importe}€`);
+            }
         } else {
-            updates.estado = 'pending';
+            // Preserve existing WooCommerce price
+            updates.importe = v.importe || v.precio;
+            updates.precio = updates.importe;
+            console.log(`[SAVE] Preservando precio de WooCommerce: ${updates.importe}€`);
         }
-    } else {
-        // Simple/Legacy logic
+
+        // Auto estado logic (Item-aware)
+        // Priority: If Global Counters say Completed (Used >= Total), force Completed.
+        // Otherwise, if items exist, rely on items state.
+
+        const globalComplete = updates.sesiones_usadas >= updates.sesiones_totales && updates.sesiones_totales > 0;
+        const globalPartial = updates.sesiones_usadas > 0;
+
         if (globalComplete) {
-            updates.estado = 'completed'; // Redundant but clear
-        } else if (globalPartial) {
-            updates.estado = 'partially';
-        } else {
-            updates.estado = 'pending';
-        }
-    }
+            updates.estado = 'completed';
+        } else if (updates.items_desglosados && updates.items_desglosados.length > 0) {
+            // PACK: Completo solo si TODOS los items están completos (y global no forzó completado)
+            const allItemsComplete = updates.items_desglosados.every(item => (item.used || 0) >= (item.sessions || 1));
+            const anyItemUsed = updates.items_desglosados.some(item => (item.used || 0) > 0);
 
-    try {
+            if (allItemsComplete) {
+                updates.estado = 'completed';
+            } else if (anyItemUsed) {
+                updates.estado = 'partially';
+            } else {
+                updates.estado = 'pending';
+            }
+        } else {
+            // Simple/Legacy logic
+            if (globalComplete) {
+                updates.estado = 'completed'; // Redundant but clear
+            } else if (globalPartial) {
+                updates.estado = 'partially';
+            } else {
+                updates.estado = 'pending';
+            }
+        }
+
         btn.disabled = true;
         btnText.textContent = "GUARDANDO...";
 
@@ -3626,11 +3834,13 @@ async function saveVoucherChanges() {
         }
 
     } catch (err) {
-        console.error("Error general guardando:", err);
-        showToast("Error al procesar: " + err.message, "error");
+        console.error("[SAVE] Error general guardando:", err);
+        showToast("❌ Error al guardar: " + err.message, "error");
     } finally {
-        btn.disabled = false;
-        btnText.textContent = originalText;
+        if (btn && btnText && originalText) {
+            btn.disabled = false;
+            btnText.textContent = originalText;
+        }
     }
 }
 
@@ -4241,7 +4451,16 @@ function filterLocalProducts(query) {
             }
 
             return `
-                <div onclick="selectProductForLocalVoucher('${prod.nombre.replace(/'/g, "\\'")}')" 
+                <div onclick="selectProductForLocalVoucher(${JSON.stringify({
+                nombre: prod.nombre,
+                wc_id: prod.wc_id,
+                id: prod.id,
+                product_id: prod.product_id,
+                precio: prod.precio,
+                sesiones: prod.sesiones,
+                pax: prod.pax || prod.personas,
+                espacio: prod.espacio
+            }).replace(/"/g, '&quot;')})" 
             style="display: flex; gap: 12px; align-items: start; padding: 12px; border-bottom: 1px solid #f1f5f9; cursor: pointer; transition: all 0.2s;"
             onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='white'">
                 
@@ -4252,7 +4471,10 @@ function filterLocalProducts(query) {
                 
                 <div style="flex: 1; min-width:0;">
                     <div style="display:flex; justify-content:space-between; align-items:start;">
-                        <div style="font-weight: 700; font-size: 0.95rem; color: #0f172a; line-height:1.2; margin-bottom:4px;">${prod.nombre}</div>
+                        <div style="font-weight: 700; font-size: 0.95rem; color: #0f172a; line-height:1.2; margin-bottom:4px;">
+                            ${prod.nombre}
+                            <span style="font-size:0.7rem; color:#94a3b8; font-weight:500; margin-left:5px;">ID: ${prod.wc_id || prod.id}</span>
+                        </div>
                         <div style="font-weight: 800; font-size: 0.95rem; color: #059669; white-space:nowrap; margin-left:8px;">${parseFloat(prod.precio).toFixed(2)}€</div>
                     </div>
                     
@@ -5030,6 +5252,13 @@ async function importExcelOrders(event) {
 
 // --- SYNC SINGLE VOUCHER (Manual Refresh) ---
 async function syncSingleVoucher(code) {
+    // Protection: If it's a background sync, don't overwrite manual changes
+    const existing = state.bonos.find(b => (b.bono || b.codigo) === code);
+    if (existing && existing.manual_update && !window.forceSync) {
+        console.log('[SYNC] Skipping sync for manually updated voucher:', code);
+        return;
+    }
+
     const btn = document.getElementById("vm-btn-refresh");
     if (btn) {
         btn.innerHTML = '<i class="fas fa-spin fa-sync"></i>';
@@ -6292,3 +6521,201 @@ window.deleteVoucher = async function (bonoCode) {
 };
 
 
+
+// ============================================
+// FORCE RE-SYNC FROM WOOCOMMERCE
+// ============================================
+window.resyncVoucherFromWooCommerce = async function () {
+    const code = document.getElementById("vm-code")?.value;
+    if (!code) {
+        showToast("No hay código de bono para sincronizar", "error");
+        return;
+    }
+
+    // CRITICAL: Don't try to sync local vouchers with WooCommerce
+    if (code.startsWith('exc.Loc') || code.startsWith('LOC-')) {
+        console.log(`[RESYNC] Skipping WooCommerce sync for local voucher: ${code}`);
+        showToast("⚠️ Los bonos locales no se pueden sincronizar con WooCommerce", "warning");
+        return;
+    }
+
+    const btn = document.getElementById("vm-resync-btn");
+    if (!btn) return;
+
+    const originalText = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sincronizando...';
+
+    try {
+        // Fetch fresh data from WooCommerce using the optimized endpoint
+        console.log(`[RESYNC] Fetching fresh data for ${code} from WooCommerce...`);
+
+        let freshVouchers = [];
+        if (typeof fetchBonosDirect === 'function') {
+            try {
+                freshVouchers = await fetchBonosDirect({ per_page: 100 }, 10000);
+            } catch (e) {
+                console.warn('[RESYNC] Failed with optimized endpoint, trying fallback');
+                if (typeof fetchBonosWithFallback === 'function') {
+                    freshVouchers = await fetchBonosWithFallback(10000);
+                } else {
+                    throw new Error("No hay funciones de sincronización disponibles");
+                }
+            }
+        } else {
+            if (typeof fetchBonosWithFallback === 'function') {
+                freshVouchers = await fetchBonosWithFallback(10000);
+            } else {
+                throw new Error("No hay funciones de sincronización disponibles");
+            }
+        }
+
+        if (!Array.isArray(freshVouchers)) {
+            throw new Error("Formato de respuesta inválido");
+        }
+
+        // Find the matching voucher
+        const freshVoucher = freshVouchers.find(v => v.bono === code);
+        if (!freshVoucher) {
+            throw new Error(`Bono ${code} no encontrado en WooCommerce`);
+        }
+
+        console.log(`[RESYNC] Fresh data found:`, freshVoucher);
+
+        // Extract price from fresh data
+        let freshPrice = parseFloat(freshVoucher.precio) || parseFloat(freshVoucher.importe) || 0;
+
+        if (freshPrice === 0) {
+            freshPrice = parseFloat(freshVoucher.line_total) || parseFloat(freshVoucher.subtotal) ||
+                parseFloat(freshVoucher.item_total) || parseFloat(freshVoucher.total) ||
+                parseFloat(freshVoucher.order_total) || 0;
+        }
+
+        // Sum from items_desglosados if available
+        if (freshPrice === 0 && freshVoucher.items_desglosados && Array.isArray(freshVoucher.items_desglosados)) {
+            freshPrice = freshVoucher.items_desglosados.reduce((sum, item) => {
+                return sum + (parseFloat(item.precio) || parseFloat(item.price) || parseFloat(item.total) || 0);
+            }, 0);
+        }
+
+        if (freshPrice === 0) {
+            throw new Error("No se pudo determinar el precio del bono desde WooCommerce");
+        }
+
+        console.log(`[RESYNC] Price extracted: ${freshPrice}€`);
+
+        // Update Firestore
+        const docRef = db.collection("spa_vouchers").doc(code);
+        const updateData = {
+            importe: freshPrice,
+            precio: freshPrice,
+            items_desglosados: freshVoucher.items_desglosados || [],
+            manual_update: false, // Remove manual protection to allow future auto-syncs
+            last_synced: new Date().toISOString()
+        };
+
+        // Also update client info if available
+        if (freshVoucher.cliente && freshVoucher.cliente !== "Nombre Cliente") {
+            updateData.cliente = freshVoucher.cliente;
+        }
+        if (freshVoucher.email && freshVoucher.email.includes("@")) {
+            updateData.email = freshVoucher.email;
+        }
+        if (freshVoucher.telefono && freshVoucher.telefono.length > 5) {
+            updateData.telefono = freshVoucher.telefono;
+        }
+
+        await docRef.update(updateData);
+
+        console.log(`[RESYNC] ✅ Voucher ${code} updated in Firestore`);
+
+        // Update local state
+        const localVoucher = state.bonos.find(b => b.bono === code);
+        if (localVoucher) {
+            Object.assign(localVoucher, updateData);
+        }
+
+        showToast(`✅ Bono re-sincronizado: ${freshPrice.toFixed(2)}€`, "success");
+
+        // Reload the modal with fresh data
+        setTimeout(() => {
+            const modal = document.getElementById("voucher-modal");
+            if (modal) modal.style.display = "none";
+            setTimeout(() => openVoucherManagement(code), 300);
+        }, 1000);
+
+    } catch (error) {
+        console.error("[RESYNC] Error:", error);
+        showToast("❌ Error al re-sincronizar: " + error.message, "error");
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+    }
+};
+
+
+// ============================================
+// SELECT PRODUCT FOR LOCAL VOUCHER  
+// ============================================
+window.selectProductForLocalVoucher = function (productData) {
+    console.log('[LOCAL VOUCHER] Product selected:', productData);
+
+    // Si productData es un string (legacy), convertirlo a objeto
+    if (typeof productData === 'string') {
+        productData = { nombre: productData };
+    }
+
+    // Find full product details from catalog if not already complete
+    if (!productData.wc_id && !productData.id) {
+        const catalogProduct = state.catalogProducts.find(p =>
+            p.nombre === productData.nombre
+        );
+
+        if (catalogProduct) {
+            productData = {
+                ...catalogProduct,
+                nombre: catalogProduct.nombre,
+                wc_id: catalogProduct.wc_id,
+                id: catalogProduct.id,
+                product_id: catalogProduct.product_id || catalogProduct.wc_id,
+                precio: catalogProduct.precio,
+                sesiones: catalogProduct.sesiones || 1,
+                pax: catalogProduct.pax || catalogProduct.personas || 1,
+                espacio: catalogProduct.espacio
+            };
+        }
+    }
+
+    // Add to cart state (create array if doesn't exist)
+    if (!state.localVoucherCart) {
+        state.localVoucherCart = [];
+    }
+
+    // Add product with IDs to cart
+    state.localVoucherCart.push({
+        name: productData.nombre,
+        wc_id: productData.wc_id,
+        id: productData.id,
+        product_id: productData.product_id || productData.wc_id,
+        variation_id: productData.variation_id || null,
+        price: parseFloat(productData.precio) || 0,
+        sessions: parseInt(productData.sesiones) || 1,
+        pax: parseInt(productData.pax) || 1,
+        space: productData.espacio || '',
+        used: 0
+    });
+
+    console.log('[LOCAL VOUCHER] Current cart:', state.localVoucherCart);
+
+    // Render cart (need to implement renderLocalVoucherCart)
+    if (typeof renderLocalVoucherCart === 'function') {
+        renderLocalVoucherCart();
+    }
+
+    // Hide search results
+    const resultsDiv = document.getElementById("lv-search-results");
+    if (resultsDiv) resultsDiv.style.display = 'none';
+
+    // Clear search
+    const searchInput = document.getElementById("lv-search");
+    if (searchInput) searchInput.value = '';
+};

@@ -21,6 +21,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
 function initDashboard() {
     updateDateDisplay();
+
+    // Initialize date picker to today
+    const datePicker = document.getElementById("dashboard-date-picker");
+    if (datePicker) {
+        datePicker.value = new Date().toISOString().split('T')[0];
+    }
+
     cargarCitasHoy();
     cargarCatalogoSimple(); // Para el modal de nueva cita
     cargarNotasDia();
@@ -53,15 +60,27 @@ function updateDateDisplay() {
 
 // --- DATA LOADING ---
 
-async function cargarCitasHoy() {
+async function cargarCitasHoy(date) {
     try {
-        const today = new Date().toISOString().split('T')[0];
+        const targetDate = date || new Date().toISOString().split('T')[0];
         const collections = ["reservas_spa", "reservas_suite", "reservas_panacea", "reservas_vip", "reservas_peluqueria"];
 
         state.citas = [];
 
+        // Update title based on selected date
+        const titleEl = document.getElementById("dashboard-title");
+        if (titleEl) {
+            const isToday = targetDate === new Date().toISOString().split('T')[0];
+            if (isToday) {
+                titleEl.textContent = "Próximas Citas";
+            } else {
+                const formattedDate = new Date(targetDate + 'T12:00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'long' });
+                titleEl.textContent = `Citas del ${formattedDate}`;
+            }
+        }
+
         // Cargar de todas las colecciones en paralelo
-        const promises = collections.map(col => db.collection(col).where("fecha", "==", today).get());
+        const promises = collections.map(col => db.collection(col).where("fecha", "==", targetDate).get());
         const snapshots = await Promise.all(promises);
 
         snapshots.forEach((snap, index) => {
@@ -184,6 +203,31 @@ async function cargarCatalogoSimple() {
     }
 }
 
+// --- DASHBOARD DATE PICKER NAVIGATION ---
+
+window.loadDashboardDate = function (dateOrToday) {
+    const datePicker = document.getElementById("dashboard-date-picker");
+    if (!datePicker) return;
+
+    if (dateOrToday === 'today') {
+        datePicker.value = new Date().toISOString().split('T')[0];
+    }
+
+    cargarCitasHoy(datePicker.value);
+};
+
+window.changeDashboardDate = function (days) {
+    const datePicker = document.getElementById("dashboard-date-picker");
+    if (!datePicker) return;
+
+    const currentDate = new Date(datePicker.value || new Date());
+    currentDate.setDate(currentDate.getDate() + days);
+    const newDate = currentDate.toISOString().split('T')[0];
+
+    datePicker.value = newDate;
+    cargarCitasHoy(newDate);
+};
+
 // --- RENDER ---
 
 function renderDashboard() {
@@ -217,7 +261,7 @@ function renderDashboard() {
             </tr>`;
     } else {
         state.searchMode = false;
-        titleEl.textContent = "Próximas Citas (Hoy)";
+        titleEl.textContent = "Próximas Citas";
         // Restaurar Header original
         thead.innerHTML = `
             <tr style="background: #f8fafc;">
@@ -255,32 +299,53 @@ function renderDashboard() {
     if (countEl && !isGlobalSearch) countEl.textContent = dataToShow.length;
 
     if (dataToShow.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="7" class="muted" style="text-align:center; padding: 40px;">No hay resultados</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="8" class="muted" style="text-align:center; padding: 40px;">No hay resultados</td></tr>`;
         return;
     }
 
-    tbody.innerHTML = dataToShow.map(c => `
-        <tr>
+    tbody.innerHTML = dataToShow.map(c => {
+        // Determine service name to display
+        let serviceName = c.servicio || c.service || '—';
+        if (serviceName === '—' && c.moduleType === 'spa') {
+            serviceName = 'Circuito Spa';
+        }
+
+        // Determine if No-Show handling should be shown
+        const isConfirmed = c.status === 'confirmada';
+        const isNoShow = c.no_show === true || c.status === 'no_show';
+
+        return `
+        <tr style="${isNoShow ? 'opacity: 0.5;' : ''}">
             <td style="font-size:0.8rem; color:#666;">${c.res_id || c.id.substr(0, 4)}</td>
             ${isGlobalSearch ? `<td style="font-size:0.8rem;">${formatDateES(c.fecha)}</td>` : ''}
             <td style="font-weight:bold; color:var(--accent);">${c.hora}</td>
-            <td>${c.nombre}</td>
-            <td>${c.servicio}</td>
+            <td ${isNoShow ? 'style="text-decoration: line-through;"' : ''}>${c.nombre}</td>
+            <td>${serviceName}</td>
             ${!isGlobalSearch ? `<td>${c.terapeuta || '—'}</td>` : ''}
-            <td><span class="badge ${getStatusBadgeClass(c.status)}">${c.status.toUpperCase()}</span></td>
+            <td><span class="badge ${getStatusBadgeClass(isNoShow ? 'no_show' : c.status)}">${isNoShow ? 'NO SHOW' : c.status.toUpperCase()}</span></td>
             <td style="text-align:center;">
-                <button class="btn-icon" title="Enviar confirmación WhatsApp" onclick="sendWhatsAppConfirmation('${c.id}', '${c.telefono || ''}', '${c.nombre.replace(/'/g, "\\'")}', '${c.fecha}', '${c.hora}', '${c.moduleType}')" style="color:#25D366;">
-                    <i class="fab fa-whatsapp" style="font-size:1.2rem;"></i>
-                    ${c.whatsappSent ? '<i class="fas fa-check-circle" style="font-size:0.6rem; color:green; vertical-align:top;"></i>' : ''}
-                </button>
+                ${isConfirmed && !isNoShow ? `
+                    <button class="btn-icon" title="Marcar como No Show" onclick="markAsNoShow('${c.id}', '${c.moduleType}')" style="color:#f59e0b;">
+                        <i class="fas fa-user-times"></i>
+                    </button>
+                ` : (isNoShow ? `
+                    <button class="btn-icon" title="Desmarcar No Show" onclick="unmarkNoShow('${c.id}', '${c.moduleType}')" style="color:#6b7280;">
+                        <i class="fas fa-undo"></i>
+                    </button>
+                ` : `
+                    <button class="btn-icon" title="Enviar confirmación WhatsApp" onclick="sendWhatsAppConfirmation('${c.id}', '${c.telefono || ''}', '${c.nombre.replace(/'/g, "\\'")}', '${c.fecha}', '${c.hora}', '${c.moduleType}')" style="color:#25D366;">
+                        <i class="fab fa-whatsapp" style="font-size:1.2rem;"></i>
+                        ${c.whatsappSent ? '<i class="fas fa-check-circle" style="font-size:0.6rem; color:green; vertical-align:top;"></i>' : ''}
+                    </button>
+                `)}
             </td>
             <td>
                 <button class="btn-icon" title="Ver detalles" onclick="goToReservationDetail('${c.id}', '${c.moduleType}')">
                     <i class="fas fa-eye"></i>
                 </button>
             </td>
-        </tr>
-    `).join('');
+        </tr>`;
+    }).join('');
 }
 
 function formatDateES(isoStr) {
@@ -734,3 +799,74 @@ window.downloadReportExcel = function () {
     link.click();
     document.body.removeChild(link);
 }
+
+// --- NO-SHOW MANAGEMENT ---
+
+window.markAsNoShow = async function (resId, moduleType) {
+    if (!confirm('¿Marcar esta cita como NO SHOW? El cliente no se presentó.')) return;
+
+    try {
+        const collectionMap = {
+            'spa': 'reservas_spa',
+            'suite': 'reservas_suite',
+            'panacea': 'reservas_panacea',
+            'vip': 'reservas_vip',
+            'peluqueria': 'reservas_peluqueria'
+        };
+
+        const col = collectionMap[moduleType] || 'reservas_spa';
+
+        await db.collection(col).doc(resId).update({
+            no_show: true,
+            status: 'no_show',
+            no_show_marked_at: new Date().toISOString()
+        });
+
+        // Update local state
+        const cita = state.citas.find(c => c.id === resId);
+        if (cita) {
+            cita.no_show = true;
+            cita.status = 'no_show';
+        }
+
+        showToast('✅ Marcado como No Show', 'success');
+        renderDashboard();
+    } catch (err) {
+        console.error('Error marking no show:', err);
+        showToast('❌ Error al marcar No Show', 'error');
+    }
+};
+
+window.unmarkNoShow = async function (resId, moduleType) {
+    if (!confirm('¿Desmarcar No Show? La cita volverá a estado CONFIRMADA.')) return;
+
+    try {
+        const collectionMap = {
+            'spa': 'reservas_spa',
+            'suite': 'reservas_suite',
+            'panacea': 'reservas_panacea',
+            'vip': 'reservas_vip',
+            'peluqueria': 'reservas_peluqueria'
+        };
+
+        const col = collectionMap[moduleType] || 'reservas_spa';
+
+        await db.collection(col).doc(resId).update({
+            no_show: false,
+            status: 'confirmada'
+        });
+
+        // Update local state
+        const cita = state.citas.find(c => c.id === resId);
+        if (cita) {
+            cita.no_show = false;
+            cita.status = 'confirmada';
+        }
+
+        showToast('✅ No Show desmarcado', 'success');
+        renderDashboard();
+    } catch (err) {
+        console.error('Error unmarking no show:', err);
+        showToast('❌ Error al desmarcar No Show', 'error');
+    }
+};

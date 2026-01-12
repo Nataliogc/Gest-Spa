@@ -7,9 +7,42 @@ const URL_BONOS_OPTIMIZED = "https://cumbriabienestar.es/wp-json/robahotel/v1/bo
 // --- CORS PROXY FALLBACKS ---
 const CORS_PROXIES = [
     { name: 'AllOrigins', url: (target) => `https://api.allorigins.win/raw?url=${encodeURIComponent(target)}` },
+    { name: 'CorsProxy.io', url: (target) => `https://corsproxy.io/?${encodeURIComponent(target)}` },
     { name: 'CorsAnywhere', url: (target) => `https://cors-anywhere.herokuapp.com/${target}` },
     { name: 'ThingProxy', url: (target) => `https://thingproxy.freeboard.io/fetch/${target}` }
 ];
+
+/**
+ * Generic fetch with Proxy Fallback
+ * Tries multiple CORS proxies if the request fails
+ */
+window.fetchWithProxyFallback = async function (targetUrl, options = {}, timeout = 15000) {
+    const errors = [];
+
+    for (const proxy of CORS_PROXIES) {
+        try {
+            console.log(`[PROXY] Trying ${proxy.name} for:`, targetUrl);
+            const proxyUrl = proxy.url(targetUrl);
+            const response = await fetchWithTimeout(proxyUrl, options, timeout);
+
+            if (!response.ok) {
+                throw new Error(`HTTP Error: ${response.status}`);
+            }
+
+            console.log(`[PROXY] Success with ${proxy.name}`);
+            return response;
+
+        } catch (error) {
+            console.warn(`[PROXY] ${proxy.name} failed:`, error.message);
+            errors.push({ proxy: proxy.name, error: error.message });
+            continue;
+        }
+    }
+
+    const aggregateError = new Error('All CORS proxies failed');
+    aggregateError.details = errors;
+    throw aggregateError;
+};
 
 // Fetch with timeout wrapper
 window.fetchWithTimeout = async function (url, options = {}, timeout = 10000) {
@@ -196,6 +229,13 @@ function formatCurrency(amount) {
 function formatDate(dateStr) {
     if (!dateStr) return "-";
     return new Date(dateStr).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+
+function formatDateToISO(dateStr) {
+    if (!dateStr) return "";
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return "";
+    return date.toISOString().split('T')[0];
 }
 
 

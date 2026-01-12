@@ -299,7 +299,7 @@
                     </div>
 
                     <!-- Hidden Fields -->
-                    <input type="text" id="vm-fecha-compra" readonly style="display: none;">
+                    <input type="text" id="vm-fecha-compra-hidden" readonly style="display: none;">
                 </div>
 
                 <!-- COLUMNA DERECHA: Dinámica -->
@@ -326,10 +326,17 @@
                     style="min-width: 140px; height: 38px; font-size: 0.85rem; border-color: #059669; color: #059669;">
                     <i class="fas fa-file-pdf"></i> <span>Descargar PDF</span>
                 </button>
-                <button type="button" id="vm-save-btn" onclick="saveVoucherChanges()" class="btn btn-outline"
-                    style="min-width: 120px; height: 38px; font-size: 0.85rem; border-color: #334155; color: #334155;">
-                    <i class="fas fa-save"></i> <span>Guardar</span>
-                </button>
+                <div style="display: flex; gap: 8px;">
+                    <button type="button" id="vm-resync-btn" onclick="resyncVoucherFromWooCommerce()"
+                        class="btn btn-outline" title="Re-sincronizar precio desde WooCommerce"
+                        style="min-width: 120px; height: 38px; font-size: 0.85rem; border-color: #f59e0b; color: #f59e0b; display: none;">
+                        <i class="fas fa-sync"></i> <span>Re-sync WC</span>
+                    </button>
+                    <button type="button" id="vm-save-btn" onclick="saveVoucherChanges()" class="btn btn-outline"
+                        style="min-width: 120px; height: 38px; font-size: 0.85rem; border-color: #334155; color: #334155;">
+                        <i class="fas fa-save"></i> <span>Guardar</span>
+                    </button>
+                </div>
             </div>
         </div> <!-- End modal-content -->
     </div> <!-- End modal -->
@@ -556,7 +563,7 @@
     <script src="js/images_data.js?v=202601072324"></script>
     <script src="js/bono-pdf.js"></script>
 
-    <script src="js/bonos.js?v=fix_textmatch_v28"></script>
+    <script src="js/bonos.js?v=hide_resync_local_v32"></script>
     <script src="js/bonos-history-helper.js?v=fix_textmatch_v26"></script>
 </body>
 

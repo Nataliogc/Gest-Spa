@@ -575,7 +575,7 @@
                 if (!cfg.wc_url || !cfg.wc_key) return;
 
                 const authUrl = `${cfg.wc_url.replace(/\/$/, "")}/wp-json/wc/v3/products/categories?consumer_key=${cfg.wc_key}&consumer_secret=${cfg.wc_secret}&per_page=100`;
-                const res = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(authUrl)}`);
+                const res = await window.fetchWithProxyFallback(authUrl);
                 if (!res.ok) throw new Error("Error cargando categorías");
 
                 state.wcCategories = await res.json();
@@ -662,6 +662,8 @@
                     const nameStr = (s.nombre || '').toLowerCase();
                     const skuStr = (s.wc_sku || '').toLowerCase();
                     const productIdStr = (s.wc_product_id || '').toString().toLowerCase();
+                    const wcIdStr = (s.wc_id || '').toString().toLowerCase();
+                    const firestoreIdStr = (s.id || '').toLowerCase();
 
                     return nameStr.includes(state.searchTerm) ||
                         descStr.includes(state.searchTerm) ||
@@ -670,6 +672,8 @@
                         priceStr.includes(state.searchTerm) ||
                         skuStr.includes(state.searchTerm) ||
                         productIdStr.includes(state.searchTerm) ||
+                        wcIdStr.includes(state.searchTerm) ||
+                        firestoreIdStr.includes(state.searchTerm) ||
                         includesStr.includes(state.searchTerm);
                 });
             }
@@ -698,6 +702,7 @@
                     <div style="display:flex; justify-content:space-between; align-items:start; margin-bottom: 12px; gap: 10px;">
                         <h4 style="margin: 0; color: var(--text); font-weight: 700; font-size: 1rem; line-height: 1.2;">
                             ${item.nombre}
+                            <span style="font-size:0.65rem; color:#94a3b8; font-weight:400; display:block; margin-top:4px;">ID: ${item.wc_id || item.id}</span>
                         </h4>
                         <span style="color: var(--accent); font-weight: 800; font-size: 1.1rem; white-space: nowrap;">${item.precio}€</span>
                     </div>
@@ -1879,9 +1884,7 @@
                     });
 
                     const authUrl = `${baseUrl}${apiPath}?${queryParams.toString()}`;
-                    const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(authUrl)}`;
-
-                    const res = await fetch(proxyUrl);
+                    const res = await window.fetchWithProxyFallback(authUrl);
                     if (res.status === 401) throw new Error("Error 401: Llaves incorrectas.");
                     if (!res.ok) throw new Error(`Error ${res.status} leyendo página ${page}`);
 
