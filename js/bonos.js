@@ -180,7 +180,7 @@ async function processPendingVoucherReservations() {
             console.log(`[BONOS] Searching for restaurant item. Service: '${serviceNorm}'. Items count:`, items.length);
 
             for (let i = 0; i < items.length; i++) {
-                const itemName = items[i].name.toLowerCase();
+                const itemName = (items[i].name || '').toLowerCase();
                 const itemUsed = items[i].used || 0;
                 const itemTotal = items[i].sessions || 1;
 
@@ -445,9 +445,18 @@ function findCatalogProduct(voucher) {
     if (!voucher || !state.catalogProducts.length) return null;
 
     // 1. Intentar match por variation_id o product_id (WooCommerce IDs)
-    if (voucher.variation_id || voucher.product_id) {
-        const vIdStr = voucher.variation_id ? String(voucher.variation_id).trim() : '';
-        const pIdStr = voucher.product_id ? String(voucher.product_id).trim() : '';
+    let vId = voucher.variation_id;
+    let pId = voucher.product_id;
+
+    // FALLBACK: Look into items_desglosados if main ID is missing
+    if (!vId && !pId && voucher.items_desglosados && voucher.items_desglosados.length === 1) {
+        vId = voucher.items_desglosados[0].variation_id;
+        pId = voucher.items_desglosados[0].product_id || voucher.items_desglosados[0].wc_id || voucher.items_desglosados[0].id;
+    }
+
+    if (vId || pId) {
+        const vIdStr = vId ? String(vId).trim() : '';
+        const pIdStr = pId ? String(pId).trim() : '';
 
         const idMatch = state.catalogProducts.find(p => {
             const catalogWcId = p.wc_id ? String(p.wc_id).trim() : '';
@@ -472,23 +481,26 @@ function findCatalogProduct(voucher) {
     if (match) return match;
 
     // Fallback a match por nombre exacto original
-    match = state.catalogProducts.find(p => p.nombre.toLowerCase() === productName);
+    match = state.catalogProducts.find(p => (p.nombre || '').toLowerCase() === productName);
     if (match) return match;
 
     // Partial match candidates
-    const candidates = state.catalogProducts.filter(p =>
-        productName.includes(p.nombre.toLowerCase()) ||
-        p.nombre.toLowerCase().includes(productName)
-    );
+    const candidates = state.catalogProducts.filter(p => {
+        if (!p.nombre) return false;
+        const lowerName = p.nombre.toLowerCase();
+        return productName.includes(lowerName) || lowerName.includes(productName);
+    });
 
     if (candidates.length === 0) return null;
 
     // 3. PRIORIDAD: Buscar un producto "Base" que sea divisor del precio del bono
     // (Ej: Bono de 50€ para "Circuito SPA" que vale 25€ -> El producto base es mejor que un pack aleatorio)
     const nameParts = productName.split("-").map(s => s.trim());
-    const baseCandidates = candidates.filter(p =>
-        nameParts.some(part => part === p.nombre.toLowerCase())
-    );
+    const baseCandidates = candidates.filter(p => {
+        if (!p.nombre) return false;
+        const lowerName = p.nombre.toLowerCase();
+        return nameParts.some(part => part === lowerName);
+    });
 
     if (baseCandidates.length > 0 && voucherPrice > 0) {
         // Buscar el que sea un divisor exacto (o casi exacto)
@@ -596,7 +608,7 @@ function getSpaceForService(serviceName) {
     // 1. Check Master Items (Priority defined in Configuration)
     if (state.masterItems && state.masterItems.length > 0) {
         // Exact case-insensitive match
-        const exact = state.masterItems.find(i => i.name.toLowerCase().trim() === nameLower);
+        const exact = state.masterItems.find(i => (i.name || '').toLowerCase().trim() === nameLower);
         if (exact && exact.space) return exact.space;
 
         // Normalized match (ignore spaces/symbols)
@@ -607,7 +619,7 @@ function getSpaceForService(serviceName) {
     }
 
     // 2. Fallback to Catalog
-    const catalogItem = state.catalogProducts.find(p => p.nombre.toLowerCase().trim() === nameLower);
+    const catalogItem = state.catalogProducts.find(p => (p.nombre || '').toLowerCase().trim() === nameLower);
     if (catalogItem && catalogItem.espacio) return catalogItem.espacio;
 
     // 3. Fallback to implicit logic (legacy)
@@ -691,18 +703,18 @@ async function goToReservation(client, service, code, space, pax) {
     // 2. Master Item name is contained in Service string (e.g. Master: "Higiene Facial", Service: "Higiene Facial Básica")
     // 3. Service string is contained in Master Item name
 
-    let masterItem = state.masterItems.find(i => i.name.toLowerCase().trim() === serviceNorm);
+    let masterItem = state.masterItems.find(i => (i.name || '').toLowerCase().trim() === serviceNorm);
 
     if (masterItem) debugMsg += `Match Exacto: SI (${masterItem.name})\n`;
     else debugMsg += `Match Exacto: NO\n`;
 
     if (!masterItem) {
-        masterItem = state.masterItems.find(i => serviceNorm.includes(i.name.toLowerCase().trim()));
+        masterItem = state.masterItems.find(i => serviceNorm.includes((i.name || '').toLowerCase().trim()));
         if (masterItem) debugMsg += `Match Includes (Service -> Master): SI (${masterItem.name})\n`;
     }
 
     if (!masterItem) {
-        masterItem = state.masterItems.find(i => i.name.toLowerCase().trim().includes(serviceNorm));
+        masterItem = state.masterItems.find(i => (i.name || '').toLowerCase().trim().includes(serviceNorm));
         if (masterItem) debugMsg += `Match Includes (Master -> Service): SI (${masterItem.name})\n`;
     }
 
@@ -715,7 +727,7 @@ async function goToReservation(client, service, code, space, pax) {
         debugMsg += `Space Config: ${masterItem.space}\n`;
         // Map common space names to URL types if needed, or use directly if they match
         // Standardizing: 'sala panacea' -> 'panacea', 'suite spa' -> 'suite', etc.
-        const spaceLower = masterItem.space.toLowerCase();
+        const spaceLower = (masterItem.space || '').toLowerCase();
 
         if (spaceLower.includes('panacea')) type = 'panacea';
         else if (spaceLower.includes('suite')) type = 'suite';
@@ -726,13 +738,15 @@ async function goToReservation(client, service, code, space, pax) {
 
         console.log(`Smart Redirect: Item '${service}' matched to space '${masterItem.space}' -> Module '${type}'`);
     } else {
-        // 2. Fallback: Heuristics based on catalog or name
-        const lowerService = service.toLowerCase();
-
+        const lowerService = (service || '').toLowerCase().trim();
         // Try to find in catalog to check category/space property there
-        let prod = state.catalogProducts.find(p => p.nombre.toLowerCase() === lowerService);
+        let prod = state.catalogProducts.find(p => (p.nombre || '').toLowerCase() === lowerService);
         if (!prod) {
-            prod = state.catalogProducts.find(p => p.nombre.toLowerCase().includes(lowerService) || lowerService.includes(p.nombre.toLowerCase()));
+            prod = state.catalogProducts.find(p => {
+                if (!p.nombre) return false;
+                const pNameLower = p.nombre.toLowerCase();
+                return pNameLower.includes(lowerService) || lowerService.includes(pNameLower);
+            });
         }
 
         let category = prod ? (prod.categoria || '').toLowerCase() : '';
@@ -1921,7 +1935,7 @@ function detectSessions(voucher) {
     const quantity = parseInt(voucher.cantidad) || 0;
 
     if (!productName && !productId) return { total: 1, paxPerSession: 1 };
-    const lower = productName.toLowerCase().trim();
+    const lower = (productName || '').toLowerCase().trim();
 
     // 1. Intentar buscar en el catálogo (state.catalogProducts)
     let catalogMatch = null;
@@ -1938,9 +1952,9 @@ function detectSessions(voucher) {
 
     if (!catalogMatch && lower) {
         // Match exacto o por nombre contenido
-        catalogMatch = state.catalogProducts.find(p => p.nombre.toLowerCase() === lower);
+        catalogMatch = state.catalogProducts.find(p => (p.nombre || '').toLowerCase() === lower);
         if (!catalogMatch) {
-            catalogMatch = state.catalogProducts.find(p => lower.includes(p.nombre.toLowerCase()));
+            catalogMatch = state.catalogProducts.find(p => lower.includes((p.nombre || '').toLowerCase()));
         }
     }
 
@@ -2507,6 +2521,120 @@ function clearSearch() {
 }
 
 
+// --- REUSEABLE BREAKDOWN LOGIC ---
+
+/**
+ * Resuelve el desglose de servicios de un bono basándose en el catálogo.
+ * @param {Object} voucher - El bono (con producto, product_id, etc.)
+ * @param {Array} catalog - state.catalogProducts
+ * @param {Number} overrideTotal - Forzar número total de sesiones
+ * @returns {Array} - Lista de items desglosados
+ */
+function resolveVoucherBreakdown(voucher, catalog = state.catalogProducts, overrideTotal = null) {
+    if (!voucher || !catalog || catalog.length === 0) return [];
+
+    const services = [];
+    const primaryMatch = findCatalogProduct(voucher);
+    const detResult = overrideTotal !== null ? { total: overrideTotal, paxPerSession: voucher.pax || 1 } : detectSessions(voucher);
+
+    console.log('[RESOLVE] Producto:', voucher.producto || voucher.name, 'ID:', voucher.product_id);
+
+    if (primaryMatch) {
+        let sessionsCount = primaryMatch.sesiones || 1;
+        const hasExplicitId = voucher.variation_id || voucher.product_id;
+
+        // Si es una venta online confirmada por ID, confiamos en el catálogo
+        if (hasExplicitId && primaryMatch.sesiones) {
+            sessionsCount = primaryMatch.sesiones;
+        } else if ((sessionsCount === 1 || sessionsCount === null) && detResult.total > 1) {
+            sessionsCount = detResult.total;
+        } else if (overrideTotal !== null) {
+            sessionsCount = overrideTotal;
+        }
+
+        let paxCount = primaryMatch.pax || 1;
+        if (hasExplicitId && primaryMatch.pax) {
+            paxCount = primaryMatch.pax;
+        } else if (paxCount === 1 && detResult.paxPerSession > 1) {
+            paxCount = detResult.paxPerSession;
+        }
+
+        const itemsIncluidos = primaryMatch.items_incluidos || [];
+        // Detección de pack: Más de un item o marcado como tal
+        const isPack = itemsIncluidos.length > 1 || (primaryMatch.categoria === 'pack_pareja' || primaryMatch.categoria === 'pack_hosteleria');
+
+        if (itemsIncluidos.length > 0) {
+            console.log('[RESOLVE] Desglosando pack:', primaryMatch.nombre, 'Items:', itemsIncluidos.length);
+
+            const itemsCount = itemsIncluidos.length;
+            // Si el bono tiene N sesiones y el pack tiene M items, repartimos. 
+            // Normalmente para un pack, sessionsCount es el número de veces que se compró el pack.
+            const multiplier = sessionsCount;
+
+            itemsIncluidos.forEach(itemName => {
+                const itemCatalog = catalog.find(p => {
+                    if (!p.nombre) return false;
+                    const pNameLower = p.nombre.toLowerCase().trim();
+                    const iNameLower = (itemName || '').toLowerCase().trim();
+                    return pNameLower === iNameLower || pNameLower.includes(iNameLower);
+                });
+
+                const detectedSpace = getSpaceForService(itemName) || itemCatalog?.espacio || primaryMatch.espacio || '';
+
+                services.push({
+                    itemId: 'srv_' + Math.random().toString(36).substr(2, 9),
+                    name: itemName.trim(),
+                    imagen: itemCatalog?.imagen || primaryMatch.imagen,
+                    descripcion: itemCatalog?.descripcion || `Parte del pack: ${primaryMatch.nombre}`,
+                    sessions: multiplier, // Cada item del pack se consume N veces
+                    space: detectedSpace,
+                    used: 0,
+                    status: 'pendiente',
+                    validations: [],
+                    precio: 0,
+                    pax: paxCount,
+                    wc_id: itemCatalog?.wc_id || null,
+                    product_id: itemCatalog?.id || null,
+                    parent_pack: primaryMatch.nombre
+                });
+            });
+        } else {
+            // CASO NORMAL (Servicio individual)
+            const detectedSpace = getSpaceForService(primaryMatch.nombre) || primaryMatch.espacio || '';
+            services.push({
+                itemId: 'srv_' + Math.random().toString(36).substr(2, 9),
+                name: primaryMatch.nombre,
+                imagen: primaryMatch.imagen,
+                descripcion: primaryMatch.descripcion || primaryMatch.incluye || '',
+                sessions: sessionsCount,
+                space: detectedSpace,
+                used: 0,
+                status: 'pendiente',
+                validations: [],
+                precio: primaryMatch.precio || 0,
+                pax: paxCount,
+                wc_id: primaryMatch.wc_id || null,
+                product_id: primaryMatch.id || null
+            });
+        }
+    } else {
+        // FALLBACK: Si no hay match, crear un servicio genérico
+        services.push({
+            itemId: 'srv_' + Math.random().toString(36).substr(2, 9),
+            name: voucher.producto || 'Servicio Desconocido',
+            sessions: detResult.total || 1,
+            space: '',
+            used: 0,
+            status: 'pendiente',
+            validations: [],
+            precio: voucher.importe || 0,
+            pax: detResult.paxPerSession || 1,
+            is_fallback: true
+        });
+    }
+    return services;
+}
+
 async function openVoucherManagement(code) {
     // Mostrar modal inmediatamente para mejor sensación de carga
     const modal = document.getElementById("voucher-modal");
@@ -2605,139 +2733,6 @@ async function openVoucherManagement(code) {
     // --- Vincular con Catálogo y Detectar Servicios ---
     const catalogInfo = document.getElementById("vm-catalog-info");
 
-    // Función para detectar servicios en el nombre del producto
-    // Ahora usa findCatalogProduct para mejor matching por ID/precio
-    function detectServicesInProduct(voucher, overrideTotal = null) {
-        const services = [];
-
-        // Usar la función centralizada que considera precio e ID
-        const primaryMatch = findCatalogProduct(voucher);
-        const detResult = overrideTotal !== null ? { total: overrideTotal, paxPerSession: voucher.pax || 1 } : detectSessions(voucher);
-
-        console.log('[BONO DEBUG] Buscando producto para:', voucher.producto || voucher.name, 'ID:', voucher.product_id, 'Variation:', voucher.variation_id);
-        console.log('[BONO DEBUG] Match encontrado:', primaryMatch?.nombre, 'Items incluidos:', primaryMatch?.items_incluidos);
-
-        if (primaryMatch) {
-            // Unificamos con la detección global de sesiones del bono
-            let sessionsCount = primaryMatch.sesiones || 1;
-
-            // SI HAY VARIATION_ID o PRODUCT_ID, CONFIAR CIEGAMENTE EN EL CATÁLOGO (Online sales)
-            const hasExplicitId = voucher.variation_id || voucher.product_id;
-            if (hasExplicitId && primaryMatch.sesiones) {
-                sessionsCount = primaryMatch.sesiones;
-                console.log('[BONO DEBUG] ID detectado, forzando sesiones del catálogo:', sessionsCount);
-            } else if ((sessionsCount === 1 || sessionsCount === null) && detResult.total > 1) {
-                sessionsCount = detResult.total;
-            } else if (overrideTotal !== null) {
-                sessionsCount = overrideTotal;
-            }
-
-            let paxCount = primaryMatch.pax || 1;
-            if (hasExplicitId && primaryMatch.pax) {
-                paxCount = primaryMatch.pax;
-                console.log('[BONO DEBUG] ID detectado, forzando pax del catálogo:', paxCount);
-            } else if (paxCount === 1 && detResult.paxPerSession > 1) {
-                paxCount = detResult.paxPerSession;
-            }
-
-            // SI TIENE ITEMS INCLUIDOS (PACK DESGLOSADO)
-            // HARDCODE SPECIFIC PACKS IF CATALOG IS MISSING THEM OR IS WRONG
-            // Force detection if items are missing OR if items are just the pack name repetition
-            const hasBadItems = primaryMatch.items_incluidos && primaryMatch.items_incluidos.length > 0 && primaryMatch.items_incluidos.every(i => i.toLowerCase().includes('fantasía'));
-
-            if (primaryMatch.nombre.toLowerCase().includes('fantasía para dos') && (!primaryMatch.items_incluidos || primaryMatch.items_incluidos.length === 0 || hasBadItems)) {
-                console.log('[BONO DEBUG] 🛠 Reparando items para Fantasía para dos');
-                primaryMatch.items_incluidos = [
-                    'Alojamiento y Desayuno',
-                    'Circuito Spa - 60\'',
-                    'Masaje Relax - 30\''
-                ];
-                // Force separate sessions
-                sessionsCount = 3;
-                // Force Pax to 2 for this pack
-                paxCount = 2;
-                if (detResult.paxPerSession < 2) detResult.paxPerSession = 2;
-            }
-
-            // SUEÑO PARA DOS FIX
-            if (primaryMatch.nombre.toLowerCase().includes('sueño para dos') && (!primaryMatch.items_incluidos || primaryMatch.items_incluidos.length === 0 || hasBadItems)) {
-                console.log('[BONO DEBUG] 🛠 Reparando items para Sueño para dos');
-                primaryMatch.items_incluidos = [
-                    'Alojamiento y Desayuno',
-                    'Menú en Restaurante',
-                    'Circuito Spa - 60\''
-                ];
-                sessionsCount = 3;
-                paxCount = 2;
-                if (detResult.paxPerSession < 2) detResult.paxPerSession = 2;
-            }
-
-            if (primaryMatch.items_incluidos && primaryMatch.items_incluidos.length > 0) {
-                console.log('[BONO DEBUG] Desglosando pack con', primaryMatch.items_incluidos.length, 'items');
-
-                const itemsCount = primaryMatch.items_incluidos.length;
-                const sessionsPerItem = Math.max(1, Math.round(sessionsCount / itemsCount));
-
-                primaryMatch.items_incluidos.forEach(itemName => {
-                    const itemCatalog = state.catalogProducts.find(p =>
-                        p.nombre.toLowerCase().trim() === itemName.toLowerCase().trim() ||
-                        p.nombre.toLowerCase().includes(itemName.toLowerCase().trim())
-                    );
-
-                    const detectedSpace = getSpaceForService(itemName) || itemCatalog?.espacio || primaryMatch.espacio || '';
-
-                    services.push({
-                        itemId: 'srv_' + Math.random().toString(36).substr(2, 9),
-                        name: itemName.trim(),
-                        imagen: itemCatalog?.imagen || primaryMatch.imagen,
-                        descripcion: itemCatalog?.descripcion || `Parte del pack: ${primaryMatch.nombre}`,
-                        sessions: sessionsPerItem,
-                        space: detectedSpace,
-                        used: 0,
-                        validations: [],
-                        precio: 0,
-                        pax: paxCount,
-                        wc_id: itemCatalog?.wc_id || null,
-                        product_id: itemCatalog?.id || null
-                    });
-                });
-            } else {
-                console.log('[BONO DEBUG] No tiene items_incluidos, usando producto base:', primaryMatch.nombre);
-                // CASO NORMAL
-                const detectedSpace = getSpaceForService(primaryMatch.nombre) || primaryMatch.espacio || '';
-
-                services.push({
-                    itemId: 'srv_' + Math.random().toString(36).substr(2, 9),
-                    name: primaryMatch.nombre,
-                    imagen: primaryMatch.imagen,
-                    descripcion: primaryMatch.descripcion || primaryMatch.incluye || '',
-                    sessions: sessionsCount,
-                    space: detectedSpace,
-                    used: 0,
-                    validations: [],
-                    precio: primaryMatch.precio || 0,
-                    pax: paxCount
-                });
-            }
-        } else {
-            console.warn('[BONO DEBUG] No se encontró match en catálogo para:', voucher.producto);
-            // FALLBACK: Si no hay match, crear un servicio genérico con los datos del bono
-            // Esto es crucial para bonos importados que no existen en el catálogo
-            services.push({
-                itemId: 'srv_' + Math.random().toString(36).substr(2, 9),
-                name: voucher.producto || 'Servicio Desconocido',
-                sessions: detResult.total || 1,
-                space: '', // Usuario tendrá que elegir manualmente
-                used: 0,
-                validations: [],
-                precio: voucher.importe || 0,
-                pax: detResult.paxPerSession || 1,
-                is_fallback: true
-            });
-        }
-
-        return services;
-    }
 
     // Usar items_desglosados si existe, si no, detectar del nombre
     let baseServices = [];
@@ -2745,178 +2740,87 @@ async function openVoucherManagement(code) {
     // MEJORA: Verificar si items_desglosados es realmente un desglose o solo el nombre del producto
     // PERO: Si es local (importado), SIEMPRE confiamos en el desglose guardado
     // FIX: "Fantasía para dos" a veces se guarda mal (3 items con el nombre del pack). Forzar redetección si ocurre.
+    // MEJORA: Verificar si items_desglosados es realmente un desglose o solo el nombre del producto
     const isBadFantasia = (v.producto || '').toLowerCase().match(/(fantasía para dos|sueño para dos)/) &&
         v.items_desglosados &&
-        (v.items_desglosados.some(i => i.name.toLowerCase().match(/(fantasía para dos|sueño para dos)/)) || v.items_desglosados.every(i => i.name === v.producto));
+        (v.items_desglosados.some(i => (i.name || '').toLowerCase().match(/(fantasía para dos|sueño para dos)/)) || v.items_desglosados.every(i => i.name === v.producto));
 
     const hasRealBreakdown = !isBadFantasia && v.items_desglosados && v.items_desglosados.length > 0 &&
-        (v.origen === 'local' || !(v.items_desglosados.length === 1 && v.items_desglosados[0].name === v.producto));
+        (v.origen === 'local' || !(v.items_desglosados.length === 1 && (v.items_desglosados[0].name === v.producto || v.items_desglosados[0].name === v.nombre)));
 
     if (hasRealBreakdown) {
         console.log('[BONO] Usando items_desglosados guardados:', v.items_desglosados.length, 'items');
-
-        // Buscar el espacio del producto principal como fallback
-        const parentProduct = state.catalogProducts.find(p =>
-            p.nombre.toLowerCase() === (v.producto || '').toLowerCase() ||
-            (v.producto || '').toLowerCase().includes(p.nombre.toLowerCase())
-        );
-        const fallbackSpace = parentProduct?.espacio || '';
-        console.log('[DEBUG] Producto principal:', v.producto, '-> fallback space:', fallbackSpace);
-
-        // Enriquecer con datos del catálogo (especialmente 'space' si falta o es incorrecto)
-        baseServices = v.items_desglosados.map(item => {
-            // Normalize name: trim, lowercase, collapse multiple spaces
-            const itemName = (item.name || '').trim().toLowerCase().replace(/\s+/g, ' ');
-            const normalizedName = itemName.replace(/\s*-\s*\d+['"]?\s*(min|minutos)?/gi, '').trim();
-
-            // PRIORITY 1: Match by variation_id or product_id if available (from WooCommerce sync)
-            let catalogItem = null;
-            if (item.variation_id || item.product_id || item.wc_id || item.id) {
-                const vIdStr = item.variation_id ? String(item.variation_id).trim() : '';
-                const pIdStr = item.product_id ? String(item.product_id).trim() : '';
-                const wcIdStr = item.wc_id ? String(item.wc_id).trim() : '';
-                const itemIdStr = item.id ? String(item.id).trim() : '';
-
-                catalogItem = state.catalogProducts.find(p => {
-                    const catalogWcId = p.wc_id ? String(p.wc_id).trim() : '';
-                    const catalogFirestoreId = p.id || '';
-                    // Match by wc_id (WooCommerce ID) or Firestore doc ID
-                    return (vIdStr && (catalogWcId === vIdStr || catalogFirestoreId === `wc-${vIdStr}`)) ||
-                        (pIdStr && (catalogWcId === pIdStr || catalogFirestoreId === `wc-${pIdStr}`)) ||
-                        (wcIdStr && catalogWcId === wcIdStr) ||
-                        (itemIdStr && catalogFirestoreId === itemIdStr);
-                });
-
-                if (catalogItem) {
-                    console.log(`[ENRICH] ✓ Matched by ID: ${item.name} -> Catalog: ${catalogItem.nombre} (wc_id: ${catalogItem.wc_id})`);
-                }
-            }
-
-            // PRIORITY 2: Fallback to name-based matching if no ID match (important for local vouchers!)
-            if (!catalogItem) {
-                catalogItem = state.catalogProducts.find(p => {
-                    const catalogName = p.nombre.trim().toLowerCase().replace(/\s+/g, ' ');
-                    const catalogNormalized = catalogName.replace(/\s*-\s*\d+['"]?\s*(min|minutos)?/gi, '').trim();
-                    // Match exacto o normalizado
-                    if (catalogName === itemName || catalogNormalized === normalizedName) return true;
-                    // Coincidencia parcial
-                    if (catalogName.includes(normalizedName) || normalizedName.includes(catalogNormalized)) return true;
-                    // Coincidencia por palabras clave
-                    const itemWords = normalizedName.split(/\s+/).filter(w => w.length > 3);
-                    const catalogWords = catalogNormalized.split(/\s+/).filter(w => w.length > 3);
-                    const commonWords = itemWords.filter(w => catalogWords.includes(w));
-                    return commonWords.length >= 2;
-                });
-
-                if (catalogItem) {
-                    console.log(`[ENRICH] ⚠ Matched by NAME: ${item.name} -> Catalog: ${catalogItem.nombre} (wc_id: ${catalogItem.wc_id})`);
-                    // IMPORTANT: Update item with catalog IDs for local vouchers
-                    item.wc_id = catalogItem.wc_id;
-                    item.id = catalogItem.id;
-                    item.product_id = catalogItem.product_id || catalogItem.wc_id;
-                } else {
-                    console.warn(`[ENRICH] ✗ No match found for: ${item.name}`);
-                }
-            } else {
-                // Update IDs even if matched by ID (to ensure consistency)
-                item.wc_id = catalogItem.wc_id;
-                item.id = catalogItem.id;
-                item.product_id = catalogItem.product_id || catalogItem.wc_id;
-            }
-
-            // 1. FORCE RE-CHECK of space using Master Items / Helper
-            const detectedSpace = getSpaceForService(item.name);
-            if (detectedSpace && detectedSpace !== item.space) {
-                console.log(`[FIX] Actualizando espacio para '${item.name}': ${item.space} -> ${detectedSpace}`);
-                item.space = detectedSpace;
-            }
-
-            // 2. Si aún no tiene espacio, intentar asignar
-            if (!item.space) {
-                // REGLA ESPECÍFICA: Alojamiento siempre es Hotel
-                if (normalizedName.includes('alojamiento')) {
-                    item.space = 'Hotel';
-                }
-                // REGLA ESPECÍFICA: Complementos comunes
-                else if (normalizedName.match(/(botella|cava|vino|ramo|flores|fruta|bombones|detalle)/i)) {
-                    item.space = 'Complemento';
-                }
-                else if (catalogItem) {
-                    item.space = catalogItem.espacio || '';
-                } else if (fallbackSpace) {
-                    item.space = fallbackSpace;
-                }
-            }
-
-            // CRÍTICO: Re-detectar sesiones si el item tiene un número incorrecto
-            if (!item.sessions || item.sessions === 1) {
-                const sessionsResult = detectSessions({ producto: item.name });
-                if (sessionsResult.total > 1) {
-                    item.sessions = sessionsResult.total;
-                }
-            }
-
-            // Generar ID único si no tiene (retrocompatibilidad)
-            if (!item.itemId) {
-                item.itemId = 'srv_' + Math.random().toString(36).substr(2, 9);
-            }
-
-            // Asegurar que tenga los campos necesarios e IDs del catálogo
-            return {
-                ...item,
-                itemId: item.itemId,
-                used: item.used || 0,
-                validations: item.validations || [],
-                space: item.space || '',
-                // CRITICAL: Include ALL IDs - from original item (which may have been updated during matching)
-                // or from catalogItem if available
-                variation_id: item.variation_id || null,
-                product_id: item.product_id || item.wc_id || null,
-                wc_id: item.wc_id || catalogItem?.wc_id || item.variation_id || null,
-                id: item.id || catalogItem?.id || null,
-                catalog_id: catalogItem?.id || item.id || null
-            };
-        });
-        console.log('[DEBUG] BaseServices después de enriquecimiento:', baseServices.map(s => ({ name: s.name, space: s.space })));
+        baseServices = v.items_desglosados;
     } else {
-        console.log('[BONO] Re-detectando desde catálogo para:', v.producto);
-        // Detectar servicios del nombre del producto - ahora pasamos el voucher completo
-        baseServices = detectServicesInProduct(v);
+        console.log('[BONO] Detectando servicios automáticamente...');
+        baseServices = resolveVoucherBreakdown(v);
     }
 
-    // PASO FINAL: Expansión de Packs en el desglose (Recursivo/Aplanado)
-    // Esto asegura que si el desglose tiene un "Pack", se convierta en sus componentes
-    let detectedServices = [];
-    baseServices.forEach(item => {
-        // Mapeamos las propiedades para que detectServices las entienda
-        const itemObj = {
-            producto: item.name || item.producto,
-            product_id: item.product_id,
-            variation_id: item.variation_id,
-            pax: item.pax
-        };
+    // APLICAR ENRIQUECIMIENTO (Detectar espacios, IDs, etc.)
+    const parentProduct = state.catalogProducts.find(p => {
+        if (!p.nombre) return false;
+        const lowerName = p.nombre.toLowerCase();
+        const lowerVoucherProduct = (v.producto || '').toLowerCase();
+        return lowerName === lowerVoucherProduct || lowerVoucherProduct.includes(lowerName);
+    });
+    const fallbackSpace = parentProduct?.espacio || '';
 
-        // Solo expandimos si no es ya el resultado de una expansión previa (evitar bucles infinitos)
-        // Intentamos detectar si este item es un pack
-        const expanded = detectServicesInProduct(itemObj, item.sessions || item.sesiones);
+    state.editingVoucherItems = baseServices.map(item => {
+        // Normalize name: trim, lowercase, collapse multiple spaces
+        const itemName = (item.name || '').trim().toLowerCase().replace(/\s+/g, ' ');
+        const normalizedName = itemName.replace(/\s*-\s*\d+['"]?\s*(min|minutos)?/gi, '').trim();
 
-        if (false && expanded.length > 1) { // DISABLED: This causes recursion for already expanded items
-            console.log(`[BONO] Expandiendo item del desglose: ${item.name} -> ${expanded.length} sub-items`);
-            detectedServices.push(...expanded);
-        } else {
-            // CRÍTICO: Preservar todos los campos del item original, especialmente 'space'
-            detectedServices.push({
-                ...item,
-                space: item.space || '',
-                used: item.used || 0,
-                validations: item.validations || []
+        // PRIORITY 1: Match by IDs
+        let catalogItem = null;
+        if (item.variation_id || item.product_id || item.wc_id || item.id) {
+            const vIdStr = item.variation_id ? String(item.variation_id).trim() : '';
+            const pIdStr = item.product_id ? String(item.product_id).trim() : '';
+            const wcIdStr = item.wc_id ? String(item.wc_id).trim() : '';
+            const itemIdStr = item.id ? String(item.id).trim() : '';
+
+            catalogItem = state.catalogProducts.find(p => {
+                const catalogWcId = p.wc_id ? String(p.wc_id).trim() : '';
+                const catalogFirestoreId = p.id || '';
+                return (vIdStr && (catalogWcId === vIdStr || catalogFirestoreId === `wc-${vIdStr}`)) ||
+                    (pIdStr && (catalogWcId === pIdStr || catalogFirestoreId === `wc-${pIdStr}`)) ||
+                    (wcIdStr && catalogWcId === wcIdStr) ||
+                    (itemIdStr && catalogFirestoreId === itemIdStr);
             });
         }
+
+        // PRIORITY 2: Match by name
+        if (!catalogItem) {
+            catalogItem = state.catalogProducts.find(p => {
+                if (!p.nombre) return false;
+                const catalogName = p.nombre.trim().toLowerCase().replace(/\s+/g, ' ');
+                const catalogNormalized = catalogName.replace(/\s*-\s*\d+['"]?\s*(min|minutos)?/gi, '').trim();
+                return catalogName === itemName || catalogNormalized === normalizedName || catalogName.includes(normalizedName) || normalizedName.includes(catalogNormalized);
+            });
+        }
+
+        // Force space detection if missing
+        if (!item.space) {
+            item.space = getSpaceForService(item.name) || catalogItem?.espacio || fallbackSpace || '';
+        }
+
+        // Asegurar IDs consistentes
+        return {
+            ...item,
+            itemId: item.itemId || 'srv_' + Math.random().toString(36).substr(2, 9),
+            used: item.used || 0,
+            validations: item.validations || [],
+            space: item.space,
+            variation_id: item.variation_id || catalogItem?.wc_id || null,
+            product_id: item.product_id || item.wc_id || catalogItem?.id || null,
+            wc_id: item.wc_id || catalogItem?.wc_id || null,
+            id: item.id || catalogItem?.id || null
+        };
     });
 
+    const detectedServices = state.editingVoucherItems;
+
     // Debug logging
-    console.log("Bono:", v.bono, "Producto:", v.producto, "Importe:", v.importe);
-    console.log("Servicios detectados:", detectedServices);
+    console.log("Bono:", v.bono, "Producto:", v.producto, "Servicios detectados:", detectedServices);
 
     // Mostrar el primer servicio en la vista previa del catálogo
     // Mostrar información del PACK principal en la vista previa
@@ -2992,11 +2896,15 @@ async function openVoucherManagement(code) {
         }
 
         const isEditable = v.origen === 'local' || (v.bono && v.bono.includes('exc.Loc'));
+        const isPack = state.editingVoucherItems.some(i => i.parent_pack);
 
         if (state.editingVoucherItems.length > 0 || isEditable) {
             listDiv.innerHTML = `
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px;">
-                <div style="font-weight:700; color:#334155; font-size:0.75rem; text-transform:uppercase;">Items de Compra</div>
+                <div style="font-weight:700; color:#334155; font-size:0.75rem; text-transform:uppercase;">
+                    ${isPack ? `<span style="background:#fef3c7; color:#92400e; padding:2px 6px; border-radius:4px; margin-right:6px; border:1px solid #fcd34d;">PACK</span>` : ''}
+                    Items de Compra
+                </div>
                 ${isEditable ? `
                     <button class="btn btn-sm btn-outline" onclick="addVoucherItem()" style="padding:2px 8px; font-size:0.7rem;">
                         <i class="fas fa-plus"></i> Añadir
@@ -3399,7 +3307,7 @@ async function openVoucherManagement(code) {
         if (product) {
             // Reemplazar o añadir items según el producto del catálogo
             const fakeVoucher = { ...v, producto: product.nombre, product_id: product.id };
-            const newItems = detectServicesInProduct(fakeVoucher);
+            const newItems = resolveVoucherBreakdown(fakeVoucher);
             state.editingVoucherItems = newItems;
 
             // Actualizar el nombre del producto principal en el modal
@@ -3843,52 +3751,6 @@ async function saveVoucherChanges() {
         }
     }
 }
-
-
-// Variable global para tracking de validación de alojamiento
-window.consumeGymSession = async (idx) => {
-    if (!confirm("¿Confirmar consumo de 1 sesión de GIMNASIO?")) return;
-
-    const item = state.editingVoucherItems[idx];
-
-    // 1. Incrementar uso localmente
-    item.used = (item.used || 0) + 1;
-
-    // 2. Crear registro de historial (Simular reserva finalizada)
-    const code = document.getElementById("vm-code").value || '';
-    const client = document.getElementById("vm-cliente").value || '';
-
-    const notificacion = {
-        fecha: new Date().toISOString().split('T')[0],
-        hora: new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
-        cliente: client,
-        servicio: item.name,
-        bono: code,
-        origen: 'gimnasio',
-        estado: 'finalizada', // Para que salga en historial
-        notas: 'Consumo directo desde gestión de bonos'
-    };
-
-    try {
-        // Guardar "reserva" para historial
-        await db.collection("reservas_gimnasio").add(notificacion); // Usamos colección específica o genérica
-    } catch (e) {
-        console.warn("No se pudo guardar historial gimnasio (posiblemente falta colección), usando spa_reservations", e);
-        try {
-            await db.collection("spa_reservations").add(notificacion);
-        } catch (e2) { console.error("Fallo guardar historial", e2); }
-    }
-
-    // 3. Guardar cambios en el bono (Esto cerrará el modal por la lógica anterior, 
-    // PERO el usuario pidió 'confirmar... y dejar constancia'. Si cerramos es un flow rápido.
-    // Si queremos mantener abierto, tendríamos que llamar a un save silencioso.
-    // Vamos a usar saveVoucherChanges() que ya tiene toast y cierre, lo cual es buen feedback.)
-
-    // Actualizar visualmente antes de guardar (briefly)
-    renderEditableBreakdown();
-
-    await saveVoucherChanges();
-};
 let currentVoucherForAccommodation = null;
 
 function isAccommodationVoucher(voucher) {
@@ -4079,7 +3941,7 @@ function validateServiceItem(itemIndex, isManual = false) {
     const space = (item.space || '').toLowerCase();
 
     // CASO 1: HOTEL (Modal Especial)
-    if (space === 'hotel' || item.name.toLowerCase().includes('alojamiento') || space.includes('hotel')) {
+    if (space === 'hotel' || (item.name || '').toLowerCase().includes('alojamiento') || space.includes('hotel')) {
         console.log('[DEBUG] Abriendo modal alojamiento');
         currentServiceIndex = itemIndex;
         currentVoucherForAccommodation = voucher;
@@ -4371,7 +4233,7 @@ function filterLocalProducts(query) {
     }
 
     const filtered = state.lvFilteredProducts.filter(prod => {
-        const matchesQuery = !q || prod.nombre.toLowerCase().includes(q);
+        const matchesQuery = !q || (prod.nombre || "").toLowerCase().includes(q);
         let matchesCat = true;
 
         if (cat === 'spa') matchesCat = (prod.categoria || '').toLowerCase().includes('spa');
@@ -4500,7 +4362,28 @@ function filterLocalProducts(query) {
     resultsDiv.style.display = 'block';
 }
 
-window.selectProductForLocalVoucher = (productName) => {
+window.selectProductForLocalVoucher = (productData) => {
+    // 1. Normalización de entrada (Adapter pattern)
+    let prod = null;
+    let isCustom = false;
+
+    if (productData === 'custom') {
+        isCustom = true;
+        prod = { nombre: 'Personalizado', custom: true };
+    } else if (typeof productData === 'object' && productData !== null) {
+        // Si recibimos objeto (desde el nuevo buscador visual), buscamos en catálogo por ID para tener datos frescos
+        const catalogId = productData.wc_id || productData.id || productData.product_id;
+        prod = state.catalogProducts.find(p => (p.wc_id === catalogId || p.id === catalogId || p.product_id === catalogId)) || productData;
+    } else if (typeof productData === 'string') {
+        // Fallback por nombre (legacy)
+        prod = state.catalogProducts.find(p => p.nombre === productData);
+    }
+
+    if (!prod) {
+        console.warn("[LV] Producto no encontrado:", productData);
+        return;
+    }
+
     const resultsDiv = document.getElementById("lv-search-results");
     const customInput = document.getElementById("lv-product-custom");
     const detailsDiv = document.getElementById("lv-product-details");
@@ -4508,97 +4391,92 @@ window.selectProductForLocalVoucher = (productName) => {
     const sessionsInput = document.getElementById("lv-sessions");
     const searchInput = document.getElementById("lv-product-search");
 
-    resultsDiv.style.display = 'none';
+    if (resultsDiv) resultsDiv.style.display = 'none';
+    state.lvSelectedProduct = prod;
 
-    if (productName === 'custom') {
-        state.lvSelectedProduct = { nombre: 'Personalizado', custom: true };
+    if (isCustom) {
         customInput.style.display = 'block';
         customInput.value = '';
         customInput.focus();
         detailsDiv.style.display = 'none';
 
-        // Show price input for custom
         const priceContainer = document.getElementById("lv-price-container");
         if (priceContainer) priceContainer.style.display = 'block';
         priceInput.value = '';
-
         sessionsInput.value = 1;
-        searchInput.value = 'PRODUCTO PERSONALIZADO';
+        if (searchInput) searchInput.value = 'PRODUCTO PERSONALIZADO';
     } else {
-        const prod = state.catalogProducts.find(p => p.nombre === productName);
-        if (prod) {
-            state.lvSelectedProduct = prod;
-            searchInput.value = prod.nombre;
-            customInput.style.display = 'none';
+        if (searchInput) searchInput.value = prod.nombre || '';
+        if (customInput) customInput.style.display = 'none';
 
-            // UI Details
-            // UI Details
-            // document.getElementById("lv-details-name").textContent = prod.nombre; // OLD
+        // UI Details & Badges
+        const pax = parseInt(prod.personas || prod.pax || 1);
+        let badgesHtml = '';
+        if (pax > 1) {
+            badgesHtml += `<span style="background:#dbeafe; color:#1e40af; padding:2px 6px; border-radius:4px; font-size:0.7em; font-weight:700; border:1px solid #bfdbfe;"><i class="fas fa-user-friends"></i> ${pax} Pers.</span>`;
+        } else {
+            badgesHtml += `<span style="background:#f8fafc; color:#64748b; padding:2px 6px; border-radius:4px; font-size:0.75em; border:1px solid #e2e8f0; font-weight:600;">Individual</span>`;
+        }
 
-            // BADGES GENERATION
-            // BADGES GENERATION
-            const pax = parseInt(prod.personas || prod.pax || 1);
-            let badgesHtml = '';
-            if (pax > 1) {
-                badgesHtml += `<span style="background:#dbeafe; color:#1e40af; padding:2px 6px; border-radius:4px; font-size:0.7em; font-weight:700; border:1px solid #bfdbfe;"><i class="fas fa-user-friends"></i> ${pax} Pers.</span>`;
-            } else {
-                badgesHtml += `<span style="background:#f8fafc; color:#64748b; padding:2px 6px; border-radius:4px; font-size:0.75em; border:1px solid #e2e8f0; font-weight:600;">Individual</span>`;
-            }
+        const nameLower = (prod.nombre || '').toLowerCase();
+        const catLower = (prod.categoria || '').toLowerCase();
+        const includesSpa = nameLower.includes('spa') || nameLower.includes('circuito') || catLower.includes('spa');
+        const includesMasaje = nameLower.includes('masaje') || catLower.includes('masaje');
+        const isPack = nameLower.includes('pack') || (prod.items_incluidos && prod.items_incluidos.length > 1);
 
-            const nameLower = (prod.nombre || '').toLowerCase();
-            const catLower = (prod.categoria || '').toLowerCase();
-            const includesSpa = nameLower.includes('spa') || nameLower.includes('circuito') || catLower.includes('spa');
-            const includesMasaje = nameLower.includes('masaje') || catLower.includes('masaje');
-            const isPack = nameLower.includes('pack') || (prod.items_incluidos && prod.items_incluidos.length > 1);
+        if (includesSpa) badgesHtml += `<span style="background:#ecfeff; color:#0e7490; padding:2px 6px; border-radius:4px; font-size:0.7em; border:1px solid #cffafe; margin-left:4px;"><i class="fas fa-hot-tub"></i> Circuito</span>`;
+        if (includesMasaje) badgesHtml += `<span style="background:#fdf4ff; color:#a21caf; padding:2px 6px; border-radius:4px; font-size:0.7em; border:1px solid #fce7f3; margin-left:4px;"><i class="fas fa-spa"></i> Masaje</span>`;
+        if (isPack) badgesHtml += `<span style="background:#fff7ed; color:#c2410c; padding:2px 6px; border-radius:4px; font-size:0.7em; border:1px solid #ffedd5; margin-left:4px;"><i class="fas fa-box-open"></i> Pack</span>`;
 
-            if (includesSpa) badgesHtml += `<span style="background:#ecfeff; color:#0e7490; padding:2px 6px; border-radius:4px; font-size:0.7em; border:1px solid #cffafe; margin-left:4px;"><i class="fas fa-hot-tub"></i> Circuito</span>`;
-            if (includesMasaje) badgesHtml += `<span style="background:#fdf4ff; color:#a21caf; padding:2px 6px; border-radius:4px; font-size:0.7em; border:1px solid #fce7f3; margin-left:4px;"><i class="fas fa-spa"></i> Masaje</span>`;
-            if (isPack) badgesHtml += `<span style="background:#fff7ed; color:#c2410c; padding:2px 6px; border-radius:4px; font-size:0.7em; border:1px solid #ffedd5; margin-left:4px;"><i class="fas fa-box-open"></i> Pack</span>`;
-
-            // INJECT NAME AND BADGES
-            document.getElementById("lv-details-name").innerHTML = `
-                <div style="font-size:1.1rem; line-height:1.2; margin-bottom:6px;">${prod.nombre}</div>
+        const detailsName = document.getElementById("lv-details-name");
+        if (detailsName) {
+            detailsName.innerHTML = `
+                <div style="font-size:1.1rem; line-height:1.2; margin-bottom:6px;">${prod.nombre || 'Sin nombre'}</div>
                 <div style="display:flex; flex-wrap:wrap; gap:4px; align-items:center;">${badgesHtml}</div>
             `;
-            const imgPreview = document.getElementById("lv-img-preview");
+        }
+
+        const imgPreview = document.getElementById("lv-img-preview");
+        if (imgPreview) {
             if (prod.imagen) {
                 imgPreview.src = prod.imagen;
                 imgPreview.style.display = 'block';
             } else {
                 imgPreview.style.display = 'none';
             }
+        }
 
-            let includesFull = (prod.incluye && Array.isArray(prod.incluye)) ? prod.incluye.join(", ") : (prod.incluye || '');
-            if (!includesFull && prod.items_incluidos) {
-                includesFull = prod.items_incluidos.map(i => i.name || i.producto).join(", ");
-            }
-            document.getElementById("lv-details-text").textContent = includesFull || "Servicio de catálogo";
-            detailsDiv.style.display = 'block';
+        let includesFull = (prod.incluye && Array.isArray(prod.incluye)) ? prod.incluye.join(", ") : (prod.incluye || '');
+        if (!includesFull && prod.items_incluidos) {
+            includesFull = prod.items_incluidos.map(i => i.name || i.producto || i).join(", ");
+        }
 
-            // Hide price input (calculated automatically)
-            const priceContainer = document.getElementById("lv-price-container");
-            if (priceContainer) priceContainer.style.display = 'none';
+        const detailsText = document.getElementById("lv-details-text");
+        if (detailsText) detailsText.textContent = includesFull || "Servicio de catálogo";
 
-            // Store base price in state for calculation
-            state.lvSelectedProductBasePrice = parseFloat(prod.precio) || 0;
-            state.lvSelectedProductBasePax = parseInt(prod.personas || prod.pax || 1);
+        if (detailsDiv) detailsDiv.style.display = 'block';
 
-            priceInput.value = prod.precio || 0;
+        const priceContainer = document.getElementById("lv-price-container");
+        if (priceContainer) priceContainer.style.display = 'none';
 
-            let totalSessions = 1;
-            // FIX: If it's a Pack (has items_incluidos), default Input Sessions to 1 (Quantity of Packs), 
-            // ignoring prod.sesiones which might be the sum of internal sessions.
-            if ((prod.items_incluidos && prod.items_incluidos.length > 0) || (prod.nombre || '').toLowerCase().includes('pack')) {
-                totalSessions = 1;
-            } else if (prod.sesiones) {
-                totalSessions = prod.sesiones;
-            } else if (typeof detectSessions === 'function') {
-                totalSessions = detectSessions(prod).total;
-            }
+        // Defensive calculation inputs
+        state.lvSelectedProductBasePrice = parseFloat(prod.precio) || 0;
+        state.lvSelectedProductBasePax = parseInt(prod.personas || prod.pax || 1);
+        if (priceInput) priceInput.value = state.lvSelectedProductBasePrice;
 
-            sessionsInput.value = totalSessions;
+        let totalSessions = 1;
+        if ((prod.items_incluidos && prod.items_incluidos.length > 0) || (prod.nombre || '').toLowerCase().includes('pack')) {
+            totalSessions = 1;
+        } else if (prod.sesiones) {
+            totalSessions = prod.sesiones;
+        } else if (typeof detectSessions === 'function') {
+            totalSessions = detectSessions(prod).total;
+        }
 
-            // Auto-set PAX (Using detection logic)
+        if (sessionsInput) sessionsInput.value = totalSessions;
+
+        const paxInput = document.getElementById("lv-pax");
+        if (paxInput) {
             let parsedPax = 1;
             if (typeof detectSessions === 'function') {
                 const det = detectSessions(prod);
@@ -4606,10 +4484,10 @@ window.selectProductForLocalVoucher = (productName) => {
             } else {
                 parsedPax = parseInt(prod.personas || prod.pax || 1);
             }
-            document.getElementById("lv-pax").value = String(parsedPax);
+            paxInput.value = String(parsedPax);
         }
     }
-}
+};
 
 function setLVCategory(cat, btn) {
     state.lvCurrentCategory = cat;
@@ -4732,86 +4610,100 @@ function addToCartLocal() {
     const selected = state.lvSelectedProduct;
     if (!selected) return showToast("Primero selecciona un producto", "warning");
 
-    let name = selected.nombre;
+    // 1. Inputs del Modal
+    let name = (selected.nombre || 'Servicio').trim();
     let price = 0;
     const sessions = parseInt(document.getElementById("lv-sessions").value) || 1;
     const pax = parseInt(document.getElementById("lv-pax").value) || 1;
-    const discountVal = parseFloat(document.getElementById("lv-discount").value) || 0; // Renomed to avoid collision
+    const discountVal = parseFloat(document.getElementById("lv-discount").value) || 0;
 
     console.log("[CART] Adding:", name, "Pax:", pax, "Dto:", discountVal);
 
+    // 2. Lógica de Precio (Adapter)
     if (selected.custom) {
-        name = document.getElementById("lv-product-custom").value.trim();
-        if (!name) return showToast("Escribe el nombre del producto personalizado", "warning");
+        name = document.getElementById("lv-product-custom").value.trim() || 'Servicio Personalizado';
         price = parseFloat(document.getElementById("lv-price").value) || 0;
     } else {
-        // Calculate Price automatically: BasePrice * (SelectedPax / ProductBasePax)
         const basePrice = state.lvSelectedProductBasePrice || 0;
         const basePax = state.lvSelectedProductBasePax || 1;
-
         const ratio = pax / basePax;
         let calculatedPrice = basePrice * ratio;
 
-        // Aplicar descuento
         if (discountVal > 0) {
             calculatedPrice = calculatedPrice * (1 - (discountVal / 100));
         }
-
         price = calculatedPrice;
     }
 
-    // Clonar items si es del catálogo para tener desglose real
+    // 3. Generación de Desglose (Components Adapter)
     let items = [];
-    if (!selected.custom) {
-        if (selected.items_incluidos && selected.items_incluidos.length > 0) {
-            // Distribuir precio entre items (Proporcional o al primero)
-            // Simplificación: Todo el precio al primer item o dividido igual?
-            // Mejor: Dividido igual para que la suma de historial tenga sentido si se consumen por separado.
-            const itemCount = selected.items_incluidos.length;
-            const pricePerItem = price / itemCount;
+    const itemsIncluidos = selected.items_incluidos || [];
 
-            items = selected.items_incluidos.map(it => {
-                const itemName = (typeof it === 'string') ? it : (it.name || it.producto || name);
-                const itemSessions = (typeof it === 'object' && it.sessions) ? it.sessions : 1;
-                const itemSpace = (typeof it === 'object' && it.space) ? it.space : '';
-                return {
-                    name: itemName,
-                    sessions: itemSessions,
-                    space: itemSpace,
-                    pax: pax,
-                    price: pricePerItem // VITAL PARA HISTORIAL
-                };
-            });
-        } else {
-            items = [{ name, sessions: 1, space: '', pax: pax, price: price }];
-        }
+    if (!selected.custom && itemsIncluidos.length > 0) {
+        const itemCount = itemsIncluidos.length;
+        const pricePerItem = price / itemCount;
+
+        items = itemsIncluidos.map(it => {
+            // Normalizar item del catálogo (puede ser string o objeto)
+            const itemName = (typeof it === 'string') ? it : (it.name || it.producto || name);
+            const itemSessions = (typeof it === 'object' && it.sesiones) ? it.sesiones : 1;
+            const itemSpace = (typeof it === 'object' && it.espacio) ? it.espacio : (getSpaceForService(itemName) || '');
+
+            return {
+                name: itemName.trim(),
+                sessions: itemSessions,
+                space: itemSpace,
+                pax: pax,
+                price: pricePerItem,
+                original_id: (typeof it === 'object') ? (it.wc_id || it.id) : null
+            };
+        });
     } else {
-        items = [{ name, sessions: 1, space: '', pax: pax, price: price }];
+        // Caso servicio individual o personalizado
+        items = [{
+            name: name,
+            sessions: 1,
+            space: selected.custom ? '' : (selected.espacio || getSpaceForService(name) || ''),
+            pax: pax,
+            price: price
+        }];
     }
 
-    // Nombre final con descuento para claridad
     const finalName = discountVal > 0 ? `${name} (-${discountVal}%)` : name;
 
+    // 4. Push al Carrito Único (Standardized Object)
     state.lvCart.push({
         name: finalName,
-        price,
-        sessions,
-        pax,
-        originalProduct: selected.custom ? null : selected,
+        price: parseFloat(price) || 0,
+        sessions: sessions,
+        pax: pax,
+        originalProduct: selected.custom ? null : { ...selected },
         items_breakdown: items,
-        discount_percent: discountVal
+        discount_percent: discountVal,
+        added_at: new Date().toISOString()
     });
 
     renderLVCart();
 
-    // Reset current selection
+    // 5. Reset UI
     state.lvSelectedProduct = null;
-    document.getElementById("lv-product-search").value = "";
-    document.getElementById("lv-product-custom").style.display = 'none';
-    document.getElementById("lv-price").value = "";
-    document.getElementById("lv-discount").value = "0";
-    document.getElementById("lv-sessions").value = 1;
-    document.getElementById("lv-product-details").style.display = 'none';
+    const searchInput = document.getElementById("lv-product-search");
+    if (searchInput) searchInput.value = "";
+
+    const customInput = document.getElementById("lv-product-custom");
+    if (customInput) customInput.style.display = 'none';
+
+    const priceInput = document.getElementById("lv-price");
+    if (priceInput) priceInput.value = "";
+
+    const discountInput = document.getElementById("lv-discount");
+    if (discountInput) discountInput.value = "0";
+
+    const sessionsInput = document.getElementById("lv-sessions");
+    if (sessionsInput) sessionsInput.value = 1;
+
+    const detailsDiv = document.getElementById("lv-product-details");
+    if (detailsDiv) detailsDiv.style.display = 'none';
 }
 
 function renderLVCart() {
@@ -4960,41 +4852,53 @@ async function createLocalVoucher() {
 
 async function markServiceUsed(itemIndex, voucher) {
     const item = state.editingVoucherItems[itemIndex];
+    if (!item) return;
 
-    // Incrementar uso
+    // 1. Incrementar uso del componente
     item.used = (item.used || 0) + 1;
 
-    // Guardar validación simple
+    // 2. Incrementar uso global del bono (para barra de progreso)
+    const currentGlobalUsed = parseInt(document.getElementById("vm-sesiones-usadas").value) || 0;
+    const totalGlobal = parseInt(document.getElementById("vm-sesiones-total").value) || 1;
+
+    if (currentGlobalUsed < totalGlobal) {
+        document.getElementById("vm-sesiones-usadas").value = currentGlobalUsed + 1;
+    }
+
+    // 3. Crear registro de Auditoría (Validation)
     const userEmail = (typeof auth !== 'undefined' && auth.currentUser) ? auth.currentUser.email : 'admin';
     const validation = {
         fecha_validacion: new Date().toISOString(),
-        validado_por: userEmail
+        validado_por: userEmail,
+        tipo: 'consumo_manual',
+        item_name: item.name,
+        pax: item.pax || 1,
+        espacio: item.space || ''
     };
 
     if (!item.validations) item.validations = [];
     item.validations.push(validation);
 
-    // FIX: Priorizar 'bono' como código
     const voucherCode = voucher.bono || voucher.codigo;
 
-    // Guardar en Firestore
+    // 4. Guardar en Firestore
     try {
-        await saveServiceBreakdownToFirestore(voucherCode);
-        showToast(`Servicio "${item.name}" validado correctamente`, "success");
+        // saveVoucherChanges() se encargará de persistir todo (global + items)
+        await saveVoucherChanges();
+        showToast(`✔ Componente "${item.name}" validado`, "success");
 
-        // Actualizar vista
-        openVoucherManagement(voucherCode);
-
-        // Opcional: ofrecer abrir reservas
+        // Opcional: ofrecer abrir reservas si es un servicio de espacio físico
         setTimeout(() => {
             const space = (item.space || '').toLowerCase();
-            // Si validamos, preguntamos si quieren reservar (si NO es complemento niHotel validado aparte)
             const isComplemento = space === 'complemento';
 
             if (!isComplemento && item.used <= (item.sessions || 1)) {
-                goToReservation(voucher.cliente, item.name, voucherCode, space);
+                // Si el usuario quiere reservar ahora
+                if (confirm(`¿Quieres crear una reserva en el calendario para "${item.name}" ahora?`)) {
+                    goToReservation(voucher.cliente, item.name, voucherCode, space);
+                }
             }
-        }, 500); // Pequeño delay para UX
+        }, 1000);
 
     } catch (error) {
         console.error("Error validando servicio:", error);
@@ -5358,10 +5262,35 @@ async function syncSingleVoucher(code) {
                 updateData.importe = updateData.precio;
             }
 
-            // 3. Fecha (Fallback a date_created)
-            if (!b.fecha && b.date_created) {
-                b.fecha = b.date_created;
-                updateData.fecha = b.fecha;
+            // 3. Fecha (Universal Date Persistence)
+            const extractedDate = b.fecha || b.date_created || b.fecha_compra;
+            if (extractedDate) {
+                b.fecha = extractedDate;
+                updateData.fecha = extractedDate;
+            }
+
+            // 4. IDs Técnicos (Para mapeo determinista)
+            if (b.product_id) updateData.product_id = b.product_id;
+            if (b.variation_id) updateData.variation_id = b.variation_id;
+
+            // 5. PACK BREAKDOWN PERSISTENCE (Source of Truth: Internal Catalog)
+            // Solo sincronizar si no tiene ya un desglose real guardado (evitar sobrescribir consumos)
+            const hasExistingItems = (existing && existing.items_desglosados && existing.items_desglosados.length > 0 &&
+                existing.items_desglosados.some(i => i.used > 0));
+
+            if (!hasExistingItems) {
+                console.log(`[SYNC] Generando desglose desde catálogo para ${code}...`);
+                const components = resolveVoucherBreakdown(b);
+                if (components && components.length > 0) {
+                    updateData.items_desglosados = components;
+
+                    // Si el catálogo especifica sesiones o pax, actualizar en el bono
+                    const totalSessions = components.reduce((sum, s) => sum + (s.sessions || 1), 0);
+                    const pax = components.length > 0 ? (components[0].pax || 1) : 1;
+
+                    updateData.sesiones_totales = totalSessions;
+                    updateData.pax_por_sesion = pax;
+                }
             }
 
             // Merge explicit contact updates if any
@@ -6610,9 +6539,17 @@ window.resyncVoucherFromWooCommerce = async function () {
             importe: freshPrice,
             precio: freshPrice,
             items_desglosados: freshVoucher.items_desglosados || [],
+            product_id: freshVoucher.product_id || null,
+            variation_id: freshVoucher.variation_id || null,
             manual_update: false, // Remove manual protection to allow future auto-syncs
             last_synced: new Date().toISOString()
         };
+
+        // Fallback for IDs if missing in top level
+        if (!updateData.product_id && updateData.items_desglosados.length === 1) {
+            updateData.product_id = updateData.items_desglosados[0].product_id || updateData.items_desglosados[0].id;
+            updateData.variation_id = updateData.items_desglosados[0].variation_id;
+        }
 
         // Also update client info if available
         if (freshVoucher.cliente && freshVoucher.cliente !== "Nombre Cliente") {
@@ -6653,69 +6590,3 @@ window.resyncVoucherFromWooCommerce = async function () {
 };
 
 
-// ============================================
-// SELECT PRODUCT FOR LOCAL VOUCHER  
-// ============================================
-window.selectProductForLocalVoucher = function (productData) {
-    console.log('[LOCAL VOUCHER] Product selected:', productData);
-
-    // Si productData es un string (legacy), convertirlo a objeto
-    if (typeof productData === 'string') {
-        productData = { nombre: productData };
-    }
-
-    // Find full product details from catalog if not already complete
-    if (!productData.wc_id && !productData.id) {
-        const catalogProduct = state.catalogProducts.find(p =>
-            p.nombre === productData.nombre
-        );
-
-        if (catalogProduct) {
-            productData = {
-                ...catalogProduct,
-                nombre: catalogProduct.nombre,
-                wc_id: catalogProduct.wc_id,
-                id: catalogProduct.id,
-                product_id: catalogProduct.product_id || catalogProduct.wc_id,
-                precio: catalogProduct.precio,
-                sesiones: catalogProduct.sesiones || 1,
-                pax: catalogProduct.pax || catalogProduct.personas || 1,
-                espacio: catalogProduct.espacio
-            };
-        }
-    }
-
-    // Add to cart state (create array if doesn't exist)
-    if (!state.localVoucherCart) {
-        state.localVoucherCart = [];
-    }
-
-    // Add product with IDs to cart
-    state.localVoucherCart.push({
-        name: productData.nombre,
-        wc_id: productData.wc_id,
-        id: productData.id,
-        product_id: productData.product_id || productData.wc_id,
-        variation_id: productData.variation_id || null,
-        price: parseFloat(productData.precio) || 0,
-        sessions: parseInt(productData.sesiones) || 1,
-        pax: parseInt(productData.pax) || 1,
-        space: productData.espacio || '',
-        used: 0
-    });
-
-    console.log('[LOCAL VOUCHER] Current cart:', state.localVoucherCart);
-
-    // Render cart (need to implement renderLocalVoucherCart)
-    if (typeof renderLocalVoucherCart === 'function') {
-        renderLocalVoucherCart();
-    }
-
-    // Hide search results
-    const resultsDiv = document.getElementById("lv-search-results");
-    if (resultsDiv) resultsDiv.style.display = 'none';
-
-    // Clear search
-    const searchInput = document.getElementById("lv-search");
-    if (searchInput) searchInput.value = '';
-};

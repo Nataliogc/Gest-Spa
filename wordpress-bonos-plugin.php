@@ -115,6 +115,8 @@ function robahotel_get_bonos($request) {
             'fecha'         => $order->get_date_created()->date('Y-m-d'),
             'fecha_compra'  => $order->get_date_created()->date('Y-m-d H:i:s'),
             'order_id'      => $order->get_id(),
+            'product_id'    => count($items_data) === 1 ? $items_data[0]['product_id'] : null,
+            'variation_id'  => count($items_data) === 1 ? $items_data[0]['variation_id'] : null,
             'items_desglosados' => $items_data, // Desglose de items para la app
         ];
     }

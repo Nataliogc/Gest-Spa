@@ -78,10 +78,19 @@ window.resyncVoucherFromWooCommerce = async function () {
         const updateData = {
             importe: freshPrice,
             precio: freshPrice,
-            items_desglosados: freshVoucher.items_desglosados || [],
+            fecha: freshVoucher.fecha || freshVoucher.fecha_compra || freshVoucher.date_created || null,
+            items_desglosados: (typeof resolveVoucherBreakdown === 'function') ? resolveVoucherBreakdown(freshVoucher) : (freshVoucher.items_desglosados || []),
+            product_id: freshVoucher.product_id || null,
+            variation_id: freshVoucher.variation_id || null,
             manual_update: false, // Remove manual protection to allow future auto-syncs
             last_synced: new Date().toISOString()
         };
+
+        // Fallback for IDs if missing in top level
+        if (!updateData.product_id && updateData.items_desglosados.length === 1) {
+            updateData.product_id = updateData.items_desglosados[0].product_id || updateData.items_desglosados[0].id;
+            updateData.variation_id = updateData.items_desglosados[0].variation_id;
+        }
 
         // Also update client info if available
         if (freshVoucher.cliente && freshVoucher.cliente !== "Nombre Cliente") {
