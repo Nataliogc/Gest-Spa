@@ -15,7 +15,7 @@ $oldTag = '</body>'
 $newTag = @'
 
     <!-- Bridge script for Spa voucher integration -->
-    <script src="file:///C:/Users/comun/Documents/GitHub/Gest-Spa/temp_restaurante_v6.js"></script>
+    <script src="https://nataliogc.github.io/Gest-Spa/temp_restaurante_v6.js"></script>
 </body>
 '@
 

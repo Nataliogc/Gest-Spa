@@ -630,52 +630,41 @@ function getSpaceForService(serviceName) {
     return '';
 }
 
-// Helper para redirección
 // Helper para redirección a gestión de restaurante
 async function openRestauranteFromVoucher(client, service, code, space, pax, phone) {
-    // Path dinámico detectado automáticamente
-    const base = (typeof getBaseURL === 'function') ? getBaseURL('gestion-Salones') : '';
+    // Intentamos detectar el nombre del módulo (gestion-Salones o mesachef)
+    const base = (typeof getBaseURL === 'function') ? getBaseURL('mesachef') : '../gestion-Salones/';
     const basePath = `${base}restaurante.html`;
 
-    // Ensure config is loaded
-    if (!spaConfigState.spaConfig || (!spaConfigState.spaConfig.wc_url && !spaConfigState.spaConfig.whatsappTemplate)) {
-        if (typeof cargarSpaConfig === 'function') {
-            console.log("Loading Spa Config before opening restaurant...");
-            await cargarSpaConfig();
-        }
-    }
+    const cleanClient = (client || '').trim();
+    const cleanBono = (code || '').trim();
 
-    const params = new URLSearchParams({
-        client: client || '',
-        phone: phone || '',
-        voucher: code || '',
-        source: 'bono',
-        service: service || 'Restaurante',
-        pax: pax || '1'
-    });
-
-    // Detectar Hotel Context
+    // Detectar Hotel Context para Cumbria
     let hotelContext = 'Guadiana';
     const config = spaConfigState.spaConfig || {};
     const urlCheck = config.wc_url && config.wc_url.toLowerCase().includes('cumbria');
     const templateCheck = config.whatsappTemplate && config.whatsappTemplate.toLowerCase().includes('cumbria');
-
-    // Debug
-    console.log("[Restaurant] URL Check:", urlCheck, "Template Check:", templateCheck, "WC:", config.wc_url);
-
     if (urlCheck || templateCheck) {
         hotelContext = 'Cumbria';
     }
 
-    // Append Hotel
-    params.append('hotel', hotelContext);
+    const params = new URLSearchParams({
+        client: cleanClient,
+        service: service || 'Restaurante',
+        voucher: cleanBono,
+        space: space || 'rest',
+        pax: pax || 1,
+        phone: phone || '',
+        hotel: hotelContext,
+        source: 'bono'
+    });
 
-    const url = `${basePath}?${params.toString()}`;
+    const finalUrl = `${basePath}?${params.toString()}`;
+    console.log(`[REDIRECT] Abriendo restaurante: ${finalUrl}`);
 
-    console.log(`[RESTAURANTE] Abriendo integración externa: ${url}`);
-
-    // Abrir en nueva pestaña
-    window.open(url, '_blank');
+    if (confirm(`¿Ir al calendario para reservar '${service}' para ${cleanClient}?`)) {
+        window.open(finalUrl, '_blank');
+    }
 }
 
 // Helper para redirección
@@ -1480,18 +1469,33 @@ async function sincronizarConTienda(persistentData, btn, originalText) {
             // Compatibility
             if (!b.nombre && b.cliente) b.nombre = b.cliente;
 
+            // 2. FECHA DE COMPRA (Canonical)
+            if (!b.purchase_date) {
+                b.purchase_date = b.fecha || b.date_created || b.fecha_compra || (b.date_created_gmt ? b.date_created_gmt + 'Z' : null);
+            }
+            // Ensure consistency between legacy and new field
+            if (b.purchase_date && !b.fecha) b.fecha = b.purchase_date;
+
             // 3. NORMALIZACIÓN DE PRECIO (WooCommerce usa varios nombres de campo)
             // Check all possible price field names
             let foundPrice = parseFloat(b.precio) || parseFloat(b.importe) || 0;
 
             if (foundPrice === 0) {
                 // Try common WooCommerce field names
-                // FIX: Prioritize LINE-specific totals over ORDER totals to avoid double counting
-                foundPrice = parseFloat(b.line_total) || parseFloat(b.subtotal) ||
-                    parseFloat(b.item_total) || parseFloat(b.amount) ||
-                    parseFloat(b.total) || parseFloat(b.order_total) ||
+                // FIX: Prioritize NET totals (total, item_total, amount) over GROSS totals (line_total, subtotal)
+                foundPrice = parseFloat(b.total) || parseFloat(b.item_total) ||
+                    parseFloat(b.amount) || parseFloat(b.line_total) ||
+                    parseFloat(b.subtotal) || parseFloat(b.order_total) ||
                     parseFloat(b.price) || parseFloat(b.value) ||
                     parseFloat(b.order_subtotal) || 0;
+            }
+
+            // Try line_items array (WooCommerce standard format)
+            if (foundPrice === 0 && b.line_items && Array.isArray(b.line_items) && b.line_items.length > 0) {
+                foundPrice = b.line_items.reduce((sum, item) => {
+                    return sum + (parseFloat(item.total) || parseFloat(item.price) ||
+                        parseFloat(item.subtotal) || 0);
+                }, 0);
             }
 
             // Try nested structures (items_desglosados from optimized plugin)
@@ -1502,12 +1506,12 @@ async function sincronizarConTienda(persistentData, btn, originalText) {
                 }, 0);
             }
 
-            // Try line_items array (WooCommerce standard format)
-            if (foundPrice === 0 && b.line_items && Array.isArray(b.line_items)) {
-                foundPrice = b.line_items.reduce((sum, item) => {
-                    return sum + (parseFloat(item.total) || parseFloat(item.subtotal) ||
-                        parseFloat(item.price) || 0);
-                }, 0);
+            // Distributive discount logic: If order has discount but items are gross
+            const orderDiscount = parseFloat(b.discount_total) || 0;
+            const orderTotal = parseFloat(b.order_total) || parseFloat(b.total) || 0;
+            if (orderDiscount > 0 && orderTotal > 0 && foundPrice > orderTotal) {
+                console.log(`[SYNC] Price mismatch for ${b.bono}: Items total (${foundPrice}) vs Order total (${orderTotal}). Using Order total (includes discounts).`);
+                foundPrice = orderTotal;
             }
 
             if (foundPrice > 0) {
@@ -1520,26 +1524,18 @@ async function sincronizarConTienda(persistentData, btn, originalText) {
 
             if (!groupedVouchers[code]) {
                 // Primer encuentro
+                groupedVouchers[code] = {
+                    ...b,
+                    bono: code,
+                    items_desglosados: []
+                };
 
-                // DETECCIÓN INTELIGENTE: Si ya viene desglosado (Plugin Optimizado), usarlo tal cual.
+                // Si ya viene desglosado (Plugin Optimizado v2+), usarlo
                 if (b.items_desglosados && Array.isArray(b.items_desglosados) && b.items_desglosados.length > 0) {
-                    // CALCULAR PRECIO REAL SUMANDO DESGLOSE (Porque el root precio puede ser parcial)
-                    const realTotal = b.items_desglosados.reduce((sum, i) => sum + (parseFloat(i.price || i.precio || 0)), 0);
-
-                    groupedVouchers[code] = {
-                        ...b,
-                        bono: code,
-                        precio: realTotal,
-                        importe: realTotal,
-                        // Asegurar fecha
-                        fecha: b.fecha || b.date_created || new Date().toISOString()
-                    };
-                    // NO hacemos push manual porque ya tenemos la lista completa
+                    groupedVouchers[code].items_desglosados = b.items_desglosados;
+                    // El precio ya debería ser el correcto del pedido en el plugin optimizado
                 } else {
-                    // MODO LEGACY (WooCommerce estándar o filas sueltas): Construir array manualmente
-                    groupedVouchers[code] = { ...b, bono: code };
-                    groupedVouchers[code].items_desglosados = [];
-
+                    // MODO LEGACY: Construir primera línea
                     groupedVouchers[code].items_desglosados.push({
                         name: b.producto,
                         price: parseFloat(b.precio || b.importe || 0),
@@ -1550,30 +1546,32 @@ async function sincronizarConTienda(persistentData, btn, originalText) {
                     });
                 }
             } else {
-                // Duplicado detected: Fusionar
+                // Duplicado/Multi-línea detected: Fusionar
                 const existing = groupedVouchers[code];
 
-                // FIX: Si el existente YA era un bono completo (optimizado), IGNORAR duplicados exactos del plugin
-                // (Evita sumar dos veces si el plugin manda el mismo pedido por duplicado o paginación)
-                if (existing.items_desglosados && existing.items_desglosados.length > 0 && b.items_desglosados && b.items_desglosados.length > 0) {
-                    console.log(`[SYNC] Ignorando duplicado completo para ${code} (ya procesado)`);
+                // FIX: Si el existente YA era un bono completo (optimizado), IGNORAR duplicados de red/paginación
+                if (existing.items_desglosados.length > 0 && b.items_desglosados && b.items_desglosados.length > 0) {
                     return;
                 }
 
-                // SÓLO FUSIONAR SI ESTAMOS EN MODO LEGACY (filas sueltas construyéndose)
-                // 1. Sumar precio
-                const priceExisting = parseFloat(existing.precio || existing.importe || 0);
+                // SÓLO FUSIONAR SI ESTAMOS EN MODO LEGACY (filas sueltas)
                 const priceNew = parseFloat(b.precio || b.importe || 0);
-                const newTotal = priceExisting + priceNew;
-                existing.precio = newTotal;
-                existing.importe = newTotal;
 
-                // 2. Concatenar nombre de producto if needed
+                // DETECTION: Si el precio de la nueva línea es IGUAL al total que ya tenemos,
+                // y se sospecha que es un volcado plano de WooCommerce (donde cada fila repite el Order Total),
+                // NO sumamos el precio, solo añadimos el item.
+                const isDoubleCountRisk = (priceNew === parseFloat(existing.precio));
+
+                if (!isDoubleCountRisk) {
+                    existing.precio = (parseFloat(existing.precio) || 0) + priceNew;
+                    existing.importe = existing.precio;
+                }
+
+                // Añadir a items desglosados si no existe ya
                 if (!existing.producto.includes(b.producto)) {
                     existing.producto = `${existing.producto} + ${b.producto}`;
                 }
 
-                // 3. Añadir a items desglosados
                 existing.items_desglosados.push({
                     name: b.producto,
                     price: priceNew,
@@ -3626,10 +3624,11 @@ async function saveVoucherChanges() {
             manual_update: true
         };
 
-        // Guardar fecha de compra
+        // Guardar fecha de compra (Canonical: purchase_date)
         const fechaCompra = getInputValue("vm-fecha-compra");
         if (fechaCompra) {
-            updates.fecha = fechaCompra;
+            updates.fecha = fechaCompra;          // Legacy
+            updates.purchase_date = fechaCompra; // Canonical
         }
 
         // Get voucher from state to access variation_id and product_id
@@ -4372,17 +4371,20 @@ window.selectProductForLocalVoucher = (productData) => {
         isCustom = true;
         prod = { nombre: 'Personalizado', custom: true };
     } else if (typeof productData === 'object' && productData !== null) {
-        // Si recibimos objeto (desde el nuevo buscador visual), buscamos en catálogo por ID para tener datos frescos
+        // Mejoramos la detección por ID para ser más precisos
         const catalogId = productData.wc_id || productData.id || productData.product_id;
-        prod = state.catalogProducts.find(p => (p.wc_id === catalogId || p.id === catalogId || p.product_id === catalogId)) || productData;
+        prod = state.catalogProducts.find(p => (
+            p.wc_id === catalogId ||
+            p.id === catalogId ||
+            (p.wc_id && String(p.wc_id) === String(catalogId))
+        )) || productData;
     } else if (typeof productData === 'string') {
-        // Fallback por nombre (legacy)
         prod = state.catalogProducts.find(p => p.nombre === productData);
     }
 
     if (!prod) {
-        console.warn("[LV] Producto no encontrado:", productData);
-        return;
+        console.warn("[LV] Producto no encontrado, usando fallback defensivo:", productData);
+        prod = typeof productData === 'object' ? productData : { nombre: String(productData) };
     }
 
     const resultsDiv = document.getElementById("lv-search-results");
@@ -4395,16 +4397,18 @@ window.selectProductForLocalVoucher = (productData) => {
     if (resultsDiv) resultsDiv.style.display = 'none';
     state.lvSelectedProduct = prod;
 
-    if (isCustom) {
-        customInput.style.display = 'block';
-        customInput.value = '';
-        customInput.focus();
-        detailsDiv.style.display = 'none';
+    if (isCustom || prod.custom) {
+        if (customInput) {
+            customInput.style.display = 'block';
+            customInput.value = prod.custom ? (prod.nombre || '') : '';
+            if (!prod.custom) customInput.focus();
+        }
+        if (detailsDiv) detailsDiv.style.display = 'none';
 
         const priceContainer = document.getElementById("lv-price-container");
         if (priceContainer) priceContainer.style.display = 'block';
-        priceInput.value = '';
-        sessionsInput.value = 1;
+        if (priceInput) priceInput.value = prod.precio || '';
+        if (sessionsInput) sessionsInput.value = prod.sesiones || 1;
         if (searchInput) searchInput.value = 'PRODUCTO PERSONALIZADO';
     } else {
         if (searchInput) searchInput.value = prod.nombre || '';
@@ -4724,29 +4728,34 @@ function renderLVCart() {
 
     list.innerHTML = state.lvCart.map((item, index) => {
         const itemImg = (item.originalProduct && item.originalProduct.imagen) ? item.originalProduct.imagen : 'zenith-icon.png';
+        const itemPrice = parseFloat(item.price) || 0;
+        const subtotal = itemPrice * (parseInt(item.sessions) || 1);
+
         return `
             <div style="display: flex; gap: 10px; align-items: center; background: #fff; padding: 8px; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
                 <img src="${itemImg}" style="width: 38px; height: 38px; object-fit: cover; border-radius: 6px;">
                 <div style="flex: 1; overflow: hidden;">
                     <div style="font-weight: 700; font-size: 0.85rem; color: #1e293b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${item.name}</div>
                     <div style="font-size: 0.75rem; color: #64748b;">
-                        ${item.sessions} ses. x ${item.price.toFixed(2)}€ = <strong style="color: var(--accent);">${(item.price * item.sessions).toFixed(2)}€</strong>
+                        ${item.sessions} ses. x ${itemPrice.toFixed(2)}€ = <strong style="color: var(--accent);">${subtotal.toFixed(2)}€</strong>
                     </div>
                 </div>
-                <button onclick="removeFromCart(${index})" style="background: #fef2f2; border: 1px solid #fee2e2; color: #ef4444; width: 28px; height: 28px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s;">
+                <button onclick="removeFromLVCart(${index})" style="background: #fef2f2; border: 1px solid #fee2e2; color: #ef4444; width: 28px; height: 28px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s;">
                     <i class="fas fa-times"></i>
                 </button>
             </div>`;
     }).join('');
 
-    const totalPrice = state.lvCart.reduce((sum, i) => sum + (i.price * i.sessions), 0);
-    const totalSessions = state.lvCart.reduce((sum, i) => sum + i.sessions, 0);
+    // Single source of truth calculation
+    const totalPrice = state.lvCart.reduce((sum, i) => sum + ((parseFloat(i.price) || 0) * (parseInt(i.sessions) || 1)), 0);
+    const totalSessions = state.lvCart.reduce((sum, i) => sum + (parseInt(i.sessions) || 0), 0);
+
     if (totalDisplay) {
         totalDisplay.innerHTML = `<span style="color: #64748b; font-weight: 400; font-size: 0.8rem; margin-right: 5px;">TOTAL:</span> ${totalPrice.toFixed(2)}€ <span style="font-size: 0.75rem; color: #94a3b8; margin-left: 5px;">(${totalSessions} Sesiones)</span>`;
     }
 }
 
-function removeFromCart(index) {
+function removeFromLVCart(index) {
     state.lvCart.splice(index, 1);
     renderLVCart();
 }
@@ -5249,16 +5258,43 @@ async function syncSingleVoucher(code) {
 
             const updateData = {};
 
-            // 2. Precio Real (Sumando desglose si existe)
-            if (b.items_desglosados && Array.isArray(b.items_desglosados) && b.items_desglosados.length > 0) {
-                const realTotal = b.items_desglosados.reduce((sum, i) => sum + (parseFloat(i.price || i.precio || 0)), 0);
+            // 2. Precio Real (Net-First logic for discounts)
+            let realTotal = 0;
+
+            // A. Try Net Totals Strategy first (total, item_total, amount)
+            // This avoids issues where line_total is gross (pre-discount)
+            realTotal = parseFloat(b.total) || parseFloat(b.item_total) ||
+                parseFloat(b.amount) || parseFloat(b.order_total) || 0;
+
+            // B. If net total not found, try summing items breakdown (if valid)
+            if (realTotal === 0 && b.items_desglosados && Array.isArray(b.items_desglosados) && b.items_desglosados.length > 0) {
+                realTotal = b.items_desglosados.reduce((sum, i) => sum + (parseFloat(i.price || i.precio || 0)), 0);
+                updateData.items_desglosados = b.items_desglosados; // Trust the breakdown source
+            }
+
+            // C. Fallback to Gross/Simple fields if still zero
+            if (realTotal === 0) {
+                realTotal = parseFloat(b.line_total) || parseFloat(b.subtotal) ||
+                    parseFloat(b.precio) || parseFloat(b.importe) || 0;
+            }
+
+            // D. Distributive Discount Safety Check
+            // If we have an explicit order-level discount and the found price is higher than order total, clamp it.
+            const orderDiscount = parseFloat(b.discount_total) || 0;
+            const orderTotal = parseFloat(b.order_total) || parseFloat(b.total) || 0;
+
+            if (orderDiscount > 0 && orderTotal > 0 && realTotal > orderTotal) {
+                console.log(`[DiffSync] Applying distributive discount logic: ${realTotal} -> ${orderTotal}`);
+                realTotal = orderTotal;
+            }
+
+            if (realTotal > 0) {
                 b.precio = realTotal;
                 b.importe = realTotal;
                 updateData.precio = realTotal;
                 updateData.importe = realTotal;
-                updateData.items_desglosados = b.items_desglosados; // Guardar desglose
             } else {
-                // Fallback precio simple
+                // Should not happen for valid orders, but keep fallback
                 updateData.precio = parseFloat(b.precio || b.importe || 0);
                 updateData.importe = updateData.precio;
             }

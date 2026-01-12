@@ -55,9 +55,10 @@ window.resyncVoucherFromWooCommerce = async function () {
         let freshPrice = parseFloat(freshVoucher.precio) || parseFloat(freshVoucher.importe) || 0;
 
         if (freshPrice === 0) {
-            freshPrice = parseFloat(freshVoucher.line_total) || parseFloat(freshVoucher.subtotal) ||
-                parseFloat(freshVoucher.item_total) || parseFloat(freshVoucher.total) ||
-                parseFloat(freshVoucher.order_total) || 0;
+            // FIX: Prioritize NET totals (total, item_total, amount) over GROSS totals (line_total, subtotal)
+            freshPrice = parseFloat(freshVoucher.total) || parseFloat(freshVoucher.item_total) ||
+                parseFloat(freshVoucher.amount) || parseFloat(freshVoucher.line_total) ||
+                parseFloat(freshVoucher.subtotal) || parseFloat(freshVoucher.order_total) || 0;
         }
 
         // Sum from items_desglosados if available
@@ -65,6 +66,14 @@ window.resyncVoucherFromWooCommerce = async function () {
             freshPrice = freshVoucher.items_desglosados.reduce((sum, item) => {
                 return sum + (parseFloat(item.precio) || parseFloat(item.price) || parseFloat(item.total) || 0);
             }, 0);
+        }
+
+        // Distributive discount fallback
+        const orderDiscount = parseFloat(freshVoucher.discount_total) || 0;
+        const orderTotal = parseFloat(freshVoucher.order_total) || parseFloat(freshVoucher.total) || 0;
+        if (orderDiscount > 0 && orderTotal > 0 && freshPrice > orderTotal) {
+            console.log(`[RESYNC] Price mismatch: Items (${freshPrice}) vs Order (${orderTotal}). Using Order total.`);
+            freshPrice = orderTotal;
         }
 
         if (freshPrice === 0) {

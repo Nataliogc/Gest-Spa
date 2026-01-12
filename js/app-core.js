@@ -248,21 +248,38 @@ window.getBaseURL = function (moduleName) {
     const isGitHub = host.includes('github.io');
     const isLocalhost = host.includes('localhost') || host.includes('127.0.0.1');
 
+    // Canonical mapping for modules (to handle casing if needed)
+    const moduleMap = {
+        'gestion-Salones': 'gestion-Salones',
+        'mesachef': 'gestion-Salones' // Alias for restaurant module
+    };
+    const targetModule = moduleMap[moduleName] || moduleName;
+
     if (isGitHub) {
-        // En GitHub Pages: asume organización/username común
-        const parts = window.location.pathname.split('/');
-        const org = parts[1] || 'nataliogc';
-        return `https://${org}.github.io/${moduleName}/`;
+        const user = host.split('.')[0];
+        return `https://${user}.github.io/${targetModule}/`;
     } else if (isLocalhost) {
-        // En Localhost: asume servidores en puertos adyacentes o carpetas relativas
-        // Depende de la configuración, pero por defecto intentamos carpeta relativa de nivel superior
-        return `../${moduleName}/`;
+        return `../${targetModule}/`;
     } else {
-        // En File (Local filesystem): usa path absoluto del sistema o relativo
-        // Nota: Browsers bloquean file:// -> file:// por seguridad si no se abren explícitamente.
-        // Proponemos relative path como fallback más seguro
-        return `../../${moduleName}/`;
+        // Fallback for file:// protocol (Sibling folders)
+        const path = `../${targetModule}/`;
+        console.log(`[getBaseURL] Local file detected, using sibling path: ${path}`);
+        return path;
     }
+};
+
+/**
+ * Returns the base URL for shared assets (like bridge scripts)
+ */
+window.getResourceBase = function () {
+    const host = window.location.hostname;
+    const isGitHub = host.includes('github.io');
+    if (isGitHub) {
+        const user = host.split('.')[0];
+        return `https://${user}.github.io/Gest-Spa/`;
+    }
+    // Local fallback
+    return '';
 };
 
 function generateUID() {
