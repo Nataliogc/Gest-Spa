@@ -31,10 +31,19 @@
 
 
             <li><a href="reservas.html?type=spa" class="nav-link"><i class="fas fa-water"></i> Spa</a></li>
-            <li><a href="reservas.html?type=suite" class="nav-link"><i class="fas fa-gem"></i> Suite</a></li>
-            <li><a href="reservas.html?type=panacea" class="nav-link"><i class="fas fa-columns"></i> Panacea & VIP</a>
+            <li><a href="reservas.html?type=cabinas" class="nav-link"><i class="fas fa-cubes"></i> Cabinas</a></li>
+
+            <li class="dropdown">
+                <a href="#" class="nav-link dropdown-toggle">
+                    <i class="fas fa-door-open"></i> Salas <i class="fas fa-caret-down"
+                        style="font-size: 0.7em; margin-left: 5px;"></i>
+                </a>
+                <ul class="dropdown-menu">
+                    <li><a href="reservas.html?type=suite"><i class="fas fa-gem"></i> Suite</a></li>
+                    <li><a href="reservas.html?type=panacea"><i class="fas fa-columns"></i> Panacea & VIP</a></li>
+                    <li><a href="reservas.html?type=peluqueria"><i class="fas fa-cut"></i> Peluquería</a></li>
+                </ul>
             </li>
-            <li><a href="reservas.html?type=peluqueria" class="nav-link"><i class="fas fa-cut"></i> Peluquería</a></li>
 
             <li class="dropdown">
                 <a href="#" class="nav-link dropdown-toggle active">
@@ -302,7 +311,7 @@
                                     y el espacio por defecto para cada elemento del catálogo.</p>
 
                                 <div id="master-items-table-container"
-                                    style="max-height: 400px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.02); background: #fff;">
+                                    style="border: 1px solid var(--border); border-radius: 8px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.02); background: #fff;">
                                     <table style="width: 100%; border-collapse: collapse; font-size: 0.8rem;">
                                         <thead
                                             style="background: #f8fafc; border-bottom: 2px solid var(--border); position: sticky; top: 0; z-index: 10;">
@@ -375,8 +384,7 @@
                                     Gestiona los extras y complementos disponibles para las reservas.
                                 </p>
 
-                                <div
-                                    style="max-height: 400px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; background: #fff;">
+                                <div style="border: 1px solid var(--border); border-radius: 8px; background: #fff;">
                                     <table style="width: 100%; border-collapse: collapse; font-size: 0.8rem;">
                                         <thead
                                             style="background: #f8fafc; border-bottom: 2px solid var(--border); position: sticky; top: 0; z-index: 10;">

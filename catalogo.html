@@ -132,6 +132,78 @@
             font-weight: 700;
             border-bottom-left-radius: 12px;
         }
+
+        /* Multi-Select Styles */
+        .ms-container {
+            position: relative;
+            width: 100%;
+            min-width: 140px;
+        }
+
+        .ms-trigger {
+            width: 100%;
+            padding: 4px 8px;
+            background: #fff;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            color: #334155;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: all 0.2s;
+            height: 32px;
+        }
+
+        .ms-trigger:hover {
+            border-color: #94a3b8;
+            background: #f8fafc;
+        }
+
+        .ms-options {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            width: 100%;
+            min-width: 200px;
+            z-index: 1000;
+            background: #fff;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            padding: 6px;
+            display: none;
+            max-height: 250px;
+            overflow-y: auto;
+            margin-top: 4px;
+        }
+
+        .ms-options.show {
+            display: block;
+            animation: fadeIn 0.15s ease-out;
+        }
+
+        .ms-option {
+            display: flex;
+            align-items: center;
+            padding: 6px 10px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            border-radius: 4px;
+            color: #475569;
+            transition: background 0.1s;
+        }
+
+        .ms-option:hover {
+            background: #f1f5f9;
+            color: #0f172a;
+        }
+
+        .ms-option input {
+            margin-right: 10px;
+            accent-color: var(--accent);
+        }
     </style>
 </head>
 
@@ -150,10 +222,19 @@
 
 
             <li><a href="reservas.html?type=spa" class="nav-link"><i class="fas fa-water"></i> Spa</a></li>
-            <li><a href="reservas.html?type=suite" class="nav-link"><i class="fas fa-gem"></i> Suite</a></li>
-            <li><a href="reservas.html?type=panacea" class="nav-link"><i class="fas fa-columns"></i> Panacea & VIP</a>
+            <li><a href="reservas.html?type=cabinas" class="nav-link"><i class="fas fa-cubes"></i> Cabinas</a></li>
+
+            <li class="dropdown">
+                <a href="#" class="nav-link dropdown-toggle">
+                    <i class="fas fa-door-open"></i> Salas <i class="fas fa-caret-down"
+                        style="font-size: 0.7em; margin-left: 5px;"></i>
+                </a>
+                <ul class="dropdown-menu">
+                    <li><a href="reservas.html?type=suite"><i class="fas fa-gem"></i> Suite</a></li>
+                    <li><a href="reservas.html?type=panacea"><i class="fas fa-columns"></i> Panacea & VIP</a></li>
+                    <li><a href="reservas.html?type=peluqueria"><i class="fas fa-cut"></i> Peluquería</a></li>
+                </ul>
             </li>
-            <li><a href="reservas.html?type=peluqueria" class="nav-link"><i class="fas fa-cut"></i> Peluquería</a></li>
 
             <li class="dropdown">
                 <a href="#" class="nav-link dropdown-toggle active">
@@ -331,17 +412,19 @@
                             </div>
                             <div style="flex: 1.5;">
                                 <label
-                                    style="font-size: 0.65rem; font-weight: 700; text-transform: uppercase; color: #a0aec0; display: block; margin-bottom: 2px;">Espacio</label>
-                                <select id="sm-espacio" class="param-input form-control"
-                                    style="font-size: 0.9rem; padding: 4px 8px; height: 32px; width: 100%;">
-                                    <option value="auto">Automático</option>
-                                    <option value="spa">Spa</option>
-                                    <option value="panacea">Panacea (Cabinas)</option>
-                                    <option value="suite">Suite Spa</option>
-                                    <option value="vip">Sala VIP</option>
-                                    <option value="peluqueria">Peluquería</option>
-                                    <option value="gimnasio">Gimnasio</option>
-                                </select>
+                                    style="font-size: 0.65rem; font-weight: 700; text-transform: uppercase; color: #a0aec0; display: block; margin-bottom: 2px;">Espacio
+                                    (Multi)</label>
+                                <!-- MULTI-SELECT CONTAINER -->
+                                <div class="ms-container" id="sm-espacio-container">
+                                    <div class="ms-trigger" onclick="toggleCatalogMultiSelect(event)">
+                                        <span id="sm-espacio-summary"
+                                            style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Seleccionar...</span>
+                                        <i class="fas fa-chevron-down" style="font-size: 0.7em; opacity: 0.5;"></i>
+                                    </div>
+                                    <div class="ms-options" id="sm-espacio-options">
+                                        <!-- Populated via JS -->
+                                    </div>
+                                </div>
                             </div>
                             <div style="flex: 0.6;">
                                 <label
@@ -800,7 +883,10 @@
                 document.getElementById("sm-sesiones").value = service.sesiones || "1";
                 document.getElementById("sm-categoria").value = service.categoria;
                 document.getElementById("sm-descripcion").value = service.descripcion || "";
-                document.getElementById("sm-espacio").value = service.espacio || "";
+
+                // MULTI-SPACE POPULATION
+                initCatalogSpaces(service.allowedSpaces, service.espacio);
+
                 document.getElementById("sm-imagen").value = service.imagen || "";
 
                 // Sincronizar select de categorías WC
@@ -919,28 +1005,41 @@
                 }
             }
 
-            // Auto-detectar espacio si está en modo automático
-            let espacioValue = document.getElementById("sm-espacio").value;
-            if (espacioValue === "auto") {
+            // MULTI-ESPACIO READING
+            let allowedSpaces = [];
+            const checkboxes = document.querySelectorAll('#sm-espacio-options input[type="checkbox"]:checked');
+            checkboxes.forEach(cb => allowedSpaces.push(cb.value));
+
+            // Auto-detectar espacio si estÃ¡ vacÃ­o (Legacy Logic adapted)
+            let espacioValue = allowedSpaces.length > 0 ? allowedSpaces[0] : "";
+
+            if (allowedSpaces.length === 0) {
                 const categoria = document.getElementById("sm-categoria").value;
                 const nombreLower = nombre.toLowerCase();
 
-                // Lógica de detección automática
+                // Lógica de detección autÃ¡tica
+                let detected = "";
                 if (categoria.includes("gimnasio") || nombreLower.includes("gimnasio")) {
-                    espacioValue = "gimnasio";
+                    detected = "gimnasio";
                 } else if (categoria.includes("peluqueria") || nombreLower.includes("peluque")) {
-                    espacioValue = "peluqueria";
+                    detected = "peluqueria";
                 } else if (categoria === "suite_privada" || nombreLower.includes("suite")) {
-                    espacioValue = "suite";
+                    detected = "suite";
                 } else if (nombreLower.includes("vip") || nombreLower.includes("sala vip")) {
-                    espacioValue = "vip";
+                    detected = "vip";
                 } else if (categoria.includes("masaje") || categoria.includes("facial") || categoria.includes("corporal") ||
                     nombreLower.includes("masaje") || nombreLower.includes("facial") || nombreLower.includes("tratamiento")) {
-                    espacioValue = "panacea"; // Cabinas
+                    detected = "panacea"; // Cabinas
                 } else {
-                    espacioValue = "spa"; // Por defecto
+                    detected = "spa"; // Por defecto
                 }
-                console.log(`[AUTO-DETECT] "${nombre}" → espacio: ${espacioValue}`);
+
+                // If auto-detected, use it
+                if (detected) {
+                    espacioValue = detected;
+                    allowedSpaces = [detected];
+                    console.log(`[AUTO-DETECT] "${nombre}" → espacio: ${espacioValue}`);
+                }
             }
 
             const data = {
@@ -951,7 +1050,9 @@
                 sesiones: parseInt(document.getElementById("sm-sesiones").value) || 1,
                 imagen: document.getElementById("sm-imagen").value.trim(),
                 categoria: document.getElementById("sm-categoria").value,
-                espacio: espacioValue, // Usar el valor auto-detectado
+                categoria: document.getElementById("sm-categoria").value,
+                espacio: espacioValue, // Legacy support
+                allowedSpaces: allowedSpaces, // New Multi-Selection
                 descripcion: document.getElementById("sm-descripcion").value,
                 items_incluidos: items,
 
@@ -2080,6 +2181,75 @@
                 nsole.error("Error al borrar:", error);
             }
         }
+        const CATALOG_SPACES_LIST = [
+            { code: 'spa', name: 'Spa' },
+            { code: 'panacea', name: 'Panacea (Cabinas)' },
+            { code: 'suite', name: 'Suite Spa' },
+            { code: 'vip', name: 'Sala VIP' },
+            { code: 'peluqueria', name: 'Peluquería' },
+            { code: 'gimnasio', name: 'Gimnasio' },
+            { code: 'restaurante', name: 'Restaurante' },
+            { code: 'terraza', name: 'Terraza' },
+            { code: 'jardin', name: 'Jardín' }
+        ];
+
+        function initCatalogSpaces(currentAllowed, currentLegacy) {
+            const container = document.getElementById("sm-espacio-options");
+            if (!container) return;
+
+            // Determine check status
+            // If currentAllowed exists, use it. Else fallback to legacy.
+            let checked = [];
+            if (currentAllowed && Array.isArray(currentAllowed)) {
+                checked = currentAllowed;
+            } else if (currentLegacy && currentLegacy !== 'auto') {
+                checked = [currentLegacy];
+            }
+
+            container.innerHTML = CATALOG_SPACES_LIST.map(s => {
+                const isChecked = checked.includes(s.code);
+                return `
+                <label class="ms-option">
+                    <input type="checkbox" value="${s.code}" ${isChecked ? 'checked' : ''} onchange="updateCatalogSpaceSummary()">
+                    ${s.name}
+                </label>
+                `;
+            }).join('');
+
+            updateCatalogSpaceSummary();
+        }
+
+        function updateCatalogSpaceSummary() {
+            const checkboxes = document.querySelectorAll('#sm-espacio-options input[type="checkbox"]:checked');
+            const summaryEl = document.getElementById("sm-espacio-summary");
+            if (checkboxes.length === 0) {
+                summaryEl.textContent = "Seleccionar...";
+                summaryEl.style.color = "#94a3b8";
+            } else if (checkboxes.length === 1) {
+                const code = checkboxes[0].value;
+                const match = CATALOG_SPACES_LIST.find(s => s.code === code);
+                summaryEl.textContent = match ? match.name : code;
+                summaryEl.style.color = "#334155";
+            } else {
+                summaryEl.textContent = `${checkboxes.length} espacios`;
+                summaryEl.style.color = "#334155";
+            }
+        }
+
+        window.toggleCatalogMultiSelect = function (e) {
+            e.stopPropagation();
+            const opts = document.getElementById("sm-espacio-options");
+            opts.classList.toggle("show");
+        };
+
+        // Close on click outside
+        document.addEventListener('click', function (e) {
+            const container = document.getElementById("sm-espacio-container");
+            if (container && !container.contains(e.target)) {
+                const opts = document.getElementById("sm-espacio-options");
+                if (opts) opts.classList.remove("show");
+            }
+        });
     </script>
 </body>
 

@@ -838,6 +838,7 @@ async function cargarCatalogoSimple() {
                 items_incluidos: Array.isArray(data.items_incluidos) ? data.items_incluidos : [], // Preservar array original
                 categoria: data.categoria || '',
                 espacio: data.espacio || '',
+                allowedSpaces: data.allowedSpaces || (data.espacio ? [data.espacio] : []), // Load or Migrate
                 pax: data.pax || 1,
                 venta_local: data.venta_local !== false, // Default true
                 imagen: data.imagen || ''
@@ -2579,6 +2580,7 @@ function resolveVoucherBreakdown(voucher, catalog = state.catalogProducts, overr
                 });
 
                 const detectedSpace = getSpaceForService(itemName) || itemCatalog?.espacio || primaryMatch.espacio || '';
+                const detectedAllowed = itemCatalog?.allowedSpaces || (detectedSpace ? [detectedSpace] : []);
 
                 services.push({
                     itemId: 'srv_' + Math.random().toString(36).substr(2, 9),
@@ -2587,6 +2589,7 @@ function resolveVoucherBreakdown(voucher, catalog = state.catalogProducts, overr
                     descripcion: itemCatalog?.descripcion || `Parte del pack: ${primaryMatch.nombre}`,
                     sessions: multiplier, // Cada item del pack se consume N veces
                     space: detectedSpace,
+                    allowedSpaces: detectedAllowed,
                     used: 0,
                     status: 'pendiente',
                     validations: [],
@@ -2600,6 +2603,8 @@ function resolveVoucherBreakdown(voucher, catalog = state.catalogProducts, overr
         } else {
             // CASO NORMAL (Servicio individual)
             const detectedSpace = getSpaceForService(primaryMatch.nombre) || primaryMatch.espacio || '';
+            const detectedAllowed = primaryMatch.allowedSpaces || (detectedSpace ? [detectedSpace] : []);
+
             services.push({
                 itemId: 'srv_' + Math.random().toString(36).substr(2, 9),
                 name: primaryMatch.nombre,
@@ -2607,6 +2612,7 @@ function resolveVoucherBreakdown(voucher, catalog = state.catalogProducts, overr
                 descripcion: primaryMatch.descripcion || primaryMatch.incluye || '',
                 sessions: sessionsCount,
                 space: detectedSpace,
+                allowedSpaces: detectedAllowed,
                 used: 0,
                 status: 'pendiente',
                 validations: [],
@@ -2664,45 +2670,20 @@ async function openVoucherManagement(code) {
     } else {
         document.getElementById('vm-fecha-compra-container').style.display = 'none';
     }
-    // document.getElementById("vm-importe").value = v.importe || 0; 
 
-    const priceBadge = document.getElementById("vm-cat-price");
-    if (priceBadge) {
-        // Al gestionar, intentamos mostrar siempre el precio CALCULADO si hay match en catálogo
-        // Esto ayuda a detectar descuadres inmediatamente
-        const catalogMatch = findCatalogProduct(v);
-        const bonoPrice = parseFloat(v.importe) || parseFloat(v.precio) || 0;
+    // MANUAL DISCOUNT LOADING
+    const discountInput = document.getElementById("vm-manual-discount");
+    if (discountInput) {
+        const existingDiscount = parseFloat(v.discount_percent_max) || parseFloat(v.discount_rate) || 0;
+        discountInput.value = existingDiscount > 0 ? existingDiscount : '';
 
-        if (catalogMatch) {
-            const sessions = v.sesiones_totales || v.sesiones_total || detected.total || 1;
-            const pax = v.pax_por_sesion || v.pax_sesion || detected.paxPerSession || 1;
-            const basePrice = parseFloat(catalogMatch.precio) || 0;
-            const basePax = parseInt(catalogMatch.personas || catalogMatch.pax || 1);
-            const baseSessions = parseInt(catalogMatch.sesiones || 1);
-
-            const calculated = basePrice * (pax / basePax) * (sessions / baseSessions);
-
-            // PRIORIDAD: Mostrar precio pagado si existe, sino el calculado
-            if (bonoPrice > 0) {
-                priceBadge.textContent = bonoPrice.toFixed(2) + '€';
-            } else {
-                priceBadge.textContent = calculated.toFixed(2) + '€';
-            }
-
-            // Si hay descuadre con el pagado, lo indicamos visualmente
-            if (bonoPrice > 0 && Math.abs(bonoPrice - calculated) > 0.05) {
-                priceBadge.style.background = '#f59e0b'; // Naranja para advertencia
-                priceBadge.title = `Pagado: ${bonoPrice}€ / Catálogo: ${calculated.toFixed(2)}€`;
-            } else {
-                priceBadge.style.background = '#15803d'; // Verde estándar
-                priceBadge.title = "";
-            }
-        } else {
-            priceBadge.textContent = (bonoPrice > 0 ? bonoPrice : 0) + '€';
-            priceBadge.style.background = '#15803d';
-            priceBadge.title = "";
-        }
+        // Live update listener
+        discountInput.onkeyup = () => updatePriceBadgeCalculations(v);
+        discountInput.onchange = () => updatePriceBadgeCalculations(v);
     }
+
+    // Initial Badge Calc
+    updatePriceBadgeCalculations(v);
 
     // --- INYECCIÓN BOTÓN REFRESH ---
     const headerTitle = document.getElementById("vm-title-code").parentNode; // H2 container
@@ -3384,11 +3365,17 @@ async function openVoucherManagement(code) {
 
                     // 2. Space match (Restringido)
                     // No usar spaceMatch genérico para Spa, ya que cruza Masajes con Circuitos
+                    // 2. Space match (Multi-Space Aware)
                     let spaceMatch = false;
-                    if (item.space) {
-                        const s = item.space.toLowerCase();
+                    const allowed = item.allowedSpaces || (item.space ? [item.space] : []);
+
+                    for (const rawS of allowed) {
+                        const s = rawS.toLowerCase();
+
                         // Para Hotel, suele ser único item, así que es más seguro
-                        if (s === 'hotel' && ((h.origen || '').toLowerCase().includes('hotel') || h._col === 'reservas_restaurante')) spaceMatch = true;
+                        if (s === 'hotel' && ((h.origen || '').toLowerCase().includes('hotel') || h._col === 'reservas_restaurante')) {
+                            spaceMatch = true;
+                        }
 
                         // FIX: Restaurant Matching Logic
                         const hSrv = (h.servicio || '').toLowerCase(); // DEFINE hSrv FIRST
@@ -3397,7 +3384,7 @@ async function openVoucherManagement(code) {
                         const isRestCollection = ['reservas_restaurante', 'reservas_rest', 'reservas_menu', 'reservas', 'reservas_evento'].includes(h._col);
                         const isRestName = hSrv.includes('restaurante') || hSrv.includes('menu') || hSrv.includes('menú') || hSrv.includes('almuerzo') || hSrv.includes('cena');
 
-                        // Check if ITEM is restaurant related (by space OR by name)
+                        // Check if ITEM is restaurant related (by THIS space OR by name)
                         const isItemRest = (s === 'restaurante' || s === 'rest' || s === 'restauracion') || iName.includes('restaurante') || iName.includes('menu') || iName.includes('menú');
 
                         if (isItemRest) {
@@ -3408,6 +3395,8 @@ async function openVoucherManagement(code) {
                         // Solo si el item es MUY genérico (ej: "Bono Spa") habilitamos match por colección
                         // Evitamos match si es Restaurante
                         if (s === 'spa' && h._col === 'reservas_spa' && !isRestName) spaceMatch = true;
+
+                        if (spaceMatch) break;
                     }
 
                     return nameMatch || spaceMatch;
@@ -3631,6 +3620,14 @@ async function saveVoucherChanges() {
             updates.purchase_date = fechaCompra; // Canonical
         }
 
+        // MANUAL DISCOUNT PERSISTENCE
+        const discountInput = document.getElementById("vm-manual-discount");
+        if (discountInput) {
+            const discountVal = parseFloat(discountInput.value) || 0;
+            // Si el usuario introduce algo, lo guardamos. Si borra, guardamos 0 (o null)
+            updates.discount_percent_max = discountVal;
+        }
+
         // Get voucher from state to access variation_id and product_id
         const v = state.bonos.find(b => b.bono === code);
 
@@ -3655,9 +3652,17 @@ async function saveVoucherChanges() {
                 const paxRatio = updates.pax_por_sesion / basePax;
                 const sessionsRatio = updates.sesiones_totales / baseSessions;
 
-                updates.importe = basePrice * paxRatio * sessionsRatio;
+                let calculatedPrice = basePrice * paxRatio * sessionsRatio;
+
+                // APPLY MANUAL DISCOUNT TO SAVED PRICE
+                const discountToApply = parseFloat(updates.discount_percent_max) || 0;
+                if (discountToApply > 0) {
+                    calculatedPrice = calculatedPrice * (1 - (discountToApply / 100));
+                }
+
+                updates.importe = calculatedPrice;
                 updates.precio = updates.importe; // Mantener consistencia precio/importe
-                console.log(`[SAVE] Precio recalculado para bono local: ${updates.importe}€`);
+                console.log(`[SAVE] Precio recalculado (con dto ${discountToApply}%): ${updates.importe}€`);
             }
         } else {
             // Preserve existing WooCommerce price
@@ -4807,6 +4812,13 @@ async function createLocalVoucher() {
         sesiones_usadas: 0,
         pax_por_sesion: state.lvCart.length > 0 ? Math.max(...state.lvCart.map(i => i.pax || 1)) : 1,
         items_desglosados: allItems,
+        // DISCOUNT PERSISTENCE
+        discount_percent_max: state.lvCart.length > 0 ? Math.max(...state.lvCart.map(i => parseFloat(i.discount_percent) || 0)) : 0,
+        discount_total_amount: state.lvCart.reduce((sum, i) => {
+            const rawPrice = (i.originalProduct ? parseFloat(i.originalProduct.precio) : i.price) || i.price;
+            const diff = (rawPrice - i.price) * i.sessions;
+            return sum + (diff > 0 ? diff : 0);
+        }, 0),
         createdAt: new Date().toISOString(),
         manual_update: true,
         updated_at: new Date().toISOString()
@@ -6629,3 +6641,54 @@ window.resyncVoucherFromWooCommerce = async function () {
 };
 
 
+function updatePriceBadgeCalculations(v) {
+    const priceBadge = document.getElementById("vm-cat-price");
+    if (!priceBadge) return;
+
+    const catalogMatch = findCatalogProduct(v);
+    const bonoPrice = parseFloat(v.importe) || parseFloat(v.precio) || 0;
+
+    if (catalogMatch) {
+        // Detect sessions/pax from voucher first, fallback to catalog defaults
+        const sessions = parseInt(document.getElementById("vm-sesiones-total").value) || v.sesiones_totales || 1;
+        const pax = parseInt(document.getElementById("vm-pax-sesion").value) || v.pax_por_sesion || 1;
+
+        const basePrice = parseFloat(catalogMatch.precio) || 0;
+        const basePax = parseInt(catalogMatch.personas || catalogMatch.pax || 1);
+        const baseSessions = parseInt(catalogMatch.sesiones || 1);
+
+        let calculated = basePrice * (pax / basePax) * (sessions / baseSessions);
+
+        // LIVE INPUT ADJUSTMENT
+        const manualInput = document.getElementById("vm-manual-discount");
+        const liveDiscount = manualInput ? (parseFloat(manualInput.value) || 0) : 0;
+
+        // Fallback to stored if input empty, but input handles current state
+        const storedDiscount = parseFloat(v.discount_percent_max) || parseFloat(v.discount_rate) || 0;
+        const effectiveDiscount = liveDiscount > 0 ? liveDiscount : (manualInput && manualInput.value === '' ? storedDiscount : 0);
+
+        if (effectiveDiscount > 0) {
+            calculated = calculated * (1 - (effectiveDiscount / 100));
+        }
+
+        // PRIORIDAD: Mostrar precio pagado si existe, sino el calculado
+        if (bonoPrice > 0) {
+            priceBadge.textContent = bonoPrice.toFixed(2) + '€';
+        } else {
+            priceBadge.textContent = calculated.toFixed(2) + '€';
+        }
+
+        // Si hay descuadre con el pagado, lo indicamos visualmente
+        if (bonoPrice > 0 && Math.abs(bonoPrice - calculated) > 0.5) { // Margin of 0.50€
+            priceBadge.style.background = '#f59e0b'; // Naranja para advertencia
+            priceBadge.title = `Pagado: ${bonoPrice}€ / Catálogo(Dto ${effectiveDiscount}%): ${calculated.toFixed(2)}€`;
+        } else {
+            priceBadge.style.background = '#15803d'; // Verde estándar
+            priceBadge.title = effectiveDiscount > 0 ? `Precio ajustado por descuento local (-${effectiveDiscount}%)` : "Coincide con tarifa";
+        }
+    } else {
+        priceBadge.textContent = (bonoPrice > 0 ? bonoPrice : 0) + '€';
+        priceBadge.style.background = '#15803d';
+        priceBadge.title = "";
+    }
+}

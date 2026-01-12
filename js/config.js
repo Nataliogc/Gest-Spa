@@ -51,6 +51,63 @@ function initConfig() {
     cargarMasterItems();
     cargarSpaces();
     cargarComplementos();
+    injectMultiSelectStyles();
+}
+
+function injectMultiSelectStyles() {
+    if (document.getElementById('ms-styles')) return;
+    const style = document.createElement('style');
+    style.id = 'ms-styles';
+    style.innerHTML = `
+        .ms-container { position: relative; width: 100%; min-width: 140px; }
+        .ms-trigger {
+            width: 100%;
+            padding: 6px 10px;
+            background: #fff;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            color: #334155;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: all 0.2s;
+        }
+        .ms-trigger:hover { border-color: #94a3b8; background: #f8fafc; }
+        .ms-options {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            width: 100%; 
+            min-width: 220px;
+            z-index: 99999;
+            background: #fff;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.15), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+            padding: 6px;
+            display: none;
+            max-height: 250px;
+            overflow-y: auto;
+            margin-top: 4px;
+        }
+        .ms-options.show { display: block; animation: fadeIn 0.15s ease-out; }
+        .ms-option {
+            display: flex;
+            align-items: center;
+            padding: 8px 10px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            border-radius: 4px;
+            color: #475569;
+            transition: background 0.1s;
+        }
+        .ms-option:hover { background: #f1f5f9; color: #0f172a; }
+        .ms-option input { margin-right: 10px; accent-color: var(--accent, #d4af37);  }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
+    `;
+    document.head.appendChild(style);
 }
 
 // --- TABS ---
@@ -259,9 +316,11 @@ async function cargarMasterItems() {
     }
 }
 
+
 function renderMasterItems() {
     const list = document.getElementById("master-items-tbody");
     if (!list) return;
+
 
     if (spaConfigState.masterItems.length === 0) {
         list.innerHTML = `<tr><td colspan="5" style="padding: 30px; text-align: center; color: #94a3b8;">No hay items configurados.</td></tr>`;
@@ -284,6 +343,27 @@ function renderMasterItems() {
                 includedItem.toLowerCase().trim() === item.name.toLowerCase().trim()
             );
         }).length;
+
+        // -- LOGICA MULTI-SELECT --
+        // Determinar espacios seleccionados (Legacy 'space' string vs New 'allowedSpaces' array)
+        let selectedCodes = [];
+        if (item.allowedSpaces && Array.isArray(item.allowedSpaces)) {
+            selectedCodes = item.allowedSpaces;
+        } else if (item.space) {
+            selectedCodes = [item.space];
+        }
+
+        // Texto resumen para el trigger
+        let summaryText = "Sin asignar";
+        if (selectedCodes.length > 0) {
+            if (selectedCodes.length === 1) {
+                const s = spaConfigState.spaces.find(sp => sp.code === selectedCodes[0]);
+                summaryText = s ? s.name : selectedCodes[0];
+            } else {
+                summaryText = `${selectedCodes.length} espacios`;
+            }
+        }
+
         return `
         <tr style="border-bottom: 1px solid #f1f5f9;">
             <td style="padding: 10px 12px;">
@@ -296,12 +376,27 @@ function renderMasterItems() {
                         class="param-input" style="width: 90px; text-align: center;" min="0" max="300">`
             }
             </td>
-            <td style="padding: 10px 12px;">
+            <td style="padding: 10px 12px; overflow: visible;">
                 ${isComplement ? '<span class="muted text-xs">N/A</span>' :
-                `<select onchange="updateMasterItemField('${item.id}', 'space', this.value)" class="param-input" style="width:100%;">
-                    <option value="" ${!item.space ? 'selected' : ''}>Sin asignar</option>
-                    ${spaConfigState.spaces.map(s => `<option value="${s.code}" ${item.space === s.code ? 'selected' : ''}>${s.name}</option>`).join('')}
-                </select>`
+                `
+                <div class="ms-container" id="ms-${item.id}">
+                    <div class="ms-trigger" onclick="toggleMultiSelect('${item.id}', event)">
+                        <span>${summaryText}</span>
+                        <i class="fas fa-chevron-down" style="font-size: 0.7em; opacity: 0.5;"></i>
+                    </div>
+                    <div class="ms-options">
+                        ${spaConfigState.spaces.map(s => {
+                    const checked = selectedCodes.includes(s.code) ? 'checked' : '';
+                    return `
+                                <label class="ms-option">
+                                    <input type="checkbox" ${checked} onchange="updateMasterItemSpaces('${item.id}', '${s.code}', this.checked)">
+                                    ${s.name}
+                                </label>
+                            `;
+                }).join('')}
+                    </div>
+                </div>
+                `
             }
             </td>
             <td style="padding: 10px 12px; text-align: center;">
@@ -319,15 +414,103 @@ function renderMasterItems() {
     `}).join('');
 }
 
+// --- MULTI-SELECT HELPERS ---
+
+function toggleMultiSelect(id, event) {
+    console.log("Toggle Multi Select", id);
+    if (event) event.stopPropagation();
+    // Close others
+    document.querySelectorAll('.ms-options').forEach(el => {
+        if (el.parentElement.id !== `ms-${id}`) el.classList.remove('show');
+    });
+
+    const container = document.getElementById(`ms-${id}`);
+    if (container) {
+        const opts = container.querySelector('.ms-options');
+        opts.classList.toggle('show');
+    }
+}
+
+// Close dropdowns when clicking outside (Added once in styles init or global)
+document.addEventListener('click', () => {
+    document.querySelectorAll('.ms-options.show').forEach(el => el.classList.remove('show'));
+});
+
+
 async function updateMasterItemField(id, field, value) {
     try {
         await db.collection("spa_item_master").doc(id).update({
             [field]: value,
             updated_at: new Date().toISOString()
         });
+        // Si cambiamos nombre, la UI se refresca sola con el onchange, 
+        // pero para consistencia estado local:
+        const item = spaConfigState.masterItems.find(i => i.id === id);
+        if (item) item[field] = value;
+
     } catch (err) {
         showToast("Error actualizando: " + err.message, "error");
     }
+}
+
+async function updateMasterItemSpaces(id, spaceCode, isChecked) {
+    try {
+        const item = spaConfigState.masterItems.find(i => i.id === id);
+        if (!item) return;
+
+        // Migración on-the-fly: si no tiene allowedSpaces, lo creamos desde space
+        let currentSpaces = item.allowedSpaces || [];
+        if (!item.allowedSpaces && item.space) {
+            currentSpaces = [item.space];
+        }
+
+        if (isChecked) {
+            if (!currentSpaces.includes(spaceCode)) currentSpaces.push(spaceCode);
+        } else {
+            currentSpaces = currentSpaces.filter(c => c !== spaceCode);
+        }
+
+        // Optimistic update local state
+        item.allowedSpaces = currentSpaces;
+        // Update Legacy 'space' property just in case (optional, maybe keep sync for backward compat or clear it)
+        // Let's clear it or set to first to avoid confusing old logic? 
+        // For now: Leave 'space' as is OR update it to the first one for limited backward compat
+        // item.space = currentSpaces.length > 0 ? currentSpaces[0] : ""; 
+
+        // Rerender row partially or fully? Fully is safer to update Summary Text
+        renderMasterItems(); // This might close the dropdown, which is annoying.
+        // Better: Don't re-render fully, just update state and DB. 
+        // The user presumably wants to keep clicking.
+        // We will manually update the summary text if we don't full render.
+        updateSummaryText(id, currentSpaces);
+
+        await db.collection("spa_item_master").doc(id).update({
+            allowedSpaces: currentSpaces,
+            updated_at: new Date().toISOString()
+        });
+
+    } catch (err) {
+        console.error(err);
+        showToast("Error al actualizar espacios: " + err.message, "error");
+        renderMasterItems(); // Revert on error
+    }
+}
+
+function updateSummaryText(id, codes) {
+    const container = document.getElementById(`ms-${id}`);
+    if (!container) return;
+    const summarySpan = container.querySelector('.ms-trigger span');
+
+    let text = "Sin asignar";
+    if (codes.length > 0) {
+        if (codes.length === 1) {
+            const s = spaConfigState.spaces.find(sp => sp.code === codes[0]);
+            text = s ? s.name : codes[0];
+        } else {
+            text = `${codes.length} espacios`;
+        }
+    }
+    summarySpan.textContent = text;
 }
 
 function showItemUsage(itemId, itemName) {
@@ -538,6 +721,24 @@ async function cargarSpaces() {
         const snapshot = await db.collection("spa_spaces").orderBy("name", "asc").get();
         spaConfigState.spaces = [];
         snapshot.forEach(doc => spaConfigState.spaces.push({ id: doc.id, ...doc.data() }));
+
+        // FALLBACK DEFAULT SPACES IF DB EMPTY
+        if (spaConfigState.spaces.length === 0) {
+            console.warn("No spaces in DB, using defaults.");
+            const DEFAULT_SPACES = [
+                { code: 'spa', name: 'Spa', capacity: 20, type: 'circuit' },
+                { code: 'panacea', name: 'Panacea (Cabinas)', capacity: 5, type: 'service' },
+                { code: 'suite', name: 'Suite Spa', capacity: 2, type: 'private' },
+                { code: 'vip', name: 'Sala VIP', capacity: 4, type: 'private' },
+                { code: 'peluqueria', name: 'Peluquería', capacity: 2, type: 'service' },
+                { code: 'gimnasio', name: 'Gimnasio', capacity: 10, type: 'other' },
+                { code: 'restaurante', name: 'Restaurante', capacity: 50, type: 'other' },
+                { code: 'terraza', name: 'Terraza', capacity: 30, type: 'other' },
+                { code: 'jardin', name: 'Jardín', capacity: 20, type: 'other' }
+            ];
+            spaConfigState.spaces = DEFAULT_SPACES;
+        }
+
         renderSpaces();
         renderMasterItems(); // Refresh dropdowns
     } catch (err) {

@@ -336,10 +336,19 @@
 
 
             <li><a href="reservas.html?type=spa" class="nav-link"><i class="fas fa-water"></i> Spa</a></li>
-            <li><a href="reservas.html?type=suite" class="nav-link"><i class="fas fa-gem"></i> Suite</a></li>
-            <li><a href="reservas.html?type=panacea" class="nav-link"><i class="fas fa-columns"></i> Panacea & VIP</a>
+            <li><a href="reservas.html?type=cabinas" class="nav-link"><i class="fas fa-cubes"></i> Cabinas</a></li>
+
+            <li class="dropdown">
+                <a href="#" class="nav-link dropdown-toggle">
+                    <i class="fas fa-door-open"></i> Salas <i class="fas fa-caret-down"
+                        style="font-size: 0.7em; margin-left: 5px;"></i>
+                </a>
+                <ul class="dropdown-menu">
+                    <li><a href="reservas.html?type=suite"><i class="fas fa-gem"></i> Suite</a></li>
+                    <li><a href="reservas.html?type=panacea"><i class="fas fa-columns"></i> Panacea & VIP</a></li>
+                    <li><a href="reservas.html?type=peluqueria"><i class="fas fa-cut"></i> Peluquería</a></li>
+                </ul>
             </li>
-            <li><a href="reservas.html?type=peluqueria" class="nav-link"><i class="fas fa-cut"></i> Peluquería</a></li>
 
             <li class="dropdown">
                 <a href="#" class="nav-link dropdown-toggle">
@@ -454,6 +463,26 @@
             <div id="split-col-2" style="display: flex; flex-direction: column; height: 100%;">
                 <h3 style="text-align: center; margin-bottom: 10px; color: var(--accent);">SALA PANACEA</h3>
                 <div id="timeline-container-panacea" class="timeline-mode" style="flex:1;"></div>
+            </div>
+        </div>
+
+        <!-- Cabinas View Container -->
+        <div id="cabinas-view-container"
+            style="display: none; grid-template-columns: 1fr 1fr 1fr; gap: 20px; height: calc(100vh - 160px);">
+            <!-- Col 1 -->
+            <div id="split-col-c1" style="display: flex; flex-direction: column; height: 100%;">
+                <h3 style="text-align: center; margin-bottom: 10px; color: var(--accent);">CABINA 1</h3>
+                <div id="timeline-container-cabina1" class="timeline-mode" style="flex:1;"></div>
+            </div>
+            <!-- Col 2 -->
+            <div id="split-col-c2" style="display: flex; flex-direction: column; height: 100%;">
+                <h3 style="text-align: center; margin-bottom: 10px; color: var(--accent);">CABINA 2</h3>
+                <div id="timeline-container-cabina2" class="timeline-mode" style="flex:1;"></div>
+            </div>
+            <!-- Col 3 -->
+            <div id="split-col-c3" style="display: flex; flex-direction: column; height: 100%;">
+                <h3 style="text-align: center; margin-bottom: 10px; color: var(--accent);">CABINA 3</h3>
+                <div id="timeline-container-cabina3" class="timeline-mode" style="flex:1;"></div>
             </div>
         </div>
 
@@ -863,6 +892,42 @@
                 slotsSun: SLOTS_15_MIN,
                 isPrivate: false,
                 requiresStaff: true,
+                viewType: 'timeline'
+            },
+            'cabina1': {
+                code: 'cabina1',
+                name: 'CABINA 1',
+                collection: 'reservas_cabina1',
+                capacity: 1,
+                isPrivate: true,
+                requiresStaff: true,
+                viewType: 'timeline'
+            },
+            'cabina2': {
+                code: 'cabina2',
+                name: 'CABINA 2',
+                collection: 'reservas_cabina2',
+                capacity: 1,
+                isPrivate: true,
+                requiresStaff: true,
+                viewType: 'timeline'
+            },
+            'cabina3': {
+                code: 'cabina3',
+                name: 'CABINA 3',
+                collection: 'reservas_cabina3',
+                capacity: 1,
+                isPrivate: true,
+                requiresStaff: true,
+                viewType: 'timeline'
+            },
+            'cabinas': {
+                code: 'cabinas', // Wrapper module for view switching
+                name: 'CABINAS',
+                collection: 'reservas_cabinas_placeholder',
+                capacity: 0,
+                isPrivate: false,
+                requiresStaff: false,
                 viewType: 'timeline'
             }
         };
@@ -1571,21 +1636,63 @@
 
             service.items_incluidos.forEach(itemName => {
                 const master = window.masterItems.find(mi => mi.name === itemName);
-                if (master && master.space) {
-                    // Map space names to module codes
-                    let modCode = null;
-                    const spaceLower = master.space.toLowerCase();
+                // Support allowedSpaces array or legacy 'space' string
+                const allowed = (master && master.allowedSpaces && Array.isArray(master.allowedSpaces))
+                    ? master.allowedSpaces
+                    : (master && master.space ? [master.space] : []);
 
-                    if (spaceLower.includes("panacea")) modCode = 'panacea';
-                    else if (spaceLower.includes("vip")) modCode = 'vip';
-                    else if (spaceLower.includes("suite")) modCode = 'suite';
-                    else if (spaceLower.includes("peluquería") || spaceLower.includes("peluqueria")) modCode = 'peluqueria';
+                if (allowed.length > 0) {
+                    // Check if current module matches any allowed space
+                    // We need to map allowed codes to checking logic if not direct match
+                    // Current modules: spa, cabinas (cabina1..3), suite, panacea, vip, peluqueria
 
-                    // Si encontramos un requisito de sala ESPECIAL y NO estamos en ella (y no estamos en modo "combined" que permite todo)
-                    if (modCode && modCode !== 'spa' && currentModule.code !== modCode && moduleType !== 'combined') {
-                        requiredModule = modCode;
-                        requiredModuleName = master.space;
-                        triggerItem = itemName;
+                    let isAllowedInCurrent = false;
+
+                    // Helper to map code to broader category if needed
+                    const checkMatch = (code) => {
+                        const c = code.toLowerCase();
+                        if (c === currentModule.code) return true;
+                        // Handle Cabinas generic vs specific
+                        if (c === 'panacea' && (currentModule.code === 'panacea' || currentModule.code === 'cabinas')) return true; // Assuming Panacea is separate, but user might group
+                        // Actually 'cabinas' view has cabina1, cabina2. currentModule.code might be 'cabina1'.
+                        if (currentModule.code.startsWith('cabina') && c === 'panacea') return true; // Panacea often implies Cabinas
+                        // Handle "Spa" allowing things? No, restrictions are usually exclusion.
+                        return false;
+                    };
+
+                    // Check if ANY allowed code matches current context
+                    isAllowedInCurrent = allowed.some(code => checkMatch(code));
+
+                    // Direct match check (simplest)
+                    if (allowed.includes(currentModule.code)) isAllowedInCurrent = true;
+
+                    // Special case: Cabinas view usually displays multiple cabinas. 
+                    // If item requires "cabinaXY" and we are in "cabinas" view, it's confusing because "cabinas" view is aggregation?
+                    // But usually we are adding a reservation to a specific module (e.g. cabina1).
+                    // Wait, currentModule.code is defined at top of pages. 
+                    // If viewType is 'cabinas', currentModule might be just one?
+                    // In reservas.html, currentModule is set based on ?type=.
+
+                    // Logic Revamp:
+                    // If allowed does NOT include currentModule.code (and no special mapping applies), suggest redirect.
+                    if (!isAllowedInCurrent && moduleType !== 'combined') {
+
+                        // Determine target to suggest
+                        let targetCode = allowed[0];
+                        let targetName = targetCode; // Should lookup name in config but simplified here
+
+                        // Fix legacy mapping if needed (e.g. if code was 'Panacea (Cabinas)')
+                        if (targetCode.toLowerCase().includes('panacea')) targetCode = 'panacea';
+                        if (targetCode.toLowerCase().includes('suite')) targetCode = 'suite';
+                        if (targetCode.toLowerCase().includes('vip')) targetCode = 'vip';
+                        if (targetCode.toLowerCase().includes('pelu')) targetCode = 'peluqueria';
+
+                        // Avoid self-redirect if logic failed
+                        if (targetCode !== currentModule.code) {
+                            requiredModule = targetCode;
+                            requiredModuleName = targetCode.toUpperCase();
+                            triggerItem = itemName;
+                        }
                     }
                 }
             });
@@ -1862,6 +1969,65 @@
                         }
                     }
                     return; // Stop standard flow
+                }
+
+                if (moduleType === 'cabinas') {
+                    document.getElementById("slots-container").style.display = 'none';
+                    document.getElementById("cabinas-view-container").style.display = 'grid';
+
+                    const [cab1, cab2, cab3] = [MODULES['cabina1'], MODULES['cabina2'], MODULES['cabina3']];
+
+                    // A1. LOCAL LOAD (Fast render)
+                    if (window.apiLocal) {
+                        try {
+                            const allLocal = await apiLocal.getReservasByDate(date);
+                            if (allLocal && allLocal.length > 0) {
+                                const l1 = allLocal.filter(r => r.collection === cab1.collection);
+                                const l2 = allLocal.filter(r => r.collection === cab2.collection);
+                                const l3 = allLocal.filter(r => r.collection === cab3.collection);
+
+                                if (l1.length || l2.length || l3.length) {
+                                    renderTimeline(date, 'timeline-container-cabina1', cab1, l1, {});
+                                    renderTimeline(date, 'timeline-container-cabina2', cab2, l2, {});
+                                    renderTimeline(date, 'timeline-container-cabina3', cab3, l3, {});
+                                    currentData = [...l1, ...l2, ...l3];
+                                }
+                            }
+                        } catch (e) { console.warn("Local load cabinas error:", e); }
+                    }
+
+                    // A2. REMOTE LOAD
+                    try {
+                        const [snap1, snap2, snap3] = await Promise.all([
+                            db.collection(cab1.collection).where("fecha", "==", date).get(),
+                            db.collection(cab2.collection).where("fecha", "==", date).get(),
+                            db.collection(cab3.collection).where("fecha", "==", date).get()
+                        ]);
+
+                        const d1 = [], d2 = [], d3 = [];
+                        snap1.forEach(doc => d1.push({ id: doc.id, ...doc.data(), collection: cab1.collection }));
+                        snap2.forEach(doc => d2.push({ id: doc.id, ...doc.data(), collection: cab2.collection }));
+                        snap3.forEach(doc => d3.push({ id: doc.id, ...doc.data(), collection: cab3.collection }));
+
+                        currentData = [...d1, ...d2, ...d3];
+
+                        // Save Local
+                        if (window.apiLocal) {
+                            for (const res of currentData) {
+                                await apiLocal.saveReserva({ ...res, syncStatus: 'synced' });
+                            }
+                        }
+
+                        renderTimeline(date, 'timeline-container-cabina1', cab1, d1, {});
+                        renderTimeline(date, 'timeline-container-cabina2', cab2, d2, {});
+                        renderTimeline(date, 'timeline-container-cabina3', cab3, d3, {});
+
+                        if (window.updateGlobalSyncStatus) updateGlobalSyncStatus('synced');
+
+                    } catch (err) {
+                        console.error("Error loading cabinas:", err);
+                    }
+                    return;
                 }
 
 

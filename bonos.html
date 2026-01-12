@@ -35,10 +35,19 @@
 
 
             <li><a href="reservas.html?type=spa" class="nav-link"><i class="fas fa-water"></i> Spa</a></li>
-            <li><a href="reservas.html?type=suite" class="nav-link"><i class="fas fa-gem"></i> Suite</a></li>
-            <li><a href="reservas.html?type=panacea" class="nav-link"><i class="fas fa-columns"></i> Panacea & VIP</a>
+            <li><a href="reservas.html?type=cabinas" class="nav-link"><i class="fas fa-cubes"></i> Cabinas</a></li>
+
+            <li class="dropdown">
+                <a href="#" class="nav-link dropdown-toggle">
+                    <i class="fas fa-door-open"></i> Salas <i class="fas fa-caret-down"
+                        style="font-size: 0.7em; margin-left: 5px;"></i>
+                </a>
+                <ul class="dropdown-menu">
+                    <li><a href="reservas.html?type=suite"><i class="fas fa-gem"></i> Suite</a></li>
+                    <li><a href="reservas.html?type=panacea"><i class="fas fa-columns"></i> Panacea & VIP</a></li>
+                    <li><a href="reservas.html?type=peluqueria"><i class="fas fa-cut"></i> Peluquería</a></li>
+                </ul>
             </li>
-            <li><a href="reservas.html?type=peluqueria" class="nav-link"><i class="fas fa-cut"></i> Peluquería</a></li>
 
             <li class="dropdown">
                 <a href="#" class="nav-link dropdown-toggle">
@@ -254,7 +263,18 @@
                                     <span id="vm-cat-price"
                                         style="background: #15803d; color: white; font-weight: 700; font-size: 0.7rem; padding: 2px 6px; border-radius: 4px;">0€</span>
                                 </div>
-                                Producto</h4>
+
+                                <!-- MANUAL DISCOUNT OVERRIDE -->
+                                <div
+                                    style="margin-top: 6px; display: flex; align-items: center; gap: 5px; background: #fffbeb; padding: 4px; border-radius: 4px; border: 1px dotted #fbbf24;">
+                                    <label style="font-size: 0.65rem; color: #92400e; font-weight: 600;">% Dto.
+                                        Manual:</label>
+                                    <input type="number" id="vm-manual-discount" min="0" max="100" class="param-input"
+                                        placeholder="0"
+                                        style="width: 40px; padding: 2px; font-size: 0.7rem; text-align: center; border-color: #fbbf24; height: auto;"
+                                        title="Introduce descuento para corregir avisos de precio">
+                                </div>
+
                                 <p id="vm-cat-desc"
                                     style="font-size: 0.65rem; color: #64748b; margin: 2px 0 0 0; line-height: 1.2; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">
                                 </p>
