@@ -633,8 +633,9 @@ function getSpaceForService(serviceName) {
 // Helper para redirección
 // Helper para redirección a gestión de restaurante
 async function openRestauranteFromVoucher(client, service, code, space, pax, phone) {
-    // Path absoluto hardcoded para integración local fiable
-    const basePath = "file:///C:/Users/comun/Documents/GitHub/gestion-Salones/restaurante.html";
+    // Path dinámico detectado automáticamente
+    const base = (typeof getBaseURL === 'function') ? getBaseURL('gestion-Salones') : '';
+    const basePath = `${base}restaurante.html`;
 
     // Ensure config is loaded
     if (!spaConfigState.spaConfig || (!spaConfigState.spaConfig.wc_url && !spaConfigState.spaConfig.whatsappTemplate)) {
@@ -2657,13 +2658,13 @@ async function openVoucherManagement(code) {
         formatPhoneNumber(document.getElementById("vm-telefono"));
     }
     document.getElementById("vm-producto").value = v.producto || '';
-    const rawDate = v.fecha || v.fecha_compra || v.date_created || '';
-    document.getElementById("vm-fecha-compra").value = formatDateToISO(rawDate);
-
-    // Mostrar campo de fecha de compra SIEMPRE que haya una fecha disponible (Universal visibility)
-    const fechaCompraContainer = document.getElementById("vm-fecha-compra-container");
-    if (fechaCompraContainer) {
-        fechaCompraContainer.style.display = rawDate ? 'block' : 'none';
+    // Fecha de Compra (Canonical: purchase_date)
+    const displayDate = v.purchase_date || v.fecha || v.fecha_compra || v.date_created;
+    if (displayDate) {
+        document.getElementById('vm-fecha-compra-container').style.display = 'block';
+        document.getElementById('vm-fecha-compra').value = formatDateToISO(displayDate);
+    } else {
+        document.getElementById('vm-fecha-compra-container').style.display = 'none';
     }
     // document.getElementById("vm-importe").value = v.importe || 0; 
 
@@ -5262,11 +5263,13 @@ async function syncSingleVoucher(code) {
                 updateData.importe = updateData.precio;
             }
 
-            // 3. Fecha (Universal Date Persistence)
+            // 3. Fecha (Universal Date Persistence - Canonical: purchase_date)
             const extractedDate = b.fecha || b.date_created || b.fecha_compra;
             if (extractedDate) {
-                b.fecha = extractedDate;
+                b.fecha = extractedDate; // Legacy support
+                b.purchase_date = extractedDate; // New canonical field
                 updateData.fecha = extractedDate;
+                updateData.purchase_date = extractedDate;
             }
 
             // 4. IDs Técnicos (Para mapeo determinista)

@@ -239,6 +239,32 @@ function formatDateToISO(dateStr) {
 }
 
 
+/**
+ * Utility to determine the base URL for external modules (salones, peluqueria, etc.)
+ * Detects if running on GitHub Pages, localhost or local filesystem.
+ */
+window.getBaseURL = function (moduleName) {
+    const host = window.location.hostname;
+    const isGitHub = host.includes('github.io');
+    const isLocalhost = host.includes('localhost') || host.includes('127.0.0.1');
+
+    if (isGitHub) {
+        // En GitHub Pages: asume organización/username común
+        const parts = window.location.pathname.split('/');
+        const org = parts[1] || 'nataliogc';
+        return `https://${org}.github.io/${moduleName}/`;
+    } else if (isLocalhost) {
+        // En Localhost: asume servidores en puertos adyacentes o carpetas relativas
+        // Depende de la configuración, pero por defecto intentamos carpeta relativa de nivel superior
+        return `../${moduleName}/`;
+    } else {
+        // En File (Local filesystem): usa path absoluto del sistema o relativo
+        // Nota: Browsers bloquean file:// -> file:// por seguridad si no se abren explícitamente.
+        // Proponemos relative path como fallback más seguro
+        return `../../${moduleName}/`;
+    }
+};
+
 function generateUID() {
     return Date.now().toString(36) + Math.random().toString(36).substr(2);
 }

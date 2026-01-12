@@ -75,10 +75,12 @@ window.resyncVoucherFromWooCommerce = async function () {
 
         // Update Firestore
         const docRef = db.collection("spa_vouchers").doc(code);
+        const purchaseDate = freshVoucher.fecha || freshVoucher.fecha_compra || freshVoucher.date_created || null;
         const updateData = {
             importe: freshPrice,
             precio: freshPrice,
-            fecha: freshVoucher.fecha || freshVoucher.fecha_compra || freshVoucher.date_created || null,
+            fecha: purchaseDate,
+            purchase_date: purchaseDate,
             items_desglosados: (typeof resolveVoucherBreakdown === 'function') ? resolveVoucherBreakdown(freshVoucher) : (freshVoucher.items_desglosados || []),
             product_id: freshVoucher.product_id || null,
             variation_id: freshVoucher.variation_id || null,

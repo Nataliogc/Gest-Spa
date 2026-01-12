@@ -305,8 +305,21 @@
             btn.disabled = true;
 
             try {
-                const response = await fetch(URL_PEDIDOS);
-                if (!response.ok) throw new Error('Error de red');
+                let response;
+                try {
+                    // Intento directo
+                    console.log("[SYNC] Intentando fetch directo...");
+                    response = await fetch(URL_PEDIDOS);
+                } catch (e) {
+                    console.warn("[SYNC] Fetch directo falló (CORS?), intentando proxy fallback...");
+                    if (typeof fetchWithProxyFallback === 'function') {
+                        response = await fetchWithProxyFallback(URL_PEDIDOS);
+                    } else {
+                        throw e;
+                    }
+                }
+
+                if (!response.ok) throw new Error('Error de red: ' + response.status);
 
                 state.pedidos = await response.json();
                 state.filteredPedidos = [...state.pedidos];
@@ -330,7 +343,7 @@
             const refunded = state.pedidos.filter(p => p.estado === 'refunded').length;
             const lostRevenue = state.pedidos
                 .filter(p => ['cancelled', 'pending', 'failed'].includes(p.estado))
-                .reduce((sum, p) => sum + (p.total || 0), 0);
+                .reduce((sum, p) => sum + (parseFloat(p.total) || 0), 0);
 
             document.getElementById('stat-cancelled').textContent = cancelled;
             document.getElementById('stat-pending').textContent = pending;
@@ -438,11 +451,22 @@
             btn.disabled = true;
 
             try {
-                const response = await fetch(URL_RECOVERY_EMAIL, {
+                let response;
+                const options = {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ order_id: orderId })
-                });
+                };
+
+                try {
+                    response = await fetch(URL_RECOVERY_EMAIL, options);
+                } catch (e) {
+                    if (typeof fetchWithProxyFallback === 'function') {
+                        response = await fetchWithProxyFallback(URL_RECOVERY_EMAIL, options);
+                    } else {
+                        throw e;
+                    }
+                }
 
                 const result = await response.json();
 
