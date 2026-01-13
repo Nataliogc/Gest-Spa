@@ -111,11 +111,32 @@ function injectMultiSelectStyles() {
 }
 
 // --- TABS ---
+let connectionsAuth = false;
+
 function switchConfigTab(tabId, btn) {
+    if (tabId === 'tab-conexiones' && !connectionsAuth) {
+        const u = prompt("Usuario de Acceso:");
+        if (u !== 'Admin') {
+            alert("Acceso denegado");
+            return;
+        }
+        const p = prompt("Clave de Acceso:");
+        if (p !== 'ZENITH2026') {
+            alert("Acceso denegado");
+            return;
+        }
+        connectionsAuth = true;
+    }
+
     document.querySelectorAll(".config-tab-content").forEach(tab => tab.style.display = "none");
     document.getElementById(tabId).style.display = "block";
     document.querySelectorAll(".config-tab").forEach(b => b.classList.remove("active"));
     if (btn) btn.classList.add("active");
+}
+
+function scrollToSection(id) {
+    const el = document.getElementById(id);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 // --- GLOBAL SETTINGS ---
@@ -213,6 +234,7 @@ async function saveSpaSettings() {
 }
 
 // --- DISABLED DATES ---
+// --- DISABLED DATES ---
 function renderClosedDates() {
     const list = document.getElementById("cfg-closed-dates-list");
     if (!list) return;
@@ -222,32 +244,104 @@ function renderClosedDates() {
         return;
     }
 
-    spaConfigState.spaConfig.closedDates.sort();
+    // Sort by date
+    spaConfigState.spaConfig.closedDates.sort((a, b) => {
+        const da = typeof a === 'string' ? a : a.date;
+        const db = typeof b === 'string' ? b : b.date;
+        return da.localeCompare(db);
+    });
 
-    list.innerHTML = spaConfigState.spaConfig.closedDates.map(date => `
+    list.innerHTML = spaConfigState.spaConfig.closedDates.map(item => {
+        const date = typeof item === 'string' ? item : item.date;
+        const reason = (typeof item === 'object' && item.reason) ? item.reason : '';
+        const reasonHtml = reason ? `<span style="font-size: 0.75rem; color: #64748b; margin-left: 10px; font-style: italic;">(${reason})</span>` : '';
+
+        return `
         <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 12px; background: white; border-radius: 6px; border: 1px solid var(--border); margin-bottom: 2px;">
-            <span style="font-size: 0.8rem; font-weight: 500;"><i class="fas fa-calendar-day" style="color: var(--accent); margin-right: 8px;"></i>${formatDate(date)}</span>
+            <div style="display: flex; align-items: center;">
+                <span style="font-size: 0.8rem; font-weight: 500;"><i class="fas fa-calendar-day" style="color: var(--accent); margin-right: 8px;"></i>${formatDate(date)}</span>
+                ${reasonHtml}
+            </div>
             <button onclick="removeClosedDate('${date}')" style="background:none; border:none; color:#ff5252; cursor:pointer; padding: 4px;"><i class="fas fa-trash-alt"></i></button>
         </div>
-    `).join('');
+    `}).join('');
 }
 
-function addClosedDate() {
-    const input = document.getElementById("cfg-spa-closed-date");
-    const date = input.value;
-    if (!date) return;
+async function addClosedDate() {
+    const inputDate = document.getElementById("cfg-spa-closed-date");
+    const inputReason = document.getElementById("cfg-spa-closed-reason");
+    const date = inputDate.value;
+    const reason = inputReason ? inputReason.value.trim() : "";
 
-    if (!spaConfigState.spaConfig.closedDates.includes(date)) {
-        spaConfigState.spaConfig.closedDates.push(date);
+    if (!date) return;
+    if (!reason) {
+        showToast("El motivo de cierre es obligatorio", "warning");
+        return;
+    }
+
+    // Check if checks already in list
+    const exists = spaConfigState.spaConfig.closedDates.some(d => (typeof d === 'string' ? d : d.date) === date);
+    if (exists) {
+        showToast("Esa fecha ya está en la lista de cierres", "warning");
+        return;
+    }
+
+    // CHECK FOR EXISTING RESERVATIONS
+    // Collections to check
+    const collections = ['reservas_spa', 'reservas_suite', 'reservas_panacea', 'reservas_vip', 'reservas_peluqueria', 'reservas_cabina1', 'reservas_cabina2', 'reservas_cabina3'];
+
+    let hasConflict = false;
+    let conflictCount = 0;
+
+    // Show loading feedback
+    const btn = document.querySelector("button[onclick='addClosedDate()']");
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+    btn.disabled = true;
+
+    try {
+        const checks = collections.map(col => db.collection(col).where("fecha", "==", date).get());
+        const results = await Promise.all(checks);
+
+        results.forEach(snap => {
+            snap.forEach(doc => {
+                const d = doc.data();
+                if (d.status !== 'anulada') {
+                    hasConflict = true;
+                    conflictCount++;
+                }
+            });
+        });
+
+        if (hasConflict) {
+            alert(`NO SE PUEDE CERRAR EL DÍA:\n\nSe han encontrado ${conflictCount} reserva(s) activa(s) para el ${formatDate(date)}.\n\nDebes cancelar o mover estas reservas antes de poder bloquear la fecha.`);
+            return;
+        }
+
+        // Add new date object
+        spaConfigState.spaConfig.closedDates.push({ date, reason });
         renderClosedDates();
-        input.value = "";
-    } else {
-        showToast("Esa fecha ya está en la lista", "warning");
+
+        // Clear inputs
+        inputDate.value = "";
+        if (inputReason) inputReason.value = "";
+        showToast("Fecha cerrada correctamente", "success");
+
+    } catch (err) {
+        console.error("Error checking reservations:", err);
+        showToast("Error verificando reservas: " + err.message, "error");
+    } finally {
+        btn.innerHTML = originalText;
+        btn.disabled = false;
     }
 }
 
 function removeClosedDate(date) {
-    spaConfigState.spaConfig.closedDates = spaConfigState.spaConfig.closedDates.filter(d => d !== date);
+    // Filter out by string or object.date
+    spaConfigState.spaConfig.closedDates = spaConfigState.spaConfig.closedDates.filter(d => {
+        const dDate = typeof d === 'string' ? d : d.date;
+        return dDate !== date;
+    });
     renderClosedDates();
 }
 
@@ -323,19 +417,14 @@ function renderMasterItems() {
 
 
     if (spaConfigState.masterItems.length === 0) {
-        list.innerHTML = `<tr><td colspan="5" style="padding: 30px; text-align: center; color: #94a3b8;">No hay items configurados.</td></tr>`;
+        list.innerHTML = `<tr><td colspan="6" style="padding: 30px; text-align: center; color: #94a3b8;">No hay items configurados.</td></tr>`;
         return;
     }
 
-    const complementoKeywords = ['benjamin', 'ramo', 'flores', 'rosella', 'vino', 'cava', 'champagne', 'agua', 'zumo', 'snack', 'aperitivo'];
-    const isComplemento = (itemName) => {
-        const lowerName = itemName.toLowerCase();
-        return complementoKeywords.some(keyword => lowerName.includes(keyword));
-    };
+    // Sort items by name
+    spaConfigState.masterItems.sort((a, b) => a.name.localeCompare(b.name));
 
     list.innerHTML = spaConfigState.masterItems.map(item => {
-        const isComplement = isComplemento(item.name);
-
         // Contar cuántos productos usan este item
         const usageCount = spaConfigState.catalogServices.filter(service => {
             if (!service.items_incluidos || !Array.isArray(service.items_incluidos)) return false;
@@ -367,18 +456,18 @@ function renderMasterItems() {
         return `
         <tr style="border-bottom: 1px solid #f1f5f9;">
             <td style="padding: 10px 12px;">
+                <input type="text" value="${item.code || ''}" placeholder="ID..." onchange="updateMasterItemField('${item.id}', 'code', this.value)" 
+                    class="param-input" style="width:100%;">
+            </td>
+            <td style="padding: 10px 12px;">
                 <input type="text" value="${item.name}" onchange="updateMasterItemField('${item.id}', 'name', this.value)" 
                     class="param-input" style="width:100%;">
             </td>
             <td style="padding: 10px 12px; text-align: center;">
-                ${isComplement ? '<span class="muted text-xs">N/A</span>' :
-                `<input type="number" value="${item.duration || 0}" onchange="updateMasterItemField('${item.id}', 'duration', parseInt(this.value))" 
-                        class="param-input" style="width: 90px; text-align: center;" min="0" max="300">`
-            }
+                <input type="number" value="${item.duration || 0}" onchange="updateMasterItemField('${item.id}', 'duration', parseInt(this.value))" 
+                        class="param-input" style="width: 90px; text-align: center;" min="0" max="300">
             </td>
             <td style="padding: 10px 12px; overflow: visible;">
-                ${isComplement ? '<span class="muted text-xs">N/A</span>' :
-                `
                 <div class="ms-container" id="ms-${item.id}">
                     <div class="ms-trigger" onclick="toggleMultiSelect('${item.id}', event)">
                         <span>${summaryText}</span>
@@ -386,18 +475,16 @@ function renderMasterItems() {
                     </div>
                     <div class="ms-options">
                         ${spaConfigState.spaces.map(s => {
-                    const checked = selectedCodes.includes(s.code) ? 'checked' : '';
-                    return `
+            const checked = selectedCodes.includes(s.code) ? 'checked' : '';
+            return `
                                 <label class="ms-option">
                                     <input type="checkbox" ${checked} onchange="updateMasterItemSpaces('${item.id}', '${s.code}', this.checked)">
                                     ${s.name}
                                 </label>
                             `;
-                }).join('')}
+        }).join('')}
                     </div>
                 </div>
-                `
-            }
             </td>
             <td style="padding: 10px 12px; text-align: center;">
                 <span onclick="showItemUsage('${item.id}', '${item.name.replace(/'/g, "\\'")}')"
@@ -579,8 +666,10 @@ async function addMasterItem() {
     }
 
     try {
+        const code = "It" + Math.floor(100 + Math.random() * 900); // Auto-generate Code
         await db.collection("spa_item_master").add({
             name: name.trim(),
+            code: code,
             duration: 0,
             space: "",
             created_at: new Date().toISOString()
@@ -865,28 +954,90 @@ function renderComplementos() {
     if (!list) return;
 
     if (spaConfigState.complementos.length === 0) {
-        list.innerHTML = `<tr><td colspan="5" style="text-align:center; padding:20px;" class="muted">No hay complementos.</td></tr>`;
+        list.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:20px;" class="muted">No hay complementos.</td></tr>`;
         return;
     }
 
-    list.innerHTML = spaConfigState.complementos.map(c => `
-        <tr style="opacity: ${c.active === false ? 0.5 : 1};">
-            <td style="font-weight: 500;">${c.nombre}</td>
-            <td><span class="badge badge-outline">${c.categoria || 'Var'}</span></td>
-            <td style="text-align: center; font-weight: bold;">${parseFloat(c.precio).toFixed(2)} €</td>
-            <td style="text-align: center;">${c.active !== false ? '<span style="color:var(--success)">Activo</span>' : '<span style="color:var(--text-muted)">Inactivo</span>'}</td>
-            <td style="text-align: center;">
+    list.innerHTML = spaConfigState.complementos.map(c => {
+        // Space Name Lookup
+        let spaceName = '-';
+        if (c.space) {
+            const s = spaConfigState.spaces.find(sp => sp.code === c.space);
+            spaceName = s ? s.name : c.space;
+        }
+
+        // Calculate Included In (PROD)
+        // Assuming window.currentServices or spaConfigState.services exists. 
+        // If not, we try to use a global if available or default to 0.
+        // We'll trust existing patterns. renderMasterItems likely uses window.currentServices.
+
+        let includedCount = 0;
+        if (spaConfigState.catalogServices) {
+            includedCount = spaConfigState.catalogServices.filter(s =>
+                s.items_incluidos && s.items_incluidos.some(i => i.toLowerCase() === c.nombre.toLowerCase())
+            ).length;
+        }
+
+        return `
+        <tr style="opacity: ${c.active === false ? 0.5 : 1}; border-bottom: 1px solid #f1f5f9;">
+            <td style="padding: 10px 12px; font-family: monospace; color: #64748b; font-size: 0.8rem;">${c.code || '-'}</td>
+            <td style="padding: 10px 12px; font-weight: 500; font-size: 0.85rem;">${c.nombre}</td>
+            <td style="padding: 10px 12px; font-size: 0.8rem; color: #475569;">${spaceName}</td>
+            <td style="padding: 10px 12px; text-align: center;">
+                <span class="badge badge-blue-light" style="font-size: 0.75rem; cursor:pointer;" onclick="showIncludedInDetails('${c.id}')" title="Ver qué packs lo incluyen">
+                    <i class="fas fa-box-open"></i> ${includedCount} packs
+                </span>
+            </td>
+            <td style="padding: 10px 12px;">
+                <span class="badge badge-outline" style="font-size:0.7rem;">${c.categoria || 'Var'}</span>
+                <div style="font-size: 0.65rem; color: #64748b; margin-top: 2px;">
+                    ${c.consumption_type === 'person' ? '<i class="fas fa-user"></i> Pers.' : '<i class="fas fa-box"></i> Unit.'}
+                </div>
+            </td>
+            <td style="padding: 10px 12px; text-align: center; font-weight: bold; font-size: 0.85rem;">${parseFloat(c.precio).toFixed(2)} €</td>
+            <td style="padding: 10px 12px; text-align: center; font-size: 0.75rem;">${c.active !== false ? '<span style="color:var(--success)">Activo</span>' : '<span style="color:var(--text-muted)">Inactivo</span>'}</td>
+            <td style="padding: 10px 12px; text-align: center;">
                 <button onclick="openComplementoModal('${c.id}')" class="btn-icon"><i class="fas fa-edit"></i></button>
                 <button onclick="deleteComplemento('${c.id}')" class="btn-icon danger"><i class="fas fa-trash-alt"></i></button>
             </td>
         </tr>
-    `).join('');
+    `}).join('');
 }
 
 function openComplementoModal(id = null) {
     document.getElementById("complemento-form").reset();
     document.getElementById("complemento-id").value = "";
+
+    // Auto-generate code for new item
+    const newCode = "ext." + Math.floor(100 + Math.random() * 900);
+    const codeInput = document.getElementById("complemento-code");
+    codeInput.value = newCode;
+    codeInput.disabled = true; // Prevent editing
+    codeInput.style.backgroundColor = "#f1f5f9"; // Visual output
+
     document.getElementById("complemento-modal-title").textContent = "Nuevo Complemento";
+
+    // Populate Space Dropdown (Multi-select)
+    const spaceSelect = document.getElementById("complemento-space");
+    // Ensure we have "All" option + Dynamic spaces
+    let spaceOptions = `<option value="-">Todos (Cualquiera)</option>`;
+    // Fallback if spaConfigState.spaces is empty/undefined, though it resembles 'spaces' config
+    if (typeof spaConfigState !== 'undefined' && spaConfigState.spaces) {
+        spaceOptions += spaConfigState.spaces.map(s => `<option value="${s.code}">${s.name}</option>`).join('');
+    } else {
+        // Fallback hardcoded if needed, or trust existing innerHTML if we don't overwrite it?
+        // Step 742 overwrites it. So I must provide options.
+        spaceOptions += `
+            <option value="spa">Spa</option>
+            <option value="suite">Suite</option>
+            <option value="panacea">Panacea</option>
+            <option value="vip">Sala Vip</option>
+            <option value="peluqueria">Peluquería</option>
+            <option value="hotel">Hotel</option>
+            <option value="restaurante">Restaurante</option>
+        `;
+    }
+    spaceSelect.innerHTML = spaceOptions;
 
     if (id) {
         const c = spaConfigState.complementos.find(x => x.id === id);
@@ -894,11 +1045,26 @@ function openComplementoModal(id = null) {
             document.getElementById("complemento-modal-title").textContent = "Editar Complemento";
             document.getElementById("complemento-id").value = c.id;
             document.getElementById("complemento-name").value = c.nombre;
+            document.getElementById("complemento-code").value = c.code || '';
+            document.getElementById("complemento-code").disabled = true;
+            document.getElementById("complemento-code").style.backgroundColor = "#f1f5f9";
+
+            // Handle Space Selection (String vs Array)
+            const selectedSpaces = Array.isArray(c.space) ? c.space : (c.space ? [c.space] : []);
+            Array.from(spaceSelect.options).forEach(opt => {
+                opt.selected = selectedSpaces.includes(opt.value);
+            });
+
             document.getElementById("complemento-category").value = c.categoria || 'complemento';
+            document.getElementById("complemento-consumption").value = c.consumption_type || 'unit';
             document.getElementById("complemento-price").value = c.precio;
             document.getElementById("complemento-enabled").value = c.active !== false ? "true" : "false";
+            document.getElementById("complemento-id-display").textContent = c.code || '';
         }
     }
+    // Display Code in Badge
+    document.getElementById("complemento-id-display").textContent = document.getElementById("complemento-code").value;
+
     document.getElementById("complemento-modal").style.display = "flex";
 }
 
@@ -909,8 +1075,20 @@ function closeComplementoModal() {
 async function saveComplemento(e) {
     e.preventDefault();
     const id = document.getElementById("complemento-id").value;
+    // Multi-select for Space
+    const spaceSelect = document.getElementById("complemento-space");
+    const spaces = Array.from(spaceSelect.selectedOptions).map(opt => opt.value);
+
+    // Logic: If "-" is selected alongside others, maybe treat as "All"? 
+    // Or just save the array.
+    // If array is empty, default to ["-"]?
+
     const data = {
         nombre: document.getElementById("complemento-name").value.trim(),
+        code: document.getElementById("complemento-code").value.trim(),
+        consumption_type: document.getElementById("complemento-consumption").value,
+        duration: parseInt(document.getElementById("complemento-duration").value) || 0,
+        space: spaces.length > 0 ? spaces : ["-"], // Save as Array
         categoria: document.getElementById("complemento-category").value,
         precio: parseFloat(document.getElementById("complemento-price").value),
         active: document.getElementById("complemento-enabled").value === "true",
@@ -941,4 +1119,135 @@ async function deleteComplemento(id) {
     } catch (err) {
         showToast("Error: " + err.message, "error");
     }
+}
+
+// --- AUTO-ASSIGN CODES TOOL ---
+async function autoAssignCodes() {
+    if (!confirm("⚠️ ATENCIÓN: Esta acción SOBRESCRIBIRÁ TODOS los códigos existentes.\n\n- Se buscará coincidencia en el catálogo (SKU).\n- Si no existe, se generará un NUEVO código (It... o ext...).\n\n¿Estás seguro de que quieres regenerar todo?")) return;
+
+    const btn = document.getElementById("btn-auto-codes");
+    if (btn) {
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Procesando...';
+        btn.disabled = true;
+    }
+
+    try {
+        console.log("Iniciando regeneración masiva de códigos...");
+
+        // 1. Fetch Catalog Services to match
+        const servicesSnap = await db.collection("spa_services").get();
+        const services = [];
+        servicesSnap.forEach(doc => services.push({ id: doc.id, ...doc.data() }));
+
+        // Helper: Find Code from Service
+        function findServiceCode(name) {
+            const match = services.find(s => s.nombre && s.nombre.toLowerCase().trim() === name.toLowerCase().trim());
+            if (match) {
+                // Priority: SKU -> Code (if exists) -> WC ID
+                if (match.wc_sku) return match.wc_sku;
+                if (match.code) return match.code;
+                if (match.wc_id) return String(match.wc_id);
+            }
+            return null;
+        }
+
+        // Helper: Generate Numeric-like Code (ItXXX)
+        function generateItCode() {
+            const num = Math.floor(100 + Math.random() * 900); // 3 digits for Itxxx
+            return 'It' + num;
+        }
+
+        // Helper: Generate Extra Code (ext.XXX)
+        function generateExtCode() {
+            const num = Math.floor(10 + Math.random() * 90); // 10-99 to match example ext.22 roughly, or larger
+            // To be safer on collisions let's use 3 digits: 100-999
+            const safeNum = Math.floor(100 + Math.random() * 900);
+            return 'ext.' + safeNum;
+        }
+
+        const batch = db.batch();
+        let count = 0;
+        const CONFIG_LIMIT = 450; // Safety buffer for Firestore batch limit (500)
+
+        // 2. Process Master Items
+        if (spaConfigState.masterItems) {
+            for (const item of spaConfigState.masterItems) {
+                // REMOVED check: if (item.code) continue; -> We want to overwrite!
+
+                let newCode = findServiceCode(item.name);
+                // If no match, use random itXXX
+                if (!newCode) newCode = generateItCode();
+
+                const ref = db.collection("spa_item_master").doc(item.id);
+                batch.update(ref, { code: newCode });
+                count++;
+
+                if (count >= CONFIG_LIMIT) break;
+            }
+        }
+
+        // 3. Process Complements
+        if (spaConfigState.complementos && count < CONFIG_LIMIT) {
+            for (const comp of spaConfigState.complementos) {
+                // REMOVED check: if (comp.code) continue; -> We want to overwrite!
+
+                // For complements, we prefer the ext.XXX format if no service match found
+                // Or maybe ALWAYS ext.XXX?
+                // The user said "extras also have to have id e.g. ext.22".
+                // If we match a service catalog item (e.g. botellacava sku: CA-001), maybe we want that?
+                // But usually extras are internal. Let's try to match service first, else ext.
+                let newCode = findServiceCode(comp.nombre);
+
+                // Fallback to ext.XXX
+                if (!newCode) newCode = generateExtCode();
+
+                const ref = db.collection("spa_complementos").doc(comp.id);
+                batch.update(ref, { code: newCode });
+                count++;
+
+                if (count >= CONFIG_LIMIT) break;
+            }
+        }
+
+        if (count > 0) {
+            await batch.commit();
+            showToast(`Se han regenerado ${count} códigos correctamente.`, "success");
+
+            // Reload UI
+            if (typeof cargarMasterItems === 'function') cargarMasterItems();
+            if (typeof cargarComplementos === 'function') cargarComplementos();
+        } else {
+            showToast("No se encontraron elementos para actualizar.", "info");
+        }
+
+    } catch (err) {
+        console.error("Error auto-assigning codes:", err);
+        showToast("Error: " + err.message, "error");
+    } finally {
+        if (btn) {
+            btn.innerHTML = '<i class="fas fa-magic"></i> Auto-Códigos';
+            btn.disabled = false;
+        }
+    }
+}
+
+function showIncludedInDetails(id) {
+    const comp = spaConfigState.complementos.find(c => c.id === id);
+    if (!comp) return;
+
+    if (!spaConfigState.catalogServices) {
+        return showToast("Cargando catálogo...", "info");
+    }
+
+    const includedIn = spaConfigState.catalogServices.filter(s =>
+        s.items_incluidos && s.items_incluidos.some(i => i.toLowerCase() === comp.nombre.toLowerCase())
+    );
+
+    if (includedIn.length === 0) {
+        alert(`"${comp.nombre}" no está incluido en ningún pack actualmente.`);
+        return;
+    }
+
+    const names = includedIn.map(s => `• ${s.nombre}`).join('\n');
+    alert(`"${comp.nombre}" está incluido en ${includedIn.length} packs:\n\n${names}`);
 }

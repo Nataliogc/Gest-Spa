@@ -495,7 +495,7 @@
                             Desglose del Pack</h4>
                         <button type="button" class="btn btn-accent btn-sm" onclick="addItemToList()"
                             style="padding: 4px 10px; font-size: 0.7rem;">
-                            <i class="fas fa-plus"></i> Añadir Item
+                            <i class="fas fa-plus"></i> Añadir Item / Extra
                         </button>
                     </div>
                     <p class="muted" style="font-size: 0.75rem; margin-bottom: 15px;">Añade los elementos
@@ -593,6 +593,7 @@
         const state = {
             services: [],
             masterItems: [], // Listado maestro para el desglose
+            complementos: [], // Listado de extras
             currentTab: 'todos',
             searchTerm: '',
             wcCategories: [] // Cache de categorías de WooCommerce
@@ -604,6 +605,7 @@
         window.onload = () => {
             cargarCatalogoFirestore();
             cargarMasterItems();
+            cargarComplementosCat();
             cargarCategoriasWC();
 
             // Re-vincular submit del form
@@ -647,6 +649,17 @@
                 updateMasterDatalist();
             } catch (err) {
                 console.error("Error cargando items maestros:", err);
+            }
+        }
+
+        async function cargarComplementosCat() {
+            try {
+                const snapshot = await db.collection("spa_complementos").orderBy("nombre", "asc").get();
+                state.complementos = [];
+                snapshot.forEach(doc => state.complementos.push({ id: doc.id, ...doc.data() }));
+                // No need for datalist update as they are in the select
+            } catch (err) {
+                console.error("Error cargando complementos:", err);
             }
         }
 
@@ -1212,14 +1225,31 @@
 
             // 1. Items Maestros
             if (state.masterItems && state.masterItems.length > 0) {
+                optionsHtml += '<optgroup label="Items Maestros">';
                 state.masterItems.forEach(mi => {
                     const isSelected = mi.name === text ? "selected" : "";
                     optionsHtml += `<option value="${mi.name}" ${isSelected}>${mi.name}</option>`;
                 });
+                optionsHtml += '</optgroup>';
             }
 
-            // 2. Si el texto actual NO está en maestros (es legacy), lo añadimos para no perderlo
-            if (text && (!state.masterItems || !state.masterItems.find(mi => mi.name === text))) {
+            // 2. Extras / Complementos (NEW)
+            if (state.complementos && state.complementos.length > 0) {
+                optionsHtml += '<optgroup label="Extras / Complementos">';
+                state.complementos.forEach(comp => {
+                    // Validar si el texto coincide
+                    const isSelected = comp.nombre === text ? "selected" : "";
+                    optionsHtml += `<option value="${comp.nombre}" ${isSelected}>${comp.nombre}</option>`;
+                });
+                optionsHtml += '</optgroup>';
+            }
+
+            // 3. Fallback: Si el texto actual NO está en ninguna lista (es legacy), lo añadimos
+            let found = false;
+            if (state.masterItems && state.masterItems.some(mi => mi.name === text)) found = true;
+            if (state.complementos && state.complementos.some(c => c.nombre === text)) found = true;
+
+            if (text && !found) {
                 optionsHtml += `<option value="${text}" selected style="color:red;">${text} (No inventariado)</option>`;
             }
 

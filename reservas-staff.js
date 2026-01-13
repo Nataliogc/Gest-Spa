@@ -6,7 +6,10 @@ const ROOM_CODES = {
     'vip': 'vip',
     'panacea': 'panacea',
     'spa': 'spa',
-    'peluqueria': 'peluqueria'
+    'peluqueria': 'peluqueria',
+    'cabina1': 'cabina1',
+    'cabina2': 'cabina2',
+    'cabina3': 'cabina3'
 };
 
 // Room code mappings
@@ -15,7 +18,11 @@ const ROOM_ALIASES = {
     'panacea': ['panacea', 'pan'],
     'vip': ['vip', 'sala_vip', 'vipspa'],
     'suite': ['suite', 'suitespa', 'suite_spa'],
-    'spa': ['spa', 'circuito', 'circuito_spa']
+    'suite': ['suite', 'suitespa', 'suite_spa'],
+    'spa': ['spa', 'circuito', 'circuito_spa'],
+    'cabina1': ['cabina1', 'cab1', 'c1'],
+    'cabina2': ['cabina2', 'cab2', 'c2'],
+    'cabina3': ['cabina3', 'cab3', 'c3']
 };
 
 const STAFF_POOLS = {
@@ -23,7 +30,10 @@ const STAFF_POOLS = {
     'panacea': ['vip', 'panacea'],
     'suite': ['suite'],
     'spa': ['spa'],
-    'peluqueria': ['peluqueria']
+    'peluqueria': ['peluqueria'],
+    'cabina1': ['spa', 'cabinas'],
+    'cabina2': ['spa', 'cabinas'],
+    'cabina3': ['spa', 'cabinas']
 };
 
 let _cachedActiveStaff = null;
@@ -112,7 +122,10 @@ async function getAvailableStaffForRoom(roomCode, date, time, duration, excludeI
         for (const staff of allStaff) {
             // Room Assignment Check
             const assigned = staff.assigned_rooms || [];
-            const isAssigned = assigned.some(r => normalizedPool.includes(normalizeRoomCode(r)));
+            // Relaxed Rule: If no rooms assigned, assume available for ALL (Float). 
+            // Otherwise, must match pool.
+            const isAssigned = (assigned.length === 0) || assigned.some(r => normalizedPool.includes(normalizeRoomCode(r)));
+
             if (!isAssigned) continue;
 
             // Schedule Check (Availability Rules) - This might still query exceptions, caching needed?
@@ -375,7 +388,8 @@ window.getDailyStaffAvailability = async function (roomCode, date) {
 
         const roomStaff = allStaff.filter(staff => {
             const assigned = staff.assigned_rooms || [];
-            return assigned.some(r => normalizedPool.includes(normalizeRoomCode(r)));
+            // Relaxed Rule: If no rooms assigned, assume available for ALL
+            return (assigned.length === 0) || assigned.some(r => normalizedPool.includes(normalizeRoomCode(r)));
         });
 
         const availabilityMap = {};

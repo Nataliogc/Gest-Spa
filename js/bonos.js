@@ -6,6 +6,7 @@ console.log('[BONOS.JS] ✅ Loaded at:', new Date().toISOString(), '- Build: ID-
 const state = {
     bonos: [],
     catalogProducts: [], // Para el selector de venta local
+    complementos: [], // Extras cargados
     lvCart: [], // Carrito de venta local
     masterItems: [] // Configuración de espacios por item
 };
@@ -835,7 +836,7 @@ async function cargarCatalogoSimple() {
                 sesiones: data.sesiones || null,
                 incluye: itemsStr || desc,  // Prefer items list, fallback to description  
                 descripcion: desc || itemsStr,  // Prefer description, fallback to items
-                items_incluidos: Array.isArray(data.items_incluidos) ? data.items_incluidos : [], // Preservar array original
+                items_incluidos: Array.isArray(data.items_incluidos) ? data.items_incluidos : (typeof data.items_incluidos === 'string' && data.items_incluidos.includes(',') ? data.items_incluidos.split(',').map(s => s.trim()) : []),
                 categoria: data.categoria || '',
                 espacio: data.espacio || '',
                 allowedSpaces: data.allowedSpaces || (data.espacio ? [data.espacio] : []), // Load or Migrate
@@ -2916,27 +2917,30 @@ async function openVoucherManagement(code) {
                 // Fix object reference
                 if (!item.name) item.name = itemName;
 
-                const isAccommodation = spaceName.toLowerCase() === 'hotel' || itemName.toLowerCase().includes('alojamiento');
+                const isAccommodation = spaceName.toLowerCase().includes('hotel') || itemName.toLowerCase().includes('alojamiento') || itemName.toLowerCase().includes('desayuno');
                 const itemNameLower = itemName.toLowerCase();
-                const isComplement = spaceName.toLowerCase() === 'complemento' ||
+                // Mejorar detección de complementos: tipo, codigo, espacio o nombre
+                const isComplement = item.tipo === 'complemento' ||
+                    (item.codigo && item.codigo.startsWith('ext.')) ||
+                    spaceName.toLowerCase() === 'complemento' ||
                     itemNameLower.match(/(botella|cava|vino|ramo|flores|fruta|bombones|detalle)/i);
 
                 let buttonsHtml = '';
 
-                if (isComplete) {
+                // PRIORIDAD: Complementos siempre muestran "Extra", incluso si están usados
+                if (isComplement) {
+                    buttonsHtml = `
+                        <span style="font-size:0.65rem; color:#64748b; font-weight:600; background:#f1f5f9; padding:4px 8px; border-radius:4px;">
+                            <i class="fas fa-gift"></i> Extra
+                        </span>
+                    `;
+                } else if (isComplete) {
                     buttonsHtml = `
                         <button class="btn btn-sm" disabled
                             style="padding:2px 8px; font-size:0.7rem; background:#cbd5e1; color:#64748b; cursor:not-allowed; border:none; white-space:nowrap; border-radius:4px;">
                             <i class="fas fa-check-circle"></i> Completo
                         </button>
                      `;
-                } else if (isComplement) {
-                    buttonsHtml = `
-                        <button class="btn btn-sm" onclick="validateServiceItem(${idx}, true)" 
-                            style="padding:2px 8px; font-size:0.7rem; background:#10b981; color:#fff; border:none; border-radius:4px;">
-                            <i class="fas fa-check"></i>
-                        </button>
-                    `;
                 } else if (isAccommodation) {
                     buttonsHtml = `
                         <button class="btn btn-sm" onclick="validateServiceItem(${idx})" 
@@ -3010,7 +3014,7 @@ async function openVoucherManagement(code) {
                     <div style="display: flex; flex-direction: column; flex: 1; overflow:hidden; gap:2px;">
                         <div style="font-size:0.8rem; font-weight:600; color:#334155;">
                             ${item.name} 
-                            <span style="font-size:0.65rem; color:#94a3b8; font-weight:400; margin-left:4px;">ID: ${item.wc_id || item.product_id || item.id || 'N/A'}</span>
+                            <span style="font-size:0.65rem; color:#94a3b8; font-weight:400; margin-left:4px;">ID: ${item.wc_id || item.product_id || item.id || item.codigo || item.original_id || 'N/A'}</span>
                         </div>
                         <div style="font-size:0.65rem; color:#64748b;">
                             <i class="fas fa-map-marker-alt" style="margin-right:2px;"></i>${spaceName}
@@ -3201,38 +3205,92 @@ async function openVoucherManagement(code) {
         // Preservar precio original del bono de WooCommerce para comparación
         const originalBonoPrice = parseFloat(v.importe) || parseFloat(v.precio) || 0;
 
-        if (product) {
+        let calculatedPrice = 0;
+
+        // NUEVA LÓGICA: Si hay items desglosados con extras, sumar precios individuales
+        const hasExtras = state.editingVoucherItems && state.editingVoucherItems.some(item => {
+            const itemNameLower = (item.name || '').toLowerCase();
+            const spaceName = (item.space || item.espacio || '').toLowerCase();
+            // Usar la MISMA detección que funciona para el badge "Extra"
+            return item.tipo === 'complemento' ||
+                (item.codigo && item.codigo.startsWith('ext.')) ||
+                spaceName === 'complemento' ||
+                itemNameLower.match(/(botella|cava|vino|ramo|flores|fruta|bombones|detalle)/i);
+        });
+
+        if (hasExtras && state.editingVoucherItems && state.editingVoucherItems.length > 0) {
+            // Calcular sumando items individuales
+            state.editingVoucherItems.forEach(item => {
+                let itemPrice = 0;
+
+                // PRIORIDAD 1: Usar precio directo del item
+                if (item.price || item.precio) {
+                    itemPrice = parseFloat(item.price || item.precio) || 0;
+                }
+                // PRIORIDAD 2: Buscar en catálogo
+                else if (product && item.name === product.nombre) {
+                    itemPrice = parseFloat(product.precio) || 0;
+                }
+
+                // Aplicar multiplicador según tipo de consumo
+                const itemPax = item.pax || pax;
+                const itemSessions = item.sessions || 1;
+                const isPerPerson = item.consumo_tipo === 'por_persona';
+
+                if (isPerPerson) {
+                    calculatedPrice += itemPrice * itemPax * itemSessions;
+                } else {
+                    calculatedPrice += itemPrice * itemSessions;
+                }
+            });
+        }
+        // LÓGICA ORIGINAL: Calcular desde producto del catálogo
+        else if (product) {
             const basePrice = parseFloat(product.precio) || 0;
             const basePax = parseInt(product.personas || product.pax || 1);
             const baseSessions = parseInt(product.sesiones || 1);
 
             const paxRatio = pax / basePax;
             const sessionsRatio = totalSessions / baseSessions;
-            const calculatedPrice = basePrice * paxRatio * sessionsRatio;
+            calculatedPrice = basePrice * paxRatio * sessionsRatio;
+        }
 
-            // PRIORIDAD: Mostrar precio pagado si existe
-            if (originalBonoPrice > 0) {
-                priceBadge.textContent = originalBonoPrice.toFixed(2) + '€';
-            } else {
-                priceBadge.textContent = calculatedPrice.toFixed(2) + '€';
-            }
-
+        // PRIORIDAD: Si hay extras, mostrar precio calculado. Si no, mostrar precio pagado
+        if (hasExtras && calculatedPrice > 0) {
+            priceBadge.textContent = calculatedPrice.toFixed(2) + '€';
+            priceBadge.style.background = '#15803d'; // Verde
+            priceBadge.title = originalBonoPrice > 0 ? `Precio calculado (con extras). Original: ${originalBonoPrice}€` : "";
+        } else if (originalBonoPrice > 0) {
+            priceBadge.textContent = originalBonoPrice.toFixed(2) + '€';
             // Si hay descuadre, añadir tooltip y cambiar color a naranja
-            if (originalBonoPrice > 0 && Math.abs(originalBonoPrice - calculatedPrice) > 0.05) {
+            if (calculatedPrice > 0 && Math.abs(originalBonoPrice - calculatedPrice) > 0.05) {
                 priceBadge.style.background = '#f59e0b'; // Advertencia
                 priceBadge.title = `Pagado: ${originalBonoPrice}€ / Catálogo: ${calculatedPrice.toFixed(2)}€`;
             } else {
                 priceBadge.style.background = '#15803d'; // Verde
                 priceBadge.title = "";
             }
-        } else if (originalBonoPrice > 0) {
-            priceBadge.textContent = originalBonoPrice + '€';
-            priceBadge.style.background = '#15803d'; // Verde
+        } else if (calculatedPrice > 0) {
+            priceBadge.textContent = calculatedPrice.toFixed(2) + '€';
+            priceBadge.style.background = '#15803d';
             priceBadge.title = "";
         } else {
             priceBadge.textContent = '0.00€';
-            priceBadge.style.background = '#64748b'; // Gris
+            priceBadge.style.background = '#64748b';
             priceBadge.title = "";
+        }
+
+        // Fallback si no hay producto ni items
+        if (!product && calculatedPrice === 0) {
+            if (originalBonoPrice > 0) {
+                priceBadge.textContent = originalBonoPrice + '€';
+                priceBadge.style.background = '#15803d';
+                priceBadge.title = "";
+            } else {
+                priceBadge.textContent = '0.00€';
+                priceBadge.style.background = '#64748b';
+                priceBadge.title = "";
+            }
         }
     };
 
@@ -3609,9 +3667,23 @@ async function saveVoucherChanges() {
             pax_por_sesion: parseInt(getInputValue("vm-pax-sesion", '1')) || 1,
             notas_internas: getInputValue("vm-notas"),
             producto: getInputValue("vm-producto"),
+            notes: getInputValue("vm-notas"), // Alias
             items_desglosados: cleanUndefined(state.editingVoucherItems || []),
             manual_update: true
         };
+
+        // VALIDATION: Mandatory Phone
+        if (!updates.telefono || updates.telefono.trim() === '') {
+            showToast("El teléfono es obligatorio para guardar", "warning");
+            // Highlight field
+            const phoneField = document.getElementById("vm-telefono");
+            if (phoneField) {
+                phoneField.style.borderColor = "red";
+                phoneField.focus();
+                setTimeout(() => phoneField.style.borderColor = "", 3000);
+            }
+            return; // Stop saving
+        }
 
         // Guardar fecha de compra (Canonical: purchase_date)
         const fechaCompra = getInputValue("vm-fecha-compra");
@@ -4063,10 +4135,10 @@ async function saveServiceBreakdownToFirestore(voucherCode) {
 function openAccommodationValidation(voucher) {
     currentVoucherForAccommodation = voucher;
 
-    // Limpiar y prellenar campos
+    // Limpiar y prellenar campos con datos del bono
     document.getElementById("av-fecha").value = new Date().toISOString().split('T')[0];
     document.getElementById("av-nombre").value = voucher.cliente || '';
-    document.getElementById("av-telefono").value = '';
+    document.getElementById("av-telefono").value = voucher.telefono || voucher.phone || '';
     document.getElementById("av-reserva").value = '';
 
     // Mostrar modal
@@ -4148,7 +4220,12 @@ async function confirmAccommodationRedemption() {
 
         // Actualizar vista - Force re-read from updated state
         // Re-open Management Panel to reflect changes
-        openVoucherManagement(code);
+        await openVoucherManagement(code);
+
+        // CRITICAL: Refresh history to show the new validation
+        if (typeof renderVoucherHistory === 'function') {
+            await renderVoucherHistory(code, state.editingVoucherItems);
+        }
 
     } catch (error) {
         console.error("Error validando alojamiento:", error);
@@ -4188,6 +4265,7 @@ function openLocalVoucherModal() {
     state.lvCart = [];
     state.lvSelectedProduct = null;
     renderLVCart();
+    loadActiveComplementos();
 
     // Guardar lista filtrada (sin Peluquería y respetando venta_local)
     state.lvFilteredProducts = (state.catalogProducts || []).filter(prod => {
@@ -4773,6 +4851,15 @@ async function createLocalVoucher() {
     const clientName = document.getElementById("lv-client").value.trim();
     if (!clientName) return showToast("Escribe el nombre del cliente", "warning");
 
+    const clientPhone = document.getElementById("lv-phone").value.trim();
+    if (!clientPhone) {
+        const phoneField = document.getElementById("lv-phone");
+        phoneField.style.borderColor = "red";
+        phoneField.focus();
+        setTimeout(() => phoneField.style.borderColor = "", 3000);
+        return showToast("El teléfono es obligatorio", "warning");
+    }
+
     const codeInput = document.getElementById("lv-code").value.trim();
     // Generación de código mejorada: LOC + Año + Secuencial aleatorio (SIN ESPACIOS AL FINAL)
     const code = codeInput || `LOC-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
@@ -4867,6 +4954,73 @@ async function createLocalVoucher() {
         btn.disabled = false;
         if (btnText.tagName === 'SPAN') btnText.textContent = "Crear Bono";
     }
+}
+
+// --- EXTRAS LOGIC ---
+async function loadActiveComplementos() {
+    try {
+        const snapshot = await db.collection("spa_complementos")
+            .where("active", "!=", false)
+            .get();
+
+        state.complementos = [];
+        snapshot.forEach(doc => state.complementos.push({ id: doc.id, ...doc.data() }));
+
+        // Sort in memory to avoid Firestore index requirement error
+        state.complementos.sort((a, b) => (a.nombre || '').localeCompare(b.nombre || ''));
+
+        renderExtrasSelector();
+    } catch (err) {
+        console.error("Error loading extras:", err);
+    }
+}
+
+function renderExtrasSelector() {
+    const select = document.getElementById("lv-extras-select");
+    if (!select) return;
+
+    let html = '<option value="">-- Seleccionar Extra --</option>';
+    state.complementos.forEach(c => {
+        html += `<option value="${c.id}">${c.nombre} (+${parseFloat(c.precio).toFixed(2)}€)</option>`;
+    });
+    select.innerHTML = html;
+}
+
+function addExtraToCart() {
+    const select = document.getElementById("lv-extras-select");
+    const qtyInput = document.getElementById("lv-extras-qty");
+    const id = select.value;
+    const qty = parseInt(qtyInput ? qtyInput.value : 1) || 1;
+
+    if (!id) return showToast("Selecciona un extra primero", "warning");
+
+    const extra = state.complementos.find(c => c.id === id);
+    if (!extra) return;
+
+    // Add as a separate line item
+    state.lvCart.push({
+        name: extra.nombre,
+        price: parseFloat(extra.precio) || 0,
+        sessions: qty,
+        pax: 1,
+        isExtra: true,
+        originalProduct: null,
+        items_breakdown: [{
+            name: extra.nombre,
+            sessions: qty,
+            space: extra.space || '',
+            pax: 1,
+            price: parseFloat(extra.precio) || 0,
+            original_id: extra.id
+        }],
+        discount_percent: 0,
+        added_at: new Date().toISOString()
+    });
+
+    renderLVCart(); // Update UI
+    showToast(`${qty}x ${extra.nombre} añadido`, "success");
+    select.value = ""; // Reset selector
+    if (qtyInput) qtyInput.value = 1; // Reset quantity
 }
 
 
@@ -6659,16 +6813,79 @@ function updatePriceBadgeCalculations(v) {
 
         let calculated = basePrice * (pax / basePax) * (sessions / baseSessions);
 
-        // LIVE INPUT ADJUSTMENT
-        const manualInput = document.getElementById("vm-manual-discount");
-        const liveDiscount = manualInput ? (parseFloat(manualInput.value) || 0) : 0;
+        // NUEVA LÓGICA: Si hay items desglosados con extras, calcular sumando items individuales
+        if (state.editingVoucherItems && state.editingVoucherItems.length > 0) {
+            // Verificar si hay extras (items NO incluidos en el pack base)
+            const hasExtras = state.editingVoucherItems.some(item => {
+                const isExtra = item.tipo === 'complemento' ||
+                    (item.codigo && item.codigo.startsWith('ext.'));
+                return isExtra;
+            });
 
-        // Fallback to stored if input empty, but input handles current state
-        const storedDiscount = parseFloat(v.discount_percent_max) || parseFloat(v.discount_rate) || 0;
-        const effectiveDiscount = liveDiscount > 0 ? liveDiscount : (manualInput && manualInput.value === '' ? storedDiscount : 0);
+            if (hasExtras) {
+                // Calcular precio sumando items individuales
+                calculated = 0;
 
-        if (effectiveDiscount > 0) {
-            calculated = calculated * (1 - (effectiveDiscount / 100));
+                state.editingVoucherItems.forEach(item => {
+                    // Buscar precio del item
+                    let itemPrice = 0;
+
+                    // PRIORIDAD 1: Usar precio directo del item si existe
+                    if (item.precio) {
+                        itemPrice = parseFloat(item.precio) || 0;
+                    }
+                    // PRIORIDAD 2: Buscar en productos del catálogo
+                    else {
+                        const catalogItem = state.catalogProducts?.find(p =>
+                            p.nombre === item.name ||
+                            p.codigo === item.codigo ||
+                            p.id === item.product_id
+                        );
+
+                        if (catalogItem) {
+                            itemPrice = parseFloat(catalogItem.precio) || 0;
+                        } else if (item.codigo && item.codigo.startsWith('ext.')) {
+                            // Buscar en complementos
+                            const complement = state.catalogComplements?.find(c => c.codigo === item.codigo);
+                            if (complement) {
+                                itemPrice = parseFloat(complement.precio) || 0;
+                            }
+                        }
+                    }
+
+                    // Aplicar multiplicador según tipo de consumo
+                    const itemPax = item.pax || pax;
+                    const itemSessions = item.sessions || 1;
+
+                    // Determinar si es por persona o por servicio
+                    const isPerPerson = item.consumo_tipo === 'por_persona';
+
+                    if (isPerPerson) {
+                        calculated += itemPrice * itemPax * itemSessions;
+                    } else {
+                        // Por servicio (default)
+                        calculated += itemPrice * itemSessions;
+                    }
+                });
+            }
+        }
+
+        // DISCOUNT LOGIC - ONLY FOR LOCAL VOUCHERS
+        const isLocalVoucher = (v.bono && (String(v.bono).startsWith('LOC-') || String(v.bono).startsWith('exc.Loc'))) || v.origen === 'local';
+
+        let effectiveDiscount = 0;
+        if (isLocalVoucher) {
+            // LIVE INPUT ADJUSTMENT (only for local vouchers)
+            const manualInput = document.getElementById("vm-manual-discount");
+            const liveDiscount = manualInput ? (parseFloat(manualInput.value) || 0) : 0;
+
+            // Fallback to stored if input empty, but input handles current state
+            const storedDiscount = parseFloat(v.discount_percent_max) || parseFloat(v.discount_rate) || 0;
+            effectiveDiscount = liveDiscount > 0 ? liveDiscount : (manualInput && manualInput.value === '' ? storedDiscount : 0);
+
+            if (effectiveDiscount > 0) {
+                calculated = calculated * (1 - (effectiveDiscount / 100));
+            }
         }
 
         // PRIORIDAD: Mostrar precio pagado si existe, sino el calculado
@@ -6679,9 +6896,12 @@ function updatePriceBadgeCalculations(v) {
         }
 
         // Si hay descuadre con el pagado, lo indicamos visualmente
-        if (bonoPrice > 0 && Math.abs(bonoPrice - calculated) > 0.5) { // Margin of 0.50€
-            priceBadge.style.background = '#f59e0b'; // Naranja para advertencia
-            priceBadge.title = `Pagado: ${bonoPrice}€ / Catálogo(Dto ${effectiveDiscount}%): ${calculated.toFixed(2)}€`;
+        // Use 5€ tolerance OR 10% of the price (whichever is larger) to account for rounding and minor variations
+        const tolerance = Math.max(5.0, calculated * 0.1);
+
+        if (bonoPrice > 0 && Math.abs(bonoPrice - calculated) > tolerance) {
+            priceBadge.style.background = '#f59e0b'; // Naranja para WARNING
+            priceBadge.title = `Pagado: ${bonoPrice}€ / Catálogo${effectiveDiscount > 0 ? ` (Dto ${effectiveDiscount}%)` : ''}: ${calculated.toFixed(2)}€`;
         } else {
             priceBadge.style.background = '#15803d'; // Verde estándar
             priceBadge.title = effectiveDiscount > 0 ? `Precio ajustado por descuento local (-${effectiveDiscount}%)` : "Coincide con tarifa";

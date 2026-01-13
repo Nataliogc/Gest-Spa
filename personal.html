@@ -203,173 +203,273 @@
 
     <!-- MODAL: ADD/EDIT STAFF -->
     <div id="staff-modal" class="modal" style="display: none;">
-        <div class="modal-content glass" style="max-width: 700px; max-height: 90vh; overflow-y: auto;">
-            <div class="modal-header">
-                <h3 id="staff-modal-title">Nuevo Personal</h3>
-                <span class="close-modal" onclick="closeStaffModal()">&times;</span>
+        <div class="modal-content glass"
+            style="max-width: 750px; max-height: 90vh; overflow: hidden; display: flex; flex-direction: column;">
+            <div class="modal-header"
+                style="padding: 18px 25px; background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%); border-bottom: 2px solid #e2e8f0; flex-shrink: 0;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <h3 id="staff-modal-title"
+                            style="margin: 0; font-size: 1.3rem; font-weight: 700; color: #1e293b;">Nuevo Personal</h3>
+                        <p style="margin: 4px 0 0 0; font-size: 0.8rem; color: #64748b;">Configura la información y
+                            disponibilidad</p>
+                    </div>
+                    <span class="close-modal" onclick="closeStaffModal()"
+                        style="font-size: 1.8rem; color: #64748b; cursor: pointer; line-height: 1;">&times;</span>
+                </div>
             </div>
-            <form id="staff-form" onsubmit="saveStaff(event)">
+            <form id="staff-form" onsubmit="saveStaff(event)" style="flex: 1; overflow-y: auto; padding: 25px;">
                 <input type="hidden" id="staff-id">
 
-                <!-- Basic Info -->
-                <div class="form-group">
-                    <label>Nombre Completo *</label>
-                    <input type="text" id="staff-name" placeholder="María García" required>
+                <!-- SECTION: Información Personal -->
+                <div
+                    style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; margin-bottom: 20px;">
+                    <h4
+                        style="margin: 0 0 15px 0; font-size: 0.85rem; font-weight: 700; text-transform: uppercase; color: #64748b; letter-spacing: 0.5px; display: flex; align-items: center; gap: 8px;">
+                        <i class="fas fa-user" style="color: var(--accent);"></i> Información Personal
+                    </h4>
+
+                    <div class="form-group" style="margin-bottom: 15px;">
+                        <label
+                            style="font-size: 0.75rem; font-weight: 600; color: #475569; margin-bottom: 6px; display: block;">Nombre
+                            Completo *</label>
+                        <input type="text" id="staff-name" placeholder="Ej: María García López" required
+                            style="width: 100%; padding: 10px 14px; border: 1.5px solid #e2e8f0; border-radius: 8px; font-size: 0.9rem; transition: all 0.2s;">
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                        <div class="form-group">
+                            <label
+                                style="font-size: 0.75rem; font-weight: 600; color: #475569; margin-bottom: 6px; display: block;">Email</label>
+                            <input type="email" id="staff-email" placeholder="maria@spa.com"
+                                style="width: 100%; padding: 10px 14px; border: 1.5px solid #e2e8f0; border-radius: 8px; font-size: 0.9rem;">
+                        </div>
+                        <div class="form-group">
+                            <label
+                                style="font-size: 0.75rem; font-weight: 600; color: #475569; margin-bottom: 6px; display: block;">Teléfono</label>
+                            <input type="tel" id="staff-phone" placeholder="+34 600 000 000"
+                                style="width: 100%; padding: 10px 14px; border: 1.5px solid #e2e8f0; border-radius: 8px; font-size: 0.9rem;">
+                        </div>
+                    </div>
                 </div>
 
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>Email</label>
-                        <input type="email" id="staff-email" placeholder="maria@spa.com">
-                    </div>
-                    <div class="form-group">
-                        <label>Teléfono</label>
-                        <input type="tel" id="staff-phone" placeholder="+34 600 000 000">
-                    </div>
-                </div>
-
-                <!-- Assigned Rooms -->
-                <div class="form-group">
-                    <label>Espacios Asignados *</label>
+                <!-- SECTION: Espacios Asignados -->
+                <div
+                    style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; margin-bottom: 20px;">
+                    <h4
+                        style="margin: 0 0 12px 0; font-size: 0.85rem; font-weight: 700; text-transform: uppercase; color: #64748b; letter-spacing: 0.5px; display: flex; align-items: center; gap: 8px;">
+                        <i class="fas fa-map-marker-alt" style="color: var(--accent);"></i> Espacios Asignados *
+                    </h4>
                     <div id="assigned-rooms-container"
-                        style="display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px;">
+                        style="display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px;">
                         <!-- JS Render -->
                     </div>
                 </div>
 
-                <!-- Default Schedule -->
-                <div class="form-group">
-                    <label style="display: block; margin-bottom: 10px;">Horario Base</label>
 
-                    <!-- Monday -->
-                    <div class="schedule-day-row">
-                        <label><input type="checkbox" id="schedule-monday-enabled"> Lunes</label>
-                        <div id="schedule-monday-shifts" style="flex: 1;">
-                            <div style="display: flex; gap: 5px; align-items: center;">
-                                <input type="time" value="10:00" class="schedule-shift-start" style="flex: 1;">
-                                <span>-</span>
-                                <input type="time" value="18:00" class="schedule-shift-end" style="flex: 1;">
-                            </div>
-                        </div>
-                        <button type="button" onclick="addShift('monday')" class="btn btn-outline btn-sm"
-                            title="Añadir turno">
-                            <i class="fas fa-plus"></i>
-                        </button>
-                    </div>
+                <!-- SECTION: Horario Base -->
+                <div
+                    style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; margin-bottom: 20px;">
+                    <h4
+                        style="margin: 0 0 15px 0; font-size: 0.85rem; font-weight: 700; text-transform: uppercase; color: #64748b; letter-spacing: 0.5px; display: flex; align-items: center; gap: 8px;">
+                        <i class="fas fa-clock" style="color: var(--accent);"></i> Horario Base
+                    </h4>
 
-                    <!-- Tuesday -->
-                    <div class="schedule-day-row">
-                        <label><input type="checkbox" id="schedule-tuesday-enabled"> Martes</label>
-                        <div id="schedule-tuesday-shifts" style="flex: 1;">
-                            <div style="display: flex; gap: 5px; align-items: center;">
-                                <input type="time" value="10:00" class="schedule-shift-start" style="flex: 1;">
-                                <span>-</span>
-                                <input type="time" value="18:00" class="schedule-shift-end" style="flex: 1;">
+                    <!-- Days Grid -->
+                    <div style="display: grid; gap: 10px;">
+                        <!-- Monday -->
+                        <div
+                            style="display: flex; align-items: center; gap: 12px; padding: 12px; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;">
+                            <label
+                                style="min-width: 90px; font-weight: 600; font-size: 0.85rem; display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                <input type="checkbox" id="schedule-monday-enabled"
+                                    style="width: 18px; height: 18px; cursor: pointer;">
+                                <span>Lunes</span>
+                            </label>
+                            <div id="schedule-monday-shifts"
+                                style="flex: 1; display: flex; gap: 8px; align-items: center;">
+                                <input type="time" value="10:00" class="schedule-shift-start"
+                                    style="flex: 1; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.85rem;">
+                                <span style="color: #94a3b8;">-</span>
+                                <input type="time" value="18:00" class="schedule-shift-end"
+                                    style="flex: 1; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.85rem;">
                             </div>
+                            <button type="button" onclick="addShift('monday')" class="btn btn-outline btn-sm"
+                                style="padding: 6px 10px; font-size: 0.75rem;" title="Añadir turno">
+                                <i class="fas fa-plus"></i>
+                            </button>
                         </div>
-                        <button type="button" onclick="addShift('tuesday')" class="btn btn-outline btn-sm"
-                            title="Añadir turno">
-                            <i class="fas fa-plus"></i>
-                        </button>
-                    </div>
 
-                    <!-- Wednesday -->
-                    <div class="schedule-day-row">
-                        <label><input type="checkbox" id="schedule-wednesday-enabled"> Miércoles</label>
-                        <div id="schedule-wednesday-shifts" style="flex: 1;">
-                            <div style="display: flex; gap: 5px; align-items: center;">
-                                <input type="time" value="10:00" class="schedule-shift-start" style="flex: 1;">
-                                <span>-</span>
-                                <input type="time" value="18:00" class="schedule-shift-end" style="flex: 1;">
+                        <!-- Tuesday -->
+                        <div
+                            style="display: flex; align-items: center; gap: 12px; padding: 12px; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;">
+                            <label
+                                style="min-width: 90px; font-weight: 600; font-size: 0.85rem; display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                <input type="checkbox" id="schedule-tuesday-enabled"
+                                    style="width: 18px; height: 18px; cursor: pointer;">
+                                <span>Martes</span>
+                            </label>
+                            <div id="schedule-tuesday-shifts"
+                                style="flex: 1; display: flex; gap: 8px; align-items: center;">
+                                <input type="time" value="10:00" class="schedule-shift-start"
+                                    style="flex: 1; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.85rem;">
+                                <span style="color: #94a3b8;">-</span>
+                                <input type="time" value="18:00" class="schedule-shift-end"
+                                    style="flex: 1; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.85rem;">
                             </div>
+                            <button type="button" onclick="addShift('tuesday')" class="btn btn-outline btn-sm"
+                                style="padding: 6px 10px; font-size: 0.75rem;" title="Añadir turno">
+                                <i class="fas fa-plus"></i>
+                            </button>
                         </div>
-                        <button type="button" onclick="addShift('wednesday')" class="btn btn-outline btn-sm"
-                            title="Añadir turno">
-                            <i class="fas fa-plus"></i>
-                        </button>
-                    </div>
 
-                    <!-- Thursday -->
-                    <div class="schedule-day-row">
-                        <label><input type="checkbox" id="schedule-thursday-enabled"> Jueves</label>
-                        <div id="schedule-thursday-shifts" style="flex: 1;">
-                            <div style="display: flex; gap: 5px; align-items: center;">
-                                <input type="time" value="10:00" class="schedule-shift-start" style="flex: 1;">
-                                <span>-</span>
-                                <input type="time" value="18:00" class="schedule-shift-end" style="flex: 1;">
+                        <!-- Wednesday -->
+                        <div
+                            style="display: flex; align-items: center; gap: 12px; padding: 12px; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;">
+                            <label
+                                style="min-width: 90px; font-weight: 600; font-size: 0.85rem; display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                <input type="checkbox" id="schedule-wednesday-enabled"
+                                    style="width: 18px; height: 18px; cursor: pointer;">
+                                <span>Miércoles</span>
+                            </label>
+                            <div id="schedule-wednesday-shifts"
+                                style="flex: 1; display: flex; gap: 8px; align-items: center;">
+                                <input type="time" value="10:00" class="schedule-shift-start"
+                                    style="flex: 1; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.85rem;">
+                                <span style="color: #94a3b8;">-</span>
+                                <input type="time" value="18:00" class="schedule-shift-end"
+                                    style="flex: 1; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.85rem;">
                             </div>
+                            <button type="button" onclick="addShift('wednesday')" class="btn btn-outline btn-sm"
+                                style="padding: 6px 10px; font-size: 0.75rem;" title="Añadir turno">
+                                <i class="fas fa-plus"></i>
+                            </button>
                         </div>
-                        <button type="button" onclick="addShift('thursday')" class="btn btn-outline btn-sm"
-                            title="Añadir turno">
-                            <i class="fas fa-plus"></i>
-                        </button>
-                    </div>
 
-                    <!-- Friday -->
-                    <div class="schedule-day-row">
-                        <label><input type="checkbox" id="schedule-friday-enabled"> Viernes</label>
-                        <div id="schedule-friday-shifts" style="flex: 1;">
-                            <div style="display: flex; gap: 5px; align-items: center;">
-                                <input type="time" value="10:00" class="schedule-shift-start" style="flex: 1;">
-                                <span>-</span>
-                                <input type="time" value="18:00" class="schedule-shift-end" style="flex: 1;">
+                        <!-- Thursday -->
+                        <div
+                            style="display: flex; align-items: center; gap: 12px; padding: 12px; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;">
+                            <label
+                                style="min-width: 90px; font-weight: 600; font-size: 0.85rem; display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                <input type="checkbox" id="schedule-thursday-enabled"
+                                    style="width: 18px; height: 18px; cursor: pointer;">
+                                <span>Jueves</span>
+                            </label>
+                            <div id="schedule-thursday-shifts"
+                                style="flex: 1; display: flex; gap: 8px; align-items: center;">
+                                <input type="time" value="10:00" class="schedule-shift-start"
+                                    style="flex: 1; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.85rem;">
+                                <span style="color: #94a3b8;">-</span>
+                                <input type="time" value="18:00" class="schedule-shift-end"
+                                    style="flex: 1; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.85rem;">
                             </div>
+                            <button type="button" onclick="addShift('thursday')" class="btn btn-outline btn-sm"
+                                style="padding: 6px 10px; font-size: 0.75rem;" title="Añadir turno">
+                                <i class="fas fa-plus"></i>
+                            </button>
                         </div>
-                        <button type="button" onclick="addShift('friday')" class="btn btn-outline btn-sm"
-                            title="Añadir turno">
-                            <i class="fas fa-plus"></i>
-                        </button>
-                    </div>
 
-                    <!-- Saturday -->
-                    <div class="schedule-day-row">
-                        <label><input type="checkbox" id="schedule-saturday-enabled"> Sábado</label>
-                        <div id="schedule-saturday-shifts" style="flex: 1;">
-                            <div style="display: flex; gap: 5px; align-items: center;">
-                                <input type="time" value="10:00" class="schedule-shift-start" style="flex: 1;">
-                                <span>-</span>
-                                <input type="time" value="14:00" class="schedule-shift-end" style="flex: 1;">
+                        <!-- Friday -->
+                        <div
+                            style="display: flex; align-items: center; gap: 12px; padding: 12px; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;">
+                            <label
+                                style="min-width: 90px; font-weight: 600; font-size: 0.85rem; display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                <input type="checkbox" id="schedule-friday-enabled"
+                                    style="width: 18px; height: 18px; cursor: pointer;">
+                                <span>Viernes</span>
+                            </label>
+                            <div id="schedule-friday-shifts"
+                                style="flex: 1; display: flex; gap: 8px; align-items: center;">
+                                <input type="time" value="10:00" class="schedule-shift-start"
+                                    style="flex: 1; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.85rem;">
+                                <span style="color: #94a3b8;">-</span>
+                                <input type="time" value="18:00" class="schedule-shift-end"
+                                    style="flex: 1; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.85rem;">
                             </div>
+                            <button type="button" onclick="addShift('friday')" class="btn btn-outline btn-sm"
+                                style="padding: 6px 10px; font-size: 0.75rem;" title="Añadir turno">
+                                <i class="fas fa-plus"></i>
+                            </button>
                         </div>
-                        <button type="button" onclick="addShift('saturday')" class="btn btn-outline btn-sm"
-                            title="Añadir turno">
-                            <i class="fas fa-plus"></i>
-                        </button>
-                    </div>
 
-                    <!-- Sunday -->
-                    <div class="schedule-day-row">
-                        <label><input type="checkbox" id="schedule-sunday-enabled"> Domingo</label>
-                        <div id="schedule-sunday-shifts" style="flex: 1;">
-                            <div style="display: flex; gap: 5px; align-items: center;">
-                                <input type="time" value="10:00" class="schedule-shift-start" style="flex: 1;">
-                                <span>-</span>
-                                <input type="time" value="14:00" class="schedule-shift-end" style="flex: 1;">
+                        <!-- Saturday -->
+                        <div
+                            style="display: flex; align-items: center; gap: 12px; padding: 12px; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;">
+                            <label
+                                style="min-width: 90px; font-weight: 600; font-size: 0.85rem; display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                <input type="checkbox" id="schedule-saturday-enabled"
+                                    style="width: 18px; height: 18px; cursor: pointer;">
+                                <span>Sábado</span>
+                            </label>
+                            <div id="schedule-saturday-shifts"
+                                style="flex: 1; display: flex; gap: 8px; align-items: center;">
+                                <input type="time" value="10:00" class="schedule-shift-start"
+                                    style="flex: 1; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.85rem;">
+                                <span style="color: #94a3b8;">-</span>
+                                <input type="time" value="14:00" class="schedule-shift-end"
+                                    style="flex: 1; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.85rem;">
                             </div>
+                            <button type="button" onclick="addShift('saturday')" class="btn btn-outline btn-sm"
+                                style="padding: 6px 10px; font-size: 0.75rem;" title="Añadir turno">
+                                <i class="fas fa-plus"></i>
+                            </button>
                         </div>
-                        <button type="button" onclick="addShift('sunday')" class="btn btn-outline btn-sm"
-                            title="Añadir turno">
-                            <i class="fas fa-plus"></i>
-                        </button>
+
+                        <!-- Sunday -->
+                        <div
+                            style="display: flex; align-items: center; gap: 12px; padding: 12px; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;">
+                            <label
+                                style="min-width: 90px; font-weight: 600; font-size: 0.85rem; display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                <input type="checkbox" id="schedule-sunday-enabled"
+                                    style="width: 18px; height: 18px; cursor: pointer;">
+                                <span>Domingo</span>
+                            </label>
+                            <div id="schedule-sunday-shifts"
+                                style="flex: 1; display: flex; gap: 8px; align-items: center;">
+                                <input type="time" value="10:00" class="schedule-shift-start"
+                                    style="flex: 1; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.85rem;">
+                                <span style="color: #94a3b8;">-</span>
+                                <input type="time" value="14:00" class="schedule-shift-end"
+                                    style="flex: 1; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.85rem;">
+                            </div>
+                            <button type="button" onclick="addShift('sunday')" class="btn btn-outline btn-sm"
+                                style="padding: 6px 10px; font-size: 0.75rem;" title="Añadir turno">
+                                <i class="fas fa-plus"></i>
+                            </button>
+                        </div>
                     </div>
                 </div>
 
-                <!-- Status -->
-                <div class="form-group">
-                    <label>Estado</label>
-                    <select id="staff-status" required>
-                        <option value="active">Activo</option>
-                        <option value="inactive">Baja</option>
-                    </select>
+
+                <!-- SECTION: Estado y Notas -->
+                <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px;">
+                    <h4
+                        style="margin: 0 0 15px 0; font-size: 0.85rem; font-weight: 700; text-transform: uppercase; color: #64748b; letter-spacing: 0.5px; display: flex; align-items: center; gap: 8px;">
+                        <i class="fas fa-info-circle" style="color: var(--accent);"></i> Estado y Notas
+                    </h4>
+
+                    <div class="form-group" style="margin-bottom: 15px;">
+                        <label
+                            style="font-size: 0.75rem; font-weight: 600; color: #475569; margin-bottom: 6px; display: block;">Estado</label>
+                        <select id="staff-status" required
+                            style="width: 100%; padding: 10px 14px; border: 1.5px solid #e2e8f0; border-radius: 8px; font-size: 0.9rem; background: white;">
+                            <option value="active">✅ Activo</option>
+                            <option value="inactive">❌ Baja</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label
+                            style="font-size: 0.75rem; font-weight: 600; color: #475569; margin-bottom: 6px; display: block;">Notas
+                            Internas</label>
+                        <textarea id="staff-notes" rows="3"
+                            placeholder="Especialidades, observaciones, certificaciones..."
+                            style="width: 100%; padding: 10px 14px; border: 1.5px solid #e2e8f0; border-radius: 8px; font-size: 0.9rem; resize: vertical; font-family: inherit;"></textarea>
+                    </div>
                 </div>
 
-                <!-- Notes -->
-                <div class="form-group">
-                    <label>Notas</label>
-                    <textarea id="staff-notes" rows="3" placeholder="Especialidades, observaciones..."></textarea>
-                </div>
-
-                <button type="submit" class="btn btn-accent" style="width: 100%; margin-top: 20px;">
+                <button type="submit" class="btn btn-accent"
+                    style="width: 100%; margin-top: 20px; padding: 14px; font-size: 1rem; font-weight: 600; border-radius: 10px;">
                     <i class="fas fa-save"></i> Guardar Personal
                 </button>
             </form>

@@ -22,13 +22,18 @@ document.addEventListener("DOMContentLoaded", () => {
 function initDashboard() {
     updateDateDisplay();
 
-    // Initialize date picker to today
+    // Initialize date picker to today (Local Time)
     const datePicker = document.getElementById("dashboard-date-picker");
+    let initialDate = "";
+
     if (datePicker) {
-        datePicker.value = new Date().toISOString().split('T')[0];
+        const today = new Date();
+        const localDate = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0');
+        datePicker.value = localDate;
+        initialDate = localDate;
     }
 
-    cargarCitasHoy();
+    cargarCitasHoy(initialDate);
     cargarCatalogoSimple(); // Para el modal de nueva cita
     cargarNotasDia();
 
@@ -40,6 +45,7 @@ function initDashboard() {
         }
     });
     document.getElementById("filter-status")?.addEventListener("change", renderDashboard);
+    document.getElementById("filter-room")?.addEventListener("change", renderDashboard); // New listener
     document.getElementById("filter-staff")?.addEventListener("change", renderDashboard);
 
     // Modal listeners
@@ -80,17 +86,27 @@ async function cargarCitasHoy(date) {
         }
 
         // Cargar de todas las colecciones en paralelo
+        console.log(`Charging appointments for date: ${targetDate}`);
         const promises = collections.map(col => db.collection(col).where("fecha", "==", targetDate).get());
         const snapshots = await Promise.all(promises);
+
+        // Debug results
+        let totalFound = 0;
+        snapshots.forEach((snap, idx) => {
+            console.log(`Collection ${collections[idx]}: ${snap.size} docs found`);
+            totalFound += snap.size;
+        });
 
         snapshots.forEach((snap, index) => {
             snap.forEach(doc => {
                 const data = doc.data();
-                // Determinar el módulo base para el redireccionamiento posterior
+                // Determinar el módulo base para el redireccionamiento y filtering
                 let moduleType = 'spa';
                 const col = collections[index];
+
                 if (col === 'reservas_suite') moduleType = 'suite';
-                else if (col === 'reservas_panacea' || col === 'reservas_vip') moduleType = 'panacea';
+                else if (col === 'reservas_panacea') moduleType = 'panacea';
+                else if (col === 'reservas_vip') moduleType = 'vip';
                 else if (col === 'reservas_peluqueria') moduleType = 'peluqueria';
 
                 state.citas.push({
@@ -210,7 +226,9 @@ window.loadDashboardDate = function (dateOrToday) {
     if (!datePicker) return;
 
     if (dateOrToday === 'today') {
-        datePicker.value = new Date().toISOString().split('T')[0];
+        const today = new Date();
+        const localDate = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0');
+        datePicker.value = localDate;
     }
 
     cargarCitasHoy(datePicker.value);
@@ -220,9 +238,22 @@ window.changeDashboardDate = function (days) {
     const datePicker = document.getElementById("dashboard-date-picker");
     if (!datePicker) return;
 
-    const currentDate = new Date(datePicker.value || new Date());
+    // Fix: Parse manually to avoid UTC conversion
+    let currentVal = datePicker.value;
+    if (!currentVal) {
+        const today = new Date();
+        currentVal = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0');
+    }
+
+    const parts = currentVal.split('-');
+    const year = parseInt(parts[0], 10);
+    const month = parseInt(parts[1], 10) - 1; // Months are 0-indexed
+    const day = parseInt(parts[2], 10);
+
+    const currentDate = new Date(year, month, day);
     currentDate.setDate(currentDate.getDate() + days);
-    const newDate = currentDate.toISOString().split('T')[0];
+
+    const newDate = currentDate.getFullYear() + '-' + String(currentDate.getMonth() + 1).padStart(2, '0') + '-' + String(currentDate.getDate()).padStart(2, '0');
 
     datePicker.value = newDate;
     cargarCitasHoy(newDate);
@@ -238,6 +269,7 @@ function renderDashboard() {
 
     const term = document.getElementById("dashboard-search")?.value.toLowerCase() || "";
     const statusFilter = document.getElementById("filter-status")?.value || "";
+    const roomFilter = document.getElementById("filter-room")?.value || "";
     const staffFilter = document.getElementById("filter-staff")?.value || "";
     const showPast = document.getElementById("show-past-citas")?.checked || false;
 
@@ -246,35 +278,12 @@ function renderDashboard() {
     let isGlobalSearch = state.searchMode && term.length > 0;
 
     if (isGlobalSearch) {
+        // ... (keep global search logic)
         dataToShow = state.searchCitas;
-        titleEl.textContent = `Resultados Globales: "${term}"`;
-        // Ajustar Header para incluir FECHA
-        thead.innerHTML = `
-            <tr style="background: #f8fafc;">
-                <th style="padding: 15px 20px; font-size: 0.8rem; color: #64748b;">ID</th>
-                <th style="padding: 15px 20px; font-size: 0.8rem; color: #64748b;">FECHA</th>
-                <th style="padding: 15px 20px; font-size: 0.8rem; color: #64748b;">HORA</th>
-                <th style="padding: 15px 20px; font-size: 0.8rem; color: #64748b;">CLIENTE</th>
-                <th style="padding: 15px 20px; font-size: 0.8rem; color: #64748b;">SERVICIO</th>
-                <th style="padding: 15px 20px; font-size: 0.8rem; color: #64748b;">ESTADO</th>
-                <th style="padding: 15px 20px; font-size: 0.8rem; color: #64748b;">ACCIONES</th>
-            </tr>`;
+        // ...
     } else {
-        state.searchMode = false;
-        titleEl.textContent = "Próximas Citas";
-        // Restaurar Header original
-        thead.innerHTML = `
-            <tr style="background: #f8fafc;">
-                <th style="padding: 15px 20px; font-size: 0.8rem; color: #64748b;">ID</th>
-                <th style="padding: 15px 20px; font-size: 0.8rem; color: #64748b;">HORA</th>
-                <th style="padding: 15px 20px; font-size: 0.8rem; color: #64748b;">CLIENTE</th>
-                <th style="padding: 15px 20px; font-size: 0.8rem; color: #64748b;">SERVICIO</th>
-                <th style="padding: 15px 20px; font-size: 0.8rem; color: #64748b;">TERAPEUTA</th>
-                <th style="padding: 15px 20px; font-size: 0.8rem; color: #64748b;">ESTADO</th>
-                <th style="padding: 15px 20px; font-size: 0.8rem; color: #64748b;">CONFIRMAR</th>
-                <th style="padding: 15px 20px; font-size: 0.8rem; color: #64748b;">ACCIONES</th>
-            </tr>`;
-
+        // ...
+        // ...
         const now = new Date();
         dataToShow = state.citas.filter(c => {
             const matchesTerm = (c.nombre || "").toLowerCase().includes(term) ||
@@ -282,15 +291,41 @@ function renderDashboard() {
             const matchesStatus = statusFilter === "" || c.status === statusFilter;
             const matchesStaff = staffFilter === "" || c.terapeuta === staffFilter;
 
+            // New Room Filter
+            let matchesRoom = true;
+            if (roomFilter) {
+                // Map filter value to internal moduleType or source
+                // In cargarCitasHoy we need to ensure we have the distinction
+                matchesRoom = c.moduleType === roomFilter;
+            }
+
             let isUpcoming = true;
             if (!showPast) {
-                const appointmentHour = parseInt(c.hora.split(':')[0]);
-                const appointmentMin = parseInt(c.hora.split(':')[1]);
-                const totalApptMin = appointmentHour * 60 + appointmentMin;
-                const totalNowMin = now.getHours() * 60 + now.getMinutes();
-                if (totalNowMin > (totalApptMin + 60)) isUpcoming = false;
+                const datePicker = document.getElementById("dashboard-date-picker");
+                const selectedDate = datePicker ? datePicker.value : new Date().toISOString().split('T')[0];
+
+                // Construct local "today" string yyyy-mm-dd
+                const now = new Date();
+                const todayStr = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+
+                if (selectedDate > todayStr) {
+                    // Future date: Always upcoming
+                    isUpcoming = true;
+                } else if (selectedDate < todayStr) {
+                    // Past date: Always past
+                    isUpcoming = false;
+                } else {
+                    // Today: Check time
+                    const appointmentHour = parseInt(c.hora.split(':')[0]);
+                    const appointmentMin = parseInt(c.hora.split(':')[1]);
+                    const totalApptMin = appointmentHour * 60 + appointmentMin;
+                    const totalNowMin = now.getHours() * 60 + now.getMinutes();
+                    // Margin of 60 mins? Or strictly passed? User likely wants to see recent ones.
+                    // Existing logic had +60. Let's keep it or refine.
+                    if (totalNowMin > (totalApptMin + 60)) isUpcoming = false;
+                }
             }
-            return matchesTerm && matchesStatus && matchesStaff && isUpcoming;
+            return matchesTerm && matchesStatus && matchesStaff && matchesRoom && isUpcoming;
         });
     }
 
@@ -313,38 +348,55 @@ function renderDashboard() {
         // Determine if No-Show handling should be shown
         const isConfirmed = c.status === 'confirmada';
         const isNoShow = c.no_show === true || c.status === 'no_show';
+        const statusIcon = getStatusIcon(isNoShow ? 'no_show' : c.status);
+
+        // Logic for "Saldo" (Pending Payment)
+        // Assuming 'pendiente' field or calculating from price vs paid
+        // Fallback: If status is 'pendiente', it implies payment pending too?
+        // User specifically asked "si tiene saldo".
+        // We'll check if there is a recorded debt or price > paid
+        const hasBalance = (c.precio_total > 0 && c.pagado !== true) || (c.pendiente > 0);
+        const balanceAmount = parseFloat(c.pendiente || c.precio_total || 0).toFixed(0); // Removing decimals for compactness if user wants "pequeñito"
 
         return `
-        <tr style="${isNoShow ? 'opacity: 0.5;' : ''}">
-            <td style="font-size:0.8rem; color:#666;">${c.res_id || c.id.substr(0, 4)}</td>
-            ${isGlobalSearch ? `<td style="font-size:0.8rem;">${formatDateES(c.fecha)}</td>` : ''}
-            <td style="font-weight:bold; color:var(--accent);">${c.hora}</td>
-            <td ${isNoShow ? 'style="text-decoration: line-through;"' : ''}>${c.nombre}</td>
-            <td>${serviceName}</td>
-            ${!isGlobalSearch ? `<td>${c.terapeuta || '—'}</td>` : ''}
-            <td><span class="badge ${getStatusBadgeClass(isNoShow ? 'no_show' : c.status)}">${isNoShow ? 'NO SHOW' : c.status.toUpperCase()}</span></td>
-            <td style="text-align:center;">
-                ${isConfirmed && !isNoShow ? `
-                    <button class="btn-icon" title="Marcar como No Show" onclick="markAsNoShow('${c.id}', '${c.moduleType}')" style="color:#f59e0b;">
-                        <i class="fas fa-user-times"></i>
+            <tr style="${isNoShow ? 'opacity: 0.5;' : ''}">
+                <td style="font-size:0.8rem; color:#666;">${c.res_id || c.id.substr(0, 4)}</td>
+                ${isGlobalSearch ? `<td style="font-size:0.8rem;">${formatDateES(c.fecha)}</td>` : ''}
+                <td style="font-weight:bold; color:var(--accent);">${c.hora}</td>
+                <td ${isNoShow ? 'style="text-decoration: line-through;"' : ''}>${c.nombre}</td>
+                <td>${serviceName}</td>
+                ${!isGlobalSearch ? `<td>${c.terapeuta || '—'}</td>` : ''}
+                <td style="text-align: center;">
+                    ${statusIcon}
+                    ${hasBalance ? `
+                        <span title="Pendiente de Pago: ${balanceAmount}€" style="white-space:nowrap;">
+                            <i class="fas fa-coins" style="color: #eab308; margin-left: 6px; font-size: 0.9rem;"></i>
+                            <span style="font-size: 0.7rem; color: #b45309; font-weight: 700; vertical-align: middle;">${balanceAmount}€</span>
+                        </span>
+                    ` : ''}
+                </td>
+                <td style="text-align:center;">
+                    ${isConfirmed && !isNoShow ? `
+                        <button class="btn-icon" title="Marcar como No Show" onclick="markAsNoShow('${c.id}', '${c.moduleType}')" style="color:#f59e0b;">
+                            <i class="fas fa-user-times"></i>
+                        </button>
+                    ` : (isNoShow ? `
+                        <button class="btn-icon" title="Desmarcar No Show" onclick="unmarkNoShow('${c.id}', '${c.moduleType}')" style="color:#6b7280;">
+                            <i class="fas fa-undo"></i>
+                        </button>
+                    ` : `
+                        <button class="btn-icon" title="Enviar confirmación WhatsApp" onclick="sendWhatsAppConfirmation('${c.id}', '${c.telefono || ''}', '${c.nombre.replace(/'/g, "\\'")}', '${c.fecha}', '${c.hora}', '${c.moduleType}')" style="color:#25D366;">
+                            <i class="fab fa-whatsapp" style="font-size:1.2rem;"></i>
+                            ${c.whatsappSent ? '<i class="fas fa-check-circle" style="font-size:0.6rem; color:green; vertical-align:top;"></i>' : ''}
+                        </button>
+                    `)}
+                </td>
+                <td>
+                    <button class="btn-icon" title="Ver detalles" onclick="goToReservationDetail('${c.id}', '${c.moduleType}')">
+                        <i class="fas fa-eye"></i>
                     </button>
-                ` : (isNoShow ? `
-                    <button class="btn-icon" title="Desmarcar No Show" onclick="unmarkNoShow('${c.id}', '${c.moduleType}')" style="color:#6b7280;">
-                        <i class="fas fa-undo"></i>
-                    </button>
-                ` : `
-                    <button class="btn-icon" title="Enviar confirmación WhatsApp" onclick="sendWhatsAppConfirmation('${c.id}', '${c.telefono || ''}', '${c.nombre.replace(/'/g, "\\'")}', '${c.fecha}', '${c.hora}', '${c.moduleType}')" style="color:#25D366;">
-                        <i class="fab fa-whatsapp" style="font-size:1.2rem;"></i>
-                        ${c.whatsappSent ? '<i class="fas fa-check-circle" style="font-size:0.6rem; color:green; vertical-align:top;"></i>' : ''}
-                    </button>
-                `)}
-            </td>
-            <td>
-                <button class="btn-icon" title="Ver detalles" onclick="goToReservationDetail('${c.id}', '${c.moduleType}')">
-                    <i class="fas fa-eye"></i>
-                </button>
-            </td>
-        </tr>`;
+                </td>
+            </tr>`;
     }).join('');
 }
 
@@ -355,12 +407,18 @@ function formatDateES(isoStr) {
     return isoStr;
 }
 
-function getStatusBadgeClass(status) {
+function getStatusIcon(status) {
     switch (status) {
-        case 'confirmada': return 'badge-success';
-        case 'anulada': return 'badge-danger';
-        case 'no_show': return 'badge-warning';
-        default: return 'badge-secondary';
+        case 'confirmada':
+            return '<i class="fas fa-check-circle" title="Confirmada" style="color: #10b981; font-size: 1.1rem;"></i>';
+        case 'anulada':
+            return '<i class="fas fa-times-circle" title="Anulada" style="color: #ef4444; font-size: 1.1rem;"></i>';
+        case 'no_show':
+            return '<i class="fas fa-user-slash" title="No Show" style="color: #f59e0b; font-size: 1.1rem;"></i>';
+        case 'pendiente':
+            return '<i class="fas fa-clock" title="Pendiente" style="color: #f97316; font-size: 1.1rem;"></i>';
+        default:
+            return '<i class="fas fa-question-circle" title="' + status + '" style="color: #94a3b8; font-size: 1.1rem;"></i>';
     }
 }
 

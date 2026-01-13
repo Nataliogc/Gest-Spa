@@ -132,7 +132,7 @@
                             onchange="importLocalVouchersFromExcel(event)">
                         <button onclick="document.getElementById('import-excel-input').click()" class="btn btn-outline"
                             title="Importar Bonos Locales desde Excel">
-                            <i class="fas fa-file-import"></i> Importar Locales
+                            <i class="fas fa-cog"></i> Importar Locales
                         </button>
                     </div>
 
@@ -181,17 +181,16 @@
     <div id="voucher-modal" class="modal" style="display: none;">
         <div class="modal-content" style="max-width: 750px; border-radius: 12px;">
             <div class="modal-header"
-                style="padding: 12px 20px; background: #f8fafc; display: flex; justify-content: space-between; align-items: center;">
-                <div style="display: flex; align-items: center; gap: 12px;">
-                    <h2 style="margin:0; font-size: 1.1rem; font-weight: 700;">Gestionar Bono <span id="vm-title-code"
+                style="padding: 8px 15px; background: #f8fafc; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e2e8f0;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <h2 style="margin:0; font-size: 1rem; font-weight: 700;">Gestionar Bono <span id="vm-title-code"
                             style="color: var(--accent);"></span></h2>
-                    <!-- BOTON REACTIVAR ELIMINADO -->
                 </div>
                 <div style="display: flex; align-items: center; gap: 10px;">
                     <span id="vm-status-badge" class="st-badge st-pending"
-                        style="font-size: 0.65rem; padding: 2px 8px;">PENDIENTE</span>
+                        style="font-size: 0.65rem; padding: 2px 6px;">PENDIENTE</span>
                     <span class="close-btn" onclick="closeVoucherModal()"
-                        style="font-size: 1.25rem; cursor: pointer; color: #64748b;">&times;</span>
+                        style="font-size: 1.25rem; cursor: pointer; color: #64748b; line-height: 1;">&times;</span>
                 </div>
             </div>
 
@@ -214,8 +213,9 @@
                                 style="padding: 4px 8px; font-size: 0.8rem; color: #334155;">
                         </div>
                         <div class="form-group" style="margin-bottom: 8px;">
-                            <input type="tel" id="vm-telefono" class="param-input" placeholder="Teléfono"
-                                style="padding: 4px 8px; font-size: 0.8rem; color: #334155;">
+                            <input type="tel" id="vm-telefono" class="param-input" placeholder="Teléfono (Obligatorio)"
+                                required
+                                style="padding: 4px 8px; font-size: 0.8rem; color: #334155; border-color: #e2e8f0;">
                         </div>
 
                         <!-- MENSAJE PERSONALIZADO -->
@@ -264,9 +264,9 @@
                                         style="background: #15803d; color: white; font-weight: 700; font-size: 0.7rem; padding: 2px 6px; border-radius: 4px;">0€</span>
                                 </div>
 
-                                <!-- MANUAL DISCOUNT OVERRIDE -->
+                                <!-- MANUAL DISCOUNT OVERRIDE (HIDDEN - Only for local creation) -->
                                 <div
-                                    style="margin-top: 6px; display: flex; align-items: center; gap: 5px; background: #fffbeb; padding: 4px; border-radius: 4px; border: 1px dotted #fbbf24;">
+                                    style="margin-top: 6px; display: none; align-items: center; gap: 5px; background: #fffbeb; padding: 4px; border-radius: 4px; border: 1px dotted #fbbf24;">
                                     <label style="font-size: 0.65rem; color: #92400e; font-weight: 600;">% Dto.
                                         Manual:</label>
                                     <input type="number" id="vm-manual-discount" min="0" max="100" class="param-input"
@@ -395,8 +395,8 @@
 
                         <!-- TELÉFONO -->
                         <div class="form-group" style="margin-top: 10px;">
-                            <label style="font-size: 0.8rem;">Teléfono</label>
-                            <input type="tel" id="lv-phone" class="param-input" placeholder="600 000 000"
+                            <label style="font-size: 0.8rem;">Teléfono <span style="color:red">*</span></label>
+                            <input type="tel" id="lv-phone" class="param-input" placeholder="600 000 000" required
                                 style="margin-top: 5px;">
                         </div>
 
@@ -491,6 +491,26 @@
                             <i class="fas fa-plus-circle"></i> Añadir al Carrito
                         </button>
 
+                        <!-- SECTION: EXTRAS / COMPLEMENTOS -->
+                        <div style="margin-top: 20px; padding-top: 15px; border-top: 1px dashed #e2e8f0;">
+                            <h3
+                                style="font-size: 0.8rem; margin: 0 0 10px 0; color: var(--text-muted); text-transform: uppercase; font-weight: 600;">
+                                <i class="fas fa-gift"></i> Añadir Extras
+                            </h3>
+                            <div style="display: flex; gap: 8px;">
+                                <select id="lv-extras-select" class="param-input" style="flex:1;">
+                                    <option value="">-- Seleccionar Extra --</option>
+                                    <!-- Populated by JS -->
+                                </select>
+                                <input type="number" id="lv-extras-qty" class="param-input" value="1" min="1"
+                                    style="width: 60px; text-align: center; font-weight: bold;">
+                                <button type="button" class="btn btn-outline" onclick="addExtraToCart()"
+                                    style="border-color: #f59e0b; color: #f59e0b; font-size: 0.8rem; padding: 8px 12px;">
+                                    <i class="fas fa-plus"></i>
+                                </button>
+                            </div>
+                        </div>
+
                         <div
                             style="grid-column: span 2; margin-top: 10px; border-top: 1px dashed #e2e8f0; padding-top: 10px;">
                             <h4
@@ -583,7 +603,7 @@
     <script src="js/images_data.js?v=202601072324"></script>
     <script src="js/bono-pdf.js"></script>
 
-    <script src="js/bonos.js?v=hide_resync_local_v32"></script>
+    <script src="js/bonos.js?v=complement_fixes_v41"></script>
     <script src="js/bonos-history-helper.js?v=fix_textmatch_v26"></script>
 </body>
 
