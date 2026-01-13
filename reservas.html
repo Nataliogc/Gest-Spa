@@ -575,7 +575,7 @@
                     style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; background: #fff; padding: 15px; border-radius: 10px; border: 1px solid #edf2f7; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
 
                     <!-- DATE / TIME (VISIBLE FOR RESCHEDULING) -->
-                    <div
+                    <div id="date-time-container"
                         style="display: flex; gap: 10px; grid-column: 1 / -1; background: #eff6ff; padding: 10px 15px; border-radius: 8px; border: 1px solid #dbeafe; margin-bottom: 10px;">
                         <div class="form-group" style="flex: 1; margin-bottom: 0;">
                             <label
@@ -713,12 +713,21 @@
                         <div id="complementos-list" style="display: flex; flex-wrap: wrap; gap: 3px;"></div>
                     </div>
 
-                    <!-- PACK INFO (Merged inside grid) -->
+                    <!-- PACK INFO (Multi-Location Scheduling) -->
                     <div id="pack-includes-container"
-                        style="display: none; padding: 8px; background: #fff7ed; border-radius: 6px; font-size: 0.7rem; grid-column: 1 / -1; border: 1px dashed #fdba74;">
-                        <div id="pack-items-list"
-                            style="display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 5px;"></div>
-                        <div id="pack-reminder" style="display: none; color: #c2410c; font-weight: 700;">
+                        style="display: none; padding: 12px; background: linear-gradient(135deg, #fff7ed 0%, #fef3c7 100%); border-radius: 10px; font-size: 0.75rem; grid-column: 1 / -1; border: 2px dashed #f97316;">
+                        <h4
+                            style="margin: 0 0 10px 0; font-size: 0.75rem; font-weight: 800; color: #c2410c; display: flex; align-items: center; gap: 8px;">
+                            <i class="fas fa-cubes"></i> PACK MULTISERVICIO
+                            <span id="pack-item-count"
+                                style="background: #f97316; color: white; padding: 2px 8px; border-radius: 10px; font-size: 0.65rem;">2
+                                elementos</span>
+                        </h4>
+                        <div id="pack-items-schedule" style="display: flex; flex-direction: column; gap: 10px;">
+                            <!-- Dynamically populated by updatePackInfo() -->
+                        </div>
+                        <div id="pack-reminder"
+                            style="display: none; color: #c2410c; font-weight: 700; margin-top: 10px; padding: 8px; background: #fff; border-radius: 6px; border-left: 3px solid #f97316;">
                             <i class="fas fa-utensils"></i> Recuerda reservar mesa en el restaurante si el servicio
                             incluye comida.
                         </div>
@@ -731,6 +740,47 @@
                         <textarea id="res-obs" placeholder="Notas sobre alergias, preferencias o incidencias..."
                             oninput="this.style.height = 'auto'; this.style.height = (this.scrollHeight) + 'px';"
                             style="width: 100%; padding: 8px 12px; border-radius: 6px; border: 1px solid #e2e8f0; font-size: 0.85rem; background: #fdfdfd; resize: none; min-height: 40px; height: 40px; display: block; line-height: 1.4;"></textarea>
+                    </div>
+
+                    <!-- 💳 CONTROL DE PAGO (Particular / Pago Directo) -->
+                    <div id="pago-particular-block"
+                        style="display:none; grid-column: 1 / -1; border-left: 4px solid #f59e0b; padding: 12px; margin-top: 10px; background: #fffcf0; border-radius: 0 8px 8px 0;">
+                        <h4
+                            style="margin: 0 0 10px 0; font-size: 0.7rem; font-weight: 800; color: #92400e; display: flex; align-items: center; gap: 8px;">
+                            <i class="fas fa-credit-card"></i> 💳 CONTROL DE PAGO
+                        </h4>
+                        <div
+                            style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 10px;">
+                            <div
+                                style="background: #fff; padding: 6px; border-radius: 6px; border: 1px solid #fef3c7; text-align: center;">
+                                <small
+                                    style="color: #92400e; font-size: 0.55rem; font-weight: 700; text-transform: uppercase;">Total</small><br>
+                                <strong id="pp-total" style="font-size: 0.9rem; color: #1e293b;">0.00€</strong>
+                            </div>
+                            <div
+                                style="background: #fff; padding: 6px; border-radius: 6px; border: 1px solid #fef3c7; text-align: center;">
+                                <small
+                                    style="color: #22c55e; font-size: 0.55rem; font-weight: 700; text-transform: uppercase;">Pagado</small><br>
+                                <strong id="pp-pagado" style="color: #22c55e; font-size: 0.9rem;">0.00€</strong>
+                            </div>
+                            <div
+                                style="background: #fff; padding: 6px; border-radius: 6px; border: 1px solid #fef3c7; text-align: center;">
+                                <small
+                                    style="color: #ef4444; font-size: 0.55rem; font-weight: 700; text-transform: uppercase;">Pendiente</small><br>
+                                <strong id="pp-pendiente" style="color: #ef4444; font-size: 0.9rem;">0.00€</strong>
+                            </div>
+                        </div>
+                        <div style="display: flex; gap: 8px; align-items: center; justify-content: space-between;">
+                            <div id="pp-status-badge"></div>
+                            <button type="button" class="btn"
+                                style="background: #22c55e; color: white; border: none; padding: 6px 12px; font-size: 0.75rem; font-weight: 700; border-radius: 6px;"
+                                onclick="registrarPagoParticular()">
+                                <i class="fas fa-money-bill-wave"></i> Registrar Pago
+                            </button>
+                        </div>
+                        <div id="pp-audit-log"
+                            style="margin-top: 8px; font-size: 0.65rem; color: #92400e; font-style: italic; display: none;">
+                        </div>
                     </div>
                 </div>
 
@@ -772,6 +822,12 @@
                         <button type="button" class="btn btn-outline"
                             style="height: 44px; padding: 0 20px; border-color: #334155; color: #cbd5e1; border-radius: 8px; font-weight: 600;"
                             onclick="closeModal()">CERRAR</button>
+
+                        <button type="button" id="btn-iniciar-servicio" class="btn"
+                            style="height: 44px; padding: 0 20px; background: #6366f1; color: white; border-radius: 8px; font-weight: 700; display: none;"
+                            onclick="tryStartService()">
+                            <i class="fas fa-play"></i> INICIAR
+                        </button>
 
                         <button type="button" id="btn-save-booking" class="btn btn-accent"
                             style="height: 44px; padding: 0 30px; border-radius: 8px; font-weight: 800; font-size: 1rem; box-shadow: 0 4px 12px rgba(212, 175, 55, 0.3);"
@@ -1092,7 +1148,10 @@
         document.addEventListener("DOMContentLoaded", async () => {
             const picker = document.getElementById("main-date-picker");
             const urlDate = urlParams.get('date');
-            const initialDate = urlDate || new Date().toISOString().split('T')[0];
+            // Use local date (not UTC) to avoid timezone issues around midnight
+            const now = new Date();
+            const localDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+            const initialDate = urlDate || localDate;
             picker.value = initialDate;
 
             await cargarSpaConfig();
@@ -1515,58 +1574,7 @@
                 const allServicesSnapshot = await db.collection("spa_services").where("active", "==", true).get();
                 const all = [];
                 allServicesSnapshot.forEach(doc => all.push(doc.data()));
-
-                currentServices = all.filter(s => {
-                    const cat = (s.categoria || "").toLowerCase();
-                    const spaces = Array.isArray(s.space) ? s.space.map(x => x.toLowerCase()) : (s.space ? [s.space.toLowerCase()] : []);
-                    const currentModCode = moduleType.toLowerCase();
-
-                    // 1. Explicit Space Match (Best User Experience)
-                    if (spaces.includes(currentModCode)) return true;
-                    if (spaces.includes('all') || spaces.includes('-')) return true;
-
-                    // 1.5 Strict Exclusion: If specific spaces ARE defined but don't match current, HIDE IT.
-                    if (spaces.length > 0) return false;
-
-                    // 1.8 Deep Content Check: Verify if ANY included item has a strict space restriction
-                    // This prevents services with "Cabina 1" items from appearing in "Suite"
-                    if (s.items_incluidos && Array.isArray(s.items_incluidos) && s.items_incluidos.length > 0) {
-                        const hasIncompatibleContent = s.items_incluidos.some(itemName => {
-                            const master = window.masterItems.find(m => m.name === itemName);
-                            if (!master) return false;
-
-                            // Check master item restrictions
-                            // Handle both legacy 'space' string and new 'allowedSpaces' array
-                            let masterSpaces = [];
-                            if (Array.isArray(master.allowedSpaces)) {
-                                masterSpaces = master.allowedSpaces.map(x => x.toLowerCase());
-                            } else if (master.space) {
-                                masterSpaces = [master.space.toLowerCase()];
-                            }
-
-                            if (masterSpaces.length > 0 && !masterSpaces.includes('all') && !masterSpaces.includes('-')) {
-                                // If current module is NOT in the allowed list for this item -> Incompatible
-                                // Special handling: 'spa' module usually matches 'spa' space
-                                if (!masterSpaces.includes(currentModCode)) return true;
-                            }
-                            return false;
-                        });
-
-                        if (hasIncompatibleContent) return false;
-                    }
-
-                    // 2. Category-based Fallbacks (Legacy / No Space Defined)
-                    if (currentModCode === 'suite') {
-                        return cat === 'suite_privada' || ['masaje', 'ritual', 'facial', 'tratamiento_sala'].includes(cat);
-                    }
-                    if (currentModCode === 'panacea' || currentModCode === 'vip') {
-                        return ['tratamiento_sala', 'masaje', 'ritual', 'facial'].includes(cat) || cat.includes('tratamiento');
-                    }
-                    if (currentModCode === 'spa') return ['circuito', 'bono_circuito', 'pack_pareja', 'pack_hotel', 'pack_comida'].includes(cat);
-                    if (currentModCode === 'peluqueria') return ['peluqueria', 'estetica', 'maquillaje', 'manicura'].includes(cat);
-
-                    return true;
-                });
+                currentServices = all;
 
                 currentComplementos = all.filter(s => (s.categoria || "").toLowerCase() === 'complemento');
 
@@ -1579,119 +1587,88 @@
 
         function populateServices() {
             const sel = document.getElementById("res-servicio");
+            if (!sel) return;
 
-            // Attach One-Time Listener for Duration Sync
-            sel.onchange = async function () {
-                updatePackInfo();
-                await syncServiceDuration();
-            };
-
-            sel.innerHTML = "";
             const currentVal = sel.value;
+            sel.innerHTML = "";
 
-            // Strict filtering for SPA module
-            let servicesToShow = currentServices;
-            // Relaxed filter: Show everything available in currentServices
-            // (which is already filtered by room/category)
+            const roomCode = currentModule.code.toLowerCase();
+            const salaActual = roomCode.startsWith('cabina') ? 'cabina' : roomCode;
 
-            // Special handling only if list is empty
-            if (currentModule.code === 'spa' && servicesToShow.length === 0) {
-                const fallbacks = [
-                    { nombre: 'Circuito Spa', duration: 90, precio: 35, items_incluidos: [] },
-                    { nombre: 'Spa y Sabores', duration: 90, precio: 45, items_incluidos: ['Circuito Spa', 'Comida/Cena Menú Sabores'] }
-                ];
-                servicesToShow = fallbacks;
-            } else if (moduleType === 'suite' && servicesToShow.length === 0) {
-                servicesToShow = [{ nombre: 'Suite Spa', duration: 60, precio: 100 }];
-            } else if (moduleType === 'peluqueria') {
-                if (servicesToShow.length === 0) {
-                    servicesToShow = [{ nombre: 'Servicio Peluquería', duration: 30, precio: 20 }];
+            // Exclude other apps' categories
+            const EXCLUDED_CATEGORIES = ['peluqueria', 'restaurante', 'hotel'];
+
+            // STRICT FILTER LOGIC based on user mapping
+            let servicesToShow = (currentServices || []).filter(s => {
+                const cat = (s.categoria || "").toLowerCase();
+                const name = (s.nombre || "").toLowerCase();
+
+                if (EXCLUDED_CATEGORIES.includes(cat)) return false;
+
+                // Rule 1: Always check if the space is explicitly allowed in catalog
+                const sEspacio = (s.espacio || "").toLowerCase();
+                const sAllowed = (Array.isArray(s.allowedSpaces) ? s.allowedSpaces : []).map(x => x.toLowerCase());
+                const isExplicitlyAllowed = sEspacio.includes(salaActual) || sAllowed.includes(salaActual);
+
+                // Rule 2: Final User Mapping
+                let matchesMapping = false;
+                if (salaActual === 'cabina') {
+                    // Cabina → Individual
+                    matchesMapping = !['ritual', 'pack_pareja', 'suite_privada', 'pack', 'spa', 'gym', 'bono_circuito', 'complemento'].includes(cat) && !name.includes('pareja');
+                } else if (salaActual === 'panacea') {
+                    // Panacea → Individual + Ritual + Pareja
+                    matchesMapping = !['suite_privada', 'spa', 'gym', 'complemento'].includes(cat);
+                } else if (salaActual === 'suite') {
+                    // Suite → Pareja + Packs + Ritual
+                    matchesMapping = ['ritual', 'pack_pareja', 'suite_privada', 'pack'].includes(cat) || name.includes('pareja') || name.includes('suite');
+                } else if (salaActual === 'vip') {
+                    // VIP → Pareja VIP (y derivados)
+                    matchesMapping = cat === 'pack_pareja' || name.includes('vip');
+                } else if (salaActual === 'spa') {
+                    // SPA → Circuito + Packs SPA
+                    matchesMapping = ['spa', 'bono_circuito', 'complemento'].includes(cat) || name.includes('circuito');
+                } else if (salaActual === 'gym') {
+                    // Gym → Gym
+                    matchesMapping = ['gym', 'complemento'].includes(cat) || name.includes('gimnasio');
                 }
-            }
 
-            // GLOBAL: Ensure pending voucher service is INCLUDED (for ANY module)
-            const pending = sessionStorage.getItem('pendingVoucherBooking');
-            if (pending) {
-                try {
-                    const pData = JSON.parse(pending);
-                    if (pData.producto && !servicesToShow.find(s => s.nombre === pData.producto)) {
-                        // Try to find in full catalog
-                        const fFound = currentServices.find(s => s.nombre === pData.producto);
-                        // Or at least push a placeholder
-                        if (fFound) {
-                            servicesToShow.push(fFound);
-                        } else {
-                            // Even if not in loaded list, force add it so it can be selected
-                            servicesToShow.push({ nombre: pData.producto, duration: 60, precio: 0, items_incluidos: [] });
-                        }
-                    }
-                } catch (e) { console.error(e); }
-            }
-
-            // Deduplicate logic and Filter by Cabin if needed
-            const uniqueServices = [];
-            const seenNames = new Set();
-
-            // Check if we are in a cabin
-            const isCabin = currentModule.code.startsWith('cabina');
-
-            servicesToShow.forEach(s => {
-                if (!seenNames.has(s.nombre)) {
-                    // FILTER: If we are in a cabin, check allowedSpaces
-                    if (isCabin) {
-                        const spaces = s.allowedSpaces || (s.espacio ? [s.espacio] : []);
-                        // Normalize spaces to lower case for comparison
-                        const spacesLower = spaces.map(sp => sp.toLowerCase());
-
-                        // Strict check: Must allow 'cabinas' OR the specific cabin code (e.g., 'cabina1')
-                        // Or loose check: if no spaces defined, maybe allow? Better strict.
-                        const matches = spacesLower.includes('cabinas') || spacesLower.includes('cabina') || spacesLower.includes(currentModule.code);
-                        if (!matches) return; // Skip invalid service
-                    }
-
-                    seenNames.add(s.nombre);
-                    uniqueServices.push(s);
+                // Rule 3: Allow Complements in most rooms as agenda-less items
+                if (cat === 'complemento' && ['cabina', 'panacea', 'suite', 'spa', 'gym'].includes(salaActual)) {
+                    matchesMapping = true;
                 }
+
+                // Intersection of explicit allowance or mapping match
+                return isExplicitlyAllowed || matchesMapping;
             });
-            servicesToShow = uniqueServices;
 
-            // Populate options
+            // Special handling: Force placeholder for Particular flow initially
+            const placeholder = document.createElement("option");
+            placeholder.value = "";
+            placeholder.textContent = "Selecciona un servicio...";
+            placeholder.disabled = true;
+            placeholder.selected = true;
+            sel.appendChild(placeholder);
+
             servicesToShow.forEach(s => {
                 const opt = document.createElement("option");
                 opt.value = s.nombre;
                 opt.textContent = s.nombre;
+                // Add dataset for pax limits/space/category
+                opt.dataset.paxMax = s.pax_max || (s.categoria === 'pack_pareja' ? 2 : 1);
+                opt.dataset.espacio = s.espacio || "";
+                opt.dataset.categoria = s.categoria || "";
+                opt.dataset.precio = s.precio_total || s.precio || 0;
                 sel.appendChild(opt);
             });
 
-            // LOGIC: Default selection
-            // If Panacea/VIP, we want NO selection by default (force user to choose)
-            // unless we are editing an existing reservation (handled by editBooking setting value)
-            if (currentModule.code === 'panacea' || currentModule.code === 'vip') {
-                const placeholder = document.createElement("option");
-                placeholder.value = "";
-                placeholder.textContent = "Selecciona un servicio...";
-                placeholder.disabled = true;
-                placeholder.selected = true;
-                sel.prepend(placeholder);
-
-                // If we had a value before (and it exists in the new list), restore it
-                // Otherwise, the placeholder remains selected
-                if (currentVal && servicesToShow.some(s => s.nombre === currentVal)) {
-                    sel.value = currentVal;
-                } else {
-                    sel.value = "";
-                }
-            } else if (servicesToShow.length === 1) {
-                // Auto-select if there's only one option (typical for SPA)
-                sel.value = servicesToShow[0].nombre;
-            } else if (currentVal && servicesToShow.some(s => s.nombre === currentVal)) {
+            // Restore previous value if valid for this room
+            if (currentVal && servicesToShow.some(s => s.nombre === currentVal)) {
                 sel.value = currentVal;
+            } else if (roomCode === 'spa' && servicesToShow.length > 0) {
+                const defaultSpa = servicesToShow.find(s => s.nombre.toLowerCase().includes('circuito')) || servicesToShow[0];
+                sel.value = defaultSpa.nombre;
             } else {
-                // Determine default selection logic if multiple options
-                const defaultService = (moduleType === 'suite') ? "Suite Spa" : "Circuito Spa";
-                if (servicesToShow.some(s => s.nombre === defaultService)) {
-                    sel.value = defaultService;
-                }
+                sel.value = "";
             }
 
             // SPA-SPECIFIC UI ADJUSTMENTS
@@ -1699,24 +1676,62 @@
             const formGrid = document.getElementById("booking-form-grid");
 
             if (currentModule.code === 'spa') {
-                // Hide service selector for Spa (always "Circuito Spa")
                 if (serviceGroup) serviceGroup.style.display = "none";
-
-                // Auto-select Circuito Spa
-                const circuitoSpa = servicesToShow.find(s => s.nombre === 'Circuito Spa');
-                if (circuitoSpa) sel.value = circuitoSpa.nombre;
-
-                // Switch to single-column layout for better visibility
                 if (formGrid) formGrid.style.gridTemplateColumns = "1fr";
             } else {
-                // Show service selector for other modules
                 if (serviceGroup) serviceGroup.style.display = "block";
-
-                // Restore two-column layout
                 if (formGrid) formGrid.style.gridTemplateColumns = "1fr 1fr";
             }
 
-            updatePackInfo();
+            // Sync price and duration after populating
+            updatePriceAutomation();
+        }
+
+        async function registrarPagoParticular() {
+            const resId = document.getElementById("res-id-display").textContent;
+            if (resId === 'NUEVA') {
+                alert("Primero debes guardar la reserva para registrar un pago.");
+                return;
+            }
+
+            if (window.showPaymentModal) {
+                window.showPaymentModal({
+                    id: document.getElementById("form-id").value,
+                    total: parseFloat(document.getElementById("res-precio-total").value),
+                    collection: MODULES[currentModule.code].collection
+                });
+            } else {
+                alert("Módulo de pagos no cargado.");
+            }
+        }
+
+        function updatePaymentControlBlock() {
+            const block = document.getElementById("pago-particular-block");
+            if (!block || block.style.display === 'none') return;
+
+            const total = parseFloat(document.getElementById("res-precio-total").value) || 0;
+            const resId = document.getElementById("form-id").value;
+
+            let paid = 0;
+            if (resId && currentData) {
+                const res = currentData.find(r => r.id === resId);
+                if (res && res.payment) paid = res.payment.paid || 0;
+            }
+
+            const pending = Math.max(0, total - paid);
+
+            document.getElementById("pp-total").textContent = total.toFixed(2) + "€";
+            document.getElementById("pp-pagado").textContent = paid.toFixed(2) + "€";
+            document.getElementById("pp-pendiente").textContent = pending.toFixed(2) + "€";
+
+            const badge = document.getElementById("pp-status-badge");
+            if (pending <= 0 && total > 0) {
+                badge.innerHTML = `<span class="badge" style="background: #22c55e; color: white; padding: 4px 8px; border-radius: 4px;">PAGADO</span>`;
+            } else if (paid > 0) {
+                badge.innerHTML = `<span class="badge" style="background: #f59e0b; color: white; padding: 4px 8px; border-radius: 4px;">PARCIAL</span>`;
+            } else {
+                badge.innerHTML = `<span class="badge" style="background: #ef4444; color: white; padding: 4px 8px; border-radius: 4px;">PENDIENTE</span>`;
+            }
         }
 
         async function syncServiceDuration() {
@@ -1969,40 +1984,267 @@
         // updateTotal replaced by new version at bottom with Extras support
 
         function updatePriceAutomation() {
-            const origen = document.getElementById("res-origen").value;
+            const svcName = document.getElementById("res-servicio").value;
             const pricePaxInput = document.getElementById("res-precio-pax");
+            const paxInput = document.getElementById("res-pax");
+            const origen = document.getElementById("res-origen").value;
 
-            const selService = document.getElementById("res-servicio").value;
-            const serviceData = currentServices.find(s => s.nombre === selService);
+            // Find service data
+            const serviceData = currentServices.find(s => s.nombre === svcName);
 
-            if (origen === 'particular' || origen === 'hotel_no_inc') {
-                let base = baseCircuitoPrice;
-                if (serviceData) {
-                    base = parseFloat(serviceData.precio);
+            // GYM / COMPLEMENT LOGIC
+            const cat = (serviceData?.categoria || "").toLowerCase();
+            const isGym = cat === 'gimnasio' || cat === 'gym' || svcName.toLowerCase().includes('gimnasio');
+            const isComplement = cat === 'complemento';
+            const isAgendaLess = isGym || isComplement;
+
+            // Toggle visibility of agenda-related fields
+            const staffGroup = document.getElementById("staff-selector-group");
+            const roomGroup = document.getElementById("room-group");
+            const dateTimeGroup = document.getElementById("date-time-container");
+            const hotelGroup = document.getElementById("hotel-group");
+
+            if (isAgendaLess) {
+                if (staffGroup) staffGroup.style.display = "none";
+                if (roomGroup) roomGroup.style.display = "none";
+                if (hotelGroup) hotelGroup.style.display = "none";
+                if (dateTimeGroup) dateTimeGroup.style.display = "none";
+
+                // Change Save Button Text
+                const saveBtn = document.getElementById("btn-save-booking");
+                if (saveBtn) {
+                    saveBtn.innerHTML = isGym ? '<i class="fas fa-dumbbell"></i> Validar Sesión Gym' : '<i class="fas fa-check-circle"></i> Consumir Complemento';
                 }
-                pricePaxInput.value = base;
             } else {
-                // Logic for vouchers or included hotel
-                pricePaxInput.value = (0).toFixed(2);
+                if (dateTimeGroup) dateTimeGroup.style.display = "flex";
+                // Room/Hotel visibility depends on toggleRoomField logic, so we don't force show here
+                // but we DO force staff if module requires it
+                if (staffGroup) {
+                    staffGroup.style.display = currentModule.requiresStaff ? "block" : "none";
+                }
+                const saveBtn = document.getElementById("btn-save-booking");
+                if (saveBtn) saveBtn.innerHTML = '<i class="fas fa-save"></i> Guardar Reserva';
             }
 
-            // Sync Duration if service has one (Needed for all origins)
-            if (serviceData && serviceData.duracion) {
-                const durInput = document.getElementById("inputDuration");
-                if (durInput) {
-                    durInput.value = serviceData.duracion;
+            // Remove previous helper text
+            const existingHelper = document.getElementById("pax-helper-text");
+            if (existingHelper) existingHelper.remove();
+
+            if (!svcName) {
+                pricePaxInput.value = "0.00";
+                paxInput.disabled = false;
+                updateTotal();
+                if (staffGroup) staffGroup.style.display = "none";
+                return;
+            }
+
+            if (!serviceData) {
+                if (currentModule.code === 'spa' && svcName === 'Circuito Spa') {
+                    pricePaxInput.value = parseFloat(baseCircuitoPrice || 0).toFixed(2);
+                } else {
+                    pricePaxInput.value = "0.00";
+                }
+                paxInput.disabled = false;
+                updateTotal();
+                return;
+            }
+
+            // ========== FIXED PRICING LOGIC ==========
+            // If service has catalog-defined pax (> 0), lock pax and use fixed price
+            const catalogPax = parseInt(serviceData.pax) || 0;
+            const isFixedPricing = catalogPax > 0;
+
+            if (isFixedPricing) {
+                // Lock pax input to catalog value
+                paxInput.value = catalogPax;
+                paxInput.disabled = true;
+
+                // Show helper text
+                const paxGroup = paxInput.closest('.form-group');
+                if (paxGroup) {
+                    const helper = document.createElement('small');
+                    helper.id = 'pax-helper-text';
+                    helper.style.cssText = 'display:block; color:#059669; font-size:0.7rem; margin-top:3px;';
+                    helper.innerHTML = `<i class="fas fa-lock"></i> Precio para ${catalogPax} pax (incluido)`;
+                    paxGroup.appendChild(helper);
+                }
+
+                // Set price directly (no multiplication)
+                if (origen === 'particular' || origen === 'hotel_no_inc') {
+                    const fixedTotal = parseFloat(serviceData.precio || 0);
+                    pricePaxInput.value = (fixedTotal / catalogPax).toFixed(2); // Display per-pax for clarity
+                    document.getElementById("res-precio-total").value = fixedTotal.toFixed(2);
+                    document.getElementById("res-total-text").textContent = fixedTotal.toFixed(2) + " €";
+                } else {
+                    pricePaxInput.value = "0.00";
+                    document.getElementById("res-precio-total").value = "0.00";
+                    document.getElementById("res-total-text").textContent = "0.00 €";
+                }
+            } else {
+                // Normal pricing: pax editable, price multiplied
+                paxInput.disabled = false;
+
+                if (origen === 'particular' || origen === 'hotel_no_inc') {
+                    pricePaxInput.value = parseFloat(serviceData.precio || 0).toFixed(2);
+                } else {
+                    pricePaxInput.value = (0).toFixed(2);
+                }
+                updateTotal();
+            }
+            // ==========================================
+
+            // Sync service duration (hidden) if not agenda-less
+            if (!isAgendaLess && currentModule.requiresStaff) {
+                syncServiceDuration().then(() => {
                     if (typeof window.handleStaffFieldsChange === 'function') {
                         window.handleStaffFieldsChange();
                     }
-                }
+                });
             }
 
-            // RECALCULATE TOTAL AFTER AUTOMATION
-            if (typeof updateTotal === 'function') {
-                updateTotal();
+            // Call updatePaymentControlBlock if fixed pricing (since we set total directly)
+            if (isFixedPricing && typeof window.updatePaymentControlBlock === 'function') {
+                window.updatePaymentControlBlock();
             }
+
+            // Update pack info if applicable
+            updatePackInfo();
         }
 
+        /**
+         * Detects if selected service is a pack with multiple items.
+         * Renders multi-location scheduling UI with time selectors for each element.
+         */
+        function updatePackInfo() {
+            const svcName = document.getElementById("res-servicio")?.value;
+            const packContainer = document.getElementById("pack-includes-container");
+            const packSchedule = document.getElementById("pack-items-schedule");
+            const packCount = document.getElementById("pack-item-count");
+            const packReminder = document.getElementById("pack-reminder");
+
+            if (!packContainer || !packSchedule) return;
+
+            // Find service data
+            const serviceData = currentServices.find(s => s.nombre === svcName);
+
+            // Check if it has breakdown items
+            const items = serviceData?.items_incluidos || serviceData?.desglosados || [];
+
+            if (!serviceData || items.length === 0) {
+                packContainer.style.display = "none";
+                window._packItems = null;
+                return;
+            }
+
+            // Show pack container
+            packContainer.style.display = "block";
+            packCount.textContent = `${items.length} elementos`;
+
+            // Get base time from form
+            const baseTime = document.getElementById("form-time")?.value || "10:00";
+            const baseDate = document.getElementById("form-date")?.value || new Date().toISOString().split('T')[0];
+
+            // Build schedule UI
+            let html = '';
+            let cumulativeMinutes = 0;
+            const packItemsData = [];
+
+            items.forEach((itemName, index) => {
+                // Try to get item config from master
+                const itemConfig = window._itemMasterCache?.find(i =>
+                    i.name.toLowerCase().trim() === itemName.toLowerCase().trim()
+                ) || {};
+
+                const duration = itemConfig.duracion || itemConfig.duration || 60;
+                const space = itemConfig.space || itemConfig.allowedSpaces?.[0] || "spa";
+                const spaceLabel = space.toUpperCase();
+
+                // Calculate suggested time
+                const [baseH, baseM] = baseTime.split(':').map(Number);
+                const totalMinutes = baseH * 60 + baseM + cumulativeMinutes;
+                const suggestedH = Math.floor(totalMinutes / 60) % 24;
+                const suggestedM = totalMinutes % 60;
+                const suggestedTime = `${String(suggestedH).padStart(2, '0')}:${String(suggestedM).padStart(2, '0')}`;
+
+                packItemsData.push({
+                    name: itemName,
+                    space: space,
+                    collection: getCollectionForSpace(space),
+                    duracion: duration,
+                    hora: suggestedTime,
+                    fecha: baseDate,
+                    index: index
+                });
+
+                html += `
+                    <div class="pack-item-row" style="display: flex; align-items: center; gap: 10px; padding: 8px 10px; background: #fff; border-radius: 8px; border-left: 4px solid ${getSpaceColor(space)};">
+                        <div style="flex: 1;">
+                            <strong style="font-size: 0.8rem; color: #1e293b;">${index + 1}. ${itemName}</strong>
+                            <div style="font-size: 0.65rem; color: #64748b;">
+                                <i class="fas fa-map-marker-alt"></i> ${spaceLabel} · 
+                                <i class="fas fa-clock"></i> ${duration}'
+                            </div>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 5px;">
+                            <label style="font-size: 0.65rem; color: #64748b;">Hora:</label>
+                            <input type="time" 
+                                   id="pack-time-${index}" 
+                                   value="${suggestedTime}" 
+                                   onchange="updatePackItemTime(${index}, this.value)"
+                                   style="padding: 4px 8px; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 0.8rem; width: 90px;">
+                        </div>
+                    </div>
+                `;
+
+                cumulativeMinutes += duration + 15; // 15 min buffer between items
+            });
+
+            packSchedule.innerHTML = html;
+            window._packItems = packItemsData;
+
+            // Show restaurant reminder if any item includes "menu" or "comida"
+            const hasFood = items.some(i => i.toLowerCase().includes('menu') || i.toLowerCase().includes('comida') || i.toLowerCase().includes('restaurante'));
+            packReminder.style.display = hasFood ? "block" : "none";
+        }
+
+        /**
+         * Updates pack item time when user changes it.
+         */
+        window.updatePackItemTime = function (index, newTime) {
+            if (window._packItems && window._packItems[index]) {
+                window._packItems[index].hora = newTime;
+                console.log(`[PACK] Item ${index} time updated to ${newTime}`);
+            }
+        };
+
+        /**
+         * Returns collection name for a given space code.
+         */
+        function getCollectionForSpace(space) {
+            const spaceNorm = (space || "").toLowerCase();
+            if (spaceNorm === 'gym' || spaceNorm === 'gimnasio') return "reservas_gimnasio";
+            if (spaceNorm.includes('cabina')) return "spa_reservas";
+            if (spaceNorm === 'panacea' || spaceNorm === 'vip' || spaceNorm === 'suite') return "spa_reservas";
+            return "spa_reservas";
+        }
+
+        /**
+         * Returns a color for UI based on space.
+         */
+        function getSpaceColor(space) {
+            const colors = {
+                'spa': '#3b82f6',
+                'panacea': '#8b5cf6',
+                'vip': '#f59e0b',
+                'suite': '#10b981',
+                'cabina': '#ec4899',
+                'cabina1': '#ec4899',
+                'cabina2': '#f472b6',
+                'cabina3': '#db2777',
+                'gym': '#6366f1'
+            };
+            return colors[(space || "").toLowerCase()] || '#94a3b8';
+        }
 
 
         async function loadReservas(date) {
@@ -2453,8 +2695,14 @@
                 <tr id="res-${res.id}" class="${isAnulada ? 'cancelled-row' : ''}" style="${isNoShow ? 'background: #fef2f2; border-left: 4px solid #ef4444;' : ''}">
                     <td style="font-size: 0.65rem; color: #666; font-weight: 700;">${res.res_id || '-'}</td>
                     <td>
-                        <div style="font-weight: 600; ${isNoShow ? 'text-decoration: line-through; color: #991b1b;' : ''}">${res.nombre}</div>
-                        <div style="font-size: 0.7rem; color: #999;">${res.tel || '-'} ${res.bono ? ' | <i class="fas fa-ticket-alt"></i> ' + res.bono : ''}</div>
+                        <div style="font-weight: 600; ${isNoShow ? 'text-decoration: line-through; color: #991b1b;' : ''}">
+                            ${res.nombre}
+                            ${res.is_pack_element || res.parent_id ? '<span style="background: #f97316; color: white; font-size: 0.55rem; padding: 1px 5px; border-radius: 4px; margin-left: 6px; font-weight: 800;">PACK</span>' : ''}
+                        </div>
+                        <div style="font-size: 0.7rem; color: #999;">
+                            ${res.tel || '-'} ${res.bono ? ' | <i class="fas fa-ticket-alt"></i> ' + res.bono : ''}
+                            ${res.service_item ? '<br><i class="fas fa-cube"></i> ' + res.service_item : ''}
+                        </div>
                     </td>
                     <td>
                         ${isNoShow ? '<span class="badge badge-warning" style="background: #f59e0b; color: white;">NO SHOW</span>' : (isAnulada ? '<span class="badge badge-anulada">ANULADA</span>' : `<span class="badge ${badgeClass}">${badgeText}</span>`)}
@@ -2778,6 +3026,7 @@
             const saveBtn = document.getElementById("btn-save-booking");
             if (saveBtn) saveBtn.style.display = "block";
 
+            window.updatePaymentControlBlock();
             document.getElementById("booking-modal").style.display = "flex";
 
             // Trigger balance check if coming from dashboard
@@ -2928,8 +3177,8 @@
                         const cb = document.querySelector(`.comp-checkbox[data-name="${item.name}"]`);
                         if (cb) cb.checked = true;
                     } else if (item.type === 'custom') {
-                        // Add custom extra
-                        addCustomExtra(item.name, item.price);
+                        // Add custom extra with full data
+                        addCustomExtra(item.name, item.price, false, item);
                     }
                 });
             } else if (res.complementos && Array.isArray(res.complementos)) {
@@ -3006,6 +3255,7 @@
                 pricePaxGroup.style.display = (moduleType === 'suite') ? "none" : "block";
             }
 
+            window.updatePaymentControlBlock();
             document.getElementById("booking-modal").style.display = "flex";
 
             // Trigger balance check if it's a bono
@@ -3017,12 +3267,56 @@
         async function cancelBookingFromModal() {
             const id = document.getElementById("form-id").value;
             if (!id) return;
+
+            const resData = currentData.find(r => r.id === id);
+            if (!resData) {
+                alert("No se encontró la reserva en memoria.");
+                return;
+            }
+
+            // ========== PACK CANCELLATION RULES ==========
+            // 1. Block cancellation of pack CHILDREN
+            if (resData.parent_id || resData.is_pack_element) {
+                alert("⚠️ Este elemento pertenece a un pack.\n\nPara anular, debe cancelar el pack completo desde la reserva principal.");
+                return;
+            }
+
+            // 2. If this is a pack PARENT, use cascade cancellation
+            if (resData.is_pack_parent && resData.childs && resData.childs.length > 0) {
+                if (!confirm(`¿Seguro que deseas ANULAR este pack y sus ${resData.childs.length} elementos?\n\nEsta acción cancelará todas las reservas vinculadas.`)) return;
+
+                try {
+                    await window.cancelPackReservation(id);
+
+                    // Refund voucher if applicable
+                    if (resData.origen === 'bono' && resData.bono) {
+                        const vDoc = await db.collection("spa_vouchers").doc(resData.bono).get();
+                        if (vDoc.exists) {
+                            const vData = vDoc.data();
+                            const newUsed = Math.max(0, (vData.sesiones_usadas || 0) - 1);
+                            await db.collection("spa_vouchers").doc(resData.bono).update({
+                                sesiones_usadas: newUsed,
+                                estado: newUsed === 0 ? 'pending' : 'partially',
+                                last_updated: new Date().toISOString()
+                            });
+                        }
+                    }
+
+                    showToast("Pack anulado correctamente", "success");
+                    closeModal();
+                    loadReservas(document.getElementById("main-date-picker").value);
+                    return;
+                } catch (err) {
+                    alert("Error al anular pack: " + err.message);
+                    return;
+                }
+            }
+            // =============================================
+
+            // Standard single reservation cancellation
             if (!confirm("¿Seguro que deseas ANULAR esta reserva? No se borrará de la base de datos.")) return;
 
             try {
-                const resData = currentData.find(r => r.id === id);
-                if (!resData) throw new Error("No se encontró la reserva en memoria.");
-
                 await db.collection(currentModule.collection).doc(id).update({
                     status: 'anulada',
                     cancelled_at: new Date().toISOString()
@@ -3098,6 +3392,51 @@
                     return;
                 }
 
+                // ========== BLOCK PAST DATE/TIME RESERVATIONS ==========
+                const formDate = document.getElementById("form-date")?.value;
+                const formTime = document.getElementById("form-time")?.value || "00:00";
+                const dateTimeContainer = document.getElementById("date-time-container");
+
+                // Only validate if date/time fields are visible (not for agenda-less services)
+                if (dateTimeContainer && dateTimeContainer.style.display !== "none" && formDate && formTime) {
+                    const now = new Date();
+                    const todayStr = now.toISOString().split('T')[0];
+                    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+                    const [resH, resM] = formTime.split(':').map(Number);
+                    const resMinutes = resH * 60 + resM;
+
+                    if (formDate < todayStr) {
+                        alert(`⚠️ No se puede reservar en una fecha pasada (${formDate}).\n\nPor favor, selecciona una fecha igual o posterior a hoy.`);
+                        return;
+                    }
+
+                    if (formDate === todayStr && resMinutes < currentMinutes) {
+                        alert(`⚠️ No se puede reservar a las ${formTime}.\n\nEsa hora ya ha pasado. Por favor, selecciona una hora futura.`);
+                        return;
+                    }
+                }
+                // ========================================================
+
+                // MASTER CONFIG LOGIC (Unified Source of Truth)
+                const svcName = document.getElementById("res-servicio")?.value || "";
+                const svcOpt = document.getElementById("res-servicio")?.selectedOptions?.[0];
+                const svcCategory = (svcOpt?.dataset.categoria || "").toLowerCase();
+
+                const itemConfig = await window.getItemConfig(svcName);
+
+                // Determine if agenda is required
+                let isAgendaLess = false;
+                if (itemConfig && itemConfig.agenda_required === false) {
+                    isAgendaLess = true;
+                } else if (!itemConfig) {
+                    // Fallback for items not in master yet
+                    isAgendaLess = (svcCategory === 'gimnasio' || svcCategory === 'gym' || svcCategory === 'complemento' || svcCategory === 'extra' || svcName.toLowerCase().includes('gimnasio'));
+                }
+
+                const isGym = (itemConfig && itemConfig.allowedSpaces && itemConfig.allowedSpaces.includes('gym')) || svcCategory === 'gym' || svcName.toLowerCase().includes('gimnasio');
+                const isComplement = (itemConfig && itemConfig.allowedSpaces && itemConfig.allowedSpaces.includes('hotel')) || svcCategory === 'complemento'; // 'hotel' space usually means complements/extras in this context
+
+
                 // 2. Cambiar estado del botón y activar guard
                 isSavingReservation = true;
                 btn.disabled = true;
@@ -3106,38 +3445,52 @@
                 console.log("Iniciando proceso de guardado...");
                 // FORCE FALLBACK: If DOM is empty, use global variable
                 let id = document.getElementById("form-id").value || window.currentEditingId;
-                const date = document.getElementById("form-date").value;
-                const time = document.getElementById("form-time").value;
+                let date = document.getElementById("form-date").value;
+                let time = document.getElementById("form-time").value;
                 const pax = parseInt(document.getElementById("res-pax").value) || 0;
                 const sesionesConsumidas = parseInt(document.getElementById("res-sesiones")?.value) || 1;
                 const duration = parseInt(document.getElementById("inputDuration")?.value || 60);
+
+                // Default date/time for agenda-less if missing
+                if (isAgendaLess) {
+                    if (!date) date = new Date().toISOString().split('T')[0];
+                    if (!time) time = new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+                }
 
                 if (!date || !time) {
                     throw new Error("Faltan datos de fecha u hora. Recarga la página.");
                 }
 
-                // 3. VALIDACIÓNES AVANZADAS (Solo Timeline / Módulos Privados)
-                if (currentModule.isPrivate) {
-                    console.log("Validando sala/personal para privado...");
-                    // Check Sala
-                    const collision = await checkRoomAvailability(date, time, duration, id);
-                    if (collision) {
-                        if (collision.nombre === "Aforo Máximo Superado") {
-                            alert(`¡AFORO COMPLETO!\n\nNo hay plazas suficientes para esta reserva a las ${time}h.\n\nPor favor, seleccione otro horario o reduzca el número de personas.`);
-                        } else {
-                            const clean = parseInt(spaConfig.cleaningTime || 0);
-                            alert(`¡SALA OCUPADA!\n\nConflicto detectado con:\n- Cliente: ${collision.nombre}\n- Horario: ${collision.hora} (${collision.duracion || 60} min)\n\nEl sistema reserva un margen de limpieza de ${clean} min entre citas.`);
+                // 3. VALIDACIÓNES AVANZADAS (Only for standard Agenda services)
+                if (!isAgendaLess) {
+                    if (currentModule.isPrivate) {
+                        console.log("Validando sala/personal para privado...");
+                        // Check Sala
+                        const collision = await checkRoomAvailability(date, time, duration, id);
+                        if (collision) {
+                            if (collision.nombre === "Aforo Máximo Superado") {
+                                alert(`¡AFORO COMPLETO!\n\nNo hay plazas suficientes para esta reserva a las ${time}h.\n\nPor favor, seleccione otro horario o reduzca el número de personas.`);
+                            } else {
+                                const clean = parseInt(spaConfig.cleaningTime || 0);
+                                alert(`¡SALA OCUPADA!\n\nConflicto detectado con:\n- Cliente: ${collision.nombre}\n- Horario: ${collision.hora} (${collision.duracion || 60} min)\n\nEl sistema reserva un margen de limpieza de ${clean} min entre citas.`);
+                            }
+                            isSavingReservation = false;
+                            btn.disabled = false;
+                            btn.innerHTML = originalText;
+                            return;
                         }
-                        return;
                     }
-                }
 
-                // Check Personal (Solo si el módulo lo requiere)
-                if (currentModule.requiresStaff) {
-                    const staffFree = await checkReservationStaffAvailability(date, time, duration, id); // Renamed call
-                    if (!staffFree) {
-                        alert(`¡SIN PERSONAL DISPONIBLE! No hay terapeutas libres para este horario.`);
-                        return;
+                    // Check Personal (Solo si el módulo lo requiere)
+                    if (currentModule.requiresStaff) {
+                        const staffFree = await checkReservationStaffAvailability(date, time, duration, id);
+                        if (!staffFree) {
+                            alert(`¡SIN PERSONAL DISPONIBLE! No hay terapeutas libres para este horario.`);
+                            isSavingReservation = false;
+                            btn.disabled = false;
+                            btn.innerHTML = originalText;
+                            return;
+                        }
                     }
                 }
 
@@ -3164,6 +3517,9 @@
 
                     if (!vDoc.exists) {
                         alert("El código de bono introducido no existe.");
+                        isSavingReservation = false;
+                        btn.disabled = false;
+                        btn.innerHTML = originalText;
                         return;
                     }
                     const vData = vDoc.data();
@@ -3216,9 +3572,22 @@
                     } else {
                         nameInp.style.borderColor = "#e2e8f0";
                         complementosNames.push(name);
-                        // Ensure price is valid, legitimate 0 is allowed, optional
                         const finalPrice = (!isNaN(price) && price >= 0) ? price : 0;
-                        extrasInfo.push({ name: name, price: finalPrice, type: 'custom' });
+                        const isConsumido = item.querySelector(".extra-consumido")?.checked || false;
+
+                        const extraItem = {
+                            name: name,
+                            price: finalPrice,
+                            type: 'custom',
+                            consumido: isConsumido
+                        };
+
+                        if (isConsumido) {
+                            extraItem.fecha_consumo = new Date().toISOString();
+                            extraItem.usuario_consumo = window.currentUser?.name || "Desconocido";
+                        }
+
+                        extrasInfo.push(extraItem);
                     }
                 });
 
@@ -3230,13 +3599,35 @@
                     return;
                 }
 
+                let targetColl = currentModule.collection;
+                let finalOrigin = document.getElementById("res-origen").value;
+
+                // Determine existing status if editing
+                let existingStatus = 'confirmada';
+                if (id && currentData) {
+                    const res = currentData.find(r => r.id === id);
+                    if (res) existingStatus = res.status;
+                }
+
+                let finalStatus = window._startServiceMode ? 'en_servicio' : existingStatus;
+
+                if (isGym) {
+                    targetColl = "reservas_gimnasio";
+                    finalOrigin = "gimnasio";
+                    finalStatus = 'finalizada';
+                } else if (isComplement) {
+                    targetColl = "reservas_complementos";
+                    finalStatus = 'finalizada';
+                }
+
                 const payload = {
-                    collection: currentModule.collection, // CRITICAL: Required for filtering in loadReservas
-                    complementos: complementosNames, // Legacy support (strings)
+                    collection: targetColl,
+                    status: finalStatus, // Set the calculated status
+                    complementos: complementosNames,
                     extras_info: extrasInfo, // Detailed info
                     nombre: nombreField.value.trim(),
                     tel: document.getElementById("res-tel").value,
-                    origen: document.getElementById("res-origen").value,
+                    origen: finalOrigin,
                     terapeuta: document.getElementById("res-terapeuta")?.value.trim() || "", // Fixed possible NULL if element missing
                     hotel: document.getElementById("res-hotel")?.value || "",
                     hab: document.getElementById("res-hab")?.value || "",
@@ -3247,11 +3638,20 @@
                     sesiones_consumidas: sesionesConsumidas,
                     precio_pax: parseFloat(document.getElementById("res-precio-pax")?.value) || 0,
                     precio_total: parseFloat(document.getElementById("res-precio-total")?.value) || 0,
-                    servicio: document.getElementById("res-servicio")?.value || "",
+                    servicio: svcName,
                     duracion: duration,
                     obs: document.getElementById("res-obs")?.value || "",
                     updated_at: new Date().toISOString()
                 };
+
+                // INCLUDE AUDIT DATA IF OVERRIDE OCCURRED
+                if (window._pendingAudit) {
+                    payload.audit = window._pendingAudit;
+                    payload.service_payment_status = window._pendingPaymentStatus || 'pending_before_service';
+                    // Reset global vars
+                    window._pendingAudit = null;
+                    window._pendingPaymentStatus = null;
+                }
 
                 // CAPTURE STAFF IF REQUIRED
                 if (currentModule.requiresStaff) {
@@ -3272,13 +3672,90 @@
                     }
                 }
 
-                // 1. GUARDADO LOCAL INMEDIATO
-                let isNew = false;
+                // ========== PACK CREATION LOGIC ==========
+                // If this is a pack (window._packItems exists) and it's a NEW reservation
+                if (window._packItems && window._packItems.length > 0 && !id) {
+                    console.log("[PACK] Creating pack with", window._packItems.length, "children");
+
+                    // VALIDATION: Check for past times in pack items
+                    const now = new Date();
+                    const todayStr = now.toISOString().split('T')[0];
+                    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+
+                    for (const item of window._packItems) {
+                        const itemDate = item.fecha || date;
+                        const [h, m] = (item.hora || "00:00").split(':').map(Number);
+                        const itemMinutes = h * 60 + m;
+
+                        if (itemDate < todayStr || (itemDate === todayStr && itemMinutes < currentMinutes)) {
+                            alert(`⚠️ No se puede reservar "${item.name}" a las ${item.hora}.\n\nEsa hora ya ha pasado. Por favor, selecciona una hora futura.`);
+                            isSavingReservation = false;
+                            btn.disabled = false;
+                            btn.innerHTML = originalText;
+                            return;
+                        }
+                    }
+
+                    try {
+                        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creando Pack...';
+
+                        // Build parent data
+                        const parentData = {
+                            nombre: payload.nombre,
+                            tel: payload.tel,
+                            origen: payload.origen,
+                            hotel: payload.hotel,
+                            hab: payload.hab,
+                            bono: payload.bono,
+                            fecha: date,
+                            pax: pax,
+                            servicio: svcName,
+                            precio_total: payload.precio_total,
+                            sesiones_consumidas: sesionesConsumidas,
+                            obs: payload.obs,
+                            complementos: complementosNames,
+                            extras_info: extrasInfo
+                        };
+
+                        // Call the pack creation helper
+                        const result = await window.createPackReservations(parentData, window._packItems);
+
+                        console.log("[PACK] Created successfully:", result);
+                        showToast(`Pack creado: ${result.childIds.length} reservas`, "success");
+
+                        // Update voucher if applicable (1 pack = 1 session)
+                        if (payload.origen === 'bono' && payload.bono) {
+                            updateVoucherSessions(payload.bono, 1, svcName).catch(console.warn);
+                        }
+
+                        // Cleanup
+                        window._packItems = null;
+                        isSavingReservation = false;
+                        btn.disabled = false;
+                        btn.innerHTML = originalText;
+                        closeModal();
+                        clearPendingVoucher();
+                        await loadReservas(date);
+
+                        return; // Exit early - pack handled
+
+                    } catch (packErr) {
+                        console.error("[PACK] Creation failed:", packErr);
+                        alert("Error al crear pack: " + packErr.message);
+                        isSavingReservation = false;
+                        btn.disabled = false;
+                        btn.innerHTML = originalText;
+                        return;
+                    }
+                }
+                // ==========================================
+
+                // 1. GUARDADO LOCAL INMEDIATO (Standard single reservation)
                 if (!id) {
                     isNew = true;
                     // Es NUEVA reserva - inicializar campos
                     payload.res_id = generateUID();
-                    payload.status = 'confirmada';
+                    payload.status = finalStatus;
                     payload.created_at = new Date().toISOString();
                     id = payload.res_id; // Para local usamos el res_id como ID
                 }
@@ -3295,19 +3772,12 @@
                 // 2. INTENTO FIRESTORE
                 try {
                     if (!isNew && id) { // Only update if it existed BEFORE (not just generated above)
-                        // EDIT: Update existing reservation
-                        // Verify if doc exists first or just update? Update fails if not exists.
-                        // Since we are here and not isNew, it implies it was loaded from DB.
-                        // However, if we are in "Local First", it might be a local-only ID?
-                        // If it's local only, update checks might fail.
-                        // But for now, let's fix the immediate bug: new reservations trying to update.
-
-                        await db.collection(currentModule.collection).doc(id).update(payload);
+                        await db.collection(targetColl).doc(id).update(payload);
                         console.log(`Reserva actualizada en Firestore: ${id}`);
                     } else {
                         // NEW: Create new reservation
                         // We use .add() to let Firestore generate the Doc ID
-                        const docRef = await db.collection(currentModule.collection).add(payload);
+                        const docRef = await db.collection(targetColl).add(payload);
                         console.log(`Nueva reserva creada en Firestore: ${docRef.id}`);
 
                         // Actualizar ID local con el de Firestore
@@ -3696,39 +4166,7 @@
             return div;
         }
 
-        function toggleRoomField() {
-            const origen = document.getElementById("res-origen").value;
-            const hotelGroup = document.getElementById("hotel-group");
-            const roomGroup = document.getElementById("room-group");
-            const bonoGroup = document.getElementById("bono-group");
-            const sessionsGroup = document.getElementById("sessions-group");
-            const durationGroup = document.getElementById("duration-group");
-
-            // Visibilidad Hotel/Habitación
-            const isHotel = (origen === 'hotel_inc' || origen === 'hotel_no_inc');
-            if (hotelGroup) hotelGroup.style.display = isHotel ? "block" : "none";
-            if (roomGroup) roomGroup.style.display = isHotel ? "block" : "none";
-
-            // Visibilidad ID Bono / Cupones externos
-            const isBono = ['bono', 'smartbox', 'wonderbox', 'ego'].includes(origen);
-            if (bonoGroup) bonoGroup.style.display = isBono ? "block" : "none";
-
-            // Visibilidad Control de Sesiones (Solo para bonos internos)
-            if (sessionsGroup) sessionsGroup.style.display = (origen === 'bono') ? "block" : "none";
-
-            // Visibilidad Duración (Normalmente oculto si no se usa)
-            if (durationGroup) durationGroup.style.display = "none";
-
-            // Ajustar el grid layout según campos visibles
-            const row = document.getElementById("extra-fields-row");
-            let visibleCount = 0;
-            if (isHotel) visibleCount += 2;
-            if (isBono) visibleCount += 1;
-            if (origen === 'bono') visibleCount += 1;
-
-            // Adjust grid columns
-            if (row) row.style.gridTemplateColumns = visibleCount > 1 ? "1fr 1fr" : "1fr";
-        }
+        // toggleRoomField removed - simplified into window.toggleRoomField below
 
         function injectDurationField() {
             if (document.getElementById("duration-group")) return;
@@ -3922,14 +4360,14 @@
             select.value = "";
         }
 
-        function addCustomExtra(name = "", price = 0, isStandard = false) {
+        function addCustomExtra(name = "", price = 0, isStandard = false, extraData = null) {
             const list = document.getElementById("custom-extras-list");
             const div = document.createElement("div");
             const isCompact = currentModule.code.startsWith('cabina');
 
             div.className = "custom-extra-item";
             div.style.display = "grid";
-            div.style.gridTemplateColumns = isCompact ? "1fr 60px 25px" : "1fr 80px 30px";
+            div.style.gridTemplateColumns = isCompact ? "20px 1fr 60px 25px" : "30px 1fr 80px 30px";
             div.style.gap = isCompact ? "4px" : "8px";
             div.style.alignItems = "center";
 
@@ -3937,6 +4375,8 @@
             const padding = isCompact ? '2px 4px' : '4px 8px';
 
             div.innerHTML = `
+                <input type="checkbox" class="extra-consumido" ${extraData && extraData.consumido ? 'checked' : ''} 
+                    title="Marcar como consumido" style="margin: 0; cursor: pointer;">
                 <input type="text" class="custom-extra-name" placeholder="Detalle" value="${name}" required
                     style="padding: ${padding}; font-size: ${fontSize}; border: 1px solid #e2e8f0; border-radius: 4px; background: ${isStandard ? '#f8fafc' : '#fff'};">
                 <input type="number" class="custom-extra-price" placeholder="€" value="${parseFloat(price).toFixed(2)}" min="0" step="0.01" 
@@ -3956,26 +4396,115 @@
             updateTotal();
         }
 
-        function updateTotal() {
-            // Base: Pax * Price
-            const pax = parseInt(document.getElementById("res-pax").value) || 0;
+        async function updateTotal() {
+            const paxInp = document.getElementById("res-pax");
+            if (!paxInp) return;
+            const pax = parseInt(paxInp.value) || 0;
             const pricePax = parseFloat(document.getElementById("res-precio-pax").value) || 0;
+            const svcName = document.getElementById("res-servicio")?.value || "";
+
+            // PAX VALIDATION from Master Item (Unified Source of Truth)
+            const itemConfig = await window.getItemConfig(svcName);
+            const roomCode = currentModule.code.toLowerCase();
+            const isCabina = roomCode.startsWith('cabina');
+
+            // Fallback heuristics if master config is missing
+            const MAX_PAX_ROOM = { 'spa': 16, 'panacea': 2, 'vip': 2, 'suite': 2, 'gym': 1 };
+            const fallbackLimit = isCabina ? 1 : (MAX_PAX_ROOM[roomCode] || 2);
+            const limit = (itemConfig && itemConfig.pax_max) ? itemConfig.pax_max : fallbackLimit;
+
+            if (pax > limit) {
+                if (window._lastInvalidPax !== pax) {
+                    window._lastInvalidPax = pax;
+                    showToast(`❗ Máximo permitido: ${limit} pax`, 'error');
+                }
+            } else {
+                window._lastInvalidPax = null;
+            }
+
             let total = pax * pricePax;
 
-            // (Old checkbox logic removed)
-
-            // Add Custom/Standard Extras (All in the list)
+            // Re-calculate all Extras
+            document.querySelectorAll(".comp-checkbox:checked").forEach(cb => {
+                total += parseFloat(cb.dataset.price || 0);
+            });
             document.querySelectorAll(".custom-extra-item").forEach(item => {
-                const priceInp = item.querySelector(".custom-extra-price");
-                const val = parseFloat(priceInp.value);
-                if (!isNaN(val)) { // allow 0 price extras
-                    total += val;
-                }
+                const pVal = parseFloat(item.querySelector(".custom-extra-price")?.value);
+                if (!isNaN(pVal)) total += pVal;
             });
 
+            const totalInp = document.getElementById("res-precio-total");
+            if (totalInp) totalInp.value = total.toFixed(2);
 
-            document.getElementById("res-precio-total").value = total.toFixed(2);
-            document.getElementById("res-total-text").textContent = total.toFixed(2) + " €";
+            const totalText = document.getElementById("res-total-text");
+            if (totalText) totalText.textContent = total.toFixed(2) + " €";
+
+            if (typeof window.updatePaymentControlBlock === 'function') {
+                window.updatePaymentControlBlock();
+            }
+        }
+
+        async function tryStartService() {
+            const origen = document.getElementById("res-origen").value;
+            const total = parseFloat(document.getElementById("res-precio-total").value) || 0;
+            const resId = document.getElementById("form-id").value;
+
+            let paid = 0;
+            if (resId && currentData) {
+                const res = currentData.find(r => r.id === resId);
+                if (res && res.payment) paid = res.payment.paid || 0;
+            }
+
+            const pendingPrice = total - paid;
+            const isDeferredPayment = (origen === 'particular' || origen === 'hotel_no_inc');
+
+            if (isDeferredPayment && pendingPrice > 0) {
+                const action = confirm(`Reserva con PAGO PENDIENTE (${pendingPrice.toFixed(2)}€).\n\n¿Deseas registrar pago ahora?\n\nOK = Ir a pagos\nCANCEL = Continuar sin pagar (Auditado)`);
+
+                if (action) {
+                    registrarPagoParticular();
+                    return;
+                } else {
+                    // CLEAR PREVIOUS AUDITS
+                    window._pendingAudit = null;
+                    window._pendingPaymentStatus = null;
+
+                    // Audit override Preparation
+                    const svcOpt = document.getElementById("res-servicio")?.selectedOptions?.[0];
+                    const svcCategory = (svcOpt?.dataset.categoria || "").toLowerCase();
+
+                    window._pendingAudit = {
+                        fecha: new Date().toISOString(),
+                        usuario: (typeof currentUser !== 'undefined' ? currentUser.name : 'recepcion'),
+                        motivo: 'override',
+                        origen: svcCategory || 'servicio',
+                        importe_pendiente: pendingPrice
+                    };
+                    window._pendingPaymentStatus = 'pending_before_service';
+
+                    const obs = document.getElementById("res-obs");
+                    const auditNote = `\n[AUDIT] Servicio iniciado CON PAGO PENDIENTE por ${window._pendingAudit.usuario} el ${new Date().toLocaleString()}`;
+                    if (obs) obs.value += auditNote;
+
+                    showToast("Iniciado (Override auditado)", "info");
+                }
+            } else {
+                window._pendingAudit = null;
+                window._pendingPaymentStatus = null;
+            }
+
+            // Proceder con inicio de servicio normal
+            startServiceTransition();
+        }
+
+        async function startServiceTransition() {
+            showToast("Iniciando servicio...", "success");
+            window._startServiceMode = true;
+            try {
+                await handleFormSubmit();
+            } finally {
+                window._startServiceMode = false;
+            }
         }
 
         // Initialize Date Display
@@ -4038,6 +4567,115 @@
             }
         }
 
+        /**
+         * Updates the payment control block with real-time calculations.
+         */
+        window.updatePaymentControlBlock = function () {
+            const total = parseFloat(document.getElementById("res-precio-total")?.value) || 0;
+            const resId = document.getElementById("form-id")?.value || window.currentEditingId;
+
+            let paid = 0;
+            let paymentHistory = [];
+
+            if (resId && typeof currentData !== 'undefined') {
+                const res = currentData.find(r => r.id === resId);
+                if (res && res.payment) {
+                    paid = res.payment.paid || 0;
+                    paymentHistory = res.payment.history || [];
+                }
+            }
+
+            const pending = Math.max(0, total - paid);
+
+            const ppTotal = document.getElementById("pp-total");
+            const ppPaid = document.getElementById("pp-pagado");
+            const ppPending = document.getElementById("pp-pendiente");
+            const ppBadgeSet = document.getElementById("pp-status-badge");
+
+            if (ppTotal) ppTotal.textContent = total.toFixed(2) + "€";
+            if (ppPaid) ppPaid.textContent = paid.toFixed(2) + "€";
+            if (ppPending) ppPending.textContent = pending.toFixed(2) + "€";
+
+            if (ppBadgeSet) {
+                let status = 'pending';
+                if (pending <= 0 && total > 0) status = 'paid';
+                else if (paid > 0) status = 'partial';
+
+                const badgeClass = window.getPaymentStatusClass(status);
+                ppBadgeSet.innerHTML = `<span class="${badgeClass}">${status.toUpperCase()}</span>`;
+            }
+        }
+
+        /**
+         * Prompt to record a payment for the current reservation.
+         */
+        window.registrarPagoParticular = async function () {
+            const total = parseFloat(document.getElementById("res-precio-total")?.value) || 0;
+            const resId = document.getElementById("form-id")?.value || window.currentEditingId;
+
+            if (!resId) {
+                showToast("Primero guarda la reserva como borrador", "info");
+                return;
+            }
+
+            const res = currentData.find(r => r.id === resId);
+            if (!res) return;
+
+            const paid = (res.payment && res.payment.paid) || 0;
+            const pending = total - paid;
+
+            if (pending <= 0 && total > 0) {
+                showToast("Esta reserva ya está totalmente pagada", "success");
+                return;
+            }
+
+            const amountStr = prompt(`Registrar pago para ${res.nombre}:\nImporte pendiente: ${pending.toFixed(2)}€\n\nIntroduce el importe:`, pending.toFixed(2));
+            if (amountStr === null) return;
+
+            const amount = parseFloat(amountStr);
+            if (isNaN(amount) || amount <= 0) {
+                showToast("Importe no válido", "error");
+                return;
+            }
+
+            const method = prompt("Método de pago (Efectivo, Tarjeta, Bizum):", "Tarjeta");
+            if (!method) return;
+
+            try {
+                const newPaid = paid + amount;
+                const historyItem = {
+                    fecha: new Date().toISOString(),
+                    importe: amount,
+                    metodo: method,
+                    usuario: window.currentUser?.name || 'recepcion'
+                };
+
+                const paymentUpdate = {
+                    paid: newPaid,
+                    history: (res.payment && res.payment.history) ? [...res.payment.history, historyItem] : [historyItem]
+                };
+
+                const col = res._moduleCode ? MODULES[res._moduleCode].collection : currentModule.collection;
+
+                await db.collection(col).doc(resId).update({
+                    payment: paymentUpdate,
+                    service_payment_status: (newPaid >= total) ? 'paid' : 'partial',
+                    updated_at: new Date().toISOString()
+                });
+
+                showToast("Pago registrado correctamente", "success");
+
+                // Actualizar instancia local
+                res.payment = paymentUpdate;
+                window.updatePaymentControlBlock();
+                loadReservas(document.getElementById("main-date-picker").value);
+
+            } catch (e) {
+                console.error(e);
+                showToast("Error al registrar pago: " + e.message, "error");
+            }
+        }
+
         function openDatePicker() {
             try {
                 document.getElementById('main-date-picker').showPicker();
@@ -4056,12 +4694,14 @@
             const bonoGroup = document.getElementById("bono-group");
             const sessionsGroup = document.getElementById("sessions-group");
             const extraContainer = document.getElementById("extra-fields-row");
+            const pagoBlock = document.getElementById("pago-particular-block");
 
             // 1. Reset all to hidden
             if (hotelGroup) hotelGroup.style.display = "none";
             if (roomGroup) roomGroup.style.display = "none";
             if (bonoGroup) bonoGroup.style.display = "none";
             if (sessionsGroup) sessionsGroup.style.display = "none";
+            if (pagoBlock) pagoBlock.style.display = "none";
 
             // 2. Determine visibility based on logic
             let visibleCount = 0;
@@ -4076,6 +4716,12 @@
                     if (sessionsGroup) { sessionsGroup.style.display = "block"; visibleCount++; }
                 }
             }
+            else if (origen === 'particular' || origen === 'hotel_no_inc') {
+                if (pagoBlock) {
+                    pagoBlock.style.display = "block";
+                    updatePaymentControlBlock();
+                }
+            }
 
             // 3. Adapt Grid Layout
             if (extraContainer) {
@@ -4084,7 +4730,6 @@
                 } else {
                     extraContainer.style.display = "grid";
                     extraContainer.style.gap = "10px";
-                    // If 1 item, full width. If 2+, two columns.
                     if (visibleCount === 1) {
                         extraContainer.style.gridTemplateColumns = "1fr";
                     } else {
@@ -4095,11 +4740,18 @@
 
             // 4. Update Validation Logic (Balance Check)
             if (origen === 'bono') {
-                if (typeof triggerBalanceCheck === 'function') triggerBalanceCheck();
+                if (typeof validateBonoBalance === 'function') {
+                    const bono = document.getElementById("res-bono")?.value || "";
+                    const id = document.getElementById("form-id")?.value || "";
+                    validateBonoBalance(bono, id);
+                }
             } else {
                 const notice = document.getElementById("v-balance-notice");
                 if (notice) notice.style.display = "none";
             }
+
+            // 5. Sync price
+            updatePriceAutomation();
         };
 
         async function loadDayNotes(date) {

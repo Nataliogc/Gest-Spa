@@ -637,11 +637,14 @@ if (typeof window !== 'undefined') {
                     }
                 }
 
-                // 4. Refresh agenda if available (for TAG removal)
                 if (typeof refreshAgenda === 'function') {
                     refreshAgenda();
                 } else if (typeof loadReservas === 'function') {
                     loadReservas();
+                    // Refrescar bloque de pago en modal si está abierto
+                    if (typeof updatePaymentControlBlock === 'function') {
+                        setTimeout(updatePaymentControlBlock, 100);
+                    }
                 }
 
                 // 5. Show success toast or alert

@@ -231,6 +231,237 @@ function formatDate(dateStr) {
     return new Date(dateStr).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
+/**
+ * Unified lookup for service/item configuration from spa_item_master.
+ * Prevents repeating logic across modules.
+ */
+window.getItemConfig = async function (serviceName) {
+    if (!serviceName) return null;
+    try {
+        // Use global cache to reduce reads
+        if (!window._itemMasterCache) {
+            console.log("[CONFIG] Initializing Item Master Cache...");
+            const snap = await db.collection("spa_item_master").get();
+            window._itemMasterCache = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+            // Periodically refresh cache (every 5 mins)
+            setTimeout(() => { window._itemMasterCache = null; }, 300000);
+        }
+
+        const normSearch = serviceName.toLowerCase().trim();
+        return window._itemMasterCache.find(item =>
+            item.name.toLowerCase().trim() === normSearch ||
+            (item.code && item.code.toLowerCase().trim() === normSearch)
+        ) || null;
+    } catch (e) {
+        console.error("Error fetching item config:", e);
+        return null;
+    }
+};
+
+/**
+ * Normalizes a list of items (usually from a pack) to their master equivalents.
+ */
+window.getDesgloseConfig = async function (itemsArray) {
+    if (!itemsArray || !Array.isArray(itemsArray)) return [];
+    const results = [];
+    for (const itemName of itemsArray) {
+        const config = await window.getItemConfig(itemName);
+        results.push({
+            name: itemName,
+            config: config
+        });
+    }
+    return results;
+};
+
+/**
+ * Returns CSS class for payment status
+ */
+window.getPaymentStatusClass = function (status) {
+    if (!status) return 'badge-pending';
+    switch (status.toLowerCase()) {
+        case 'paid': return 'badge-paid';
+        case 'partial': return 'badge-partial';
+        case 'pending_before_service': return 'badge-partial';
+        default: return 'badge-pending';
+    }
+};
+
+/**
+ * Aggregates all payments recorded for a specific date across all collections.
+ * @param {string} dateStr ISO Date (YYYY-MM-DD)
+ */
+window.fetchDailyRevenue = async function (dateStr) {
+    if (!dateStr) return null;
+
+    const collections = ["spa_reservas", "reservas_gimnasio", "reservas_complementos"];
+    const report = {
+        date: dateStr,
+        methods: { "Efectivo": 0, "Tarjeta": 0, "Bizum": 0, "Otros": 0 },
+        users: {},
+        transactions: [],
+        total: 0
+    };
+
+    try {
+        for (const col of collections) {
+            // We fetch all reservations for that specific date
+            const snapshot = await db.collection(col).where("fecha", "==", dateStr).get();
+
+            snapshot.forEach(doc => {
+                const res = doc.data();
+                if (res.payment && res.payment.history) {
+                    res.payment.history.forEach(trx => {
+                        // trx: { fecha, importe, metodo, usuario }
+                        // Note: trx.fecha is a full ISO timestamp of when the payment was recorded.
+                        // We check if the payment WAS RECORDED on the requested date.
+                        // Actually, for "Cierre de Caja" users usually want payments RECORDED today,
+                        // even if the reservation is for tomorrow.
+                        const trxDate = trx.fecha.split('T')[0];
+                        if (trxDate === dateStr) {
+                            const amount = parseFloat(trx.importe) || 0;
+                            const method = trx.metodo || "Otros";
+                            const user = trx.usuario || "recepcion";
+
+                            report.methods[method] = (report.methods[method] || 0) + amount;
+                            report.users[user] = (report.users[user] || 0) + amount;
+                            report.total += amount;
+
+                            report.transactions.push({
+                                ...trx,
+                                resId: doc.id,
+                                client: res.nombre,
+                                service: res.servicio,
+                                module: col
+                            });
+                        }
+                    });
+                }
+            });
+        }
+
+        // Sort transactions by time
+        report.transactions.sort((a, b) => a.fecha.localeCompare(b.fecha));
+
+        return report;
+    } catch (e) {
+        console.error("Error generating Revenue Report:", e);
+        throw e;
+    }
+};
+
+/**
+ * Creates a parent reservation and linked child reservations for a pack.
+ * Uses Firestore batch writes for atomicity.
+ * 
+ * @param {Object} parentData - Base reservation data (client, total, voucher, etc.)
+ * @param {Array} childItems - Array of objects: { name, space, collection, hora, duracion, pax }
+ * @returns {Object} { parentId, childIds }
+ */
+window.createPackReservations = async function (parentData, childItems) {
+    if (!parentData || !childItems || childItems.length === 0) {
+        throw new Error("createPackReservations: Missing parent data or child items.");
+    }
+
+    const batch = db.batch();
+    const parentRef = db.collection("spa_reservas_packs").doc();
+    const parentId = parentRef.id;
+    const childIds = [];
+
+    // Create parent document
+    const parentPayload = {
+        ...parentData,
+        is_pack_parent: true,
+        childs: [], // Will be updated after child creation
+        created_at: new Date().toISOString(),
+        status: parentData.status || 'confirmada'
+    };
+
+    // Create child documents
+    childItems.forEach((child, index) => {
+        const childCollection = child.collection || "spa_reservas";
+        const childRef = db.collection(childCollection).doc();
+        childIds.push(childRef.id);
+
+        const childPayload = {
+            parent_id: parentId,
+            pack_sequence_index: index,
+            service_item: child.name,
+            is_pack_element: true,
+            nombre: parentData.nombre,
+            tel: parentData.tel || "",
+            fecha: child.fecha || parentData.fecha,
+            hora: child.hora,
+            duracion: child.duracion || 60,
+            pax: child.pax || parentData.pax || 1,
+            servicio: child.name,
+            origen: parentData.origen,
+            hotel: parentData.hotel || "",
+            hab: parentData.hab || "",
+            bono: parentData.bono || "",
+            status: 'confirmada',
+            created_at: new Date().toISOString(),
+            // Child has NO payment info
+        };
+
+        batch.set(childRef, childPayload);
+    });
+
+    // Update parent with child IDs
+    parentPayload.childs = childIds;
+    batch.set(parentRef, parentPayload);
+
+    await batch.commit();
+
+    console.log(`[PACK] Created parent ${parentId} with ${childIds.length} children:`, childIds);
+
+    return { parentId, childIds };
+};
+
+/**
+ * Cancels a pack (parent + all children).
+ * @param {string} parentId - ID of the parent reservation.
+ */
+window.cancelPackReservation = async function (parentId) {
+    if (!parentId) throw new Error("Missing parentId");
+
+    // 1. Get parent
+    const parentDoc = await db.collection("spa_reservas_packs").doc(parentId).get();
+    if (!parentDoc.exists) throw new Error("Parent reservation not found.");
+
+    const parentData = parentDoc.data();
+    const childIds = parentData.childs || [];
+
+    const batch = db.batch();
+
+    // 2. Cancel all children
+    for (const childId of childIds) {
+        // Children can be in different collections, we need to find them
+        // Best approach: query all possible collections (or store collection in parent)
+        for (const col of ["spa_reservas", "reservas_gimnasio", "reservas_complementos"]) {
+            const childRef = db.collection(col).doc(childId);
+            const childDoc = await childRef.get();
+            if (childDoc.exists) {
+                batch.update(childRef, {
+                    status: 'anulada',
+                    cancelled_at: new Date().toISOString()
+                });
+                break;
+            }
+        }
+    }
+
+    // 3. Cancel parent
+    batch.update(db.collection("spa_reservas_packs").doc(parentId), {
+        status: 'anulada',
+        cancelled_at: new Date().toISOString()
+    });
+
+    await batch.commit();
+    console.log(`[PACK] Cancelled parent ${parentId} and ${childIds.length} children.`);
+};
+
 function formatDateToISO(dateStr) {
     if (!dateStr) return "";
     const date = new Date(dateStr);

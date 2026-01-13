@@ -3261,14 +3261,42 @@ async function openVoucherManagement(code) {
 
         // Mark as consumed with timestamp and user
         item.consumido = true;
-        item.consumido_fecha = new Date().toISOString();
+        const now = new Date();
+        item.consumido_fecha = now.toISOString();
         item.consumido_usuario = 'recepcion'; // TODO: Get from auth
+
+        // Create history record
+        const code = document.getElementById("vm-code")?.value || '';
+        const client = document.getElementById("vm-cliente")?.value || '';
+
+        const record = {
+            fecha: now.toISOString().split('T')[0],
+            hora: now.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
+            cliente: client,
+            servicio: item.name,
+            bono: code,
+            origen: 'complemento',
+            estado: 'finalizada',
+            notas: 'Consumo directo desde gestión de bonos',
+            pax: item.pax || 1
+        };
+
+        try {
+            await db.collection("reservas_complementos").add(record);
+        } catch (e) {
+            console.warn("Fallo persistencia complementos", e);
+        }
 
         // Update UI immediately
         renderEditableBreakdown();
 
         // Save changes to Firestore
         await saveVoucherChanges();
+
+        // Refresh history if function exists
+        if (typeof renderVoucherHistory === 'function') {
+            renderVoucherHistory(code);
+        }
 
         alert('✅ Complemento marcado como consumido');
     };

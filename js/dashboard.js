@@ -69,7 +69,7 @@ function updateDateDisplay() {
 async function cargarCitasHoy(date) {
     try {
         const targetDate = date || new Date().toISOString().split('T')[0];
-        const collections = ["reservas_spa", "reservas_suite", "reservas_panacea", "reservas_vip", "reservas_peluqueria"];
+        const collections = ["reservas_spa", "reservas_suite", "reservas_panacea", "reservas_vip", "reservas_peluqueria", "reservas_gimnasio", "reservas_complementos"];
 
         state.citas = [];
 
@@ -108,6 +108,8 @@ async function cargarCitasHoy(date) {
                 else if (col === 'reservas_panacea') moduleType = 'panacea';
                 else if (col === 'reservas_vip') moduleType = 'vip';
                 else if (col === 'reservas_peluqueria') moduleType = 'peluqueria';
+                else if (col === 'reservas_gimnasio') moduleType = 'gym';
+                else if (col === 'reservas_complementos') moduleType = 'complementos';
 
                 state.citas.push({
                     id: doc.id,
@@ -288,7 +290,7 @@ function renderDashboard() {
         dataToShow = state.citas.filter(c => {
             const matchesTerm = (c.nombre || "").toLowerCase().includes(term) ||
                 (c.servicio || "").toLowerCase().includes(term);
-            const matchesStatus = statusFilter === "" || c.status === statusFilter;
+            const matchesStatus = statusFilter === "" || c.status === statusFilter || (statusFilter === "confirmada" && c.status === "finalizada");
             const matchesStaff = staffFilter === "" || c.terapeuta === staffFilter;
 
             // New Room Filter
@@ -411,6 +413,8 @@ function getStatusIcon(status) {
     switch (status) {
         case 'confirmada':
             return '<i class="fas fa-check-circle" title="Confirmada" style="color: #10b981; font-size: 1.1rem;"></i>';
+        case 'finalizada':
+            return '<i class="fas fa-flag-checkered" title="Finalizada" style="color: #6366f1; font-size: 1.1rem;"></i>';
         case 'anulada':
             return '<i class="fas fa-times-circle" title="Anulada" style="color: #ef4444; font-size: 1.1rem;"></i>';
         case 'no_show':
@@ -615,7 +619,7 @@ function closePrintModal() {
 async function ejecutarImpresion() {
     const fecha = document.getElementById("print-fecha").value;
     try {
-        const collections = ["reservas_spa", "reservas_suite", "reservas_panacea", "reservas_vip", "reservas_peluqueria"];
+        const collections = ["reservas_spa", "reservas_suite", "reservas_panacea", "reservas_vip", "reservas_peluqueria", "reservas_gimnasio", "reservas_complementos"];
         const promises = collections.map(col => db.collection(col).where("fecha", "==", fecha).get());
         const snapshots = await Promise.all(promises);
 

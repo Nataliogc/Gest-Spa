@@ -410,6 +410,61 @@ async function cargarMasterItems() {
     }
 }
 
+/**
+ * Sanitizes space value - rejects 'bono' and other invalid values.
+ * Returns null for agenda-less items or invalid spaces.
+ * @param {string|null} space - The space value to sanitize
+ * @returns {string|null} - Valid space code or null
+ */
+function sanitizeSpace(space) {
+    if (!space || space === '') return null;
+
+    const normalized = space.toLowerCase().trim();
+
+    // BLOCK 'bono' - this is an invalid legacy value
+    if (normalized === 'bono') {
+        console.warn("[SANITIZE] Rejecting invalid space 'bono' -> null");
+        return null;
+    }
+
+    // List of valid spaces (gym, complemento = null = agenda-less)
+    const validSpaces = [
+        'spa', 'suite', 'vip', 'panacea',
+        'cabina', 'cabina1', 'cabina2', 'cabina3',
+        'peluqueria', 'gym', 'gimnasio', 'fitness'
+    ];
+
+    // Gym/fitness services should return null (agenda-less)
+    if (normalized === 'gym' || normalized === 'gimnasio' || normalized === 'fitness') {
+        return null;
+    }
+
+    // Check if space is valid
+    if (!validSpaces.includes(normalized)) {
+        console.warn(`[SANITIZE] Rejecting invalid space '${space}' -> null`);
+        return null;
+    }
+
+    return space; // Return original (with original casing)
+}
+
+/**
+ * Sanitizes allowedSpaces array - removes 'bono' and invalid values.
+ * @param {Array} spaces - Array of space codes
+ * @returns {Array} - Cleaned array
+ */
+function sanitizeAllowedSpaces(spaces) {
+    if (!Array.isArray(spaces)) return [];
+
+    return spaces
+        .map(s => sanitizeSpace(s))
+        .filter(s => s !== null);
+}
+
+// Export for use in other scripts
+window.sanitizeSpace = sanitizeSpace;
+window.sanitizeAllowedSpaces = sanitizeAllowedSpaces;
+
 
 function renderMasterItems() {
     const list = document.getElementById("master-items-tbody");
@@ -485,6 +540,16 @@ function renderMasterItems() {
         }).join('')}
                     </div>
                 </div>
+            </td>
+            <td style="padding: 10px 12px; text-align: center;">
+                <input type="number" value="${item.pax_max || 1}" onchange="updateMasterItemField('${item.id}', 'pax_max', parseInt(this.value))" 
+                        class="param-input" style="width: 60px; text-align: center;" min="1" max="50">
+            </td>
+            <td style="padding: 10px 12px; text-align: center;">
+                <select onchange="updateMasterItemField('${item.id}', 'agenda_required', this.value === 'true')" class="param-input" style="width: 80px;">
+                    <option value="true" ${item.agenda_required !== false ? 'selected' : ''}>SÍ</option>
+                    <option value="false" ${item.agenda_required === false ? 'selected' : ''}>NO</option>
+                </select>
             </td>
             <td style="padding: 10px 12px; text-align: center;">
                 <span onclick="showItemUsage('${item.id}', '${item.name.replace(/'/g, "\\'")}')"
@@ -671,6 +736,8 @@ async function addMasterItem() {
             name: name.trim(),
             code: code,
             duration: 0,
+            pax_max: 1, // Default to 1
+            agenda_required: true, // Default to true
             space: "",
             created_at: new Date().toISOString()
         });
@@ -783,17 +850,39 @@ async function syncExistingItemsToMaster() {
             const durMatch = name.match(/(\d+)\s*['|min|m]/i);
             if (durMatch) duration = parseInt(durMatch[1]);
 
+            let agenda_required = true;
+            let pax_max = 1;
+            let allowedSpaces = [];
+
             if (norm === "alojamientohotel") {
                 name = "Alojamiento / Hotel";
                 space = "hotel";
-            } else if (norm === "circuitospa") {
+                allowedSpaces = ["hotel"];
+                agenda_required = false;
+            } else if (norm === "circuitospa" || name.toLowerCase().includes("circuito")) {
                 space = "spa";
-            } else if (name.toLowerCase().includes("masaje")) {
+                allowedSpaces = ["spa"];
+                pax_max = 16;
+            } else if (name.toLowerCase().includes("masaje") || name.toLowerCase().includes("tratamiento")) {
                 space = "cabina";
+                allowedSpaces = ["cabina1", "cabina2", "cabina3"];
+            } else if (name.toLowerCase().includes("gimnasio") || name.toLowerCase().includes("gym")) {
+                agenda_required = false;
+                pax_max = 10;
+                allowedSpaces = ["gym"];
+                space = "gym";
             }
 
             const ref = db.collection("spa_item_master").doc();
-            batch.set(ref, { name, duration, space, created_at: new Date().toISOString() });
+            batch.set(ref, {
+                name,
+                duration,
+                space,
+                allowedSpaces,
+                pax_max,
+                agenda_required,
+                created_at: new Date().toISOString()
+            });
         });
 
         await batch.commit();
@@ -803,6 +892,152 @@ async function syncExistingItemsToMaster() {
         showToast("Error sync: " + e.message, "error");
     }
 }
+
+/**
+ * MIGRATION UTILITY: Removes 'bono' space from all collections.
+ * Run this once to clean legacy data.
+ */
+async function migrateBonoSpaceToNull() {
+    if (!confirm("¿Deseas corregir todos los items con espacio 'bono' inválido?\n\nEsto actualizará:\n- spa_item_master\n- spa_services\n- spa_vouchers")) {
+        return;
+    }
+
+    let totalFixed = 0;
+
+    try {
+        // 1. Fix spa_item_master
+        const masterSnap = await db.collection("spa_item_master").get();
+        const masterBatch = db.batch();
+        let masterCount = 0;
+
+        masterSnap.forEach(doc => {
+            const data = doc.data();
+            let needsUpdate = false;
+            const updates = {};
+
+            // Check space field
+            if (data.space && data.space.toLowerCase() === 'bono') {
+                updates.space = null;
+                needsUpdate = true;
+            }
+
+            // Check allowedSpaces array
+            if (data.allowedSpaces && Array.isArray(data.allowedSpaces)) {
+                const cleaned = data.allowedSpaces.filter(s => s.toLowerCase() !== 'bono');
+                if (cleaned.length !== data.allowedSpaces.length) {
+                    updates.allowedSpaces = cleaned.length > 0 ? cleaned : null;
+                    needsUpdate = true;
+                }
+            }
+
+            if (needsUpdate) {
+                masterBatch.update(doc.ref, updates);
+                masterCount++;
+            }
+        });
+
+        if (masterCount > 0) {
+            await masterBatch.commit();
+            totalFixed += masterCount;
+            console.log(`[MIGRATION] Fixed ${masterCount} items in spa_item_master`);
+        }
+
+        // 2. Fix spa_services
+        const servicesSnap = await db.collection("spa_services").get();
+        const servicesBatch = db.batch();
+        let servicesCount = 0;
+
+        servicesSnap.forEach(doc => {
+            const data = doc.data();
+
+            // Check items_incluidos or desglosados for nested espacio
+            if (data.items_compra && Array.isArray(data.items_compra)) {
+                const cleaned = data.items_compra.map(item => {
+                    if (item.espacio && item.espacio.toLowerCase() === 'bono') {
+                        return { ...item, espacio: null };
+                    }
+                    return item;
+                });
+
+                const hasChanges = JSON.stringify(cleaned) !== JSON.stringify(data.items_compra);
+                if (hasChanges) {
+                    servicesBatch.update(doc.ref, { items_compra: cleaned });
+                    servicesCount++;
+                }
+            }
+        });
+
+        if (servicesCount > 0) {
+            await servicesBatch.commit();
+            totalFixed += servicesCount;
+            console.log(`[MIGRATION] Fixed ${servicesCount} services in spa_services`);
+        }
+
+        // 3. Fix spa_vouchers
+        const vouchersSnap = await db.collection("spa_vouchers").get();
+        let vouchersBatches = [];
+        let currentBatch = db.batch();
+        let batchCount = 0;
+        let vouchersCount = 0;
+
+        vouchersSnap.forEach(doc => {
+            const data = doc.data();
+            let needsUpdate = false;
+            const updates = {};
+
+            // Check items_compra array
+            if (data.items_compra && Array.isArray(data.items_compra)) {
+                const cleaned = data.items_compra.map(item => {
+                    if (item.espacio && item.espacio.toLowerCase() === 'bono') {
+                        return { ...item, espacio: null };
+                    }
+                    return item;
+                });
+
+                const hasChanges = JSON.stringify(cleaned) !== JSON.stringify(data.items_compra);
+                if (hasChanges) {
+                    updates.items_compra = cleaned;
+                    needsUpdate = true;
+                }
+            }
+
+            if (needsUpdate) {
+                currentBatch.update(doc.ref, updates);
+                batchCount++;
+                vouchersCount++;
+
+                // Firestore batch limit is 500
+                if (batchCount >= 450) {
+                    vouchersBatches.push(currentBatch);
+                    currentBatch = db.batch();
+                    batchCount = 0;
+                }
+            }
+        });
+
+        if (batchCount > 0) {
+            vouchersBatches.push(currentBatch);
+        }
+
+        for (const batch of vouchersBatches) {
+            await batch.commit();
+        }
+
+        if (vouchersCount > 0) {
+            totalFixed += vouchersCount;
+            console.log(`[MIGRATION] Fixed ${vouchersCount} vouchers in spa_vouchers`);
+        }
+
+        showToast(`Migración completada: ${totalFixed} documentos corregidos`, "success");
+
+    } catch (err) {
+        console.error("[MIGRATION] Error:", err);
+        showToast("Error en migración: " + err.message, "error");
+    }
+}
+
+// Export migration function
+window.migrateBonoSpaceToNull = migrateBonoSpaceToNull;
 
 // --- SPACES ---
 async function cargarSpaces() {

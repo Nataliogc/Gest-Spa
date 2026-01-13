@@ -23,7 +23,7 @@ async function renderVoucherHistory(bonoCode, internalValidations = []) {
     try {
         let allReservations = [];
         // Colecciones donde buscar reservas
-        const collections = ['reservas_spa', 'reservas_suite', 'reservas_panacea', 'reservas_peluqueria', 'reservas_vip', 'reservas_restaurante', 'reservas_gimnasio', 'reservas_rest', 'reservas_menu', 'reservas', 'reservas_evento'];
+        const collections = ['reservas_spa', 'reservas_suite', 'reservas_panacea', 'reservas_peluqueria', 'reservas_vip', 'reservas_restaurante', 'reservas_gimnasio', 'reservas_complementos', 'reservas_rest', 'reservas_menu', 'reservas', 'reservas_evento'];
 
         console.log(`[HISTORY] Buscando historial para bono: '${bonoCode}' en colecciones:`, collections);
 
@@ -186,6 +186,7 @@ async function renderVoucherHistory(bonoCode, internalValidations = []) {
             else if (res._col === 'reservas_panacea' || res._col === 'reservas_vip') { typeLabel = "TRATAMIENTO"; typeColor = "#ec4899"; } // Pink
             else if (res._col === 'reservas_peluqueria') { typeLabel = "PELUQUERÍA"; typeColor = "#f59e0b"; } // Amber
             else if (res._col === 'reservas_gimnasio') { typeLabel = "GIMNASIO"; typeColor = "#6366f1"; } // Indigo
+            else if (res._col === 'reservas_complementos') { typeLabel = "COMPLEMENTO"; typeColor = "#f59e0b"; } // Amber
             else if (res._col === 'internal') {
                 const srv = (res.servicio || '').toLowerCase();
                 if (srv.includes('alojamiento') || srv.includes('hotel') || srv.includes('desayuno')) {
@@ -295,12 +296,14 @@ Observaciones: ${res.observaciones || '-'}
                 else if (res._col === 'reservas_vip') moduleTypeForLink = 'vip';
                 else if (res._col === 'reservas_peluqueria') moduleTypeForLink = 'peluqueria';
 
-                if (res._col === 'reservas_gimnasio') {
-                    // Visualización específica para Gimnasio (sin link, solo confirmación)
-                    // Usar datos del snapshot si existen, si no, fallback
+                if (res._col === 'reservas_gimnasio' || res._col === 'reservas_complementos') {
+                    // Visualización específica para Gimnasio y Complementos (sin link, solo confirmación)
+                    const isGym = res._col === 'reservas_gimnasio';
                     const sessionInfo = res.sesion_actual ? `Sesión ${res.sesion_actual} de ${res.sesiones_totales}` : '';
                     const remainingInfo = (res.sesiones_restantes !== undefined) ? `Quedan ${res.sesiones_restantes}` : '';
                     const paxInfo = res.pax || 1;
+                    const icon = isGym ? 'fa-check-double' : 'fa-gift';
+                    const iconColor = isGym ? '#10b981' : '#f59e0b';
 
                     return `
                     <div style="display:flex; justify-content:space-between; align-items:flex-start; padding: 12px 4px; border-bottom: 1px solid #f1f5f9;" title="Consumo Confirmado">
@@ -308,7 +311,7 @@ Observaciones: ${res.observaciones || '-'}
                             <div style="display:flex; align-items:center; gap: 8px; margin-bottom:4px;">
                                 <span style="background:${typeColor}; color:white; font-size:0.65rem; padding: 2px 6px; border-radius:4px; font-weight:700;">${typeLabel}</span>
                                 <div style="font-weight:600; font-size:0.9rem; color:#1e293b;">
-                                    ${date} - ${res.hora}h <i class="fas fa-check-double" style="font-size:0.7em; color:#10b981; margin-left:4px;"></i>
+                                    ${date} - ${res.hora}h <i class="fas ${icon}" style="font-size:0.7em; color:${iconColor}; margin-left:4px;"></i>
                                 </div>
                             </div>
                             <div style="font-size:0.8rem; color:#475569; margin-bottom:4px;">
@@ -327,7 +330,7 @@ Observaciones: ${res.observaciones || '-'}
                         </div>
                         <div style="text-align:right;">
                             <div style="font-weight:700; font-size:0.9rem; color:#334155;">${precioDisplay}</div>
-                            <span class="badge badge-blue" style="font-size:0.65rem; margin-top:4px; display:inline-block;">CONSUMIDO</span>
+                            <span class="badge badge-blue" style="font-size:0.65rem; margin-top:4px; display:inline-block;">${isGym ? 'CONSUMIDO' : 'VALIDADO'}</span>
                         </div>
                     </div>
                     `;
