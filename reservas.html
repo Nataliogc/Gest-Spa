@@ -1970,62 +1970,36 @@
 
         function updatePriceAutomation() {
             const origen = document.getElementById("res-origen").value;
-            const pax = parseInt(document.getElementById("res-pax").value) || 1;
             const pricePaxInput = document.getElementById("res-precio-pax");
-            const priceTotalInput = document.getElementById("res-precio-total");
 
-            // Complement logic moved to updateTotal()
-            // Just ensure we update the base price here if needed
-
+            const selService = document.getElementById("res-servicio").value;
+            const serviceData = currentServices.find(s => s.nombre === selService);
 
             if (origen === 'particular' || origen === 'hotel_no_inc') {
                 let base = baseCircuitoPrice;
-
-                // Si el servicio seleccionado tiene un precio específico en el catálogo, usarlo
-                const selService = document.getElementById("res-servicio").value;
-                const serviceData = currentServices.find(s => s.nombre === selService);
                 if (serviceData) {
                     base = parseFloat(serviceData.precio);
+                }
+                pricePaxInput.value = base;
+            } else {
+                // Logic for vouchers or included hotel
+                pricePaxInput.value = (0).toFixed(2);
+            }
 
-                    // UPDATE DURATION IF SERVICE HAS ONE
-                    const durInput = document.getElementById("inputDuration");
-                    if (durInput && serviceData.duracion) {
-                        durInput.value = serviceData.duracion;
-                        // Trigger staff check because duration changed
-                        if (typeof window.handleStaffFieldsChange === 'function') {
-                            window.handleStaffFieldsChange();
-                        }
+            // Sync Duration if service has one (Needed for all origins)
+            if (serviceData && serviceData.duracion) {
+                const durInput = document.getElementById("inputDuration");
+                if (durInput) {
+                    durInput.value = serviceData.duracion;
+                    if (typeof window.handleStaffFieldsChange === 'function') {
+                        window.handleStaffFieldsChange();
                     }
                 }
+            }
 
-                if (moduleType === 'suite') {
-                    // Suite es precio cerrado base
-                    // complementos se suman en updateTotal
-                    document.getElementById("res-precio-pax").value = base;
-                } else {
-                    document.getElementById("res-precio-pax").value = base;
-                }
-            } else if (origen === 'bono') {
-                // Logic for vouchers
-                // For bono, base price per pax is 0
-                pricePaxInput.value = (0).toFixed(2);
-            } else { // origen === 'hotel_inc'
-                pricePaxInput.value = (0).toFixed(2);
-                // priceTotalInput.value = complementosTotal.toFixed(2); // Removed, handled by updateTotal
-                // document.getElementById("res-total-text").textContent = complementosTotal.toFixed(2) + " €"; // Removed, handled by updateTotal
-
-                // If not paying (bono/hotel), we still need to update duration/staff if service changed
-                const selService = document.getElementById("res-servicio").value;
-                const serviceData = currentServices.find(s => s.nombre === selService);
-                if (serviceData) {
-                    const durInput = document.getElementById("inputDuration");
-                    if (durInput && serviceData.duracion) {
-                        durInput.value = serviceData.duracion;
-                        if (typeof window.handleStaffFieldsChange === 'function') {
-                            window.handleStaffFieldsChange();
-                        }
-                    }
-                }
+            // RECALCULATE TOTAL AFTER AUTOMATION
+            if (typeof updateTotal === 'function') {
+                updateTotal();
             }
         }
 
@@ -2848,12 +2822,6 @@
             await updateAvailableTimeSlots();
             timeSel.value = res.hora;
 
-            // Explicitly load staff options, waiting for completion
-            // 'excludeId' from #form-id is picked up by handleStaffFieldsChange
-            if (typeof handleStaffFieldsChange === 'function') {
-                await handleStaffFieldsChange();
-            }
-
             // Verificar si la reserva es PASADA
             const now = new Date();
             const todayStr = now.toISOString().split('T')[0];
@@ -2908,8 +2876,10 @@
 
             if (document.getElementById("res-origen")) {
                 document.getElementById("res-origen").value = res.origen || "particular";
-                document.getElementById("res-terapeuta").value = res.terapeuta || ""; // Populate therapist
-                loadStaffList();
+
+                const therapistInput = document.getElementById("res-terapeuta");
+                if (therapistInput) therapistInput.value = res.terapeuta || "";
+
                 filterOriginOptions(); // Ensure options are filtered correctly for this module
             }
             if (document.getElementById("res-hotel")) document.getElementById("res-hotel").value = res.hotel || "Cumbria";
@@ -2992,6 +2962,11 @@
                 }
 
                 document.getElementById("inputDuration").value = dur;
+            }
+
+            // LOAD STAFF OPTIONS NOW THAT ALL DATA IS SET
+            if (typeof window.handleStaffFieldsChange === 'function') {
+                await window.handleStaffFieldsChange();
             }
 
             // POPULATE STAFF
@@ -3262,7 +3237,7 @@
                     nombre: nombreField.value.trim(),
                     tel: document.getElementById("res-tel").value,
                     origen: document.getElementById("res-origen").value,
-                    terapeuta: document.getElementById("res-terapeuta").value.trim(), // Added Therapist
+                    terapeuta: document.getElementById("res-terapeuta")?.value.trim() || "", // Fixed possible NULL if element missing
                     hotel: document.getElementById("res-hotel")?.value || "",
                     hab: document.getElementById("res-hab")?.value || "",
                     bono: document.getElementById("res-bono")?.value || "",
@@ -3315,9 +3290,6 @@
                         syncStatus: 'pending'
                     });
                     if (window.updateGlobalSyncStatus) updateGlobalSyncStatus('pending');
-
-                    // Actualizar UI in-memory
-                    await loadReservas(date); // Recargará de local
                 }
 
                 // 2. INTENTO FIRESTORE
@@ -3392,7 +3364,8 @@
                     window.history.replaceState({ path: cleanUrl }, "", cleanUrl);
                 }
 
-                // loadReservas(date); // Ya llamado arriba en local path
+                // UNCONDITIONAL UI REFRESH
+                await loadReservas(date);
 
             } catch (err) {
                 if (window.checkFirestoreError && window.checkFirestoreError(err)) return; // STOP if quota error
