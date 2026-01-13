@@ -1,0 +1,128 @@
+================================================================================
+FASE 4 - DRY-RUN REPORT
+Generado: 2026-01-13T16:19
+Modo: DRY-RUN (sin cambios reales aplicados)
+================================================================================
+
+## VERIFICACIÓN DE DEPENDENCIAS
+
+| Módulo | Estado |
+|--------|--------|
+| SpaPhase4 | ✅ Cargado |
+| SpaDataCorrections | ✅ Cargado |
+| SpaMatchingEngine | ✅ Cargado |
+| db (Firestore) | ✅ Cargado |
+
+================================================================================
+## RESUMEN DE CORRECCIONES (DRY-RUN)
+================================================================================
+
+| Área | Procesados | Actualizados | Estado |
+|------|------------|--------------|--------|
+| Packs (secuencias) | 18 | 18 | ✅ 100% |
+| Cuento para Dos (pax) | 1 | 1 | ✅ Corregido |
+| Salas (config) | 7 | 7 | ✅ 100% |
+| Precios (snapshot) | 1817 | 508 | ✅ (1309 ya tenían) |
+| Terapeutas (skills) | 3 | 3 | ✅ 100% |
+| Servicios (campos) | 126 | 126 | ✅ 100% |
+| Estado Pago (vouchers) | 1342 | 1342 | ✅ 100% |
+
+ERRORES: 0
+
+================================================================================
+## DETALLE DE PACKS CON SECUENCIAS
+================================================================================
+
+### Packs Pareja (11)
+1. wc-6475: Relax Oriental → 2 fases (Baño + Masaje)
+2. wc-6477: Encuentro Romántico → 2 fases (Suite + Masaje)
+3. wc-6479: Especial Parejas → 3 fases (Circuito + Masaje + Envoltura)
+4. wc-6481: Sueño para dos → 1 fase SPA (Hotel/Rest fuera)
+5. wc-6483: Fantasía para dos → 2 fases (Circuito + Masaje, Hotel fuera)
+6. wc-6485: Aventura para dos → 1 fase (Suite, Hotel/Cava fuera)
+7. wc-6487: Tiempo para dos → 1 fase (Suite, Rest fuera)
+8. wc-6489: Cuento para dos → 2 fases (Circuito + Masaje, pax=2)
+9. wc-6529: Masaje en Pareja → 1 fase (Masaje 2 terapeutas)
+10. wc-6905: Experiencia SPA pareja → 2 fases (Circuito + Masaje)
+11. wc-6906: SPA y Sabores pareja → 1 fase (Circuito, Rest fuera)
+
+### Rituales (3)
+12. wc-6495: Ritual Indian → 4 fases (Peeling + Envoltura + Bambú + Baño)
+13. wc-6497: Ritual Baño Cítrico → 4 fases (Peeling + Envoltura + Masaje + Baño)
+14. wc-6501: Ritual Chocolaterapia → 4 fases (Peeling + Envoltura + Masaje + Baño)
+
+### Individuales (4)
+15. wc-6942: Experiencia SPA → 2 fases (Circuito + Masaje)
+16. wc-6943: SPA y Sabores → 1 fase (Circuito, Rest fuera)
+17. wc-6944: Relax Oriental individual → 2 fases (Baño + Masaje)
+18. wc-7305: Amazonian Discovery → 2 fases (Facial + Corporal)
+
+================================================================================
+## DETALLE DE SALAS CONFIGURADAS
+================================================================================
+
+| Sala | Camillas | max_concurrent | min_spacing | Categorías |
+|------|----------|----------------|-------------|------------|
+| panacea | 2 | 2 | 15 min | masaje, facial, corporal, ritual |
+| suite | 2 | 1 | 60 min | masaje, ritual, suite, pack_pareja |
+| vip | 2 | 1 | 30 min | masaje, ritual, suite |
+| spa | - | 16 | 0 min | circuito (no terapeuta) |
+| cabina | 1 | 1 | 15 min | masaje, facial, corporal |
+| restaurante | - | 50 | 0 min | fuera motor SPA |
+| hotel | - | - | - | fuera motor SPA |
+
+================================================================================
+## DETALLE DE TERAPEUTAS (SKILLS)
+================================================================================
+
+| Terapeuta | Salas Asignadas | Skills Inferidos |
+|-----------|-----------------|------------------|
+| Chon | panacea, cabina | masaje, facial, corporal, ritual |
+| MARI | panacea, suite | masaje, facial, corporal, ritual, suite |
+| Mar | cabina | masaje, facial, corporal, ritual |
+
+================================================================================
+## SNAPSHOT PRICES
+================================================================================
+
+- Total vouchers procesados: 1817
+- Con snapshot_price añadido: 508
+- Omitidos (ya tenían o precio=0): 1309
+
+REGLA: snapshot_price = precio al momento de compra (NO se recalcula)
+
+================================================================================
+## ESTADO DE PAGO (VOUCHERS LOCALES)
+================================================================================
+
+- Total procesados: 1342
+- Actualizados con estado_pago: 1342
+
+Campos añadidos:
+- estado_pago: 'pendiente' (default conservador)
+- importe_pagado: 0
+- importe_pendiente: igual a precio
+
+================================================================================
+## PRÓXIMOS PASOS
+================================================================================
+
+1. ✅ DRY-RUN completado sin errores
+2. ⏳ ESPERAR confirmación del usuario
+3. ⏳ Ejecutar SpaPhase4.apply() para aplicar cambios reales
+4. ⏳ Verificar en Firestore que los datos se actualizaron
+5. ⏳ Proceder a FASE 5 (Testing Operativo)
+
+================================================================================
+## COMANDO PARA APLICAR (CUANDO SE CONFIRME)
+================================================================================
+
+En consola del navegador:
+  await SpaPhase4.apply()
+
+O en fase4-corrections.html:
+  Click en "APLICAR CAMBIOS REALES"
+
+================================================================================
+FIN DEL REPORTE DRY-RUN
+================================================================================

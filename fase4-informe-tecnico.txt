@@ -1,0 +1,150 @@
+================================================================================
+FASE 4 - INFORME TÉCNICO DE CORRECCIONES
+Generado: 2026-01-13
+================================================================================
+
+## RESUMEN EJECUTIVO
+
+Se ejecutó DRY-RUN sobre datos REALES de Firestore.
+Los resultados muestran la cantidad de datos que necesitan corrección.
+
+================================================================================
+## 1. RESULTADOS DEL DRY-RUN
+================================================================================
+
+| Categoría         | Procesados | A Corregir | % Pendiente |
+|-------------------|------------|------------|-------------|
+| Precios           | 1814       | 571        | 31.5%       |
+| Terapeutas (Skills)| 3         | 3          | 100%        |
+| Salas             | 11         | 11         | 100%        |
+| Servicios         | 126        | 126        | 100%        |
+| Estado Pago       | 1339       | 1339       | 100%        |
+
+================================================================================
+## 2. VALIDACIONES DE MODELO
+================================================================================
+
+### Servicios Pareja
+- Total analizados: 13
+- Válidos: 13 (100%)
+- Con problemas: 0
+
+✅ Todos los servicios pareja están correctamente configurados.
+
+### Packs Mixtos
+- Total analizados: 18
+- Válidos: 0 (0%)
+- Con problemas: 18 (100%)
+
+⚠️ PROBLEMA: Ningún pack tiene campo `secuencia` definido.
+
+Packs detectados con problema:
+  - Relax Oriental: Pack tiene 2 items pero no tiene secuencia definida
+  - Escapada Romántica: Pack tiene 2 items pero no tiene secuencia definida
+  - Bienestar Parejas: Pack tiene 3 items pero no tiene secuencia definida
+  ... y 15 más
+
+================================================================================
+## 3. ANÁLISIS DE CORRECCIONES
+================================================================================
+
+### 3.1 PRECIOS (571 a corregir)
+
+Razones:
+  - Bonos sin campo precio_final
+  - Discrepancias entre precio e importe
+  - Precios calculados desde catálogo
+
+Fuentes utilizadas:
+  - direct: Precio/importe del bono
+  - items_desglosados: Suma de items
+  - catalog_calculated: Cálculo desde catálogo
+
+### 3.2 TERAPEUTAS (3 a corregir)
+
+Todos los terapeutas existentes necesitan campo `skills`.
+Se inferirán automáticamente de assigned_rooms:
+  - panacea → masaje, facial, corporal, ritual
+  - suite/vip → suite, masaje, ritual
+  - peluqueria → peluqueria
+
+### 3.3 SALAS (11 a corregir)
+
+Campos a añadir:
+  - compatible_categories: Categorías de servicio permitidas
+  - max_concurrent: Reservas simultáneas máximas
+  - min_spacing: Tiempo entre reservas (default: 0)
+
+### 3.4 SERVICIOS (126 a corregir)
+
+Campos a añadir:
+  - modalidad: individual/pareja/mixto
+  - pax: Número de personas
+  - requires_therapist: Si necesita terapeuta
+  - terapeutas_requeridos: 0, 1 o 2
+  - allowed_spaces: Salas permitidas
+  - duration_total: Duración en minutos
+
+### 3.5 ESTADO DE PAGO (1339 a corregir)
+
+Todos los bonos con origen='local' recibirán:
+  - estado_pago: 'pendiente' (default conservador)
+  - importe_pagado: 0
+  - importe_pendiente: igual a precio
+
+================================================================================
+## 4. ACCIÓN REQUERIDA: SECUENCIAS DE PACKS
+================================================================================
+
+Los 18 packs detectados NO se corregirán automáticamente porque
+requieren definición manual de secuencia.
+
+Para cada pack se necesita definir:
+  secuencia: [
+    { orden: 1, nombre: "Fase 1", espacio: "sala1", duracion: 60 },
+    { orden: 2, nombre: "Fase 2", espacio: "sala2", duracion: 30 },
+    ...
+  ]
+
+RECOMENDACIÓN: Crear una tarea manual para definir secuencias de packs
+en el catálogo antes de aplicar correcciones.
+
+================================================================================
+## 5. ARCHIVOS CREADOS EN FASE 4
+================================================================================
+
+| Archivo | Descripción |
+|---------|-------------|
+| js/spa-data-corrections.js | Módulo de correcciones (500+ líneas) |
+| fase4-corrections.html | UI para ejecutar correcciones |
+| fase4-informe-tecnico.txt | Este informe |
+
+================================================================================
+## 6. PRÓXIMOS PASOS
+================================================================================
+
+ANTES de aplicar cambios:
+1. ✅ Verificar que servicios pareja están correctos (13/13 OK)
+2. ⚠️ Definir secuencias de packs (0/18 - Requiere intervención manual)
+3. ⚡ Ejecutar correcciones reales (botón APLICAR)
+
+DESPUÉS de aplicar cambios:
+4. Ejecutar FASE 5 (Testing Operativo)
+5. Verificar funcionamiento en producción
+
+================================================================================
+## 7. COMANDO PARA APLICAR
+================================================================================
+
+En la página fase4-corrections.html:
+  1. Cargar la página
+  2. Verificar que las 3 dependencias estén ✅
+  3. Click en "APLICAR CAMBIOS REALES"
+  4. Confirmar en el diálogo
+
+O desde consola:
+  await SpaDataCorrections.apply()
+
+================================================================================
+FIN DEL INFORME
+================================================================================

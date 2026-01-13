@@ -1,0 +1,320 @@
+================================================================================
+MODELO OPERATIVO - Fase 2 (APROBADO)
+Generado: 2026-01-13
+Ajustes aplicados: allowed_therapists opcional, requires_therapist en sala no
+determinante, min_spacing añadido
+================================================================================
+
+Este documento define el formato único que el sistema debe operar.
+
+================================================================================
+## 1. MODALIDADES DE SERVICIOS
+================================================================================
+
+| Modalidad   | Descripción                                      | PAX | Terapeutas |
+|-------------|--------------------------------------------------|-----|------------|
+| individual  | Servicio para 1 persona                          | 1   | 0-1        |
+| pareja      | Servicio para 2 personas (simultáneo)            | 2   | 1-2        |
+| mixto       | Pack con múltiples fases en diferentes espacios  | 1-2 | variable   |
+
+### Reglas de Modalidad
+
+INDIVIDUAL:
+  - Ejemplos: Masaje 50min, Facial, Circuito Spa solo
+  - Terapeuta: 0 si es autoservicio (circuito), 1 si es tratamiento
+  - Sala: Una única sala
+
+PAREJA:
+  - Ejemplos: Masaje Pareja, Suite Romántica, Circuito Spa 2 Pax
+  - Terapeuta: 1 para Suite, 2 para Masaje Pareja
+  - Sala: Una única sala (privada)
+
+MIXTO:
+  - Ejemplos: Fantasía para Dos (Spa + Masaje), Pack Hostelería (Spa + Menú)
+  - Terapeuta: Variable por fase
+  - Sala: Múltiples según secuencia
+
+================================================================================
+## 2. CAMPOS NUEVOS EN CATÁLOGO (spa_services)
+================================================================================
+
+### Campos Existentes (mantener)
+- nombre: string
+- precio: number
+- descripcion: string
+- categoria: string
+- imagen: string
+- wc_id: string
+
+### Campos Nuevos (añadir)
+
+| Campo               | Tipo           | Obligatorio | Descripción                       |
+|---------------------|----------------|-------------|-----------------------------------|
+| modalidad           | string enum    | Sí          | "individual"|"pareja"|"mixto"     |
+| pax                 | number         | Sí          | Personas incluidas (1 o 2)        |
+| terapeutas_requeridos | number       | Sí          | 0, 1, 2 o -1 (auto)               |
+| requires_therapist  | boolean        | Sí          | true si necesita terapeuta        |
+| duration_total      | number         | Sí          | Duración total en minutos         |
+| allowed_spaces      | string[]       | Sí          | Códigos de salas permitidas       |
+| allowed_therapists  | string[]       | NO          | IDs terapeutas (null=todos)       |
+| secuencia           | object[]       | NO          | Fases para packs mixtos           |
+
+NOTA: allowed_therapists es OPCIONAL. Si es null o vacío, cualquier terapeuta
+con la skill correcta puede realizar el servicio.
+
+### Estructura de Secuencia (para packs mixtos)
+
+secuencia: [
+  {
+    orden: 1,
+    nombre: "Circuito Spa",
+    espacio: "spa",
+    duracion: 90,
+    requires_therapist: false,
+    terapeutas: 0
+  },
+  {
+    orden: 2,
+    nombre: "Masaje Relajante",
+    espacio: "panacea",
+    duracion: 50,
+    requires_therapist: true,
+    terapeutas: 1
+  },
+  {
+    orden: 3,
+    nombre: "Menú Degustación",
+    espacio: "restaurante",
+    duracion: 60,
+    requires_therapist: false,
+    terapeutas: 0
+  }
+]
+
+### Autodetección de Terapeutas
+
+Si terapeutas_requeridos = -1 (auto):
+  - modalidad "individual" + requires_therapist true → 1 terapeuta
+  - modalidad "pareja" + categoria "masaje" → 2 terapeutas
+  - modalidad "pareja" + categoria "suite" → 1 terapeuta
+  - modalidad "mixto" → Sumar terapeutas de cada fase
+  - requires_therapist false → 0 terapeutas
+
+================================================================================
+## 3. CAMPOS NUEVOS EN PERSONAL (spa_staff)
+================================================================================
+
+### Campos Existentes (mantener)
+- name, email, phone, notes, status
+- assigned_rooms, default_schedule
+
+### Campos Nuevos (añadir)
+
+| Campo      | Tipo     | Descripción                                |
+|------------|----------|--------------------------------------------|
+| skills     | string[] | Categorías de servicio que puede realizar  |
+
+### Valores de Skills
+
+Valores posibles (coinciden con categorías de spa_services):
+  - "circuito", "masaje", "facial", "corporal", "ritual"
+  - "manicura", "pedicura", "peluqueria", "depilacion"
+  - "maquillaje", "suite"
+
+Ejemplo:
+  skills: ["masaje", "facial", "corporal", "ritual"]
+
+================================================================================
+## 4. CAMPOS NUEVOS EN SALAS (spa_spaces)
+================================================================================
+
+### Campos Existentes (mantener)
+- name, code, capacity, type, color, description
+
+### Campos Nuevos (añadir)
+
+| Campo                | Tipo     | Obligatorio | Descripción                        |
+|----------------------|----------|-------------|------------------------------------|
+| compatible_categories| string[] | Sí          | Categorías de servicio compatibles |
+| max_concurrent       | number   | Sí          | Reservas simultáneas máximas       |
+| requires_therapist   | boolean  | NO          | Informativo (servicio manda)       |
+| min_spacing          | number   | NO          | Minutos entre reservas (limpieza)  |
+
+NOTA: requires_therapist en sala es INFORMATIVO, NO DETERMINANTE.
+El campo requires_therapist del SERVICIO es el que determina si se necesita
+terapeuta. Este campo en sala es solo para referencia visual.
+
+NOTA: min_spacing define el tiempo mínimo entre reservas para limpieza o
+enfriado de la sala. Valor típico: 15-30 minutos para suites/cabinas.
+
+Ejemplo para Suite:
+  compatible_categories: ["masaje", "ritual", "suite", "pack_pareja"]
+  max_concurrent: 1
+  requires_therapist: true   // Solo informativo
+  min_spacing: 30            // 30 min entre reservas
+
+================================================================================
+## 5. CAMPOS NUEVOS EN VENTA LOCAL (spa_vouchers con origen='local')
+================================================================================
+
+### Campos Existentes (mantener)
+- bono, cliente, email, telefono, producto
+- precio, importe, fecha, estado, origen
+- sesiones_totales, sesiones_usadas, items_desglosados
+
+### Campos Nuevos (añadir)
+
+| Campo            | Tipo   | Descripción                           |
+|------------------|--------|---------------------------------------|
+| estado_pago      | string | "pagado" | "pendiente" | "parcial"   |
+| metodo_pago      | string | "efectivo"|"tarjeta"|"transferencia"|"bizum" |
+| importe_pagado   | number | Cantidad ya cobrada                   |
+| importe_pendiente| number | Cantidad por cobrar (precio - pagado) |
+| fecha_pago       | string | Fecha del último pago (ISO)           |
+| notas_venta      | string | Observaciones del vendedor            |
+
+### Lógica de Estado de Pago
+
+Al crear bono local:
+  - estado_pago: Seleccionado por vendedor (default: "pendiente")
+  - Si estado_pago = "pagado" → importe_pagado = precio, importe_pendiente = 0
+  - Si estado_pago = "pendiente" → importe_pagado = 0, importe_pendiente = precio
+  - Si estado_pago = "parcial" → importe_pagado = input, importe_pendiente = precio - input
+
+================================================================================
+## 6. CAMPOS NUEVOS EN RESERVAS (spa_bookings)
+================================================================================
+
+### Campos Existentes (mantener)
+- room, date, time, duration
+- client_name, client_phone, client_email
+- service, staff_id, staff_name
+- pax, voucher_code, status, notes
+
+### Campos Nuevos (añadir)
+
+| Campo         | Tipo     | Descripción                              |
+|---------------|----------|------------------------------------------|
+| salas         | string[] | Códigos de salas (para packs multi-sala) |
+| terapeutas    | object[] | Array de {id, name} asignados            |
+| items         | object[] | Desglose de servicios del pack           |
+| precio        | number   | Precio del servicio                      |
+| pack_id       | string   | ID de grupo para reservas vinculadas     |
+| fase_orden    | number   | Orden en secuencia del pack              |
+
+### Estructura de Terapeutas (para parejas)
+
+terapeutas: [
+  { id: "staff_abc", name: "María López" },
+  { id: "staff_xyz", name: "Carlos Ruiz" }
+]
+
+### Estructura de Items (para packs)
+
+items: [
+  { name: "Circuito Spa", completed: false },
+  { name: "Masaje Pareja", completed: false }
+]
+
+================================================================================
+## 7. MOTOR DE MATCHING
+================================================================================
+
+### 7.1 Matching Servicio → Sala
+
+Entrada: servicio_id, fecha, hora
+Proceso:
+  1. Obtener servicio de spa_services
+  2. Leer allowed_spaces del servicio
+  3. Para cada sala en allowed_spaces:
+     a. Verificar compatible_categories incluye categoria del servicio
+     b. Verificar disponibilidad (reservas existentes < max_concurrent)
+     c. Verificar min_spacing respecto a reservas anteriores/posteriores
+  4. Retornar salas disponibles
+
+### 7.2 Matching Servicio → Terapeuta
+
+Entrada: servicio_id, sala_code, fecha, hora, duracion
+Proceso:
+  1. Obtener servicio de spa_services
+  2. Si requires_therapist = false → No asignar
+  3. Si allowed_therapists tiene valores → Filtrar solo esos IDs
+  4. Obtener terapeutas donde:
+     a. (allowed_therapists vacío) O (id en allowed_therapists)
+     b. assigned_rooms incluye sala_code
+     c. skills incluye categoria del servicio
+     d. Horario disponible (default_schedule + excepciones)
+     e. Sin reserva que solape
+  5. Retornar terapeutas disponibles
+
+### 7.3 Matching Servicio → Pax
+
+Entrada: servicio_id
+Proceso:
+  1. Leer modalidad del servicio
+  2. Si modalidad = "individual" → pax = 1
+  3. Si modalidad = "pareja" → pax = 2
+  4. Si modalidad = "mixto" → pax = campo pax del servicio
+  5. Validar que reserva tenga mismo pax
+
+### 7.4 Matching Servicio → Secuencia (Packs Mixtos)
+
+Entrada: servicio_id (pack), fecha, hora_inicio
+Proceso:
+  1. Leer secuencia del servicio
+  2. Para cada fase en orden:
+     a. Calcular hora_inicio_fase = hora_anterior + duracion_anterior
+     b. Aplicar Matching Sala para espacio de fase (+ min_spacing)
+     c. Aplicar Matching Terapeuta si requires_therapist
+  3. Si TODAS las fases tienen disponibilidad → Pack reservable
+  4. Generar N reservas vinculadas con pack_id común
+
+================================================================================
+## 8. RESUMEN DE CAMBIOS POR COLECCIÓN
+================================================================================
+
+### spa_services (Catálogo)
++ modalidad, pax, terapeutas_requeridos, requires_therapist
++ duration_total, allowed_spaces, allowed_therapists (opcional), secuencia
+
+### spa_staff (Personal)
++ skills
+
+### spa_spaces (Salas)
++ compatible_categories, max_concurrent
++ requires_therapist (informativo), min_spacing (opcional)
+
+### spa_vouchers (Bonos)
++ estado_pago, metodo_pago, importe_pagado, importe_pendiente
++ fecha_pago, notas_venta
+
+### spa_bookings (Reservas)
++ salas, terapeutas, items, precio, pack_id, fase_orden
+
+================================================================================
+## 9. MIGRACIÓN DE DATOS EXISTENTES
+================================================================================
+
+Para servicios existentes sin los nuevos campos:
+  - modalidad: Inferir de pax (1=individual, 2=pareja)
+  - requires_therapist: Inferir de categoria (masaje/facial/ritual=true)
+  - allowed_spaces: Usar espacio actual como array
+  - allowed_therapists: null (todos pueden)
+  - terapeutas_requeridos: Calcular según reglas auto
+
+Para terapeutas existentes:
+  - skills: Inferir de assigned_rooms (panacea→masaje, peluqueria→peluqueria)
+
+Para salas existentes:
+  - compatible_categories: Inferir de services que usan esa sala
+  - max_concurrent: Inferir de capacity
+  - min_spacing: 0 (sin tiempo entre reservas por defecto)
+
+Para bonos locales existentes:
+  - estado_pago: "pendiente" (default conservador)
+  - importe_pagado: 0
+  - importe_pendiente: precio
+
+================================================================================
+FIN DEL MODELO OPERATIVO - APROBADO PARA FASE 3
+================================================================================

@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <title>FASE 5 - Testing SANDBOX</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            color: #e2e8f0;
+            padding: 20px;
+            margin: 0;
+            min-height: 100vh;
+        }
+
+        h1 {
+            color: #38bdf8;
+            margin-bottom: 5px;
+            font-size: 24px;
+        }
+
+        h2 {
+            color: #94a3b8;
+            font-size: 14px;
+            margin-top: 0;
+            font-weight: normal;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .controls {
+            background: rgba(30, 41, 59, 0.8);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        button {
+            background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            font-size: 14px;
+            cursor: pointer;
+            border-radius: 8px;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+
+        button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+        }
+
+        button.secondary {
+            background: linear-gradient(135deg, #475569, #334155);
+        }
+
+        button.success {
+            background: linear-gradient(135deg, #22c55e, #16a34a);
+        }
+
+        .scenarios-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+
+        .scenario-card {
+            background: rgba(30, 41, 59, 0.9);
+            border-radius: 12px;
+            padding: 16px;
+            border: 1px solid #334155;
+            transition: all 0.2s;
+        }
+
+        .scenario-card:hover {
+            border-color: #3b82f6;
+        }
+
+        .scenario-card.running {
+            border-color: #f59e0b;
+            animation: pulse 1s infinite;
+        }
+
+        .scenario-card.passed {
+            border-color: #22c55e;
+            background: rgba(34, 197, 94, 0.1);
+        }
+
+        .scenario-card.failed {
+            border-color: #ef4444;
+            background: rgba(239, 68, 68, 0.1);
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.7;
+            }
+        }
+
+        .scenario-title {
+            font-weight: 600;
+            color: #f8fafc;
+            margin-bottom: 4px;
+        }
+
+        .scenario-desc {
+            font-size: 12px;
+            color: #94a3b8;
+            margin-bottom: 12px;
+        }
+
+        .scenario-stats {
+            display: flex;
+            gap: 12px;
+            font-size: 12px;
+        }
+
+        .stat {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .stat-icon {
+            font-size: 14px;
+        }
+
+        .stat-valid {
+            color: #22c55e;
+        }
+
+        .stat-rejected {
+            color: #ef4444;
+        }
+
+        .stat-warnings {
+            color: #f59e0b;
+        }
+
+        .results-section {
+            background: rgba(30, 41, 59, 0.9);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .results-section h3 {
+            color: #f8fafc;
+            margin: 0 0 16px 0;
+            font-size: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+
+        .summary-card {
+            background: rgba(15, 23, 42, 0.6);
+            border-radius: 8px;
+            padding: 16px;
+            text-align: center;
+        }
+
+        .summary-value {
+            font-size: 28px;
+            font-weight: 700;
+        }
+
+        .summary-value.pass {
+            color: #22c55e;
+        }
+
+        .summary-value.fail {
+            color: #ef4444;
+        }
+
+        .summary-value.warn {
+            color: #f59e0b;
+        }
+
+        .summary-label {
+            font-size: 12px;
+            color: #94a3b8;
+            margin-top: 4px;
+        }
+
+        #log {
+            background: #020617;
+            border-radius: 8px;
+            padding: 16px;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 12px;
+            max-height: 400px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            line-height: 1.6;
+        }
+
+        .log-info {
+            color: #38bdf8;
+        }
+
+        .log-error {
+            color: #ef4444;
+        }
+
+        .log-warn {
+            color: #f59e0b;
+        }
+
+        .log-success {
+            color: #22c55e;
+        }
+
+        .bottleneck-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .bottleneck-item {
+            padding: 8px 12px;
+            background: rgba(239, 68, 68, 0.1);
+            border-left: 3px solid #ef4444;
+            margin-bottom: 8px;
+            border-radius: 0 6px 6px 0;
+            font-size: 13px;
+        }
+
+        .utilization-chart {
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+
+        .util-bar {
+            flex: 1;
+            min-width: 120px;
+        }
+
+        .util-name {
+            font-size: 12px;
+            color: #94a3b8;
+            margin-bottom: 4px;
+        }
+
+        .util-track {
+            height: 24px;
+            background: rgba(15, 23, 42, 0.6);
+            border-radius: 6px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .util-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #22c55e, #16a34a);
+            transition: width 0.5s;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            padding-right: 8px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+        .util-fill.high {
+            background: linear-gradient(90deg, #f59e0b, #d97706);
+        }
+
+        .util-fill.critical {
+            background: linear-gradient(90deg, #ef4444, #dc2626);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>🧪 FASE 5 - Testing SANDBOX</h1>
+        <h2>Validación operativa sin afectar producción</h2>
+
+        <div class="controls">
+            <button onclick="runAllScenarios()" class="success">▶️ Ejecutar Todos</button>
+            <button onclick="clearResults()" class="secondary">🗑️ Limpiar</button>
+            <span style="margin-left: auto; font-size: 12px; color: #94a3b8;">
+                Modo: <strong style="color: #22c55e;">SANDBOX</strong> | Datos: Simulados
+            </span>
+        </div>
+
+        <div class="results-section" id="summarySection" style="display: none;">
+            <h3>📊 Resumen General</h3>
+            <div class="summary-grid" id="summaryGrid"></div>
+        </div>
+
+        <h3 style="color: #f8fafc; margin-bottom: 12px;">📋 Escenarios de Prueba</h3>
+        <div class="scenarios-grid" id="scenariosGrid"></div>
+
+        <div class="results-section" id="utilizationSection" style="display: none;">
+            <h3>👤 Utilización de Terapeutas</h3>
+            <div class="utilization-chart" id="utilizationChart"></div>
+        </div>
+
+        <div class="results-section" id="bottlenecksSection" style="display: none;">
+            <h3>⚠️ Cuellos de Botella Detectados</h3>
+            <ul class="bottleneck-list" id="bottlenecksList"></ul>
+        </div>
+
+        <div class="results-section">
+            <h3>📝 Log de Ejecución</h3>
+            <div id="log">Esperando ejecución de escenarios...</div>
+        </div>
+    </div>
+
+    <script src="js/spa-phase5-sandbox.js"></script>
+    <script>
+        const scenariosGrid = document.getElementById('scenariosGrid');
+        const summarySection = document.getElementById('summarySection');
+        const summaryGrid = document.getElementById('summaryGrid');
+        const logEl = document.getElementById('log');
+        const utilizationSection = document.getElementById('utilizationSection');
+        const utilizationChart = document.getElementById('utilizationChart');
+        const bottlenecksSection = document.getElementById('bottlenecksSection');
+        const bottlenecksList = document.getElementById('bottlenecksList');
+
+        let allResults = null;
+
+        // Renderizar escenarios
+        function renderScenarios() {
+            if (!window.SpaPhase5Sandbox) {
+                scenariosGrid.innerHTML = '<p style="color: #ef4444;">Error: SpaPhase5Sandbox no cargado</p>';
+                return;
+            }
+
+            const scenarios = SpaPhase5Sandbox.SCENARIOS;
+            scenariosGrid.innerHTML = '';
+
+            for (const [key, scenario] of Object.entries(scenarios)) {
+                const card = document.createElement('div');
+                card.className = 'scenario-card';
+                card.id = `scenario-${key}`;
+                card.innerHTML = `
+                    <div class="scenario-title">${scenario.name}</div>
+                    <div class="scenario-desc">${scenario.description}</div>
+                    <div class="scenario-stats">
+                        <span class="stat">📅 ${scenario.date}</span>
+                        <span class="stat">📝 ${scenario.bookings.length} reservas</span>
+                    </div>
+                `;
+                card.onclick = () => runSingleScenario(key);
+                scenariosGrid.appendChild(card);
+            }
+        }
+
+        function log(msg, type = 'info') {
+            const typeClass = `log-${type}`;
+            logEl.innerHTML += `<span class="${typeClass}">${msg}</span>\n`;
+            logEl.scrollTop = logEl.scrollHeight;
+        }
+
+        function clearResults() {
+            logEl.innerHTML = 'Log limpiado. Esperando ejecución...';
+            summarySection.style.display = 'none';
+            utilizationSection.style.display = 'none';
+            bottlenecksSection.style.display = 'none';
+            renderScenarios();
+            allResults = null;
+        }
+
+        async function runSingleScenario(key) {
+            const card = document.getElementById(`scenario-${key}`);
+            card.className = 'scenario-card running';
+
+            logEl.innerHTML = '';
+            log(`Ejecutando escenario: ${key}...`, 'info');
+
+            try {
+                const result = await SpaPhase5Sandbox.runScenario(key);
+                updateScenarioCard(key, result);
+                log(`\nResultado: ${result.valid}/${result.total} reservas válidas`,
+                    result.rejected > 0 ? 'warn' : 'success');
+
+                if (result.errors.length > 0) {
+                    log('\nErrores:', 'error');
+                    result.errors.forEach(e => {
+                        log(`  ❌ ${e.booking.time} ${e.booking.service}: ${e.errors.join(', ')}`, 'error');
+                    });
+                }
+            } catch (err) {
+                log(`Error: ${err.message}`, 'error');
+                card.className = 'scenario-card failed';
+            }
+        }
+
+        async function runAllScenarios() {
+            logEl.innerHTML = '';
+            log('═══════════════════════════════════════════════════', 'info');
+            log('  FASE 5 - SANDBOX TESTING - EJECUTANDO TODOS', 'info');
+            log('═══════════════════════════════════════════════════\n', 'info');
+
+            // Marcar todos como running
+            document.querySelectorAll('.scenario-card').forEach(c => c.className = 'scenario-card');
+
+            try {
+                allResults = await SpaPhase5Sandbox.runAll();
+
+                // Actualizar cada escenario
+                for (const [key, result] of Object.entries(allResults.scenarios)) {
+                    updateScenarioCard(key, result);
+
+                    log(`\n📋 ${result.scenario}`, 'info');
+                    log(`   Válidas: ${result.valid}/${result.total}`, result.rejected > 0 ? 'warn' : 'success');
+
+                    if (result.errors.length > 0) {
+                        result.errors.forEach(e => {
+                            log(`   ❌ ${e.booking.time} ${e.booking.service}`, 'error');
+                        });
+                    }
+                }
+
+                // Mostrar resumen
+                renderSummary(allResults);
+                renderUtilization(allResults);
+                renderBottlenecks(allResults);
+
+            } catch (err) {
+                log(`Error general: ${err.message}`, 'error');
+                console.error(err);
+            }
+        }
+
+        function updateScenarioCard(key, result) {
+            const card = document.getElementById(`scenario-${key}`);
+            if (!card) return;
+
+            const passed = result.rejected === 0 || result.comparison?.passed !== false;
+            card.className = `scenario-card ${passed ? 'passed' : 'failed'}`;
+
+            card.innerHTML = `
+                <div class="scenario-title">${result.scenario}</div>
+                <div class="scenario-desc">${TEST_SCENARIOS[key]?.description || ''}</div>
+                <div class="scenario-stats">
+                    <span class="stat stat-valid"><span class="stat-icon">✅</span> ${result.valid}</span>
+                    <span class="stat stat-rejected"><span class="stat-icon">❌</span> ${result.rejected}</span>
+                    ${result.metrics?.warnings?.length ? `<span class="stat stat-warnings"><span class="stat-icon">⚠️</span> ${result.metrics.warnings.length}</span>` : ''}
+                </div>
+            `;
+        }
+
+        function renderSummary(results) {
+            summarySection.style.display = 'block';
+
+            const totalBookings = Object.values(results.scenarios).reduce((sum, s) => sum + s.total, 0);
+            const validBookings = Object.values(results.scenarios).reduce((sum, s) => sum + s.valid, 0);
+            const rejectedBookings = Object.values(results.scenarios).reduce((sum, s) => sum + s.rejected, 0);
+
+            summaryGrid.innerHTML = `
+                <div class="summary-card">
+                    <div class="summary-value">${results.summary.total}</div>
+                    <div class="summary-label">Escenarios</div>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-value pass">${results.summary.passed}</div>
+                    <div class="summary-label">Pasados</div>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-value ${results.summary.failed > 0 ? 'fail' : ''}">${results.summary.failed}</div>
+                    <div class="summary-label">Fallidos</div>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-value">${totalBookings}</div>
+                    <div class="summary-label">Reservas Simuladas</div>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-value pass">${validBookings}</div>
+                    <div class="summary-label">Aceptadas</div>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-value ${rejectedBookings > 0 ? 'warn' : ''}">${rejectedBookings}</div>
+                    <div class="summary-label">Rechazadas</div>
+                </div>
+            `;
+        }
+
+        function renderUtilization(results) {
+            // Tomar utilización del escenario FULL_MIX
+            const fullMix = results.scenarios.FULL_MIX;
+            if (!fullMix?.metrics?.therapistUtilization) return;
+
+            utilizationSection.style.display = 'block';
+            utilizationChart.innerHTML = '';
+
+            for (const [name, util] of Object.entries(fullMix.metrics.therapistUtilization)) {
+                const value = parseInt(util);
+                const bar = document.createElement('div');
+                bar.className = 'util-bar';
+                bar.innerHTML = `
+                    <div class="util-name">${name}</div>
+                    <div class="util-track">
+                        <div class="util-fill ${value > 90 ? 'critical' : value > 75 ? 'high' : ''}" 
+                             style="width: ${Math.min(value, 100)}%">${util}</div>
+                    </div>
+                `;
+                utilizationChart.appendChild(bar);
+            }
+        }
+
+        function renderBottlenecks(results) {
+            const bottlenecks = [];
+
+            for (const [key, scenario] of Object.entries(results.scenarios)) {
+                if (scenario.errors.length > 0) {
+                    scenario.errors.forEach(e => {
+                        bottlenecks.push({
+                            scenario: scenario.scenario,
+                            time: e.booking.time,
+                            service: e.booking.service,
+                            reason: e.errors.join(', ')
+                        });
+                    });
+                }
+
+                if (scenario.metrics?.warnings?.length > 0) {
+                    scenario.metrics.warnings.forEach(w => {
+                        bottlenecks.push({
+                            scenario: scenario.scenario,
+                            reason: w,
+                            type: 'warning'
+                        });
+                    });
+                }
+            }
+
+            if (bottlenecks.length === 0) {
+                bottlenecksSection.style.display = 'none';
+                return;
+            }
+
+            bottlenecksSection.style.display = 'block';
+            bottlenecksList.innerHTML = bottlenecks.map(b => `
+                <li class="bottleneck-item">
+                    <strong>${b.scenario}</strong>
+                    ${b.time ? `(${b.time})` : ''} 
+                    ${b.service ? `- ${b.service}` : ''}: 
+                    ${b.reason}
+                </li>
+            `).join('');
+        }
+
+        // Referencia a TEST_SCENARIOS
+        const TEST_SCENARIOS = window.SpaPhase5Sandbox?.SCENARIOS || {};
+
+        // Init
+        window.addEventListener('load', () => {
+            setTimeout(renderScenarios, 500);
+        });
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,107 @@
+================================================================================
+CHECKLIST RECEPCIÓN HOTEL - INTEGRACIÓN SPA
+Versión: 1.0 | Fecha: 2026-01-13
+================================================================================
+
+## PACKS CON ALOJAMIENTO
+================================================================================
+
+### AL REGISTRAR RESERVA DE PACK
+
+Los siguientes packs incluyen alojamiento + SPA:
+
+| Pack | Contenido |
+|------|-----------|
+| Sueño para dos | Hotel + Restaurante + Circuito SPA |
+| Fantasía para dos | Hotel + Circuito + Masaje Pareja |
+| Aventura para dos | Hotel + Suite SPA + Cava |
+
+PASOS:
+[ ] Registrar reserva de habitación (normal)
+[ ] Verificar fecha de check-in
+[ ] Informar al cliente que DEBE reservar SPA aparte
+[ ] Proporcionar contacto SPA: [teléfono/ext]
+[ ] O transferir llamada a SPA para coordinar
+
+### COORDINACIÓN CON SPA
+
+[ ] SPA gestiona SOLO la parte spa del pack
+[ ] Hotel gestiona SOLO alojamiento
+[ ] Restaurante gestiona su reserva aparte
+[ ] Informar a SPA de llegada especial (luna de miel, aniversario, etc.)
+
+## RESERVAS DE RESTAURANTE (DESDE VOUCHER)
+================================================================================
+
+Los packs que incluyen "Menú en Restaurante":
+- Sueño para dos
+- Tiempo para dos
+- Cuento para dos
+- SPA y Sabores (pareja e individual)
+
+PASOS:
+[ ] Cliente presenta voucher o código
+[ ] Verificar validez del voucher
+[ ] Restaurante hace reserva normal
+[ ] Marcar en sistema como "Uso de voucher"
+[ ] El SPA NO gestiona restaurante
+
+## COMPLEMENTOS
+================================================================================
+
+Los siguientes complementos pueden solicitarse:
+- Botella de cava
+- Bombones
+- Pétalos de rosa
+- Velas aromáticas
+
+PASOS:
+[ ] Se solicitan al confirmar reserva SPA
+[ ] Se preparan en Suite/VIP antes de llegada
+[ ] Se cargan al voucher o factura
+[ ] Hotel puede facturar si no está en pack
+
+## TRATAMIENTOS SPA (Solo información)
+================================================================================
+
+SI CLIENTE PREGUNTA POR SPA:
+
+✅ Circuito: Libre según disponibilidad (10-14h / 16-20h)
+✅ Masajes: Requieren reserva previa
+✅ Rituales: Requieren reserva previa (2h duración)
+✅ Parejas: Requieren reserva previa (2 terapeutas)
+
+CONTACTO SPA: [teléfono / extensión]
+HORARIO: 10:00 - 20:00
+
+## TABLA DE PACKS (Referencia)
+================================================================================
+
+| Pack | Hotel | SPA | Restaurante | Extras |
+|------|-------|-----|-------------|--------|
+| Sueño para dos | ✅ | Circuito 60' | ✅ Menú | - |
+| Fantasía para dos | ✅ | Circuito + Masaje | - | - |
+| Aventura para dos | ✅ | Suite 60' | - | Cava |
+| Tiempo para dos | - | Suite 60' | ✅ Menú | - |
+| Cuento para dos | - | Circuito + Masaje | ✅ Menú | - |
+
+## EN CASO DE PROBLEMA
+================================================================================
+
+SI HAY PROBLEMA CON VOUCHER SPA:
+1. Contactar SPA para verificar código
+2. NO autorizar sin confirmación
+3. Cliente puede pagar y reclamar después
+
+SI SPA ESTÁ LLENO:
+1. Ofrecer reprogramar fecha
+2. Ofrecer lista de espera
+3. NO prometer disponibilidad
+
+SI CLIENTE INSISTE:
+1. Transferir a responsable SPA
+2. Registrar incidencia
+
+================================================================================
+FIN DEL CHECKLIST HOTEL
+================================================================================

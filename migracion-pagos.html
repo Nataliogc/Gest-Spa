@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Migración de Pagos - Zenith Manager</title>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Montserrat', sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 16px;
+            padding: 40px;
+            max-width: 800px;
+            width: 100%;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+
+        h1 {
+            color: #1a1a2e;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .subtitle {
+            color: #64748b;
+            margin-bottom: 30px;
+        }
+
+        .warning {
+            background: #fef3c7;
+            border: 1px solid #f59e0b;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 20px;
+            color: #92400e;
+        }
+
+        .info {
+            background: #dbeafe;
+            border: 1px solid #3b82f6;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 20px;
+            color: #1e40af;
+        }
+
+        .btn {
+            padding: 14px 28px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+
+        .btn-primary {
+            background: #22c55e;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #16a34a;
+        }
+
+        .btn-secondary {
+            background: #3b82f6;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #2563eb;
+        }
+
+        .btn:disabled {
+            background: #94a3b8;
+            cursor: not-allowed;
+        }
+
+        #log {
+            background: #1e293b;
+            color: #10b981;
+            padding: 20px;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 0.85rem;
+            max-height: 400px;
+            overflow-y: auto;
+            margin-top: 20px;
+            white-space: pre-wrap;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            margin: 20px 0;
+        }
+
+        .stat {
+            background: #f1f5f9;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #1a1a2e;
+        }
+
+        .stat-label {
+            color: #64748b;
+            font-size: 0.85rem;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>💳 Migración de Pagos</h1>
+        <p class="subtitle">Marcar todos los bonos existentes como PAGADO</p>
+
+        <div class="warning">
+            <strong>⚠️ OPERACIÓN ÚNICA</strong><br>
+            Este script actualizará TODOS los bonos existentes estableciendo:<br>
+            • estado_pago = 'pagado'<br>
+            • importe_pagado = precio total<br>
+            • importe_pendiente = 0<br>
+            • pagos[] = registro de migración inicial
+        </div>
+
+        <div class="info">
+            <strong>ℹ️ ¿Cuándo usar?</strong><br>
+            Solo ejecutar UNA VEZ después de implementar el módulo de pagos.
+            Los bonos creados después de esta migración seguirán el flujo normal.
+        </div>
+
+        <div class="stats">
+            <div class="stat">
+                <div class="stat-value" id="stat-total">-</div>
+                <div class="stat-label">Total Bonos</div>
+            </div>
+            <div class="stat">
+                <div class="stat-value" id="stat-updated">0</div>
+                <div class="stat-label">Actualizados</div>
+            </div>
+            <div class="stat">
+                <div class="stat-value" id="stat-errors">0</div>
+                <div class="stat-label">Errores</div>
+            </div>
+        </div>
+
+        <div>
+            <button class="btn btn-secondary" onclick="runDryRun()">🔍 Simular (Dry Run)</button>
+            <button class="btn btn-primary" onclick="runMigration()" id="btn-migrate">✅ Ejecutar Migración</button>
+        </div>
+
+        <div id="log">[Esperando acción...]</div>
+    </div>
+
+    <!-- Firebase -->
+    <script src="https://www.gstatic.com/firebasejs/8.6.8/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.6.8/firebase-firestore.js"></script>
+    <script src="firebase-config.js"></script>
+
+    <script>
+        let logEl = document.getElementById('log');
+        let totalVouchers = 0;
+        let updatedCount = 0;
+        let errorCount = 0;
+
+        function log(msg) {
+            const timestamp = new Date().toLocaleTimeString();
+            logEl.textContent += `\n[${timestamp}] ${msg}`;
+            logEl.scrollTop = logEl.scrollHeight;
+        }
+
+        function clearLog() {
+            logEl.textContent = '';
+        }
+
+        async function getAllVouchers() {
+            const vouchers = [];
+
+            // Get from spa_vouchers (local sales)
+            try {
+                const localSnap = await db.collection('spa_vouchers').get();
+                localSnap.forEach(doc => {
+                    vouchers.push({ id: doc.id, collection: 'spa_vouchers', ...doc.data() });
+                });
+                log(`📦 spa_vouchers: ${localSnap.size} bonos`);
+            } catch (e) {
+                log(`❌ Error leyendo spa_vouchers: ${e.message}`);
+            }
+
+            // Get from woo_sales
+            try {
+                const wooSnap = await db.collection('woo_sales').get();
+                wooSnap.forEach(doc => {
+                    vouchers.push({ id: doc.id, collection: 'woo_sales', ...doc.data() });
+                });
+                log(`📦 woo_sales: ${wooSnap.size} bonos`);
+            } catch (e) {
+                log(`❌ Error leyendo woo_sales: ${e.message}`);
+            }
+
+            return vouchers;
+        }
+
+        function getVoucherPrice(v) {
+            return parseFloat(v.snapshot_price) ||
+                parseFloat(v.precio) ||
+                parseFloat(v.importe) ||
+                parseFloat(v.total) ||
+                parseFloat(v.order_total) || 0;
+        }
+
+        async function runDryRun() {
+            clearLog();
+            log('🔍 SIMULACIÓN (DRY RUN) - No se realizarán cambios');
+            log('━'.repeat(50));
+
+            const vouchers = await getAllVouchers();
+            totalVouchers = vouchers.length;
+            document.getElementById('stat-total').textContent = totalVouchers;
+
+            log(`\n📊 Total bonos encontrados: ${totalVouchers}`);
+
+            let needsUpdate = 0;
+            let alreadyPaid = 0;
+
+            for (const v of vouchers) {
+                const price = getVoucherPrice(v);
+                const currentStatus = v.estado_pago || 'sin_estado';
+
+                if (currentStatus === 'pagado' && v.importe_pagado >= price) {
+                    alreadyPaid++;
+                } else {
+                    needsUpdate++;
+                    log(`  → ${v.bono || v.codigo || v.id}: ${price}€ (${currentStatus})`);
+                }
+            }
+
+            log('\n━'.repeat(50));
+            log(`✅ Ya pagados: ${alreadyPaid}`);
+            log(`🔄 Necesitan actualización: ${needsUpdate}`);
+            log(`\n💡 Pulsa "Ejecutar Migración" para aplicar cambios.`);
+        }
+
+        async function runMigration() {
+            if (!confirm('⚠️ ¿Estás seguro de ejecutar la migración?\n\nEsta operación actualizará todos los bonos existentes como PAGADO.')) {
+                return;
+            }
+
+            clearLog();
+            log('🚀 INICIANDO MIGRACIÓN DE PAGOS');
+            log('━'.repeat(50));
+
+            document.getElementById('btn-migrate').disabled = true;
+            updatedCount = 0;
+            errorCount = 0;
+
+            const vouchers = await getAllVouchers();
+            totalVouchers = vouchers.length;
+            document.getElementById('stat-total').textContent = totalVouchers;
+
+            const migrationDate = new Date().toISOString();
+            const today = new Date().toISOString().split('T')[0];
+
+            for (const v of vouchers) {
+                const price = getVoucherPrice(v);
+                const code = v.bono || v.codigo || v.id;
+
+                // Skip if already properly paid
+                if (v.estado_pago === 'pagado' && v.importe_pagado >= price && Array.isArray(v.pagos) && v.pagos.length > 0) {
+                    log(`⏭️ ${code}: Ya pagado correctamente`);
+                    continue;
+                }
+
+                try {
+                    const updateData = {
+                        estado_pago: 'pagado',
+                        importe_pagado: price,
+                        importe_pendiente: 0,
+                        service_payment_status: null,
+                        snapshot_price: price, // Ensure snapshot exists
+                        payment_migrated_at: migrationDate
+                    };
+
+                    // Create migration payment record
+                    const pagoRecord = {
+                        fecha: today,
+                        metodo: 'migración',
+                        importe: price,
+                        usuario: 'sistema_migracion',
+                        nota: 'Pago inicial - Migración sistema pagos 13/01/2026'
+                    };
+
+                    // Merge with existing pagos if any
+                    if (Array.isArray(v.pagos) && v.pagos.length > 0) {
+                        updateData.pagos = v.pagos; // Keep existing
+                    } else {
+                        updateData.pagos = [pagoRecord];
+                    }
+
+                    await db.collection(v.collection).doc(v.id).update(updateData);
+
+                    updatedCount++;
+                    document.getElementById('stat-updated').textContent = updatedCount;
+                    log(`✅ ${code}: ${price}€ → PAGADO`);
+
+                } catch (err) {
+                    errorCount++;
+                    document.getElementById('stat-errors').textContent = errorCount;
+                    log(`❌ ${code}: Error - ${err.message}`);
+                }
+
+                // Small delay to avoid quota issues
+                await new Promise(r => setTimeout(r, 50));
+            }
+
+            log('\n━'.repeat(50));
+            log('🏁 MIGRACIÓN COMPLETADA');
+            log(`✅ Actualizados: ${updatedCount}`);
+            log(`❌ Errores: ${errorCount}`);
+            log(`\n🔒 Los nuevos bonos locales seguirán el flujo normal (pendiente → pagado)`);
+
+            document.getElementById('btn-migrate').disabled = false;
+        }
+    </script>
+</body>
+
+</html>

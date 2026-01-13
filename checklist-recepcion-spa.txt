@@ -1,0 +1,122 @@
+================================================================================
+CHECKLIST RECEPCIÓN SPA
+Versión: 1.0 | Fecha: 2026-01-13
+================================================================================
+
+## ANTES DE ABRIR (DIARIO)
+
+[ ] Verificar terapeutas disponibles hoy
+[ ] Revisar excepciones en calendario (vacaciones, bajas)
+[ ] Comprobar reservas del día
+[ ] Identificar horas pico
+[ ] Verificar ocupación circuito
+[ ] Preparar toallas y productos
+
+## AL RECIBIR RESERVA
+
+### CIRCUITO SPA
+
+[ ] Consultar ocupación en slot horario
+[ ] Si >12 pax: AVISO "Circuito cerca de capacidad óptima"
+[ ] Si >16 pax: RECHAZAR o reubicar hora
+[ ] Confirmar hora de llegada (15 min antes)
+[ ] Informar duración: 60 minutos
+
+### MASAJE INDIVIDUAL
+
+[ ] Verificar terapeuta disponible
+[ ] Verificar sala disponible (Panacea, Cabina, Suite)
+[ ] Si Panacea ocupada x2: usar Cabina o reprogramar
+[ ] Confirmar duración (30' o 60')
+[ ] Anotar preferencias (presión, zonas)
+
+### MASAJE PAREJA
+
+[ ] ⚠️ REQUIERE 2 TERAPEUTAS
+[ ] Verificar 2 terapeutas disponibles en mismo horario
+[ ] Verificar Suite o Panacea disponible
+[ ] Si Suite ocupada: verificar min_spacing 60 min
+[ ] Confirmar duración (30' o 60')
+
+### PACK PAREJA (Experiencia SPA, Encuentro Romántico, etc.)
+
+[ ] ⚠️ TIENE VARIAS FASES
+[ ] Fase 1: Circuito/Suite (sin terapeuta)
+[ ] Fase 2: Masaje (requiere 2 terapeutas)
+[ ] Verificar disponibilidad de TODAS las fases
+[ ] Calcular hora fin = hora inicio + duración total
+[ ] Bloquear recursos en todas las fases
+
+### RITUAL (Chocolaterapia, Indian, Cítrico)
+
+[ ] ⚠️ DURACIÓN REAL: 120 MINUTOS
+[ ] ⚠️ BLOQUEA TERAPEUTA TODO EL TIEMPO
+[ ] Verificar terapeuta libre 2 horas
+[ ] Verificar Panacea libre para fases 1-2-3
+[ ] Verificar Suite libre para baño final
+[ ] Máximo 1 ritual por turno en días pico
+
+### COMPLEMENTOS (Cava, Bombones, etc.)
+
+[ ] NO requieren reserva de sala
+[ ] NO requieren terapeuta
+[ ] Se entregan en Suite/Panacea/VIP
+[ ] NO se entregan en Circuito SPA
+[ ] Anotar en observaciones de reserva
+
+## DURANTE LA JORNADA
+
+[ ] Monitorizar llegadas vs reservas
+[ ] Avisar si cliente llega tarde (>15 min = posible cancelación)
+[ ] Coordinar tiempos entre salas
+[ ] Avisar a terapeutas cambios de última hora
+[ ] Registrar incidencias
+
+## AL CERRAR
+
+[ ] Verificar que todas las reservas se completaron
+[ ] Registrar no-shows
+[ ] Revisar reservas de mañana
+[ ] Reportar problemas de capacidad
+
+================================================================================
+## TABLA RÁPIDA DE CAPACIDADES
+================================================================================
+
+| Recurso | Capacidad | Notas |
+|---------|-----------|-------|
+| Circuito SPA | 12 óptimo / 16 máximo | Sin terapeuta |
+| Suite | 1 pareja (2 pax) | min_spacing 60 min |
+| Panacea | 2 camillas simultáneas | min_spacing 15 min |
+| VIP | 1 pareja (2 pax) | min_spacing 30 min |
+| Cabina | 1 persona | min_spacing 15 min |
+| Terapeutas | 3 disponibles | Chon, Mari, Mar |
+
+================================================================================
+## TABLA RÁPIDA DE DURACIONES
+================================================================================
+
+| Servicio | Duración Comercial | Duración Real |
+|----------|-------------------|---------------|
+| Circuito | 60 min | 60 min |
+| Masaje 30' | 30 min | 30 min |
+| Masaje 60' | 60 min | 60 min |
+| Masaje Pareja | 60 min | 60 min |
+| Ritual | 90 min | 120 min |
+| Suite Spa | 60 min | 60 min |
+| Pack 2 fases | 90 min | 90 min |
+| Pack 3 fases | 120 min | 120 min |
+
+================================================================================
+## TELÉFONOS ÚTILES
+================================================================================
+
+- Emergencias: 112
+- Hotel Recepción: [ext. XXX]
+- Restaurante: [ext. XXX]
+- Mantenimiento: [ext. XXX]
+- Responsable SPA: [nombre / móvil]
+
+================================================================================
+FIN DEL CHECKLIST
+================================================================================

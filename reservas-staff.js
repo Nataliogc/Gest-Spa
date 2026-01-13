@@ -36,6 +36,48 @@ const STAFF_POOLS = {
     'cabina3': ['spa', 'cabinas']
 };
 
+// === PAX LIMITS BY ROOM ===
+// Cabinas are individual treatment rooms (pax_max: 1)
+// Panacea, Suite, VIP support couples (pax_max: 2)
+const ROOM_PAX_MAX = {
+    'cabina1': 1,
+    'cabina2': 1,
+    'cabina3': 1,
+    'panacea': 2,
+    'suite': 2,
+    'vip': 2,
+    'spa': 99,  // Circuito no tiene límite fijo
+    'peluqueria': 1
+};
+
+/**
+ * Returns the max pax allowed for a room
+ * @param {string} roomCode 
+ * @returns {number} - max pax, defaults to 2
+ */
+function getRoomPaxMax(roomCode) {
+    const code = normalizeRoomCode(roomCode);
+    return ROOM_PAX_MAX[code] || 2;
+}
+
+/**
+ * Checks if pax exceeds room limit
+ * @param {string} roomCode 
+ * @param {number} pax 
+ * @returns {Object} - { valid, message, maxPax }
+ */
+function validatePaxForRoom(roomCode, pax) {
+    const maxPax = getRoomPaxMax(roomCode);
+    if (pax > maxPax) {
+        return {
+            valid: false,
+            message: `⚠ Esta sala solo admite reservas ${maxPax === 1 ? 'individuales' : `de hasta ${maxPax} personas`}`,
+            maxPax
+        };
+    }
+    return { valid: true, message: '', maxPax };
+}
+
 let _cachedActiveStaff = null;
 let _lastStaffFetch = 0;
 const CACHE_TTL = 300000; // 5 minutes
@@ -285,6 +327,24 @@ function updateStaffDropdown(availableStaff) {
     if (submitBtn) submitBtn.disabled = false;
 }
 
+/**
+ * Reset staff dropdown to initial/waiting state
+ * Called when form opens or service not yet selected
+ */
+function resetStaffDropdown(message = 'Selecciona servicio y hora primero') {
+    const staffSelect = document.getElementById('booking-staff');
+    const msgEl = document.getElementById('staff-availability-msg');
+
+    if (staffSelect) {
+        staffSelect.innerHTML = `<option value="">${message}</option>`;
+        staffSelect.disabled = true;
+    }
+    if (msgEl) {
+        msgEl.textContent = 'ℹ️ ' + message;
+        msgEl.style.color = '#64748b';
+    }
+}
+
 async function handleStaffFieldsChange() {
     let date = document.getElementById('form-date')?.value;
     if (!date) date = document.getElementById('main-date-picker')?.value;
@@ -295,7 +355,11 @@ async function handleStaffFieldsChange() {
     const durationInput = document.getElementById('inputDuration');
     const duration = durationInput ? durationInput.value : 60;
 
-    if (!date || !time) return;
+    // === CHECK: Date and time required ===
+    if (!date || !time) {
+        resetStaffDropdown('Selecciona fecha y hora primero');
+        return;
+    }
 
     let roomCode = null;
     if (typeof window.currentModule !== 'undefined' && window.currentModule.code) {
@@ -309,11 +373,51 @@ async function handleStaffFieldsChange() {
 
     if (!roomCode) return;
 
+    // === CHECK: Service required for particulares (no bono) ===
+    const origenSelect = document.getElementById('res-origen');
+    const servicioInput = document.getElementById('res-servicio') || document.getElementById('inputServicio');
+    const isParticular = origenSelect && origenSelect.value === 'particular';
+
+    // Only require service for particular reservations (no bono)
+    if (isParticular || !origenSelect?.value) {
+        if (!servicioInput || !servicioInput.value || servicioInput.value.trim() === '') {
+            resetStaffDropdown('Selecciona un servicio primero');
+            return;
+        }
+    }
+
+    // === PAX VALIDATION ===
+    const paxInput = document.getElementById('res-pax');
+    const pax = paxInput ? parseInt(paxInput.value) || 1 : 1;
+    const paxValidation = validatePaxForRoom(roomCode, pax);
+
+    const msgEl = document.getElementById('staff-availability-msg');
+    const staffSelect = document.getElementById('booking-staff');
+
+    if (!paxValidation.valid) {
+        // Block - pax exceeds room limit
+        if (msgEl) {
+            msgEl.textContent = paxValidation.message;
+            msgEl.style.color = '#ef4444';
+        }
+        if (staffSelect) {
+            staffSelect.innerHTML = '<option value="">No disponible para este pax</option>';
+            staffSelect.disabled = true;
+        }
+        const submitBtn = document.querySelector('#booking-form button[type="submit"]');
+        if (submitBtn) submitBtn.disabled = true;
+        return;
+    }
+    // === END PAX VALIDATION ===
+
     // Get current booking ID to exclude from collision check
     const excludeId = document.getElementById('form-id')?.value;
     const availableStaff = await getAvailableStaffForRoom(roomCode, date, time, duration, excludeId);
     updateStaffDropdown(availableStaff);
 }
+
+// Export resetStaffDropdown
+window.resetStaffDropdown = resetStaffDropdown;
 
 // WhatsApp Helper
 async function sendStaffWhatsAppNotification(staff, booking) {
@@ -451,3 +555,8 @@ window.getDailyStaffAvailability = async function (roomCode, date) {
         return {};
     }
 };
+
+// Export pax validation functions
+window.getRoomPaxMax = getRoomPaxMax;
+window.validatePaxForRoom = validatePaxForRoom;
+window.ROOM_PAX_MAX = ROOM_PAX_MAX;

@@ -1,0 +1,182 @@
+================================================================================
+AUDITORÍA DE RESERVAS - Fase 1
+Generado: 2026-01-13
+================================================================================
+
+## RESUMEN EJECUTIVO
+
+Las reservas se gestionan en reservas.html con lógica de asignación de salas
+y terapeutas en reservas-staff.js. El matching se hace por assigned_rooms
+y horario, pero NO valida skills (habilidades) del terapeuta para el servicio.
+
+================================================================================
+## FLUJO DE RESERVA ACTUAL
+================================================================================
+
+1. Usuario selecciona tipo de espacio (URL param: ?type=spa|cabinas|suite...)
+2. Selecciona fecha y hora disponible
+3. Sistema carga personal disponible → getAvailableStaffForRoom()
+4. Usuario selecciona terapeuta (o ninguno si no requiere)
+5. Introduce datos del cliente y servicio
+6. Guarda en Firestore (spa_bookings colección)
+
+================================================================================
+## ESTRUCTURA DE RESERVA (spa_bookings)
+================================================================================
+
+Campos típicos (analizados de reservas.html):
+
+| Campo          | Tipo   | Descripción                    |
+|----------------|--------|--------------------------------|
+| room           | string | Código de sala                 |
+| date           | string | Fecha (YYYY-MM-DD)             |
+| time           | string | Hora inicio (HH:MM)            |
+| duration       | number | Duración en minutos            |
+| client_name    | string | Nombre del cliente             |
+| client_phone   | string | Teléfono                       |
+| client_email   | string | Email                          |
+| service        | string | Nombre del servicio            |
+| staff_id       | string | ID del terapeuta asignado      |
+| staff_name     | string | Nombre del terapeuta           |
+| pax            | number | Número de personas             |
+| voucher_code   | string | Código de bono (si aplica)     |
+| status         | string | Estado de la reserva           |
+| notes          | string | Notas adicionales              |
+| created_at     | string | Timestamp de creación          |
+
+================================================================================
+## ASIGNACIÓN DE TERAPEUTA (reservas-staff.js)
+================================================================================
+
+Función principal: getAvailableStaffForRoom(roomCode, date, time, duration)
+
+Flujo:
+1. getActiveStaff() - Obtiene todos los terapeutas activos (cacheado 5 min)
+2. getAllBookingsForDate(date) - Obtiene reservas del día (batch 5 colecciones)
+3. Filtra por:
+   a. assigned_rooms: Terapeuta asignado a la sala (o vacío = disponible todo)
+   b. checkStaffAvailability: Horario default o excepciones por día
+   c. isStaffBookedInMemory: No tiene otra reserva que solape
+
+⚠️ NO INCLUYE:
+- Validación de SKILLS (¿sabe hacer este servicio?)
+- Límite de citas por día
+- Preferencias de terapeuta
+
+================================================================================
+## MAPEO DE SALAS (ROOM_CODES y STAFF_POOLS)
+================================================================================
+
+ROOM_CODES (líneas 5-18):
+  'suite' → 'suite'
+  'vip' → 'vip'
+  'panacea' → 'panacea'
+  'spa' → 'spa'
+  'peluqueria' → 'peluqueria'
+  'cabina1' → 'cabina1'
+  ...
+
+STAFF_POOLS (líneas 21-32):
+  'suite' → ['suite', 'vip']
+  'vip' → ['suite', 'vip']
+  'panacea' → ['panacea', 'spa', 'cabinas']
+  'spa' → ['spa', 'cabinas']
+  'peluqueria' → ['peluqueria']
+  'cabina1' → ['spa', 'cabinas']
+  ...
+
+Esto permite que un terapeuta asignado a "spa" pueda trabajar en "panacea".
+
+================================================================================
+## VERIFICACIÓN DE DISPONIBILIDAD (checkStaffAvailability)
+================================================================================
+
+1. Consulta spa_staff_availability para excepciones del día
+2. Si status='unavailable' → No disponible
+3. Si status='custom' → Verifica contra custom_schedule.shifts
+4. Si no hay excepción → Usa default_schedule del día de la semana
+5. Verifica que el turno cubra la hora y duración requeridas
+
+⚠️ PROBLEMA: Cada verificación hace 1 READ a Firestore
+   - 10 terapeutas × 1 fecha = 10 lecturas extra
+
+================================================================================
+## VALIDACIÓN DE COLISIÓN (isStaffBookedInMemory)
+================================================================================
+
+Compara el nuevo horario con reservas existentes del día:
+  - Si hay overlap temporal con otra reserva del mismo terapeuta → bloqueado
+
+Esto FUNCIONA correctamente pero es IN-MEMORY (no previene race conditions).
+
+================================================================================
+## CAMPOS FALTANTES EN RESERVA
+================================================================================
+
+1. serviceCategory: string
+   - Categoría del servicio para validar skills
+
+2. therapists: string[]
+   - Array para servicios que requieren 2 terapeutas (masaje pareja)
+
+3. roomsSequence: string[]
+   - Para packs mixtos que usan múltiples salas
+
+4. price: number
+   - Precio del servicio (actualmente no se guarda en reserva)
+
+5. paymentStatus: string
+   - "pagado", "pendiente", "consumo_bono"
+
+================================================================================
+## INCONSISTENCIAS DETECTADAS
+================================================================================
+
+1. Solo asigna UN terapeuta
+   - Masaje pareja necesita 2, no hay soporte
+
+2. No valida skill ↔ servicio
+   - Terapeuta de peluquería podría asignarse a facial
+
+3. No limita citas por terapeuta/día
+   - Terapeuta podría tener 10 citas seguidas
+
+4. Race condition posible
+   - Dos usuarios reservando mismo slot simultáneamente
+
+5. Packs no generan múltiples reservas
+   - Pack "Spa + Masaje + Restaurante" debería crear 3 slots
+
+================================================================================
+## ARCHIVOS RELACIONADOS
+================================================================================
+
+- reservas.html: UI de reservas (4454 líneas, muy grande)
+- reservas-staff.js: Lógica de asignación de terapeutas
+- bonos.js: goToReservation() - Navega a reservas desde bono
+- personal.js: Gestión de personal y horarios
+
+================================================================================
+## RECOMENDACIONES FASE 2
+================================================================================
+
+1. VALIDAR SKILL antes de mostrar terapeuta
+   - Añadir campo skills en spa_staff
+   - Filtrar por categoría del servicio
+
+2. SOPORTAR MÚLTIPLES TERAPEUTAS
+   - therapists: string[] en lugar de staff_id
+   - UI con multi-select para servicios pareja
+
+3. GENERAR RESERVAS POR FASE en packs
+   - Pack "Spa + Masaje" → 2 reservas vinculadas
+
+4. AÑADIR PRECIO a reserva
+   - Útil para informes y validación
+
+5. OPTIMIZAR LECTURAS de excepciones
+   - Cachear spa_staff_availability por fecha
+
+================================================================================
+FIN DE AUDITORÍA
+================================================================================

@@ -125,6 +125,16 @@
                         <option value="12">Último año</option>
                     </select>
 
+                    <!-- Filtro Estado Pago -->
+                    <select id="filter-payment-status" class="param-input" style="width: 150px;"
+                        onchange="cargarBonos()">
+                        <option value="">💳 Todos pagos</option>
+                        <option value="pagado">💳 Pagado</option>
+                        <option value="parcial">💳 Parcial</option>
+                        <option value="pendiente">💳 Pendiente</option>
+                        <option value="pending_service">⚠ Pend. Servicio</option>
+                    </select>
+
 
 
                     <div style="display: flex; gap: 5px;">
@@ -325,6 +335,11 @@
                 <!-- COLUMNA DERECHA: Dinámica -->
                 <div
                     style="padding: 15px; overflow-y: auto; display: flex; flex-direction: column; gap: 15px; background: #fff;">
+
+                    <!-- PAGO DEL BONO (Payment Block) -->
+                    <div id="vm-payment-block">
+                        <!-- Injected by SpaPaymentControl.renderPaymentBlock() -->
+                    </div>
 
                     <!-- ITEMS BREAKDOWN -->
                     <div id="vm-items-container" style="display: flex; flex-direction: column; gap: 5px;">
@@ -592,6 +607,89 @@
     <!-- Toast Container -->
     <div id="toast-container"></div>
 
+    <!-- Modal Registrar Pago -->
+    <div id="paymentModal" class="modal" style="display: none;">
+        <div class="modal-content glass" style="max-width: 400px; border-radius: 12px;">
+            <div class="modal-header"
+                style="padding: 15px 20px; background: linear-gradient(135deg, #22c55e, #16a34a); border-radius: 12px 12px 0 0;">
+                <h2 style="margin: 0; font-size: 1.1rem; color: white;"><i class="fas fa-money-bill-wave"></i> Registrar
+                    Pago</h2>
+                <span class="close-btn" onclick="SpaPaymentControl.closePaymentModal()"
+                    style="color: white; font-size: 1.5rem; cursor: pointer;">&times;</span>
+            </div>
+            <div class="modal-body" style="padding: 20px;">
+                <div class="form-group" style="margin-bottom: 15px;">
+                    <label style="font-size: 0.8rem; font-weight: 600; color: #334155;">Importe (€)</label>
+                    <input type="number" id="pay-amount" class="param-input" placeholder="0.00" step="0.01" min="0"
+                        style="margin-top: 5px; font-size: 1.2rem; font-weight: bold; text-align: center;">
+                </div>
+                <div class="form-group" style="margin-bottom: 15px;">
+                    <label style="font-size: 0.8rem; font-weight: 600; color: #334155;">Método de Pago</label>
+                    <select id="pay-method" class="param-input" style="margin-top: 5px;">
+                        <option value="efectivo">💵 Efectivo</option>
+                        <option value="tarjeta">💳 Tarjeta</option>
+                        <option value="transferencia">🏦 Transferencia</option>
+                        <option value="otro">📝 Otro</option>
+                    </select>
+                </div>
+                <div class="form-group" style="margin-bottom: 15px;">
+                    <label style="font-size: 0.8rem; font-weight: 600; color: #334155;">Fecha</label>
+                    <input type="date" id="pay-date" class="param-input" style="margin-top: 5px;">
+                </div>
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label style="font-size: 0.8rem; font-weight: 600; color: #334155;">Usuario que registra</label>
+                    <input type="text" id="pay-user" class="param-input" placeholder="Nombre del empleado"
+                        style="margin-top: 5px;">
+                </div>
+            </div>
+            <div class="modal-footer" style="padding: 15px 20px; background: #f8fafc; display: flex; gap: 10px;">
+                <button onclick="SpaPaymentControl.closePaymentModal()" class="btn btn-outline" style="flex: 1;">
+                    Cancelar
+                </button>
+                <button onclick="SpaPaymentControl.submitPayment()" class="btn btn-accent"
+                    style="flex: 2; background: #22c55e; border-color: #22c55e;">
+                    <i class="fas fa-check"></i> Confirmar Pago
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Bloqueo Pago al Reservar -->
+    <div id="paymentBlockModal" class="modal" style="display: none;">
+        <div class="modal-content glass" style="max-width: 450px; border-radius: 12px;">
+            <div class="modal-header"
+                style="padding: 15px 20px; background: linear-gradient(135deg, #ef4444, #dc2626); border-radius: 12px 12px 0 0;">
+                <h2 style="margin: 0; font-size: 1.1rem; color: white;"><i class="fas fa-exclamation-triangle"></i>
+                    Pendiente de Cobro</h2>
+                <span class="close-btn" onclick="closePaymentBlockModal()"
+                    style="color: white; font-size: 1.5rem; cursor: pointer;">&times;</span>
+            </div>
+            <div class="modal-body" style="padding: 20px; text-align: center;">
+                <div style="font-size: 3rem; margin-bottom: 15px;">⚠️</div>
+                <p style="font-size: 1rem; color: #334155; margin-bottom: 10px;">Este bono está <strong
+                        style="color: #ef4444;">pendiente de cobro</strong>.</p>
+                <p style="font-size: 0.9rem; color: #64748b;">Debe cobrarse antes de realizar el servicio.</p>
+                <div id="payment-block-amount"
+                    style="margin-top: 15px; padding: 10px; background: #fef2f2; border-radius: 8px; font-size: 1.2rem; font-weight: bold; color: #dc2626;">
+                </div>
+            </div>
+            <div class="modal-footer"
+                style="padding: 15px 20px; background: #f8fafc; display: flex; flex-direction: column; gap: 10px;">
+                <button onclick="openPaymentFromBlock()" class="btn btn-accent"
+                    style="width: 100%; background: #22c55e; border-color: #22c55e;">
+                    <i class="fas fa-money-bill-wave"></i> Registrar Pago Ahora
+                </button>
+                <button onclick="continueWithoutPaymentFromBlock()" class="btn btn-outline"
+                    style="width: 100%; border-color: #f59e0b; color: #f59e0b;">
+                    <i class="fas fa-forward"></i> Continuar sin Pagar
+                </button>
+                <button onclick="closePaymentBlockModal()" class="btn btn-outline" style="width: 100%;">
+                    Cancelar
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- Scripts -->
     <script src="firebase-config.js"></script>
     <script src="https://unpkg.com/dexie@latest/dist/dexie.js"></script>
@@ -602,8 +700,9 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="js/images_data.js?v=202601072324"></script>
     <script src="js/bono-pdf.js"></script>
+    <script src="js/spa-payment-control.js"></script>
 
-    <script src="js/bonos.js?v=complement_fixes_v41"></script>
+    <script src="js/bonos.js?v=payment_control_v1"></script>
     <script src="js/bonos-history-helper.js?v=fix_textmatch_v26"></script>
 </body>
 

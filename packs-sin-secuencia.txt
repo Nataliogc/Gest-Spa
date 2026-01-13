@@ -1,0 +1,292 @@
+================================================================================
+LISTADO DE PACKS SIN SECUENCIA (18 packs)
+Generado: 2026-01-13
+================================================================================
+
+Estos packs tienen items_incluidos pero no tienen campo `secuencia`.
+Para aplicar el modelo operativo, cada uno necesita una secuencia definida.
+
+================================================================================
+## PACKS PAREJA (9 packs)
+================================================================================
+
+### 1. Relax Oriental (wc-6475)
+    Categoría: pack_pareja
+    Duración: 60 min | Pax: 2
+    Items incluidos:
+      1. Baño en bañera de hidromasaje
+      2. Masaje Relax - 30'
+
+    SECUENCIA SUGERIDA:
+      fase 1: Baño hidromasaje (suite, 30min, 0 terapeutas)
+      fase 2: Masaje Relax (suite, 30min, 2 terapeutas)
+
+---
+
+### 2. Encuentro Romántico (wc-6477)
+    Categoría: pack_pareja
+    Duración: 90 min | Pax: 2
+    Items incluidos:
+      1. Suite Spa - 60'
+      2. Masaje Relax - 30'
+
+    SECUENCIA SUGERIDA:
+      fase 1: Suite Spa (suite, 60min, 0 terapeutas)
+      fase 2: Masaje Relax (suite, 30min, 2 terapeutas)
+
+---
+
+### 3. Especial Parejas (wc-6479)
+    Categoría: pack_pareja
+    Duración: 60 min | Pax: 2
+    Items incluidos:
+      1. Circuito spa - 60′
+      2. Masaje Relax - 30'
+      3. Envoltura corporal con masaje cráneo-facial
+
+    SECUENCIA SUGERIDA:
+      fase 1: Circuito Spa (spa, 60min, 0 terapeutas)
+      fase 2: Masaje Relax (cabina, 30min, 2 terapeutas)
+      fase 3: Envoltura (cabina, 60min, 2 terapeutas)
+
+---
+
+### 4. Sueño para dos (wc-6481)
+    Categoría: pack_pareja
+    Duración: 60 min | Pax: 2
+    Items incluidos:
+      1. Alojamiento y Desayuno
+      2. Menú en Restaurante
+      3. Circuito spa - 60′
+
+    SECUENCIA SUGERIDA:
+      fase 1: Circuito Spa (spa, 60min, 0 terapeutas)
+      fase 2: Menú Restaurante (restaurante, 90min, 0 terapeutas)
+      (Alojamiento no requiere reserva en spa)
+
+---
+
+### 5. Fantasía para dos (wc-6483)
+    Categoría: pack_pareja
+    Duración: 60 min | Pax: 2
+    Items incluidos:
+      1. Alojamiento y Desayuno
+      2. Circuito spa - 60′
+      3. Masaje Relax - 30'
+
+    SECUENCIA SUGERIDA:
+      fase 1: Circuito Spa (spa, 60min, 0 terapeutas)
+      fase 2: Masaje Relax (cabina, 30min, 2 terapeutas)
+      (Alojamiento no requiere reserva en spa)
+
+---
+
+### 6. Aventura para dos (wc-6485)
+    Categoría: pack_pareja
+    Duración: 60 min | Pax: 2
+    Items incluidos:
+      1. Alojamiento y Desayuno
+      2. Suite Spa - 60'
+      3. Botella de cava
+
+    SECUENCIA SUGERIDA:
+      fase 1: Suite Spa (suite, 60min, 0 terapeutas)
+      (Alojamiento y cava no requieren reserva en spa)
+
+---
+
+### 7. Tiempo para dos (wc-6487)
+    Categoría: pack_pareja
+    Duración: 60 min | Pax: 2
+    Items incluidos:
+      1. Suite Spa - 60'
+      2. Menú en Restaurante
+
+    SECUENCIA SUGERIDA:
+      fase 1: Suite Spa (suite, 60min, 0 terapeutas)
+      fase 2: Menú Restaurante (restaurante, 90min, 0 terapeutas)
+
+---
+
+### 8. Cuento para dos (wc-6489) ⚠️
+    Categoría: pack_pareja
+    Duración: 60 min | Pax: 1 ← REVISAR (debería ser 2)
+    Items incluidos:
+      1. Circuito spa - 60′
+      2. Masaje Cráneo-Facial
+      3. Menú en Restaurante
+
+    SECUENCIA SUGERIDA:
+      fase 1: Circuito Spa (spa, 60min, 0 terapeutas)
+      fase 2: Masaje Cráneo-Facial (cabina, 30min, 2 terapeutas)
+      fase 3: Menú Restaurante (restaurante, 90min, 0 terapeutas)
+
+---
+
+### 9. Masaje en Pareja (wc-6529)
+    Categoría: pack_pareja
+    Duración: 60 min | Pax: 2
+    Items incluidos:
+      1. Masaje en Pareja - 60'
+
+    SECUENCIA SUGERIDA:
+      fase 1: Masaje Pareja (suite, 60min, 2 terapeutas)
+
+---
+
+### 10. Experiencia SPA en pareja (wc-6905)
+    Categoría: pack_pareja
+    Duración: 90 min | Pax: 2
+    Items incluidos:
+      1. Circuito spa - 60′
+      2. Masaje en pareja - 30'
+
+    SECUENCIA SUGERIDA:
+      fase 1: Circuito Spa (spa, 60min, 0 terapeutas)
+      fase 2: Masaje Pareja (cabina, 30min, 2 terapeutas)
+
+---
+
+### 11. SPA y Sabores (wc-6906) - Pareja
+    Categoría: pack_pareja
+    Duración: 60 min | Pax: 2
+    Items incluidos:
+      1. Circuito spa - 60′
+      2. Menú en Restaurante
+
+    SECUENCIA SUGERIDA:
+      fase 1: Circuito Spa (spa, 60min, 0 terapeutas)
+      fase 2: Menú Restaurante (restaurante, 90min, 0 terapeutas)
+
+================================================================================
+## RITUALES (3 packs)
+================================================================================
+
+### 12. Ritual Indian ritual (wc-6495)
+    Categoría: ritual
+    Duración: N/A | Pax: 1
+    Items incluidos:
+      1. Peeling con sal rosa del himalaya
+      2. Envoltura corporal de flores de loto
+      3. Masaje relax de cañas de bambú - 30'
+      4. Baño en bañera de hidromasaje
+
+    SECUENCIA SUGERIDA:
+      fase 1: Peeling (cabina, 15min, 1 terapeuta)
+      fase 2: Envoltura (cabina, 30min, 1 terapeuta)
+      fase 3: Masaje Bambú (cabina, 30min, 1 terapeuta)
+      fase 4: Baño hidromasaje (suite, 20min, 0 terapeutas)
+
+---
+
+### 13. Ritual Baño Cítrico (wc-6497)
+    Categoría: ritual
+    Duración: 60 min | Pax: 1
+    Items incluidos:
+      1. Peeling Corporal
+      2. Envoltura corporal vit.c
+      3. Masaje Relax - 30'
+      4. Baño en bañera de hidromasaje
+
+    SECUENCIA SUGERIDA:
+      fase 1: Peeling (cabina, 15min, 1 terapeuta)
+      fase 2: Envoltura Vit.C (cabina, 20min, 1 terapeuta)
+      fase 3: Masaje Relax (cabina, 30min, 1 terapeuta)
+      fase 4: Baño hidromasaje (suite, 15min, 0 terapeutas)
+
+---
+
+### 14. Ritual Chocolaterapia (wc-6501)
+    Categoría: ritual
+    Duración: 60 min | Pax: 1
+    Items incluidos:
+      1. Peeling Corporal
+      2. Envoltura corporal chocolate
+      3. Masaje Relax - 30'
+      4. Baño en bañera de hidromasaje
+
+    SECUENCIA SUGERIDA:
+      fase 1: Peeling (cabina, 15min, 1 terapeuta)
+      fase 2: Envoltura Chocolate (cabina, 20min, 1 terapeuta)
+      fase 3: Masaje Relax (cabina, 30min, 1 terapeuta)
+      fase 4: Baño hidromasaje (suite, 15min, 0 terapeutas)
+
+================================================================================
+## PACKS INDIVIDUALES (4 packs)
+================================================================================
+
+### 15. Experiencia SPA (wc-6942) - Individual
+    Categoría: circuito
+    Duración: 90 min | Pax: 1
+    Items incluidos:
+      1. Circuito spa - 60′
+      2. Masaje Relax - 30'
+
+    SECUENCIA SUGERIDA:
+      fase 1: Circuito Spa (spa, 60min, 0 terapeutas)
+      fase 2: Masaje Relax (cabina, 30min, 1 terapeuta)
+
+---
+
+### 16. SPA y Sabores (wc-6943) - Individual
+    Categoría: circuito
+    Duración: 60 min | Pax: 1
+    Items incluidos:
+      1. Circuito spa - 60′
+      2. Menú en Restaurante
+
+    SECUENCIA SUGERIDA:
+      fase 1: Circuito Spa (spa, 60min, 0 terapeutas)
+      fase 2: Menú Restaurante (restaurante, 90min, 0 terapeutas)
+
+---
+
+### 17. Relax Oriental - 👤 persona (wc-6944)
+    Categoría: circuito
+    Duración: 60 min | Pax: 1
+    Items incluidos:
+      1. baño en bañera de hidromasaje - 30'
+      2. Masaje Relax - 30'
+
+    SECUENCIA SUGERIDA:
+      fase 1: Baño hidromasaje (suite, 30min, 0 terapeutas)
+      fase 2: Masaje Relax (cabina, 30min, 1 terapeuta)
+
+---
+
+### 18. Ritual Amazonian Discovery (wc-7305)
+    Categoría: corporal
+    Duración: N/A | Pax: 1
+    Items incluidos:
+      1. Facial (limpieza, exfoliación, nutrición)
+      2. Corporal (exfoliación, hidratación)
+
+    SECUENCIA SUGERIDA:
+      fase 1: Facial (cabina, 45min, 1 terapeuta)
+      fase 2: Corporal (cabina, 45min, 1 terapeuta)
+
+================================================================================
+## RESUMEN DE SALAS USADAS EN SECUENCIAS
+================================================================================
+
+| Sala       | Uso típico                              |
+|------------|-----------------------------------------|
+| spa        | Circuito spa (autoservicio)             |
+| suite      | Suite privada, baño hidromasaje         |
+| cabina     | Masajes, envolturas, rituales           |
+| panacea    | Masajes premium                         |
+| restaurante| Menús                                   |
+
+================================================================================
+## ACCIÓN REQUERIDA
+================================================================================
+
+1. REVISAR las secuencias sugeridas
+2. AJUSTAR duraciones y salas según operativa real
+3. CORREGIR "Cuento para dos" pax: 1 → 2
+4. AÑADIR secuencias al catálogo (catalogo.html)
+5. EJECUTAR correcciones (fase4-corrections.html)
+
+================================================================================
+FIN DEL LISTADO
+================================================================================

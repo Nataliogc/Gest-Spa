@@ -109,6 +109,62 @@ function initBonos() {
     cargarBonos();
 }
 
+// === PAYMENT BLOCK MODAL HELPERS ===
+function closePaymentBlockModal() {
+    const modal = document.getElementById('paymentBlockModal');
+    if (modal) modal.style.display = 'none';
+    window._pendingReservation = null;
+}
+
+function openPaymentFromBlock() {
+    closePaymentBlockModal();
+    if (typeof SpaPaymentControl !== 'undefined') {
+        SpaPaymentControl.openPaymentModal();
+    }
+}
+
+async function continueWithoutPaymentFromBlock() {
+    const pending = window._pendingReservation;
+    if (!pending) {
+        closePaymentBlockModal();
+        return;
+    }
+
+    if (!confirm('⚠️ ¿Continuar sin cobrar?\\n\\nEl servicio quedará marcado como PENDIENTE DE COBRO.')) {
+        return;
+    }
+
+    // Mark voucher as pending_before_service
+    if (typeof SpaPaymentControl !== 'undefined') {
+        const voucherObj = state.bonos.find(b => b.bono === pending.code || b.codigo === pending.code);
+        const voucherId = voucherObj?.id || pending.code;
+        const collection = (voucherObj?.origen || '').toLowerCase().includes('woo') ? 'woo_sales' : 'local_sales';
+
+        await SpaPaymentControl.continueWithoutPayment(voucherId, { collection, usuario: 'recepcion' });
+    }
+
+    closePaymentBlockModal();
+
+    // Proceed with reservation
+    const { client, service, code, space, pax } = pending;
+    window._pendingReservation = null;
+
+    // Direct call - skip payment check since we just approved
+    if (!confirm(`¿Ir al calendario para reservar '${service}' para ${client}?`)) return;
+
+    let type = 'spa';
+    const lowerService = (service || '').toLowerCase();
+    if (lowerService.includes('masaje') || lowerService.includes('tratamiento') || lowerService.includes('ritual')) {
+        type = 'panacea';
+    } else if (lowerService.includes('suite')) {
+        type = 'suite';
+    }
+
+    const url = `reservas.html?type=${type}&action=new&client=${encodeURIComponent(client)}&service=${encodeURIComponent(service)}&voucher=${code}`;
+    window.open(url, '_blank');
+}
+// === END PAYMENT BLOCK MODAL HELPERS ===
+
 // Process pending restaurant reservations stored in localStorage by the bridge script
 async function processPendingVoucherReservations() {
     const pendingKey = 'pendingVoucherReservations';
@@ -676,6 +732,23 @@ async function goToReservation(client, service, code, space, pax) {
     space = decodeURIComponent(space || '').trim();
     // pax is usually a number or unencoded string, but safe to decode if string
     if (typeof pax === 'string') pax = decodeURIComponent(pax).trim();
+
+    // === PAYMENT CONTROL CHECK ===
+    const voucherForPayment = state.bonos.find(b => b.bono === code || b.codigo === code);
+    if (voucherForPayment && typeof SpaPaymentControl !== 'undefined') {
+        const paymentCheck = SpaPaymentControl.canStartService(voucherForPayment);
+        if (!paymentCheck.allowed) {
+            // Show payment block modal
+            window._pendingReservation = { client, service, code, space, pax };
+            const amountEl = document.getElementById('payment-block-amount');
+            if (amountEl) amountEl.textContent = `Pendiente: ${paymentCheck.pendingAmount.toFixed(2)}€`;
+            const modal = document.getElementById('paymentBlockModal');
+            if (modal) modal.style.display = 'flex';
+            return; // Block reservation until payment resolved
+        }
+    }
+    // === END PAYMENT CONTROL ===
+
     if (!confirm(`¿Ir al calendario para reservar '${service}' para ${client}?`)) return;
 
     // 1. Buscar en Master Items (Prioridad Absoluta para Espacio)
@@ -2276,6 +2349,7 @@ function renderBonosFromState() {
     const searchTerm = document.getElementById("voucher-search").value.toLowerCase();
     const filterStatus = document.getElementById("voucher-filter").value;
     const filterDate = document.getElementById("voucher-date").value;
+    const filterPayment = document.getElementById("filter-payment-status")?.value || '';
 
     // --- INJECT CLEANUP BUTTON (Admin/PowerUser) ---
     // (Removed per user request)
@@ -2341,6 +2415,12 @@ function renderBonosFromState() {
 
         return dateMatch && statusMatch;
     });
+
+    // === PAYMENT FILTER ===
+    if (filterPayment && typeof SpaPaymentControl !== 'undefined') {
+        filtered = SpaPaymentControl.filterByPaymentStatus(filtered, filterPayment);
+    }
+    // === END PAYMENT FILTER ===
 
 
     // --- DEDUPLICACIÓN VISUAL MEJORADA ---
@@ -2482,7 +2562,8 @@ function renderBonosFromState() {
             <td>${formatDate(b.fecha || b.fecha_compra || b.date_created)}${expiryText}</td>
             <td style="font-weight:bold">${displayedPrice}€</td>
             <td><span class="st-badge ${badgeClass}">${statusLabel}</span></td>
-            <td>
+            <td style="white-space: nowrap;">
+                ${typeof SpaPaymentControl !== 'undefined' ? SpaPaymentControl.renderPaymentBadge(b) : ''}
                 <button class="btn btn-outline btn-sm" onclick="openVoucherManagement('${b.bono}')">
                     <i class="fas fa-cog"></i> Gestionar
                 </button>
@@ -2711,6 +2792,17 @@ async function openVoucherManagement(code) {
 
     // -------------------------------
 
+    // === PAYMENT BLOCK RENDERING ===
+    const paymentBlockEl = document.getElementById('vm-payment-block');
+    if (paymentBlockEl && typeof SpaPaymentControl !== 'undefined') {
+        // Determine collection based on origin
+        const collection = (v.origen || '').toLowerCase().includes('woo') ? 'woo_sales' : 'local_sales';
+        SpaPaymentControl._currentVoucherId = v.id || code;
+        SpaPaymentControl._currentCollection = collection;
+        paymentBlockEl.innerHTML = SpaPaymentControl.renderPaymentBlock(v);
+    }
+    // === END PAYMENT BLOCK ===
+
     // --- Vincular con Catálogo y Detectar Servicios ---
     const catalogInfo = document.getElementById("vm-catalog-info");
 
@@ -2919,22 +3011,60 @@ async function openVoucherManagement(code) {
 
                 const isAccommodation = spaceName.toLowerCase().includes('hotel') || itemName.toLowerCase().includes('alojamiento') || itemName.toLowerCase().includes('desayuno');
                 const itemNameLower = itemName.toLowerCase();
-                // Mejorar detección de complementos: tipo, codigo, espacio o nombre
+
+                // === ENHANCED COMPLEMENT DETECTION ===
+                // Detect by: tipo, codigo, espacio, or name matching common extras
+                const complementKeywords = /(botella|cava|vino|champagne|champán|ramo|flores|fruta|bombones|chocolate|detalle|benjamín|benjamin|regalo|extra|accesorio|toalla|albornoz|amenities|spa kit)/i;
                 const isComplement = item.tipo === 'complemento' ||
+                    item.reservable === false ||
                     (item.codigo && item.codigo.startsWith('ext.')) ||
                     spaceName.toLowerCase() === 'complemento' ||
-                    itemNameLower.match(/(botella|cava|vino|ramo|flores|fruta|bombones|detalle)/i);
+                    spaceName.toLowerCase() === 'extra' ||
+                    itemNameLower.match(complementKeywords);
+
+                // === SIMPLIFIED COMPLEMENT RENDERING ===
+                // Complements don't need: sala, sesiones, pax, reservar button
+                if (isComplement) {
+                    let complementButton = '';
+                    if (item.consumido) {
+                        const consumidoFecha = item.consumido_fecha ? new Date(item.consumido_fecha).toLocaleDateString() : '';
+                        const consumidoUsuario = item.consumido_usuario || '';
+                        complementButton = `
+                            <span style="font-size:0.7rem; color:#22c55e; font-weight:600; background:#dcfce7; padding:4px 10px; border-radius:4px;">
+                                <i class="fas fa-check-circle"></i> Consumido ${consumidoFecha}${consumidoUsuario ? ` por ${consumidoUsuario}` : ''}
+                            </span>
+                        `;
+                    } else {
+                        complementButton = `
+                            <button class="btn btn-sm" onclick="consumeComplement(${idx})"
+                                style="padding:4px 12px; font-size:0.75rem; background:#f59e0b; color:#fff; border:none; border-radius:4px;">
+                                <i class="fas fa-gift"></i> Consumir
+                            </button>
+                        `;
+                    }
+
+                    // Return simplified complement row - NO sala, NO sesiones, NO pax
+                    return `
+                        <div style="display:flex; justify-content:space-between; align-items:center; background:${item.consumido ? '#fef3c7' : '#fffbeb'}; padding:10px 12px; margin-bottom:4px; border-radius:6px; border:1px solid ${item.consumido ? '#fcd34d' : '#fde68a'};">
+                            <div style="display:flex; align-items:center; gap:8px;">
+                                <i class="fas fa-gift" style="color:#f59e0b; font-size:1rem;"></i>
+                                <div>
+                                    <div style="font-size:0.85rem; font-weight:600; color:#92400e;">${item.name}</div>
+                                    <div style="font-size:0.65rem; color:#b45309;">
+                                        ${item.cantidad ? `${item.cantidad} unidad${item.cantidad > 1 ? 'es' : ''}` : '1 unidad'} · 
+                                        <span style="font-style:italic;">Complemento (no reservable)</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div>${complementButton}</div>
+                        </div>
+                    `;
+                }
+                // === END COMPLEMENT RENDERING ===
 
                 let buttonsHtml = '';
 
-                // PRIORIDAD: Complementos siempre muestran "Extra", incluso si están usados
-                if (isComplement) {
-                    buttonsHtml = `
-                        <span style="font-size:0.65rem; color:#64748b; font-weight:600; background:#f1f5f9; padding:4px 8px; border-radius:4px;">
-                            <i class="fas fa-gift"></i> Extra
-                        </span>
-                    `;
-                } else if (isComplete) {
+                if (isComplete) {
                     buttonsHtml = `
                         <button class="btn btn-sm" disabled
                             style="padding:2px 8px; font-size:0.7rem; background:#cbd5e1; color:#64748b; cursor:not-allowed; border:none; white-space:nowrap; border-radius:4px;">
@@ -3120,6 +3250,29 @@ async function openVoucherManagement(code) {
         }
         await saveVoucherChanges();
     };
+
+    // === CONSUME COMPLEMENT FUNCTION ===
+    // Marks an extra/complement as consumed (no reservation needed)
+    window.consumeComplement = async (idx) => {
+        const item = state.editingVoucherItems[idx];
+        if (!item) return;
+
+        if (!confirm(`¿Marcar '${item.name}' como CONSUMIDO?`)) return;
+
+        // Mark as consumed with timestamp and user
+        item.consumido = true;
+        item.consumido_fecha = new Date().toISOString();
+        item.consumido_usuario = 'recepcion'; // TODO: Get from auth
+
+        // Update UI immediately
+        renderEditableBreakdown();
+
+        // Save changes to Firestore
+        await saveVoucherChanges();
+
+        alert('✅ Complemento marcado como consumido');
+    };
+    // === END CONSUME COMPLEMENT ===
 
     window.validateManualConsumption = async (idx) => {
         const item = state.editingVoucherItems[idx];
@@ -4908,7 +5061,15 @@ async function createLocalVoucher() {
         }, 0),
         createdAt: new Date().toISOString(),
         manual_update: true,
-        updated_at: new Date().toISOString()
+        updated_at: new Date().toISOString(),
+        // === PAYMENT CONTROL FIELDS ===
+        estado_pago: 'pendiente', // Local vouchers start as pending
+        importe_pagado: 0,
+        importe_pendiente: totalPrice,
+        pagos: [],
+        service_payment_status: null,
+        snapshot_price: totalPrice // Capture price at creation
+        // === END PAYMENT CONTROL ===
     };
 
     // Generar searchTokens para que sea buscable localmente de inmediato
