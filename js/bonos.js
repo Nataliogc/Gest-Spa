@@ -6857,26 +6857,41 @@ window.recalculateVoucherFromCatalog = async function () {
 
         // 2. Preparar nuevos datos respetando Pax y Sesiones actuales
         const basePrice = parseFloat(product.precio) || 0;
-        const basePax = parseInt(product.personas || product.pax || 1);
-        const baseSessions = parseInt(product.sesiones || 1);
+        // CHECK CATALOG PAX RULE: If catalog defines pax, it is fixed.
+        // If catalog pax > 0 -> Price is TOTAL for that pax. Do NOT multiply.
+        // If catalog pax is 0 or null -> Price is PER PERSON (usually).
+        const catalogPax = parseInt(product.personas || product.pax || 0);
+        const isFixedPax = catalogPax > 0;
 
-        const currentPax = parseInt(document.getElementById("vm-pax-sesion")?.value) || 1;
+        let finalPax = isFixedPax ? catalogPax : (parseInt(document.getElementById("vm-pax-sesion")?.value) || 1);
         const currentSessions = parseInt(document.getElementById("vm-sesiones-total")?.value) || 1;
+        const catalogSessions = parseInt(product.sesiones || 1);
 
-        // Detección de Pack/Ritual para no multiplicar por sesiones
-        const prodNameLower = (product.nombre || '').toLowerCase();
-        const hasCatalogItems = product.items_incluidos && product.items_incluidos.length > 1;
-        const isPackName = prodNameLower.includes('ritual') || prodNameLower.includes('pack') || prodNameLower.includes('fantasía') || prodNameLower.includes('sueño') || prodNameLower.includes('bono');
-        const isPack = hasCatalogItems || isPackName;
+        // Price Calculation Logic
+        let newPrice = basePrice;
 
-        const sessionsRatio = isPack ? 1 : (currentSessions / baseSessions);
-        const newPrice = basePrice * (currentPax / basePax) * sessionsRatio;
+        if (isFixedPax) {
+            // Catalog says "Price is 100 for 2 people".
+            // We use 100. We do NOT multiply by (2/2).
+            // We allow session multiplication only if it's NOT a pack.
+            const isPack = (product.items_incluidos && product.items_incluidos.length > 0) ||
+                product.nombre.toLowerCase().includes('pack') ||
+                product.nombre.toLowerCase().includes('bono');
 
-        if (!confirm(`¿Quieres actualizar el bono ${code} con los datos actuales del catálogo?\n\nProducto: ${product.nombre}\nNuevo Precio: ${newPrice.toFixed(2)}€ (${currentPax} pax, ${currentSessions} ses.)\nEsta acción sobrescribirá el precio y el desglose de servicios.`)) {
+            if (!isPack && currentSessions > catalogSessions) {
+                newPrice = basePrice * (currentSessions / catalogSessions);
+            }
+        } else {
+            // Variable pax (e.g. Masaje Individual 50€)
+            // Price = 50 * pax * sessions
+            newPrice = basePrice * finalPax * (currentSessions / catalogSessions);
+        }
+
+        if (!confirm(`¿Quieres actualizar el bono ${code} con los datos del catálogo?\n\nProducto: ${product.nombre}\nPrecio Catálogo: ${product.precio}€\nPax Fijo: ${isFixedPax ? 'SÍ (' + catalogPax + ')' : 'NO'}\n\nNuevo Precio Calculado: ${newPrice.toFixed(2)}€\n\nEsta acción estandarizará el bono según el catálogo OFICIAL.`)) {
             return;
         }
 
-        showToast("Actualizando bono...", "info");
+        showToast("Estandarizando bono según catálogo...", "info");
 
         // Generar nuevo desglose de items
         const itemsIncluidos = product.items_incluidos || [];
@@ -6884,32 +6899,46 @@ window.recalculateVoucherFromCatalog = async function () {
 
         if (itemsIncluidos.length > 0) {
             const pricePerItem = newPrice / itemsIncluidos.length;
-            newItems = itemsIncluidos.map(it => {
+            newItems = await Promise.all(itemsIncluidos.map(async it => {
                 const itemName = (typeof it === 'string') ? it : (it.name || it.producto || product.nombre);
-                const itemSpace = (typeof it === 'object' && it.espacio) ? it.espacio : (getSpaceForService(itemName) || '');
-                const itemNameLower = itemName.toLowerCase();
 
-                // Aplicar lógica de restaurante corregida
-                const isRestaurant = itemNameLower.includes('menú') || itemNameLower.includes('restaurante') || (itemSpace === 'rest');
-                const sessions = isRestaurant ? 1 : ((typeof it === 'object' && it.sesiones) ? it.sesiones : 1);
+                // CRITICAL: Read space from sub-item catalog if possible, do not guess
+                let itemSpace = (typeof it === 'object' && it.espacio) ? it.espacio : '';
+
+                // If sub-item space is not defined in the pack array, try to find the master item for that sub-service
+                if (!itemSpace) {
+                    const subItemConfig = await window.getItemConfig(itemName);
+                    if (subItemConfig && subItemConfig.espacios && subItemConfig.espacios.length > 0) {
+                        itemSpace = subItemConfig.espacios[0];
+                    }
+                }
+
+                // Fallback (Only if really missing) - but user says "Inventing spaces prohibited"
+                // If no space found, leave empty or use a generic safe default if logic requires it, but preferably empty for validation later.
 
                 return {
                     itemId: 'it_' + Math.random().toString(36).substr(2, 9),
                     name: itemName.trim(),
-                    sessions: sessions,
-                    space: itemSpace,
-                    pax: currentPax,
+                    sessions: (typeof it === 'object' && it.sesiones) ? it.sesiones : 1,
+                    space: itemSpace || '', // Strict: read from catalog or empty
+                    pax: finalPax,
                     price: pricePerItem,
                     used: 0
                 };
-            });
+            }));
         } else {
+            // Single Item
+            let itemSpace = product.espacio;
+            if (!itemSpace && product.espacios && product.espacios.length > 0) {
+                itemSpace = product.espacios[0];
+            }
+
             newItems = [{
                 itemId: 'it_' + Math.random().toString(36).substr(2, 9),
                 name: product.nombre,
                 sessions: currentSessions,
-                space: product.espacio || getSpaceForService(product.nombre) || '',
-                pax: currentPax,
+                space: itemSpace || '',
+                pax: finalPax,
                 price: newPrice,
                 used: 0
             }];
