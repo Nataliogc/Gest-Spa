@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Migración de Reservas</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #1a1a2e;
+            color: #eee;
+        }
+
+        .card {
+            background: #16213e;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        h1 {
+            color: #e94560;
+        }
+
+        h2 {
+            color: #0f3460;
+            background: #e94560;
+            padding: 10px;
+            border-radius: 8px;
+        }
+
+        button {
+            background: #e94560;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1rem;
+            margin: 5px;
+        }
+
+        button:hover {
+            background: #ff6b6b;
+        }
+
+        button:disabled {
+            background: #666;
+            cursor: not-allowed;
+        }
+
+        .log {
+            background: #0f0f23;
+            padding: 15px;
+            border-radius: 8px;
+            max-height: 400px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 0.85rem;
+        }
+
+        .log-entry {
+            margin: 5px 0;
+            padding: 5px;
+            border-left: 3px solid #333;
+        }
+
+        .log-entry.success {
+            border-color: #10b981;
+            color: #10b981;
+        }
+
+        .log-entry.error {
+            border-color: #ef4444;
+            color: #ef4444;
+        }
+
+        .log-entry.info {
+            border-color: #3b82f6;
+            color: #60a5fa;
+        }
+
+        .log-entry.warning {
+            border-color: #f59e0b;
+            color: #fbbf24;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin: 20px 0;
+        }
+
+        .stat-box {
+            background: #0f3460;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .stat-box .number {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #e94560;
+        }
+
+        .stat-box .label {
+            font-size: 0.8rem;
+            color: #999;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>🔧 Herramienta de Migración de Reservas</h1>
+
+    <div class="card">
+        <h2>Descripción del Problema</h2>
+        <p>Debido a un bug, algunas reservas del módulo SPA se guardaron en las colecciones incorrectas:</p>
+        <ul>
+            <li><strong>spa_reservas_packs</strong> - Padres de packs falsos</li>
+            <li><strong>spa_reservas</strong> - Hijos de packs falsos</li>
+        </ul>
+        <p>El módulo SPA lee de: <strong>reservas_spa</strong></p>
+        <p>Esta herramienta migrará los documentos a la colección correcta.</p>
+    </div>
+
+    <div class="card">
+        <h2>Estado de la Migración</h2>
+        <div class="stats">
+            <div class="stat-box">
+                <div class="number" id="found-count">-</div>
+                <div class="label">Encontradas</div>
+            </div>
+            <div class="stat-box">
+                <div class="number" id="migrated-count">0</div>
+                <div class="label">Migradas</div>
+            </div>
+            <div class="stat-box">
+                <div class="number" id="error-count">0</div>
+                <div class="label">Errores</div>
+            </div>
+        </div>
+
+        <button id="btn-scan" onclick="scanReservations()">1. Escanear Reservas Perdidas</button>
+        <button id="btn-migrate" onclick="migrateReservations()" disabled>2. Migrar a reservas_spa</button>
+        <button id="btn-cleanup" onclick="cleanupOldDocs()" disabled>3. Limpiar Originales (Opcional)</button>
+    </div>
+
+    <div class="card">
+        <h2>Log de Operaciones</h2>
+        <div class="log" id="log"></div>
+    </div>
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+    <script src="firebase-config.js"></script>
+
+    <script>
+        const db = firebase.firestore();
+        var foundReservations = [];
+        var migratedCount = 0;
+        var errorCount = 0;
+
+        function log(message, type = 'info') {
+            const logEl = document.getElementById('log');
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logEl.appendChild(entry);
+            logEl.scrollTop = logEl.scrollHeight;
+        }
+
+        async function scanReservations() {
+            document.getElementById('btn-scan').disabled = true;
+            log('Iniciando escaneo de reservas perdidas...', 'info');
+            foundReservations = [];
+
+            try {
+                // 1. Scan spa_reservas (children from pack bug)
+                log('Escaneando spa_reservas...', 'info');
+                const spaReservasSnap = await db.collection('spa_reservas').get();
+
+                spaReservasSnap.forEach(doc => {
+                    const data = doc.data();
+                    foundReservations.push({
+                        id: doc.id,
+                        source: 'spa_reservas',
+                        data: data,
+                        nombre: data.nombre,
+                        fecha: data.fecha,
+                        hora: data.hora
+                    });
+                });
+                log(`Encontradas ${spaReservasSnap.size} en spa_reservas`, 'success');
+
+                // 2. Scan spa_reservas_packs (parents from pack bug)
+                log('Escaneando spa_reservas_packs...', 'info');
+                const packsSnap = await db.collection('spa_reservas_packs').get();
+
+                packsSnap.forEach(doc => {
+                    const data = doc.data();
+                    foundReservations.push({
+                        id: doc.id,
+                        source: 'spa_reservas_packs',
+                        data: data,
+                        nombre: data.nombre,
+                        fecha: data.fecha,
+                        hora: data.hora || 'N/A'
+                    });
+                });
+                log(`Encontradas ${packsSnap.size} en spa_reservas_packs`, 'success');
+
+                // Update UI
+                document.getElementById('found-count').textContent = foundReservations.length;
+
+                if (foundReservations.length > 0) {
+                    document.getElementById('btn-migrate').disabled = false;
+                    log(`Total: ${foundReservations.length} reservas para migrar`, 'warning');
+
+                    // Show details
+                    foundReservations.forEach(r => {
+                        log(`  → ${r.nombre} | ${r.fecha} ${r.hora} | [${r.source}]`, 'info');
+                    });
+                } else {
+                    log('No se encontraron reservas perdidas.', 'success');
+                }
+
+            } catch (error) {
+                log(`Error durante escaneo: ${error.message}`, 'error');
+            }
+
+            document.getElementById('btn-scan').disabled = false;
+        }
+
+        async function migrateReservations() {
+            if (foundReservations.length === 0) {
+                log('No hay reservas para migrar.', 'warning');
+                return;
+            }
+
+            document.getElementById('btn-migrate').disabled = true;
+            log('Iniciando migración...', 'info');
+            migratedCount = 0;
+            errorCount = 0;
+
+            for (const res of foundReservations) {
+                try {
+                    // Prepare payload for reservas_spa
+                    const payload = { ...res.data };
+
+                    // Remove pack-specific fields
+                    delete payload.is_pack_parent;
+                    delete payload.is_pack_element;
+                    delete payload.parent_id;
+                    delete payload.childs;
+                    delete payload.pack_sequence_index;
+                    delete payload.service_item;
+
+                    // Ensure required fields
+                    if (!payload.status) payload.status = 'confirmada';
+                    if (!payload.created_at) payload.created_at = new Date().toISOString();
+                    payload.migrated_from = res.source;
+                    payload.migrated_at = new Date().toISOString();
+
+                    // If it's a pack parent, use the servicio field as the main service
+                    if (res.source === 'spa_reservas_packs') {
+                        // Pack parents may need special handling
+                        // Skip if no fecha or hora (incomplete data)
+                        if (!payload.fecha || !payload.hora) {
+                            log(`⚠ Saltando ${res.id} - datos incompletos (padre de pack sin hora)`, 'warning');
+                            continue;
+                        }
+                    }
+
+                    // Create in reservas_spa
+                    const newDoc = await db.collection('reservas_spa').add(payload);
+                    log(`✓ Migrada: ${res.nombre} → reservas_spa/${newDoc.id}`, 'success');
+                    migratedCount++;
+
+                } catch (error) {
+                    log(`✗ Error migrando ${res.id}: ${error.message}`, 'error');
+                    errorCount++;
+                }
+
+                // Update UI
+                document.getElementById('migrated-count').textContent = migratedCount;
+                document.getElementById('error-count').textContent = errorCount;
+            }
+
+            log(`Migración completada: ${migratedCount} éxitos, ${errorCount} errores`,
+                errorCount === 0 ? 'success' : 'warning');
+
+            if (migratedCount > 0) {
+                document.getElementById('btn-cleanup').disabled = false;
+            }
+        }
+
+        async function cleanupOldDocs() {
+            if (!confirm('¿Eliminar los documentos originales de spa_reservas y spa_reservas_packs?\n\nEsta acción es IRREVERSIBLE.')) {
+                return;
+            }
+
+            document.getElementById('btn-cleanup').disabled = true;
+            log('Limpiando documentos originales...', 'info');
+
+            let deleted = 0;
+            for (const res of foundReservations) {
+                try {
+                    await db.collection(res.source).doc(res.id).delete();
+                    deleted++;
+                    log(`🗑 Eliminado: ${res.source}/${res.id}`, 'info');
+                } catch (error) {
+                    log(`Error eliminando ${res.id}: ${error.message}`, 'error');
+                }
+            }
+
+            log(`Limpieza completada: ${deleted} documentos eliminados.`, 'success');
+        }
+
+        // Initial log
+        log('Herramienta lista. Haz clic en "Escanear" para comenzar.', 'info');
+    </script>
+</body>
+
+</html>

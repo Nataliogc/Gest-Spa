@@ -294,6 +294,87 @@
 
                                 </div>
 
+                                <!-- PRECIOS DINÁMICOS POR DÍA -->
+                                <div class="stat-card" style="border-left: 4px solid #10b981;">
+                                    <h3
+                                        style="margin: 0 0 25px 0; font-size: 1rem; color: var(--text); font-weight: 700; display: flex; align-items: center; gap: 10px;">
+                                        <span
+                                            style="border-left: 4px solid #10b981; height: 20px; display: block;"></span>
+                                        <i class="fas fa-euro-sign"></i> PRECIOS CIRCUITO SPA (POR DÍA)
+                                    </h3>
+                                    <p class="muted"
+                                        style="font-size: 0.75rem; margin-bottom: 20px; background: #f0fdf4; padding: 10px; border-radius: 6px; border: 1px solid #dcfce7;">
+                                        <i class="fas fa-info-circle" style="color: #10b981;"></i>
+                                        Estos precios se aplican automáticamente según el día de la reserva para
+                                        orígenes "Particular" y "Hotel (Pago Directo)".
+                                    </p>
+
+                                    <!-- Precios Lunes a Jueves -->
+                                    <div
+                                        style="background: #f8fafc; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+                                        <label
+                                            style="font-size: 0.75rem; font-weight: 700; text-transform: uppercase; color: #475569; margin-bottom: 10px; display: block;">
+                                            <i class="fas fa-calendar-week" style="color: #64748b;"></i>
+                                            LUNES a JUEVES (Laborables)
+                                        </label>
+                                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                                            <div class="form-group" style="margin: 0;">
+                                                <label style="font-size: 0.7rem; color: #94a3b8;">Particular</label>
+                                                <div style="position: relative;">
+                                                    <input type="number" id="cfg-price-weekday-particular" step="0.01"
+                                                        min="0" value="25" class="param-input"
+                                                        style="width: 100%; padding: 10px; padding-right: 30px; border-radius: 6px; border: 1px solid #e2e8f0; font-weight: 600;">
+                                                    <span
+                                                        style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); color: #94a3b8;">€</span>
+                                                </div>
+                                            </div>
+                                            <div class="form-group" style="margin: 0;">
+                                                <label style="font-size: 0.7rem; color: #94a3b8;">Hotel (Pago
+                                                    Directo)</label>
+                                                <div style="position: relative;">
+                                                    <input type="number" id="cfg-price-weekday-hotel" step="0.01"
+                                                        min="0" value="12" class="param-input"
+                                                        style="width: 100%; padding: 10px; padding-right: 30px; border-radius: 6px; border: 1px solid #e2e8f0; font-weight: 600;">
+                                                    <span
+                                                        style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); color: #94a3b8;">€</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Precios Viernes a Domingo -->
+                                    <div style="background: #fef3c7; padding: 15px; border-radius: 8px;">
+                                        <label
+                                            style="font-size: 0.75rem; font-weight: 700; text-transform: uppercase; color: #92400e; margin-bottom: 10px; display: block;">
+                                            <i class="fas fa-sun" style="color: #f59e0b;"></i>
+                                            VIERNES a DOMINGO (Fin de Semana)
+                                        </label>
+                                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                                            <div class="form-group" style="margin: 0;">
+                                                <label style="font-size: 0.7rem; color: #94a3b8;">Particular</label>
+                                                <div style="position: relative;">
+                                                    <input type="number" id="cfg-price-weekend-particular" step="0.01"
+                                                        min="0" value="25" class="param-input"
+                                                        style="width: 100%; padding: 10px; padding-right: 30px; border-radius: 6px; border: 1px solid #e2e8f0; font-weight: 600;">
+                                                    <span
+                                                        style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); color: #94a3b8;">€</span>
+                                                </div>
+                                            </div>
+                                            <div class="form-group" style="margin: 0;">
+                                                <label style="font-size: 0.7rem; color: #94a3b8;">Hotel (Pago
+                                                    Directo)</label>
+                                                <div style="position: relative;">
+                                                    <input type="number" id="cfg-price-weekend-hotel" step="0.01"
+                                                        min="0" value="18" class="param-input"
+                                                        style="width: 100%; padding: 10px; padding-right: 30px; border-radius: 6px; border: 1px solid #e2e8f0; font-weight: 600;">
+                                                    <span
+                                                        style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); color: #94a3b8;">€</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
                                 <!-- COLUMNA DERECHA: HORARIOS -->
                                 <div class="stat-card" style="border-left: 4px solid #dda85d;">
                                     <div

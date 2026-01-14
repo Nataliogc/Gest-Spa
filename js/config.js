@@ -168,7 +168,10 @@ function updateSettingsUI() {
         "cfg-wc-url": spaConfigState.spaConfig.wc_url,
         "cfg-wc-key": spaConfigState.spaConfig.wc_key,
         "cfg-wc-secret": spaConfigState.spaConfig.wc_secret,
-        "cfg-wc-push-key": spaConfigState.spaConfig.wc_push_key
+        "cfg-wc-push-key": spaConfigState.spaConfig.wc_push_key,
+        // Dynamic Pricing for Hotel (no incluido)
+        "cfg-price-weekday-hotel": spaConfigState.spaConfig.hotelPriceWeekday || 12,
+        "cfg-price-weekend-hotel": spaConfigState.spaConfig.hotelPriceWeekend || 18
     };
     for (const [id, val] of Object.entries(ids)) {
         const el = document.getElementById(id);
@@ -196,6 +199,12 @@ async function saveSpaSettings() {
     spaConfigState.spaConfig.wc_key = wcKey;
     spaConfigState.spaConfig.wc_secret = wcSecret;
     spaConfigState.spaConfig.wc_push_key = wcPushKey;
+
+    // Dynamic Pricing for Hotel (no incluido)
+    const priceWeekdayHotel = parseFloat(document.getElementById("cfg-price-weekday-hotel")?.value) || 12;
+    const priceWeekendHotel = parseFloat(document.getElementById("cfg-price-weekend-hotel")?.value) || 18;
+    spaConfigState.spaConfig.hotelPriceWeekday = priceWeekdayHotel;
+    spaConfigState.spaConfig.hotelPriceWeekend = priceWeekendHotel;
 
     // Save Schedules
     const newSchedules = {};

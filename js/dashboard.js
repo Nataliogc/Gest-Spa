@@ -352,13 +352,16 @@ function renderDashboard() {
         const isNoShow = c.no_show === true || c.status === 'no_show';
         const statusIcon = getStatusIcon(isNoShow ? 'no_show' : c.status);
 
-        // Logic for "Saldo" (Pending Payment)
-        // Assuming 'pendiente' field or calculating from price vs paid
-        // Fallback: If status is 'pendiente', it implies payment pending too?
-        // User specifically asked "si tiene saldo".
-        // We'll check if there is a recorded debt or price > paid
-        const hasBalance = (c.precio_total > 0 && c.pagado !== true) || (c.pendiente > 0);
-        const balanceAmount = parseFloat(c.pendiente || c.precio_total || 0).toFixed(0); // Removing decimals for compactness if user wants "pequeñito"
+        // Robust check for paid amount / balance
+        let paid = 0;
+        if (c.pagado === true || c.estado_pago === 'pagado') {
+            paid = parseFloat(c.precio_total || 0);
+        } else {
+            paid = parseFloat(c.payment?.paid || c.paid_amount || c.pagado || 0) || 0;
+        }
+
+        const balanceAmount = Math.max(0, (parseFloat(c.precio_total) || 0) - paid);
+        const hasBalance = balanceAmount > 0.05 && !['hotel_inc', 'bono', 'smartbox', 'wonderbox', 'ego'].includes(c.origen);
 
         return `
             <tr style="${isNoShow ? 'opacity: 0.5;' : ''}">
@@ -378,9 +381,13 @@ function renderDashboard() {
                     ` : ''}
                 </td>
                 <td style="text-align:center;">
-                    ${isConfirmed && !isNoShow ? `
-                        <button class="btn-icon" title="Marcar como No Show" onclick="markAsNoShow('${c.id}', '${c.moduleType}')" style="color:#f59e0b;">
-                            <i class="fas fa-user-times"></i>
+                    ${isConfirmed && !isNoShow && !c.attended ? `
+                        <button class="btn-icon" title="Confirmar Asistencia (Presentado)" onclick="markAttendance('${c.id}', '${c.moduleType}')" style="color:#f59e0b;">
+                            <i class="fas fa-user-check"></i>
+                        </button>
+                    ` : (c.attended ? `
+                        <button class="btn-icon" title="Asistencia confirmada - Desmarcar" onclick="unmarkAttendance('${c.id}', '${c.moduleType}')" style="color:#10b981;">
+                            <i class="fas fa-check-double"></i>
                         </button>
                     ` : (isNoShow ? `
                         <button class="btn-icon" title="Desmarcar No Show" onclick="unmarkNoShow('${c.id}', '${c.moduleType}')" style="color:#6b7280;">
@@ -391,7 +398,12 @@ function renderDashboard() {
                             <i class="fab fa-whatsapp" style="font-size:1.2rem;"></i>
                             ${c.whatsappSent ? '<i class="fas fa-check-circle" style="font-size:0.6rem; color:green; vertical-align:top;"></i>' : ''}
                         </button>
-                    `)}
+                    `))}
+                    ${isConfirmed && !isNoShow && !c.attended ? `
+                        <button class="btn-icon" title="Marcar No Show" onclick="markAsNoShow('${c.id}', '${c.moduleType}')" style="color:#94a3b8; margin-left:5px; font-size:0.8rem;">
+                            <i class="fas fa-user-times"></i>
+                        </button>
+                    ` : ''}
                 </td>
                 <td>
                     <button class="btn-icon" title="Ver detalles" onclick="goToReservationDetail('${c.id}', '${c.moduleType}')">
@@ -862,73 +874,66 @@ window.downloadReportExcel = function () {
     document.body.removeChild(link);
 }
 
-// --- NO-SHOW MANAGEMENT ---
+// --- ATTENDANCE MANAGEMENT (Unified) ---
+
+window.markAttendance = async function (resId, moduleType) {
+    try {
+        await window.dbCoreUpdateAttendance(resId, moduleType, true);
+        const cita = state.citas.find(c => c.id === resId);
+        if (cita) {
+            cita.attended = true;
+            cita.status = 'confirmada';
+        }
+        showToast('✅ Asistencia marcada', 'success');
+        renderDashboard();
+    } catch (err) {
+        console.error('Error marking attendance:', err);
+        showToast('❌ Error', 'error');
+    }
+};
+
+window.unmarkAttendance = async function (resId, moduleType) {
+    try {
+        await window.dbCoreUpdateAttendance(resId, moduleType, false);
+        const cita = state.citas.find(c => c.id === resId);
+        if (cita) cita.attended = false;
+        showToast('✅ Asistencia desmarcada', 'info');
+        renderDashboard();
+    } catch (err) {
+        console.error('Error unmarking attendance:', err);
+    }
+};
 
 window.markAsNoShow = async function (resId, moduleType) {
-    if (!confirm('¿Marcar esta cita como NO SHOW? El cliente no se presentó.')) return;
+    if (!confirm('¿Este cliente NO se presentó (No Show)?')) return;
 
     try {
-        const collectionMap = {
-            'spa': 'reservas_spa',
-            'suite': 'reservas_suite',
-            'panacea': 'reservas_panacea',
-            'vip': 'reservas_vip',
-            'peluqueria': 'reservas_peluqueria'
-        };
-
-        const col = collectionMap[moduleType] || 'reservas_spa';
-
-        await db.collection(col).doc(resId).update({
-            no_show: true,
-            status: 'no_show',
-            no_show_marked_at: new Date().toISOString()
-        });
-
-        // Update local state
+        await window.dbCoreUpdateNoShow(resId, moduleType, true);
         const cita = state.citas.find(c => c.id === resId);
         if (cita) {
             cita.no_show = true;
             cita.status = 'no_show';
+            cita.attended = false;
         }
-
         showToast('✅ Marcado como No Show', 'success');
         renderDashboard();
     } catch (err) {
         console.error('Error marking no show:', err);
-        showToast('❌ Error al marcar No Show', 'error');
+        showToast('❌ Error', 'error');
     }
 };
 
 window.unmarkNoShow = async function (resId, moduleType) {
-    if (!confirm('¿Desmarcar No Show? La cita volverá a estado CONFIRMADA.')) return;
-
     try {
-        const collectionMap = {
-            'spa': 'reservas_spa',
-            'suite': 'reservas_suite',
-            'panacea': 'reservas_panacea',
-            'vip': 'reservas_vip',
-            'peluqueria': 'reservas_peluqueria'
-        };
-
-        const col = collectionMap[moduleType] || 'reservas_spa';
-
-        await db.collection(col).doc(resId).update({
-            no_show: false,
-            status: 'confirmada'
-        });
-
-        // Update local state
+        await window.dbCoreUpdateNoShow(resId, moduleType, false);
         const cita = state.citas.find(c => c.id === resId);
         if (cita) {
             cita.no_show = false;
             cita.status = 'confirmada';
         }
-
         showToast('✅ No Show desmarcado', 'success');
         renderDashboard();
     } catch (err) {
         console.error('Error unmarking no show:', err);
-        showToast('❌ Error al desmarcar No Show', 'error');
     }
 };

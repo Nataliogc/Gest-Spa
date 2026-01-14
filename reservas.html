@@ -328,6 +328,91 @@
             /* Lower than tooltip z-index (9999) */
             border-bottom: 2px solid #edf2f7;
         }
+
+        /* Payment History Styles */
+        .payment-history-table {
+            width: 100%;
+            font-size: 0.7rem;
+            margin-top: 10px;
+            border-collapse: collapse;
+        }
+
+        .payment-history-table th {
+            text-align: left;
+            padding: 4px 8px;
+            color: #64748b;
+            font-weight: 700;
+            text-transform: uppercase;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .payment-history-table td {
+            padding: 6px 8px;
+            border-bottom: 1px solid #f1f5f9;
+        }
+
+        .payment-method-badge {
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-weight: 700;
+            font-size: 0.6rem;
+            text-transform: uppercase;
+        }
+
+        .pm-tarjeta {
+            background: #eff6ff;
+            color: #1d4ed8;
+        }
+
+        .pm-efectivo {
+            background: #ecfdf5;
+            color: #059669;
+        }
+
+        .pm-bizum {
+            background: #fdf2f8;
+            color: #be185d;
+        }
+
+        /* Payment Option Buttons */
+        .payment-options-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .payment-opt-btn {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            padding: 12px;
+            border: 2px solid #e2e8f0;
+            border-radius: 10px;
+            background: #fff;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .payment-opt-btn:hover {
+            border-color: var(--accent);
+            background: rgba(212, 175, 55, 0.05);
+        }
+
+        .payment-opt-btn.active {
+            border-color: var(--accent);
+            background: rgba(212, 175, 55, 0.1);
+        }
+
+        .payment-opt-btn i {
+            font-size: 1.2rem;
+        }
+
+        .payment-opt-btn span {
+            font-size: 0.75rem;
+            font-weight: 700;
+        }
     </style>
 </head>
 
@@ -778,6 +863,14 @@
                                 <i class="fas fa-money-bill-wave"></i> Registrar Pago
                             </button>
                         </div>
+                        <!-- Historial de pagos -->
+                        <div id="pp-history-container"
+                            style="display: none; margin-top: 12px; border-top: 1px dashed #fcd34d; padding-top: 10px;">
+                            <h5
+                                style="margin: 0 0 5px 0; font-size: 0.65rem; color: #92400e; font-weight: 800; text-transform: uppercase;">
+                                Historial de Pagos</h5>
+                            <div id="pp-history-list"></div>
+                        </div>
                         <div id="pp-audit-log"
                             style="margin-top: 8px; font-size: 0.65rem; color: #92400e; font-style: italic; display: none;">
                         </div>
@@ -1138,6 +1231,11 @@
                     if (settings.cleaningTime) spaConfig.cleaningTime = parseInt(settings.cleaningTime);
                     if (settings.closedDates) spaConfig.closedDates = settings.closedDates;
                     if (settings.whatsappTemplate) spaConfig.whatsappTemplate = settings.whatsappTemplate;
+
+                    // Dynamic Pricing for Hotel (no incluido)
+                    spaConfig.hotelPriceWeekday = parseFloat(settings.hotelPriceWeekday) || 12;
+                    spaConfig.hotelPriceWeekend = parseFloat(settings.hotelPriceWeekend) || 18;
+                    console.log("[DEBUG] Dynamic pricing loaded:", spaConfig.hotelPriceWeekday, spaConfig.hotelPriceWeekend);
                 }
 
             } catch (err) {
@@ -1266,7 +1364,10 @@
             if (bonoField) bonoField.addEventListener("blur", triggerBalanceCheck);
 
             // Listeners para actualizar slots disponibles en el modal
-            document.getElementById("form-date").addEventListener("change", updateAvailableTimeSlots);
+            document.getElementById("form-date").addEventListener("change", () => {
+                updateAvailableTimeSlots();
+                updatePriceAutomation(); // Recalculate price for dynamic pricing by day
+            });
             document.getElementById("res-servicio").addEventListener("change", updateAvailableTimeSlots);
             // Si el campo de duración cambia (vía input manual inyectado)
             document.addEventListener("change", (e) => {
@@ -1715,7 +1816,13 @@
             let paid = 0;
             if (resId && currentData) {
                 const res = currentData.find(r => r.id === resId);
-                if (res && res.payment) paid = res.payment.paid || 0;
+                if (res) {
+                    if (res.pagado === true || res.estado_pago === 'pagado') {
+                        paid = total;
+                    } else {
+                        paid = parseFloat(res.payment?.paid || res.paid_amount || res.pagado || 0) || 0;
+                    }
+                }
             }
 
             const pending = Math.max(0, total - paid);
@@ -2038,13 +2145,35 @@
                 return;
             }
 
+            // Reset fixed pricing view elements
+            paxInput.disabled = false;
+            const oldHelper = document.getElementById('pax-helper-text');
+            if (oldHelper) oldHelper.remove();
+
             if (!serviceData) {
-                if (currentModule.code === 'spa' && svcName === 'Circuito Spa') {
-                    pricePaxInput.value = parseFloat(baseCircuitoPrice || 0).toFixed(2);
+                const svcLower = (svcName || '').toLowerCase();
+                if (currentModule.code === 'spa' && svcLower.includes('circuito')) {
+                    // Apply dynamic pricing for hotel_no_inc in spa
+                    if (origen === 'hotel_no_inc') {
+                        const dateStr = document.getElementById("form-date")?.value;
+                        if (dateStr) {
+                            const dayOfWeek = new Date(dateStr).getDay();
+                            const isWeekend = dayOfWeek === 0 || dayOfWeek === 5 || dayOfWeek === 6;
+                            const dynamicPrice = isWeekend
+                                ? (spaConfig.hotelPriceWeekend || 18)
+                                : (spaConfig.hotelPriceWeekday || 12);
+                            pricePaxInput.value = parseFloat(dynamicPrice).toFixed(2);
+                        } else {
+                            pricePaxInput.value = parseFloat(spaConfig.hotelPriceWeekday || 12).toFixed(2);
+                        }
+                    } else if (origen === 'particular') {
+                        pricePaxInput.value = parseFloat(baseCircuitoPrice || 25).toFixed(2);
+                    } else {
+                        pricePaxInput.value = "0.00";
+                    }
                 } else {
                     pricePaxInput.value = "0.00";
                 }
-                paxInput.disabled = false;
                 updateTotal();
                 return;
             }
@@ -2052,7 +2181,8 @@
             // ========== FIXED PRICING LOGIC ==========
             // If service has catalog-defined pax (> 0), lock pax and use fixed price
             const catalogPax = parseInt(serviceData.pax) || 0;
-            const isFixedPricing = catalogPax > 0;
+            // DYNAMIC FIX: Spa module should NOT use fixed pricing for Pax lock
+            const isFixedPricing = catalogPax > 0 && currentModule.code !== 'spa';
 
             if (isFixedPricing) {
                 // Lock pax input to catalog value
@@ -2082,10 +2212,22 @@
                 }
             } else {
                 // Normal pricing: pax editable, price multiplied
-                paxInput.disabled = false;
-
                 if (origen === 'particular' || origen === 'hotel_no_inc') {
-                    pricePaxInput.value = parseFloat(serviceData.precio || 0).toFixed(2);
+                    // DYNAMIC PRICING for hotel_no_inc in SPA module
+                    if (currentModule.code === 'spa' && origen === 'hotel_no_inc') {
+                        const dateStr = document.getElementById("form-date")?.value;
+                        const dateObj = dateStr ? new Date(dateStr) : new Date();
+                        const dayOfWeek = dateObj.getDay();
+                        const isWeekend = dayOfWeek === 0 || dayOfWeek === 5 || dayOfWeek === 6;
+                        const dynamicPrice = isWeekend
+                            ? (spaConfig.hotelPriceWeekend || 18)
+                            : (spaConfig.hotelPriceWeekday || 12);
+
+                        pricePaxInput.value = parseFloat(dynamicPrice).toFixed(2);
+                        console.log("[DYNAMIC PRICE SPA] Forcing:", dynamicPrice, "Day:", dayOfWeek);
+                    } else {
+                        pricePaxInput.value = parseFloat(serviceData.precio || 0).toFixed(2);
+                    }
                 } else {
                     pricePaxInput.value = (0).toFixed(2);
                 }
@@ -2123,6 +2265,13 @@
             const packReminder = document.getElementById("pack-reminder");
 
             if (!packContainer || !packSchedule) return;
+
+            // SKIP PACK LOGIC FOR SIMPLE SPA MODULE (uses direct slot reservations)
+            if (currentModule.code === 'spa') {
+                packContainer.style.display = "none";
+                window._packItems = null;
+                return;
+            }
 
             // Find service data
             const serviceData = currentServices.find(s => s.nombre === svcName);
@@ -2400,7 +2549,19 @@
                         snap2.forEach(doc => d2.push({ id: doc.id, ...doc.data(), collection: cab2.collection }));
                         snap3.forEach(doc => d3.push({ id: doc.id, ...doc.data(), collection: cab3.collection }));
 
-                        currentData = [...d1, ...d2, ...d3];
+                        const combinedData = [...d1, ...d2, ...d3];
+
+                        // Auto-NoShow check ONLY if today
+                        const today = new Date().toISOString().split('T')[0];
+                        if (date === today) {
+                            // Check for all 3 collections
+                            const u1 = await window.processAutoNoShows(d1, 'cabina1');
+                            const u2 = await window.processAutoNoShows(d2, 'cabina2');
+                            const u3 = await window.processAutoNoShows(d3, 'cabina3');
+                            if (u1 || u2 || u3) return loadReservas(date);
+                        }
+
+                        currentData = combinedData;
 
                         // Save Local
                         if (window.apiLocal) {
@@ -2463,6 +2624,18 @@
                 }
 
                 currentData = remoteData;
+
+                // Auto-NoShow check ONLY if today
+                const today = new Date().toISOString().split('T')[0];
+                if (date === today) {
+                    const updatedAny = await window.processAutoNoShows(currentData, currentModule.code);
+                    if (updatedAny) {
+                        // If we updated any, reload to get fresh data
+                        // (Safe because they are now marked no-show and won't trigger again)
+                        return loadReservas(date);
+                    }
+                }
+
                 renderSlots(date);
                 if (window.updateGlobalSyncStatus) updateGlobalSyncStatus('synced');
 
@@ -2706,6 +2879,40 @@
                     </td>
                     <td>
                         ${isNoShow ? '<span class="badge badge-warning" style="background: #f59e0b; color: white;">NO SHOW</span>' : (isAnulada ? '<span class="badge badge-anulada">ANULADA</span>' : `<span class="badge ${badgeClass}">${badgeText}</span>`)}
+                        ${(() => {
+                        // Payment pending indicator (Consolidated Logic)
+                        const total = parseFloat(res.precio_total) || 0;
+                        const isAnulada = res.status === 'anulada';
+                        const isNoShow = res.no_show === true || res.status === 'no_show';
+
+                        // Robust check for paid amount
+                        let paid = 0;
+                        if (res.pagado === true || res.estado_pago === 'pagado') {
+                            paid = total;
+                        } else {
+                            // Try all possible fields where paid amount might be stored
+                            paid = parseFloat(res.payment?.paid || res.paid_amount || res.pagado || 0) || 0;
+                        }
+
+                        const pending = Math.max(0, total - paid);
+                        const isExempt = ['hotel_inc', 'bono', 'smartbox', 'wonderbox', 'ego'].includes(res.origen);
+
+                        if (isAnulada || isExempt) return '';
+
+                        if (pending <= 0.05 && total > 0) {
+                            // Fully Paid
+                            return '<span style="color: #10b981; font-size: 0.7rem; margin-left: 6px;" title="Total Pagado"><i class="fas fa-check-circle"></i> Pagado</span>';
+                        } else if (pending > 0.05) {
+                            // Pending Payment - Match Dashboard (Inicio) style
+                            return `
+                                <span title="Pendiente de Pago: ${pending.toFixed(2)}€" style="white-space:nowrap; margin-left: 6px; display: inline-flex; align-items: center; gap: 4px;">
+                                    <i class="fas fa-coins" style="color: #eab308; font-size: 0.85rem;"></i>
+                                    <span style="font-size: 0.75rem; color: #b45309; font-weight: 700;">${pending.toFixed(0)}€</span>
+                                </span>
+                            `;
+                        }
+                        return '';
+                    })()}
                     </td>
                     <td style="font-weight: 600;">
                         ${res.hab ? (res.hotel || 'Cumbria') + ' - ' + res.hab : '-'}
@@ -2740,21 +2947,61 @@
                                     <i class="fab fa-whatsapp"></i>
                                 </a>`;
                     })() : ''}
-                        ${!isAnulada && res.status === 'confirmada' && !res.no_show ? `
-                            <button class="btn btn-outline btn-sm" 
-                                    onclick="markAsNoShow('${res.id}', '${currentModule.code}')" 
-                                    title="Marcar como No Show"
-                                    style="padding: 4px 8px; color: #f59e0b; border-color: #f59e0b;">
-                                <i class="fas fa-user-times"></i>
-                            </button>
-                        ` : (res.no_show || res.status === 'no_show' ? `
-                            <button class="btn btn-outline btn-sm" 
-                                    onclick="unmarkNoShow('${res.id}', '${currentModule.code}')" 
-                                    title="Desmarcar No Show"
-                                    style="padding: 4px 8px; color: #6b7280; border-color: #6b7280;">
-                                <i class="fas fa-undo"></i>
-                            </button>
-                        ` : '')}
+                        ${(() => {
+                        // Attendance tracking logic
+                        if (isAnulada) return '';
+
+                        const isAttended = res.attended === true;
+                        const isNoShow = res.no_show === true || res.status === 'no_show';
+
+                        // Check if past 45 min deadline
+                        const resDateTime = new Date(`${res.fecha}T${res.hora}`);
+                        const deadlineTime = new Date(resDateTime.getTime() + 45 * 60 * 1000);
+                        const now = new Date();
+                        const isPastDeadline = now > deadlineTime;
+
+                        if (isAttended) {
+                            // Already attended - show green check
+                            return `
+                                    <button class="btn btn-outline btn-sm" 
+                                            onclick="unmarkAttendance('${res.id}', '${currentModule.code}')" 
+                                            title="Asistió - Click para desmarcar"
+                                            style="padding: 4px 8px; color: #10b981; border-color: #10b981; background: #d1fae5;">
+                                        <i class="fas fa-check"></i>
+                                    </button>
+                                `;
+                        } else if (isNoShow) {
+                            // No show - allow undo
+                            return `
+                                    <button class="btn btn-outline btn-sm" 
+                                            onclick="unmarkNoShow('${res.id}', '${currentModule.code}')" 
+                                            title="No Show - Click para desmarcar"
+                                            style="padding: 4px 8px; color: #dc2626; border-color: #dc2626; background: #fee2e2;">
+                                        <i class="fas fa-user-times"></i>
+                                    </button>
+                                `;
+                        } else if (isPastDeadline) {
+                            // Past deadline, not marked - show warning, allow manual mark
+                            return `
+                                    <button class="btn btn-outline btn-sm" 
+                                            onclick="markAttendance('${res.id}', '${currentModule.code}')" 
+                                            title="¡Pasó el tiempo! Click para marcar asistencia tardía"
+                                            style="padding: 4px 8px; color: #f59e0b; border-color: #f59e0b; background: #fef3c7;">
+                                        <i class="fas fa-exclamation-triangle"></i>
+                                    </button>
+                                `;
+                        } else {
+                            // Pending - show button to mark attendance
+                            return `
+                                    <button class="btn btn-outline btn-sm" 
+                                            onclick="markAttendance('${res.id}', '${currentModule.code}')" 
+                                            title="Marcar Asistencia"
+                                            style="padding: 4px 8px; color: #f59e0b; border-color: #f59e0b;">
+                                        <i class="fas fa-user-check"></i>
+                                    </button>
+                                `;
+                        }
+                    })()}
                     </td>
                 </tr>
             `}).join('');
@@ -2766,43 +3013,9 @@
         document.getElementById("res-precio-pax").addEventListener("input", updateTotal);
 
         function toggleRoomField() {
-            const origen = document.getElementById("res-origen").value;
-            const isVoucher = ['bono', 'smartbox', 'wonderbox', 'ego'].includes(origen);
-            const isHotel = origen.includes('hotel');
-
-            document.getElementById("room-group").style.display = (origen === "hotel_inc" || origen === "hotel_no_inc") ? "block" : "none";
-            document.getElementById("hotel-group").style.display = (origen === "hotel_inc" || origen === "hotel_no_inc") ? "block" : "none";
-            document.getElementById("bono-group").style.display = isVoucher ? "block" : "none";
-            document.getElementById("sessions-group").style.display = (origen === "bono") ? "block" : "none";
-
-            // Si es bono, ocultar teléfono (ya está en el bono)
-            document.getElementById("tel-group").style.display = (origen === "bono") ? "none" : "block";
-
-            // Campos requeridos dinámicamente (solo si están visibles)
-            document.getElementById("res-hotel").required = (document.getElementById("hotel-group").style.display !== 'none');
-            document.getElementById("res-hab").required = (document.getElementById("room-group").style.display !== 'none');
-            document.getElementById("res-bono").required = (document.getElementById("bono-group").style.display !== 'none');
-            document.getElementById("res-tel").required = false; // No es obligatorio capturar el teléfono si no lo tienen
-
-            // Mostrar/Ocultar precios si es incluido o bono
-            const isIncluded = (origen === 'hotel_inc' || isVoucher);
-            const pricePaxInput = document.getElementById("res-precio-pax");
-
-            if (pricePaxInput) {
-                const priceGroup = pricePaxInput.parentElement;
-                if (isIncluded) {
-                    priceGroup.style.opacity = "0.3";
-                    priceGroup.style.pointerEvents = "none";
-                    pricePaxInput.required = false;
-                    pricePaxInput.value = 0;
-                } else {
-                    priceGroup.style.opacity = "1";
-                    priceGroup.style.pointerEvents = "all";
-                    pricePaxInput.required = true;
-                }
-            }
-
-            updateTotal();
+            // This function is now fully implemented at the bottom of the file
+            // to avoid duplication and maintain consistency.
+            if (window.runToggleRoomField) window.runToggleRoomField();
         }
 
         // Helper to restrict origins based on room type
@@ -2927,10 +3140,26 @@
             const resService = document.getElementById("res-servicio");
             if (resService) {
                 if (currentModule.code === 'spa') {
-                    resService.value = "Circuito Spa";
+                    // Find the actual service name from currentServices (case-insensitive match)
+                    const spaService = currentServices.find(s =>
+                        (s.nombre || '').toLowerCase().includes('circuito spa') ||
+                        (s.nombre || '').toLowerCase().includes('circuito')
+                    );
+                    if (spaService) {
+                        resService.value = spaService.nombre;
+                    }
                 } else if (moduleType === 'suite') {
-                    resService.value = "Suite Spa";
+                    const suiteService = currentServices.find(s =>
+                        (s.nombre || '').toLowerCase().includes('suite spa') ||
+                        (s.nombre || '').toLowerCase().includes('suite')
+                    );
+                    if (suiteService) {
+                        resService.value = suiteService.nombre;
+                    }
                 }
+                // Trigger price calculation after setting service
+                updatePriceAutomation();
+                updateTotal();
             }
 
             // Duration input visibility and value
@@ -3601,6 +3830,7 @@
 
                 let targetColl = currentModule.collection;
                 let finalOrigin = document.getElementById("res-origen").value;
+                let isNew = false; // Track if this is a new reservation
 
                 // Determine existing status if editing
                 let existingStatus = 'confirmada';
@@ -4591,6 +4821,8 @@
             const ppPaid = document.getElementById("pp-pagado");
             const ppPending = document.getElementById("pp-pendiente");
             const ppBadgeSet = document.getElementById("pp-status-badge");
+            const historyContainer = document.getElementById("pp-history-container");
+            const historyList = document.getElementById("pp-history-list");
 
             if (ppTotal) ppTotal.textContent = total.toFixed(2) + "€";
             if (ppPaid) ppPaid.textContent = paid.toFixed(2) + "€";
@@ -4604,17 +4836,38 @@
                 const badgeClass = window.getPaymentStatusClass(status);
                 ppBadgeSet.innerHTML = `<span class="${badgeClass}">${status.toUpperCase()}</span>`;
             }
+
+            // Render History
+            if (historyContainer && historyList) {
+                if (paymentHistory.length > 0) {
+                    historyContainer.style.display = "block";
+                    let html = '<table class="payment-history-table"><thead><tr><th>Fecha</th><th>Importe</th><th>Método</th></tr></thead><tbody>';
+                    paymentHistory.forEach(p => {
+                        const date = new Date(p.fecha).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' });
+                        const methodClass = `pm-${(p.metodo || 'efectivo').toLowerCase()}`;
+                        html += `<tr>
+                            <td>${date}</td>
+                            <td style="font-weight:700;">${parseFloat(p.importe).toFixed(2)}€</td>
+                            <td><span class="payment-method-badge ${methodClass}">${p.metodo}</span></td>
+                        </tr>`;
+                    });
+                    html += '</tbody></table>';
+                    historyList.innerHTML = html;
+                } else {
+                    historyContainer.style.display = "none";
+                }
+            }
         }
 
         /**
          * Prompt to record a payment for the current reservation.
          */
-        window.registrarPagoParticular = async function () {
+        window.registrarPagoParticular = function () {
             const total = parseFloat(document.getElementById("res-precio-total")?.value) || 0;
             const resId = document.getElementById("form-id")?.value || window.currentEditingId;
 
-            if (!resId) {
-                showToast("Primero guarda la reserva como borrador", "info");
+            if (!resId || resId === 'NUEVA') {
+                showToast("Primero guarda la reserva para registrar un pago", "info");
                 return;
             }
 
@@ -4622,26 +4875,61 @@
             if (!res) return;
 
             const paid = (res.payment && res.payment.paid) || 0;
-            const pending = total - paid;
+            const pending = Math.max(0, total - paid);
 
             if (pending <= 0 && total > 0) {
                 showToast("Esta reserva ya está totalmente pagada", "success");
                 return;
             }
 
-            const amountStr = prompt(`Registrar pago para ${res.nombre}:\nImporte pendiente: ${pending.toFixed(2)}€\n\nIntroduce el importe:`, pending.toFixed(2));
-            if (amountStr === null) return;
+            // Fill Modal
+            document.getElementById("lp-amount").value = pending.toFixed(2);
+            document.getElementById("lp-pending-info").textContent = `Pendiente: ${pending.toFixed(2)}€`;
+            window.selectPaymentMethod('Tarjeta'); // Default
 
-            const amount = parseFloat(amountStr);
+            // Show Modal
+            const modal = document.getElementById("local-payment-modal");
+            if (modal) modal.style.display = "flex";
+        }
+
+        window.selectPaymentMethod = function (method) {
+            document.getElementById("lp-method").value = method;
+            // UI Visuals
+            ['pm-tarjeta', 'pm-efectivo', 'pm-bizum'].forEach(id => {
+                document.getElementById(id).classList.remove('active');
+            });
+            document.getElementById(`pm-${method.toLowerCase()}`).classList.add('active');
+        }
+
+        window.closeLocalPaymentModal = function () {
+            const modal = document.getElementById("local-payment-modal");
+            if (modal) modal.style.display = "none";
+        }
+
+        window.confirmLocalPayment = async function () {
+            const amount = parseFloat(document.getElementById("lp-amount").value);
+            const method = document.getElementById("lp-method").value;
+            const resId = document.getElementById("form-id")?.value || window.currentEditingId;
+
             if (isNaN(amount) || amount <= 0) {
                 showToast("Importe no válido", "error");
                 return;
             }
 
-            const method = prompt("Método de pago (Efectivo, Tarjeta, Bizum):", "Tarjeta");
-            if (!method) return;
+            const res = currentData.find(r => r.id === resId);
+            if (!res) return;
+
+            const paid = (res.payment && res.payment.paid) || 0;
+            const total = parseFloat(document.getElementById("res-precio-total")?.value) || 0;
 
             try {
+                // Confirm UI
+                const submitBtn = document.querySelector("#local-payment-modal .btn-accent");
+                if (submitBtn) {
+                    submitBtn.disabled = true;
+                    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Guardando...';
+                }
+
                 const newPaid = paid + amount;
                 const historyItem = {
                     fecha: new Date().toISOString(),
@@ -4659,22 +4947,30 @@
 
                 await db.collection(col).doc(resId).update({
                     payment: paymentUpdate,
-                    service_payment_status: (newPaid >= total) ? 'paid' : 'partial',
+                    service_payment_status: (newPaid >= total - 0.05) ? 'paid' : 'partial',
                     updated_at: new Date().toISOString()
                 });
 
                 showToast("Pago registrado correctamente", "success");
 
-                // Actualizar instancia local
+                // Update Local Instance & Close
                 res.payment = paymentUpdate;
                 window.updatePaymentControlBlock();
                 loadReservas(document.getElementById("main-date-picker").value);
+                window.closeLocalPaymentModal();
 
             } catch (e) {
                 console.error(e);
                 showToast("Error al registrar pago: " + e.message, "error");
+            } finally {
+                const submitBtn = document.querySelector("#local-payment-modal .btn-accent");
+                if (submitBtn) {
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = 'Confirmar Pago';
+                }
             }
         }
+
 
         function openDatePicker() {
             try {
@@ -4684,8 +4980,7 @@
             }
         }
 
-        // --- NEW TOGGLE FUNCTION FOR ADAPTIVE LAYOUT ---
-        window.toggleRoomField = function () {
+        window.runToggleRoomField = function () {
             const origen = document.getElementById("res-origen").value;
 
             // Elements
@@ -4695,6 +4990,7 @@
             const sessionsGroup = document.getElementById("sessions-group");
             const extraContainer = document.getElementById("extra-fields-row");
             const pagoBlock = document.getElementById("pago-particular-block");
+            const telGroup = document.getElementById("tel-group");
 
             // 1. Reset all to hidden
             if (hotelGroup) hotelGroup.style.display = "none";
@@ -4702,43 +4998,68 @@
             if (bonoGroup) bonoGroup.style.display = "none";
             if (sessionsGroup) sessionsGroup.style.display = "none";
             if (pagoBlock) pagoBlock.style.display = "none";
+            if (telGroup) telGroup.style.display = "block"; // Default visible
 
             // 2. Determine visibility based on logic
-            let visibleCount = 0;
+            const isHotel = (origen === 'hotel_inc' || origen === 'hotel_no_inc');
+            const isVoucher = ['bono', 'smartbox', 'wonderbox', 'ego'].includes(origen);
+            const needsPayment = (origen === 'particular' || origen === 'hotel_no_inc');
 
-            if (origen === 'hotel_inc' || origen === 'hotel_no_inc') {
-                if (hotelGroup) { hotelGroup.style.display = "block"; visibleCount++; }
-                if (roomGroup) { roomGroup.style.display = "block"; visibleCount++; }
+            if (isHotel) {
+                if (hotelGroup) hotelGroup.style.display = "block";
+                if (roomGroup) roomGroup.style.display = "block";
             }
-            else if (origen === 'bono' || origen === 'smartbox' || origen === 'wonderbox' || origen === 'ego') {
-                if (bonoGroup) { bonoGroup.style.display = "block"; visibleCount++; }
+
+            if (isVoucher) {
+                if (bonoGroup) bonoGroup.style.display = "block";
                 if (origen === 'bono') {
-                    if (sessionsGroup) { sessionsGroup.style.display = "block"; visibleCount++; }
+                    if (sessionsGroup) sessionsGroup.style.display = "block";
+                    if (telGroup) telGroup.style.display = "none"; // Voucher has phone
                 }
             }
-            else if (origen === 'particular' || origen === 'hotel_no_inc') {
+
+            if (needsPayment) {
                 if (pagoBlock) {
                     pagoBlock.style.display = "block";
-                    updatePaymentControlBlock();
+                    if (typeof updatePaymentControlBlock === 'function') updatePaymentControlBlock();
                 }
             }
 
-            // 3. Adapt Grid Layout
+            // 3. Handle Inputs Requirements & Styling
+            const pricePaxInput = document.getElementById("res-precio-pax");
+            const isIncluded = (origen === 'hotel_inc' || isVoucher);
+
+            if (pricePaxInput) {
+                const priceGroup = pricePaxInput.closest('.form-group') || pricePaxInput.parentElement;
+                if (isIncluded) {
+                    priceGroup.style.opacity = "0.3";
+                    priceGroup.style.pointerEvents = "none";
+                    pricePaxInput.required = false;
+                } else {
+                    priceGroup.style.opacity = "1";
+                    priceGroup.style.pointerEvents = "all";
+                    pricePaxInput.required = true;
+                }
+            }
+
+            // Required fields
+            if (document.getElementById("res-hotel")) document.getElementById("res-hotel").required = isHotel;
+            if (document.getElementById("res-hab")) document.getElementById("res-hab").required = isHotel;
+            if (document.getElementById("res-bono")) document.getElementById("res-bono").required = isVoucher;
+
+            // 4. Adapt Grid Layout for Extra Fields Row
             if (extraContainer) {
-                if (visibleCount === 0) {
+                const count = Array.from(extraContainer.children).filter(c => c.style.display !== 'none').length;
+                if (count === 0 && pagoBlock.style.display === 'none') {
                     extraContainer.style.display = "none";
                 } else {
                     extraContainer.style.display = "grid";
                     extraContainer.style.gap = "10px";
-                    if (visibleCount === 1) {
-                        extraContainer.style.gridTemplateColumns = "1fr";
-                    } else {
-                        extraContainer.style.gridTemplateColumns = "1fr 1fr";
-                    }
+                    extraContainer.style.gridTemplateColumns = (count === 1) ? "1fr" : "1fr 1fr";
                 }
             }
 
-            // 4. Update Validation Logic (Balance Check)
+            // 5. Update Validation Logic (Balance Check)
             if (origen === 'bono') {
                 if (typeof validateBonoBalance === 'function') {
                     const bono = document.getElementById("res-bono")?.value || "";
@@ -4750,9 +5071,13 @@
                 if (notice) notice.style.display = "none";
             }
 
-            // 5. Sync price
-            updatePriceAutomation();
+            // 6. Recalculate & Sync price
+            if (typeof updatePriceAutomation === 'function') updatePriceAutomation();
+            if (typeof updateTotal === 'function') updateTotal();
         };
+
+        // Redefine original function to point to window one
+        window.toggleRoomField = window.runToggleRoomField;
 
         async function loadDayNotes(date) {
             const container = document.getElementById("day-notes-container");
@@ -4812,67 +5137,87 @@
 
         // --- NO-SHOW MANAGEMENT (Synced with Dashboard) ---
 
-        window.markAsNoShow = async function (resId, moduleType) {
-            if (!confirm('¿Marcar esta cita como NO SHOW? El cliente no se presentó.')) return;
+        // --- ATTENDANCE & NO-SHOW MANAGEMENT ---
 
+        window.markAttendance = async function (resId, moduleType) {
             try {
-                const collectionMap = {
-                    'spa': 'reservas_spa',
-                    'suite': 'reservas_suite',
-                    'panacea': 'reservas_panacea',
-                    'vip': 'reservas_vip',
-                    'peluqueria': 'reservas_peluqueria'
-                };
-
-                const col = collectionMap[moduleType || currentModule.code] || 'reservas_spa';
-
-                await db.collection(col).doc(resId).update({
-                    no_show: true,
-                    status: 'no_show',
-                    no_show_marked_at: new Date().toISOString()
-                });
-
-                showToast('✅ Marcado como No Show', 'success');
-                // Reload current data
+                await window.dbCoreUpdateAttendance(resId, moduleType, true);
+                showToast('✅ Asistencia marcada', 'success');
                 if (typeof loadReservas === 'function') {
                     const date = document.getElementById('main-date-picker')?.value || new Date().toISOString().split('T')[0];
                     loadReservas(date);
                 }
             } catch (err) {
+                console.error('Error marking attendance:', err);
+                showToast('❌ Error al marcar asistencia', 'error');
+            }
+        };
+
+        window.unmarkAttendance = async function (resId, moduleType) {
+            try {
+                await window.dbCoreUpdateAttendance(resId, moduleType, false);
+                showToast('✅ Asistencia desmarcada', 'info');
+                if (typeof loadReservas === 'function') {
+                    const date = document.getElementById('main-date-picker')?.value || new Date().toISOString().split('T')[0];
+                    loadReservas(date);
+                }
+            } catch (err) {
+                console.error('Error unmarking attendance:', err);
+            }
+        };
+
+        window.markAsNoShow = async function (resId, moduleType, silent = false) {
+            if (!silent && !confirm('¿Este cliente NO se presentó (No Show)?')) return;
+
+            try {
+                await window.dbCoreUpdateNoShow(resId, moduleType, true);
+                if (!silent) showToast('✅ Marcado como No Show', 'success');
+
+                // Avoid recursion: only reload if NOT silent
+                if (!silent && typeof loadReservas === 'function') {
+                    const date = document.getElementById('main-date-picker')?.value || new Date().toISOString().split('T')[0];
+                    loadReservas(date);
+                }
+            } catch (err) {
                 console.error('Error marking no show:', err);
-                showToast('❌ Error al marcar No Show', 'error');
+                if (!silent) showToast('❌ Error al marcar No Show', 'error');
             }
         };
 
         window.unmarkNoShow = async function (resId, moduleType) {
-            if (!confirm('¿Desmarcar No Show? La cita volverá a estado CONFIRMADA.')) return;
-
             try {
-                const collectionMap = {
-                    'spa': 'reservas_spa',
-                    'suite': 'reservas_suite',
-                    'panacea': 'reservas_panacea',
-                    'vip': 'reservas_vip',
-                    'peluqueria': 'reservas_peluqueria'
-                };
-
-                const col = collectionMap[moduleType || currentModule.code] || 'reservas_spa';
-
-                await db.collection(col).doc(resId).update({
-                    no_show: false,
-                    status: 'confirmada'
-                });
-
+                await window.dbCoreUpdateNoShow(resId, moduleType, false);
                 showToast('✅ No Show desmarcado', 'success');
-                // Reload current data
                 if (typeof loadReservas === 'function') {
                     const date = document.getElementById('main-date-picker')?.value || new Date().toISOString().split('T')[0];
                     loadReservas(date);
                 }
             } catch (err) {
                 console.error('Error unmarking no show:', err);
-                showToast('❌ Error al desmarcar No Show', 'error');
             }
+        };
+
+        // NEW: Processor for Auto No-Show
+        window.processAutoNoShows = async function (bookings, moduleCode) {
+            const now = new Date();
+            const todayStr = now.toISOString().split('T')[0];
+
+            const noShowDeadlineMinutes = 45;
+            let updatedAny = false;
+
+            for (const res of bookings) {
+                if (res.status === 'confirmada' && !res.attended && !res.no_show) {
+                    const resDateTime = new Date(`${res.fecha}T${res.hora}`);
+                    const deadlineTime = new Date(resDateTime.getTime() + noShowDeadlineMinutes * 60 * 1000);
+
+                    if (now > deadlineTime) {
+                        console.log(`[AUTO-NOSHOW] Marking reservation ${res.id} as no-show (deadline passed).`);
+                        await window.markAsNoShow(res.id, moduleCode, true);
+                        updatedAny = true;
+                    }
+                }
+            }
+            return updatedAny;
         };
 
         // ============================================
@@ -5097,6 +5442,57 @@
     <!-- Staff Management Integration -->
     <script src="reservas-staff.js"></script>
 
+
+    <!-- MODAL REGISTRO PAGO PROFESIONAL -->
+    <div id="local-payment-modal" class="modal" style="z-index: 9999;">
+        <div class="modal-content" style="max-width: 400px; padding: 25px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h3 style="margin: 0; display: flex; align-items: center; gap: 10px; color: #1e293b;">
+                    <i class="fas fa-coins" style="color: #f59e0b;"></i> Registrar Pago
+                </h3>
+                <span class="close-modal" onclick="closeLocalPaymentModal()">&times;</span>
+            </div>
+
+            <div style="margin-bottom: 20px;">
+                <label
+                    style="display: block; font-size: 0.75rem; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 8px;">Importe
+                    a cobrar</label>
+                <div
+                    style="display: flex; align-items: center; background: #f8fafc; border: 2px solid #e2e8f0; border-radius: 12px; padding: 10px 15px;">
+                    <input type="number" id="lp-amount" step="0.01"
+                        style="flex: 1; border: none; background: transparent; font-size: 1.5rem; font-weight: 700; color: #1e293b; outline: none;"
+                        placeholder="0.00">
+                    <span style="font-size: 1.2rem; font-weight: 700; color: #64748b; margin-left: 10px;">€</span>
+                </div>
+                <div id="lp-pending-info"
+                    style="margin-top: 5px; font-size: 0.75rem; color: #ef4444; font-weight: 600;"></div>
+            </div>
+
+            <label
+                style="display: block; font-size: 0.75rem; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 10px;">Método
+                de Pago</label>
+            <div class="payment-options-grid">
+                <div class="payment-opt-btn" onclick="selectPaymentMethod('Tarjeta')" id="pm-tarjeta">
+                    <i class="fas fa-credit-card" style="color: #3b82f6;"></i>
+                    <span>Tarjeta</span>
+                </div>
+                <div class="payment-opt-btn" onclick="selectPaymentMethod('Efectivo')" id="pm-efectivo">
+                    <i class="fas fa-money-bill-wave" style="color: #10b981;"></i>
+                    <span>Efectivo</span>
+                </div>
+                <div class="payment-opt-btn" onclick="selectPaymentMethod('Bizum')" id="pm-bizum">
+                    <i class="fas fa-mobile-alt" style="color: #ec4899;"></i>
+                    <span>Bizum</span>
+                </div>
+            </div>
+            <input type="hidden" id="lp-method" value="Tarjeta">
+
+            <div style="margin-top: 30px; display: flex; gap: 10px;">
+                <button class="btn btn-outline" style="flex: 1;" onclick="closeLocalPaymentModal()">Cancelar</button>
+                <button class="btn btn-accent" style="flex: 1;" onclick="confirmLocalPayment()">Confirmar Pago</button>
+            </div>
+        </div>
+    </div>
 
     <div id="toast-container"
         style="position: fixed; top: 20px; right: 20px; z-index: 99999; display: flex; flex-direction: column; align-items: flex-end;">

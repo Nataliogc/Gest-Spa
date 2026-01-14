@@ -976,3 +976,40 @@ window.updateGlobalSyncStatus = (status) => {
     if (window.syncEngine) window.syncEngine.updateUI(status);
 };
 
+// --- ATTENDANCE & NO-SHOW DB HELPERS ---
+window.dbCoreUpdateAttendance = async function (resId, moduleType, isAttended) {
+    const colMap = {
+        'spa': 'reservas_spa',
+        'suite': 'reservas_suite',
+        'panacea': 'reservas_panacea',
+        'vip': 'reservas_vip',
+        'peluqueria': 'reservas_peluqueria',
+        'gym': 'reservas_gimnasio',
+        'complementos': 'reservas_complementos'
+    };
+    const col = colMap[moduleType] || 'reservas_spa';
+    return db.collection(col).doc(resId).update({
+        attended: !!isAttended,
+        attended_at: isAttended ? new Date().toISOString() : null,
+        status: isAttended ? 'confirmada' : 'confirmada' // Keep as confirmed even if attending/unattending
+    });
+};
+
+window.dbCoreUpdateNoShow = async function (resId, moduleType, isNoShow) {
+    const colMap = {
+        'spa': 'reservas_spa',
+        'suite': 'reservas_suite',
+        'panacea': 'reservas_panacea',
+        'vip': 'reservas_vip',
+        'peluqueria': 'reservas_peluqueria',
+        'gym': 'reservas_gimnasio',
+        'complementos': 'reservas_complementos'
+    };
+    const col = colMap[moduleType] || 'reservas_spa';
+    return db.collection(col).doc(resId).update({
+        no_show: !!isNoShow,
+        status: isNoShow ? 'no_show' : 'confirmada',
+        no_show_marked_at: isNoShow ? new Date().toISOString() : null,
+        attended: false // Reset attendance if marking as no-show
+    });
+};
