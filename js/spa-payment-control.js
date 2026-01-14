@@ -565,11 +565,32 @@ if (typeof window !== 'undefined') {
         _currentCollection: null,
 
         // Modal helpers
-        openPaymentModal: function (voucherId, collection) {
+        openPaymentModal: async function (voucherId, collection) {
             this._currentVoucherId = voucherId;
-            this._currentCollection = collection || 'local_sales';
+            this._currentCollection = collection || 'spa_vouchers';
             const modal = document.getElementById('paymentModal');
             if (modal) modal.style.display = 'flex';
+
+            // Pre-fill amount with pending amount
+            try {
+                if (typeof db !== 'undefined' && voucherId) {
+                    const doc = await db.collection(this._currentCollection).doc(voucherId).get();
+                    if (doc.exists) {
+                        const voucher = normalizePaymentFields({ id: doc.id, ...doc.data() });
+                        const amountInput = document.getElementById('pay-amount');
+                        if (amountInput && voucher.importe_pendiente > 0) {
+                            amountInput.value = voucher.importe_pendiente.toFixed(2);
+                        }
+                        // Also set today's date as default
+                        const dateInput = document.getElementById('pay-date');
+                        if (dateInput && !dateInput.value) {
+                            dateInput.value = new Date().toISOString().split('T')[0];
+                        }
+                    }
+                }
+            } catch (err) {
+                console.warn('[PAYMENT] Error pre-loading pending amount:', err);
+            }
         },
 
         closePaymentModal: function () {

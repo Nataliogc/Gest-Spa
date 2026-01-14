@@ -2407,7 +2407,12 @@ function renderBonosFromState() {
             } else if (filterStatus === 'pending') {
                 // SOPORTE LEGACY: Aceptar 'activo' como 'pending'
                 // MODIFICADO: Incluir también 'partially' (En uso) como Activo
-                statusMatch = (b.estado === 'pending' || b.estado === 'activo' || b.estado === 'partially') && !checkVoucherExpiry(b);
+                // EXCLUIR: anulados
+                statusMatch = (b.estado === 'pending' || b.estado === 'activo' || b.estado === 'partially')
+                    && b.estado !== 'anulado'
+                    && !checkVoucherExpiry(b);
+            } else if (filterStatus === 'anulado') {
+                statusMatch = (b.estado === 'anulado');
             } else {
                 statusMatch = (b.estado === filterStatus);
             }
@@ -2501,7 +2506,11 @@ function renderBonosFromState() {
         let statusLabel = 'ACTIVO';
 
         // Determinar visualización basada en normalización
-        if (v.effectivelyCompleted || b.estado === 'completed') {
+        // PRIORIDAD: Anulado primero (estado permanente)
+        if (b.estado === 'anulado') {
+            badgeClass = 'st-expired';
+            statusLabel = '❌ ANULADO';
+        } else if (v.effectivelyCompleted || b.estado === 'completed') {
             badgeClass = 'st-completed';
             statusLabel = 'CANJEADO';
         } else if (v.isExpired || b.estado === 'expired') {
@@ -3432,7 +3441,14 @@ async function openVoucherManagement(code) {
             const baseSessions = parseInt(product.sesiones || 1);
 
             const paxRatio = pax / basePax;
-            const sessionsRatio = totalSessions / baseSessions;
+
+            // FIX: Para packs con items_incluidos, las "sesiones" son los componentes del pack,
+            // no repeticiones del mismo servicio. No multiplicar el precio por sesiones en packs.
+            // AMPLIACIÓN: También detectar packs por editingVoucherItems (para bonos locales/rituales)
+            const hasCatalogItems = product.items_incluidos && product.items_incluidos.length > 1;
+            const hasVoucherItems = state.editingVoucherItems && state.editingVoucherItems.length > 1;
+            const isPack = hasCatalogItems || hasVoucherItems;
+            const sessionsRatio = isPack ? 1 : (totalSessions / baseSessions);
             calculatedPrice = basePrice * paxRatio * sessionsRatio;
         }
 
@@ -3903,7 +3919,13 @@ async function saveVoucherChanges() {
                 const baseSessions = parseInt(finalProduct.sesiones || 1);
 
                 const paxRatio = updates.pax_por_sesion / basePax;
-                const sessionsRatio = updates.sesiones_totales / baseSessions;
+
+                // FIX: Para packs/rituales con múltiples items, NO multiplicar por sessionsRatio
+                // porque el precio del pack ya incluye todos los componentes
+                const hasCatalogItems = finalProduct.items_incluidos && finalProduct.items_incluidos.length > 1;
+                const hasVoucherItems = updates.items_desglosados && updates.items_desglosados.length > 1;
+                const isPack = hasCatalogItems || hasVoucherItems;
+                const sessionsRatio = isPack ? 1 : (updates.sesiones_totales / baseSessions);
 
                 let calculatedPrice = basePrice * paxRatio * sessionsRatio;
 
@@ -3915,7 +3937,7 @@ async function saveVoucherChanges() {
 
                 updates.importe = calculatedPrice;
                 updates.precio = updates.importe; // Mantener consistencia precio/importe
-                console.log(`[SAVE] Precio recalculado (con dto ${discountToApply}%): ${updates.importe}€`);
+                console.log(`[SAVE] Precio recalculado (isPack: ${isPack}, dto ${discountToApply}%): ${updates.importe}€`);
             }
         } else {
             // Preserve existing WooCommerce price
@@ -4439,6 +4461,97 @@ async function deleteVoucher() {
     }
 }
 
+// --- ANULAR BONO ---
+async function annulVoucher() {
+    const code = document.getElementById("vm-code")?.value;
+    if (!code) {
+        showToast("No hay bono seleccionado", "error");
+        return;
+    }
+
+    try {
+        // 1. Obtener datos del bono actual
+        const doc = await db.collection("spa_vouchers").doc(code).get();
+        if (!doc.exists) {
+            showToast("Bono no encontrado", "error");
+            return;
+        }
+        const voucher = doc.data();
+
+        // 2. VALIDACIÓN: No anular bonos caducados
+        const expiryDate = voucher.validez || voucher.expiry || voucher.fecha_vencimiento;
+        if (expiryDate) {
+            const expiry = new Date(expiryDate);
+            if (expiry < new Date()) {
+                showToast("⚠️ No se puede anular un bono caducado", "warning");
+                return;
+            }
+        }
+
+        // 3. VALIDACIÓN: No anular bonos con servicios reservados
+        const usedSessions = parseInt(voucher.sesiones_usadas) || 0;
+        const hasReservations = voucher.reservas && voucher.reservas.length > 0;
+        const hasItemsUsed = voucher.items_desglosados && voucher.items_desglosados.some(item => item.used > 0);
+
+        if (usedSessions > 0 || hasReservations || hasItemsUsed) {
+            showToast("⚠️ No se puede anular un bono con servicios usados o reservados", "warning");
+            return;
+        }
+
+        // 4. Pedir motivo
+        const motivo = prompt("Motivo de la anulación:");
+        if (!motivo) {
+            showToast("Anulación cancelada (sin motivo)", "info");
+            return;
+        }
+
+        // 5. Pedir usuario que realiza
+        const usuario = prompt("¿Quién realiza la anulación?", "recepcion");
+        if (!usuario) {
+            showToast("Anulación cancelada", "info");
+            return;
+        }
+
+        // 6. Confirmar
+        if (!confirm(`¿Confirmar ANULACIÓN del bono ${code}?\n\nMotivo: ${motivo}\nUsuario: ${usuario}`)) {
+            return;
+        }
+
+        // 7. Actualizar en Firestore
+        const updateData = {
+            estado: 'anulado',
+            estado_anterior: voucher.estado,
+            anulacion: {
+                fecha: new Date().toISOString(),
+                motivo: motivo,
+                usuario: usuario
+            },
+            updated_at: new Date().toISOString()
+        };
+
+        await db.collection("spa_vouchers").doc(code).update(updateData);
+
+        // 8. Actualizar local si existe (dbLocal.bonos)
+        try {
+            if (window.dbLocal && window.dbLocal.bonos) {
+                const localVoucher = await dbLocal.bonos.get(code);
+                if (localVoucher) {
+                    await dbLocal.bonos.put({ ...localVoucher, ...updateData });
+                }
+            }
+        } catch (localErr) {
+            console.warn("[ANULAR] Error actualizando local:", localErr);
+        }
+
+        showToast("✅ Bono anulado correctamente", "success");
+        closeVoucherModal();
+        cargarBonos();
+
+    } catch (err) {
+        console.error("[ANULAR] Error:", err);
+        showToast("Error anulando bono: " + err.message, "error");
+    }
+}
 
 // --- MODAL VENTA LOCAL (Nuevo con Carrito) ---
 
@@ -4993,7 +5106,9 @@ function renderLVCart() {
     list.innerHTML = state.lvCart.map((item, index) => {
         const itemImg = (item.originalProduct && item.originalProduct.imagen) ? item.originalProduct.imagen : 'zenith-icon.png';
         const itemPrice = parseFloat(item.price) || 0;
-        const subtotal = itemPrice * (parseInt(item.sessions) || 1);
+        // FIX: Para packs con items_breakdown, no multiplicar por sessions
+        const isPack = item.items_breakdown && item.items_breakdown.length > 1;
+        const subtotal = isPack ? itemPrice : (itemPrice * (parseInt(item.sessions) || 1));
 
         return `
             <div style="display: flex; gap: 10px; align-items: center; background: #fff; padding: 8px; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
@@ -5010,8 +5125,11 @@ function renderLVCart() {
             </div>`;
     }).join('');
 
-    // Single source of truth calculation
-    const totalPrice = state.lvCart.reduce((sum, i) => sum + ((parseFloat(i.price) || 0) * (parseInt(i.sessions) || 1)), 0);
+    // Single source of truth calculation - FIX: no multiplicar packs por sessions
+    const totalPrice = state.lvCart.reduce((sum, i) => {
+        const isPack = i.items_breakdown && i.items_breakdown.length > 1;
+        return sum + (isPack ? parseFloat(i.price) || 0 : ((parseFloat(i.price) || 0) * (parseInt(i.sessions) || 1)));
+    }, 0);
     const totalSessions = state.lvCart.reduce((sum, i) => sum + (parseInt(i.sessions) || 0), 0);
 
     if (totalDisplay) {
@@ -5045,7 +5163,13 @@ async function createLocalVoucher() {
     // Generación de código mejorada: LOC + Año + Secuencial aleatorio (SIN ESPACIOS AL FINAL)
     const code = codeInput || `LOC-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
 
-    const totalPrice = state.lvCart.reduce((sum, i) => sum + (i.price * i.sessions), 0);
+    // FIX: Para packs/rituales con items_breakdown > 1, el precio NO debe multiplicarse por sessions
+    // porque el precio del pack ya incluye todos los componentes
+    const totalPrice = state.lvCart.reduce((sum, i) => {
+        const isPack = i.items_breakdown && i.items_breakdown.length > 1;
+        // Para packs: precio fijo (no multiplicar). Para servicios simples: precio * sesiones
+        return sum + (isPack ? i.price : (i.price * i.sessions));
+    }, 0);
     const totalSessions = state.lvCart.reduce((sum, i) => sum + i.sessions, 0);
     const productNames = state.lvCart.map(i => i.name).join(" + ");
 
@@ -7000,7 +7124,14 @@ function updatePriceBadgeCalculations(v) {
         const basePax = parseInt(catalogMatch.personas || catalogMatch.pax || 1);
         const baseSessions = parseInt(catalogMatch.sesiones || 1);
 
-        let calculated = basePrice * (pax / basePax) * (sessions / baseSessions);
+        // FIX: Para packs con items_incluidos, las "sesiones" son los componentes del pack,
+        // no repeticiones del mismo servicio. No multiplicar el precio por sesiones en packs.
+        // AMPLIACIÓN: También detectar packs por editingVoucherItems (para bonos locales/rituales)
+        const hasCatalogItems = catalogMatch.items_incluidos && catalogMatch.items_incluidos.length > 1;
+        const hasVoucherItems = state.editingVoucherItems && state.editingVoucherItems.length > 1;
+        const isPack = hasCatalogItems || hasVoucherItems;
+        const sessionsRatio = isPack ? 1 : (sessions / baseSessions);
+        let calculated = basePrice * (pax / basePax) * sessionsRatio;
 
         // NUEVA LÓGICA: Si hay items desglosados con extras, calcular sumando items individuales
         if (state.editingVoucherItems && state.editingVoucherItems.length > 0) {
