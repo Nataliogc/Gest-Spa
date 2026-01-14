@@ -1702,44 +1702,17 @@
             // STRICT FILTER LOGIC based on user mapping
             let servicesToShow = (currentServices || []).filter(s => {
                 const cat = (s.categoria || "").toLowerCase();
-                const name = (s.nombre || "").toLowerCase();
-
+                // Rule 0: Global Exclusions
                 if (EXCLUDED_CATEGORIES.includes(cat)) return false;
 
-                // Rule 1: Always check if the space is explicitly allowed in catalog
-                const sEspacio = (s.espacio || "").toLowerCase();
+                // Rule 1: STRICT Catalog "allowedSpaces" check.
+                // The item MUST explicitly list the current space in its allowedSpaces in spa_item_master.
                 const sAllowed = (Array.isArray(s.allowedSpaces) ? s.allowedSpaces : []).map(x => x.toLowerCase());
-                const isExplicitlyAllowed = sEspacio.includes(salaActual) || sAllowed.includes(salaActual);
 
-                // Rule 2: Final User Mapping
-                let matchesMapping = false;
-                if (salaActual === 'cabina') {
-                    // Cabina → Individual
-                    matchesMapping = !['ritual', 'pack_pareja', 'suite_privada', 'pack', 'spa', 'gym', 'bono_circuito', 'complemento'].includes(cat) && !name.includes('pareja');
-                } else if (salaActual === 'panacea') {
-                    // Panacea → Individual + Ritual + Pareja
-                    matchesMapping = !['suite_privada', 'spa', 'gym', 'complemento'].includes(cat);
-                } else if (salaActual === 'suite') {
-                    // Suite → Pareja + Packs + Ritual
-                    matchesMapping = ['ritual', 'pack_pareja', 'suite_privada', 'pack'].includes(cat) || name.includes('pareja') || name.includes('suite');
-                } else if (salaActual === 'vip') {
-                    // VIP → Pareja VIP (y derivados)
-                    matchesMapping = cat === 'pack_pareja' || name.includes('vip');
-                } else if (salaActual === 'spa') {
-                    // SPA → Circuito + Packs SPA
-                    matchesMapping = ['spa', 'bono_circuito', 'complemento'].includes(cat) || name.includes('circuito');
-                } else if (salaActual === 'gym') {
-                    // Gym → Gym
-                    matchesMapping = ['gym', 'complemento'].includes(cat) || name.includes('gimnasio');
-                }
+                // Allow matches for exact room code OR generic 'cabina' logic
+                const isExplicitlyAllowed = sAllowed.includes(salaActual) || sAllowed.includes(roomCode);
 
-                // Rule 3: Allow Complements in most rooms as agenda-less items
-                if (cat === 'complemento' && ['cabina', 'panacea', 'suite', 'spa', 'gym'].includes(salaActual)) {
-                    matchesMapping = true;
-                }
-
-                // Intersection of explicit allowance or mapping match
-                return isExplicitlyAllowed || matchesMapping;
+                return isExplicitlyAllowed;
             });
 
             // Special handling: Force placeholder for Particular flow initially
@@ -1767,7 +1740,7 @@
                 sel.value = currentVal;
             } else if (roomCode === 'spa' && servicesToShow.length > 0) {
                 const defaultSpa = servicesToShow.find(s => s.nombre.toLowerCase().includes('circuito')) || servicesToShow[0];
-                sel.value = defaultSpa.nombre;
+                sel.value = defaultSpa ? defaultSpa.nombre : "";
             } else {
                 sel.value = "";
             }
@@ -2300,7 +2273,7 @@
 
             items.forEach((itemName, index) => {
                 // Try to get item config from master
-                const itemConfig = window._itemMasterCache?.find(i =>
+                const itemConfig = (window.masterItems || []).find(i =>
                     i.name.toLowerCase().trim() === itemName.toLowerCase().trim()
                 ) || {};
 
@@ -2370,11 +2343,18 @@
          * Returns collection name for a given space code.
          */
         function getCollectionForSpace(space) {
-            const spaceNorm = (space || "").toLowerCase();
+            const spaceNorm = (space || "").toLowerCase().trim();
             if (spaceNorm === 'gym' || spaceNorm === 'gimnasio') return "reservas_gimnasio";
-            if (spaceNorm.includes('cabina')) return "spa_reservas";
-            if (spaceNorm === 'panacea' || spaceNorm === 'vip' || spaceNorm === 'suite') return "spa_reservas";
-            return "spa_reservas";
+            if (spaceNorm === 'vip') return "reservas_vip";
+            if (spaceNorm === 'suite') return "reservas_suite";
+            if (spaceNorm === 'panacea') return "reservas_panacea";
+            if (spaceNorm === 'peluqueria') return "reservas_peluqueria";
+
+            // Generic Cabina or specific Cabina mapping fallback
+            if (spaceNorm === 'cabina') return "reservas_cabina1";
+            if (spaceNorm.startsWith('cabina')) return `reservas_${spaceNorm}`;
+
+            return "reservas_spa"; // Fallback only for Spa Circuit
         }
 
         /**
@@ -4356,9 +4336,22 @@
             div.style.borderLeftColor = color;
             div.style.background = bgColor;
 
+            // Payment Status Check
+            let paid = parseFloat(booking.pagado || booking.payment?.paid || 0);
+            let total = parseFloat(booking.precio_total || booking.precio || 0);
+            let isPaid = paid >= (total - 0.05); // Tolerance
+            // Treat Hotel/Bono as paid for valid visual even if technically 0 paid
+            const origen = (booking.origen || "").toLowerCase();
+            if (['hotel_inc', 'bono', 'smartbox', 'wonderbox', 'ego'].includes(origen)) isPaid = true;
+
+            const pendingIcon = !isPaid ? `<i class="fas fa-coins" style="color:#f59e0b; margin-left:5px; font-size:0.9rem;" title="Pago Pendiente: ${(total - paid).toFixed(2)}€"></i>` : '';
+
             div.innerHTML = `
                 <div class="booking-info">
-                    <h4>${booking.nombre}</h4>
+                    <h4 style="display:flex; justify-content:space-between; align-items:center;">
+                        <span>${booking.nombre}</span>
+                        ${pendingIcon}
+                    </h4>
                     <p>
                         <span><i class="fas fa-spa"></i> ${booking.servicio}</span>
                         <span><i class="fas fa-clock"></i> ${booking.duracion || 60} min</span>

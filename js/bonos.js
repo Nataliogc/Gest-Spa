@@ -7127,21 +7127,47 @@ function updatePriceBadgeCalculations(v) {
         const pax = parseInt(document.getElementById("vm-pax-sesion").value) || v.pax_por_sesion || 1;
 
         const basePrice = parseFloat(catalogMatch.precio) || 0;
-        const basePax = parseInt(catalogMatch.personas || catalogMatch.pax || 1);
-        const baseSessions = parseInt(catalogMatch.sesiones || 1);
+        const catalogPax = parseInt(catalogMatch.personas || catalogMatch.pax || 0);
+        const isFixedPax = catalogPax > 0;
+        const catalogSessions = parseInt(catalogMatch.sesiones || 1);
 
-        // FIX: Para packs con items_incluidos, las "sesiones" son los componentes del pack,
-        // no repeticiones del mismo servicio. No multiplicar el precio por sesiones en packs.
-        // AMPLIACIÓN: También detectar packs por editingVoucherItems (para bonos locales/rituales)
-        const prodNameLower = (v.producto || '').toLowerCase();
-        const hasCatalogItems = catalogMatch.items_incluidos && catalogMatch.items_incluidos.length > 1;
-        const hasVoucherItems = state.editingVoucherItems && state.editingVoucherItems.length > 1;
-        const isPackName = prodNameLower.includes('ritual') || prodNameLower.includes('pack') || prodNameLower.includes('fantasía') || prodNameLower.includes('sueño') || prodNameLower.includes('bono');
-        const isPack = hasCatalogItems || hasVoucherItems || isPackName;
-        const sessionsRatio = isPack ? 1 : (sessions / baseSessions);
-        let calculated = basePrice * (pax / basePax) * sessionsRatio;
+        // UI: Lock Pax Input if Fixed in Catalog
+        const paxInput = document.getElementById("vm-pax-sesion");
+        if (paxInput) {
+            if (isFixedPax) {
+                paxInput.value = catalogPax;
+                paxInput.readOnly = true;
+                paxInput.title = "Pax definido por catálogo (fijo)";
+                paxInput.style.backgroundColor = "#e2e8f0"; // Disabled look
+            } else {
+                paxInput.readOnly = false;
+                paxInput.title = "";
+                paxInput.style.backgroundColor = "";
+            }
+        }
 
-        // NUEVA LÓGICA: Si hay items desglosados con extras, calcular sumando items individuales
+        const effectivePax = isFixedPax ? catalogPax : (parseInt(document.getElementById("vm-pax-sesion")?.value) || 1);
+        const effectiveSessions = parseInt(document.getElementById("vm-sesiones-total")?.value) || 1;
+
+        // Strict Price Calculation
+        let calculated = basePrice;
+
+        if (isFixedPax) {
+            // Catalog Price IS the total for fixed pax. Do NOT multiply by pax.
+            // Only multiply by sessions ratio IF not a pack
+            const prodNameLower = (v.producto || '').toLowerCase();
+            const hasCatalogItems = catalogMatch.items_incluidos && catalogMatch.items_incluidos.length > 1;
+            const isPackName = prodNameLower.includes('ritual') || prodNameLower.includes('pack') || prodNameLower.includes('fantasía') || prodNameLower.includes('sueño') || prodNameLower.includes('bono');
+            const isPack = hasCatalogItems || isPackName;
+
+            if (!isPack && effectiveSessions > catalogSessions) {
+                calculated = basePrice * (effectiveSessions / catalogSessions);
+            }
+        } else {
+            // Variable Pax -> Price is per person * sessions
+            calculated = basePrice * effectivePax * (effectiveSessions / catalogSessions);
+        }
+        // NUEVA LÓGICA: Si hay items desglosados con extras, recalcular sumando items
         if (state.editingVoucherItems && state.editingVoucherItems.length > 0) {
             // Verificar si hay extras (items NO incluidos en el pack base)
             const hasExtras = state.editingVoucherItems.some(item => {
@@ -7154,6 +7180,7 @@ function updatePriceBadgeCalculations(v) {
             });
 
             if (hasExtras) {
+
                 // Calcular precio sumando items individuales
                 calculated = 0;
 
@@ -7185,7 +7212,7 @@ function updatePriceBadgeCalculations(v) {
                     }
 
                     // Aplicar multiplicador según tipo de consumo
-                    const itemPax = item.pax || pax;
+                    const itemPax = item.pax || effectivePax;
                     const itemSessions = item.sessions || 1;
 
                     // Determinar si es por persona o por servicio
