@@ -282,8 +282,9 @@ async function descargarBonoPDF(codigoBono, mensajePersonalizado, itemsOverride 
                 const pax = parseInt(i.pax || 1);
 
                 let label = name;
-                if (sessions > 1) label += ` (${sessions} Sesiones)`;
-                if (pax > 1) label += ` x ${pax} Personas`;
+                const isRestaurant = name.toLowerCase().includes('menú') || name.toLowerCase().includes('restaurante');
+                if (sessions > 1) label += ` (${sessions} ${isRestaurant ? 'Personas' : 'Sesiones'})`;
+                else if (pax > 1) label += ` x ${pax} Personas`;
 
                 return label;
             });

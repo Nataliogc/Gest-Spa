@@ -1328,6 +1328,7 @@ async function cargarBonos() {
         // GUARDAR EN LOCAL Y ACTUALIZAR ESTADO
         snapshot.forEach((doc) => {
             const data = doc.data();
+            data.id = doc.id; // CRITICAL: Save document ID for repairs
             data.is_local = false; // Viene de Firestore
             persistentData[doc.id] = data;
         });
@@ -1421,9 +1422,13 @@ async function sincronizarConTienda(persistentData, btn, originalText) {
         }
 
         // PRIORITY 1: Try optimized endpoint (direct, fast, cached)
-        if (typeof fetchBonosDirect === 'function') {
+        // CHECK: Only try direct fetch if we are on the allowed origin (production)
+        // otherwise CORS will block it and show an ugly error in console.
+        const isProduction = window.location.origin === 'https://nataliogc.github.io';
+
+        if (isProduction && typeof fetchBonosDirect === 'function') {
             try {
-                console.log('[SYNC] Trying optimized endpoint (direct, no CORS proxy)...');
+                console.log('[SYNC] Trying optimized endpoint (direct)...');
                 const startTime = performance.now();
 
                 shopVouchers = await fetchBonosDirect({
@@ -1438,41 +1443,32 @@ async function sincronizarConTienda(persistentData, btn, originalText) {
             } catch (optError) {
                 console.warn('[SYNC] Optimized endpoint failed:', optError.message);
                 console.log('[SYNC] Falling back to CORS proxy system...');
-
-                // PRIORITY 2: Fall back to CORS proxy system
-                if (typeof fetchBonosWithFallback === 'function') {
-                    shopVouchers = await fetchBonosWithFallback(10000);
-                } else {
-                    // PRIORITY 3: Ultimate fallback - legacy method
-                    console.warn('[SYNC] No fallback functions available, using legacy method');
-                    const endpoint = getBonoEndpoint();
-                    const res = await fetch(endpoint);
-
-                    if (!res.ok) throw new Error(`HTTP Error: ${res.status}`);
-
-                    shopVouchers = await res.json();
-
-                    // Handle legacy wrapper if present
-                    if (shopVouchers.contents) {
-                        try {
-                            const inner = JSON.parse(shopVouchers.contents);
-                            if (Array.isArray(inner)) shopVouchers = inner;
-                        } catch (e) {
-                            console.warn("Error parsing contents wrapper:", e);
-                        }
-                    }
-                }
+                // Fallthrough to next block
             }
         } else {
-            // Optimized function not available, use fallback
-            console.warn('[SYNC] Optimized endpoint not available, using fallback');
+            console.log('[SYNC] Environment is local/dev, skipping direct fetch to avoid CORS errors.');
+        }
+
+        // Logic flow continuing to fallback...
+        if (!usedOptimized) {
+            // PRIORITY 2: Fall back to CORS proxy system
             if (typeof fetchBonosWithFallback === 'function') {
                 shopVouchers = await fetchBonosWithFallback(10000);
             } else {
+                // PRIORITY 3: Ultimate fallback - legacy method
+                console.warn('[SYNC] No fallback functions available, using legacy method');
                 const endpoint = getBonoEndpoint();
                 const res = await fetch(endpoint);
-                if (!res.ok) throw new Error(`HTTP Error: ${res.status}`);
                 shopVouchers = await res.json();
+            }
+        }
+
+        if (shopVouchers && shopVouchers.contents) {
+            try {
+                const inner = JSON.parse(shopVouchers.contents);
+                if (Array.isArray(inner)) shopVouchers = inner;
+            } catch (e) {
+                console.warn("Error parsing contents wrapper:", e);
             }
         }
 
@@ -1480,6 +1476,8 @@ async function sincronizarConTienda(persistentData, btn, originalText) {
             console.log("Received data:", shopVouchers);
             throw new Error("Formato de respuesta inválido (no es array). Recibido: " + JSON.stringify(shopVouchers).substring(0, 100));
         }
+
+
 
         const batch = db.batch();
         let ops = 0;
@@ -2305,7 +2303,8 @@ function normalizeVoucher(v) {
         const sessions = item.sessions ?? item.sesiones ?? item.total ?? 1;
         const pax = item.pax ?? (v.pax || v.pax_adultos || 1);
         const name = item.name || item.nombre || item.producto || '';
-        const space = (item.space || '').toLowerCase();
+        const rawSpace = Array.isArray(item.space) ? item.space[0] : item.space;
+        const space = (typeof rawSpace === 'string' ? rawSpace : '').toLowerCase();
 
         return {
             ...item,
@@ -2350,6 +2349,26 @@ function renderBonosFromState() {
     const filterStatus = document.getElementById("voucher-filter").value;
     const filterDate = document.getElementById("voucher-date").value;
     const filterPayment = document.getElementById("filter-payment-status")?.value || '';
+
+    // --- BOTÓN GLOBAL DE REPARACIÓN (Solo si hay basura en el estado) ---
+    const repairBtn = document.getElementById("repair-vouchers-btn");
+    if (repairBtn && state.bonos) {
+        const hasGarbage = state.bonos.some(b => {
+            const code = String(b.bono || b.codigo || '').trim();
+            // Caso 1: Código corrupto
+            if (code === '-' || code === '') return true;
+            // Caso 2: Duplicado real (existe el número y existe el Tarj-número)
+            const isNumeric = /^\d+$/.test(code);
+            if (isNumeric) {
+                const hasDuplicate = state.bonos.some(other => String(other.bono || other.codigo || '').trim() === `Tarj-${code}`);
+                return hasDuplicate;
+            }
+            return false;
+        });
+        repairBtn.style.display = hasGarbage ? "inline-flex" : "none";
+    }
+
+
 
     // --- INJECT CLEANUP BUTTON (Admin/PowerUser) ---
     // (Removed per user request)
@@ -2773,8 +2792,7 @@ async function openVoucherManagement(code) {
         discountInput.onchange = () => updatePriceBadgeCalculations(v);
     }
 
-    // Initial Badge Calc
-    updatePriceBadgeCalculations(v);
+
 
     // --- INYECCIÓN BOTÓN REFRESH ---
     const headerTitle = document.getElementById("vm-title-code").parentNode; // H2 container
@@ -3012,7 +3030,8 @@ async function openVoucherManagement(code) {
                 const used = item.used || 0;
                 const total = item.sessions || 1;
                 const isComplete = used >= total;
-                const spaceName = item.space || 'No asignado';
+                const rawSpace = Array.isArray(item.space) ? item.space[0] : item.space;
+                const spaceName = (typeof rawSpace === 'string' ? rawSpace : '') || 'No asignado';
                 const itemName = item.name || item.nombre || item.producto || v.producto || 'Servicio sin nombre';
 
                 // Fix object reference
@@ -3132,7 +3151,7 @@ async function openVoucherManagement(code) {
                                 <div style="display:flex; align-items:center; gap:2px;">
                                     <input type="number" value="${total}" onchange="updateVoucherItemSession(${idx}, this.value)" 
                                         style="width:35px; padding:2px; font-size:0.7rem; border:1px solid #cbd5e1; border-radius:4px; text-align:center;">
-                                    <span style="font-size:0.65rem; color:#64748b;">ses.</span>
+                                    <span style="font-size:0.65rem; color:#64748b;">${itemName.toLowerCase().includes('menú') || itemName.toLowerCase().includes('restaurante') ? 'pers.' : 'ses.'}</span>
                                 </div>
                                 <div style="display:flex; align-items:center; gap:2px;">
                                     <input type="number" value="${item.pax || 1}" onchange="updateVoucherItemPax(${idx}, this.value); this.parentElement.parentElement.parentElement.querySelector('button[onclick^=goToReservation]').setAttribute('onclick', \`goToReservation('\${encodeURIComponent('${v.cliente || ''}').replace(/'/g, "%27")}', '\${encodeURIComponent(state.editingVoucherItems[${idx}].name || '').replace(/'/g, "%27")}', '\${encodeURIComponent('${v.bono || v.codigo || ''}').replace(/'/g, "%27")}', '\${encodeURIComponent(state.editingVoucherItems[${idx}].space || '').replace(/'/g, "%27")}', \${this.value})\`);" 
@@ -3158,7 +3177,7 @@ async function openVoucherManagement(code) {
                         <div style="font-size:0.65rem; color:#64748b;">
                             <i class="fas fa-map-marker-alt" style="margin-right:2px;"></i>${spaceName}
                             <span style="margin-left:8px; font-weight:600; color:${isComplete ? '#16a34a' : '#334155'};">
-                                ${used}/${total} sesiones · 👥 ${item.pax || 1}
+                                ${used}/${total} ${itemName.toLowerCase().includes('menú') || itemName.toLowerCase().includes('restaurante') ? 'personas' : 'sesiones'} · 👥 ${item.pax || 1}
                             </span>
                         </div>
                     </div>
@@ -3378,117 +3397,7 @@ async function openVoucherManagement(code) {
 
     // Nueva función para recalcular precio visualmente al cambiar pax o sesiones
     window.updatePriceBadge = () => {
-        const prodName = document.getElementById("vm-producto").value;
-        const pax = parseInt(document.getElementById("vm-pax-sesion").value) || 1;
-        const totalSessions = parseInt(document.getElementById("vm-sesiones-total").value) || 1;
-
-        // Usar findCatalogProduct de forma robusta
-        const product = findCatalogProduct({
-            producto: prodName,
-            variation_id: v.variation_id,
-            product_id: v.product_id
-        });
-
-        const priceBadge = document.getElementById("vm-cat-price");
-        if (!priceBadge) return;
-
-        // Preservar precio original del bono de WooCommerce para comparación
-        const originalBonoPrice = parseFloat(v.importe) || parseFloat(v.precio) || 0;
-
-        let calculatedPrice = 0;
-
-        // NUEVA LÓGICA: Si hay items desglosados con extras, sumar precios individuales
-        const hasExtras = state.editingVoucherItems && state.editingVoucherItems.some(item => {
-            const itemNameLower = (item.name || '').toLowerCase();
-            const spaceName = (item.space || item.espacio || '').toLowerCase();
-            // Usar la MISMA detección que funciona para el badge "Extra"
-            return item.tipo === 'complemento' ||
-                (item.codigo && item.codigo.startsWith('ext.')) ||
-                spaceName === 'complemento' ||
-                itemNameLower.match(/(botella|cava|vino|ramo|flores|fruta|bombones|detalle)/i);
-        });
-
-        if (hasExtras && state.editingVoucherItems && state.editingVoucherItems.length > 0) {
-            // Calcular sumando items individuales
-            state.editingVoucherItems.forEach(item => {
-                let itemPrice = 0;
-
-                // PRIORIDAD 1: Usar precio directo del item
-                if (item.price || item.precio) {
-                    itemPrice = parseFloat(item.price || item.precio) || 0;
-                }
-                // PRIORIDAD 2: Buscar en catálogo
-                else if (product && item.name === product.nombre) {
-                    itemPrice = parseFloat(product.precio) || 0;
-                }
-
-                // Aplicar multiplicador según tipo de consumo
-                const itemPax = item.pax || pax;
-                const itemSessions = item.sessions || 1;
-                const isPerPerson = item.consumo_tipo === 'por_persona';
-
-                if (isPerPerson) {
-                    calculatedPrice += itemPrice * itemPax * itemSessions;
-                } else {
-                    calculatedPrice += itemPrice * itemSessions;
-                }
-            });
-        }
-        // LÓGICA ORIGINAL: Calcular desde producto del catálogo
-        else if (product) {
-            const basePrice = parseFloat(product.precio) || 0;
-            const basePax = parseInt(product.personas || product.pax || 1);
-            const baseSessions = parseInt(product.sesiones || 1);
-
-            const paxRatio = pax / basePax;
-
-            // FIX: Para packs con items_incluidos, las "sesiones" son los componentes del pack,
-            // no repeticiones del mismo servicio. No multiplicar el precio por sesiones en packs.
-            // AMPLIACIÓN: También detectar packs por editingVoucherItems (para bonos locales/rituales)
-            const hasCatalogItems = product.items_incluidos && product.items_incluidos.length > 1;
-            const hasVoucherItems = state.editingVoucherItems && state.editingVoucherItems.length > 1;
-            const isPack = hasCatalogItems || hasVoucherItems;
-            const sessionsRatio = isPack ? 1 : (totalSessions / baseSessions);
-            calculatedPrice = basePrice * paxRatio * sessionsRatio;
-        }
-
-        // PRIORIDAD: Si hay extras, mostrar precio calculado. Si no, mostrar precio pagado
-        if (hasExtras && calculatedPrice > 0) {
-            priceBadge.textContent = calculatedPrice.toFixed(2) + '€';
-            priceBadge.style.background = '#15803d'; // Verde
-            priceBadge.title = originalBonoPrice > 0 ? `Precio calculado (con extras). Original: ${originalBonoPrice}€` : "";
-        } else if (originalBonoPrice > 0) {
-            priceBadge.textContent = originalBonoPrice.toFixed(2) + '€';
-            // Si hay descuadre, añadir tooltip y cambiar color a naranja
-            if (calculatedPrice > 0 && Math.abs(originalBonoPrice - calculatedPrice) > 0.05) {
-                priceBadge.style.background = '#f59e0b'; // Advertencia
-                priceBadge.title = `Pagado: ${originalBonoPrice}€ / Catálogo: ${calculatedPrice.toFixed(2)}€`;
-            } else {
-                priceBadge.style.background = '#15803d'; // Verde
-                priceBadge.title = "";
-            }
-        } else if (calculatedPrice > 0) {
-            priceBadge.textContent = calculatedPrice.toFixed(2) + '€';
-            priceBadge.style.background = '#15803d';
-            priceBadge.title = "";
-        } else {
-            priceBadge.textContent = '0.00€';
-            priceBadge.style.background = '#64748b';
-            priceBadge.title = "";
-        }
-
-        // Fallback si no hay producto ni items
-        if (!product && calculatedPrice === 0) {
-            if (originalBonoPrice > 0) {
-                priceBadge.textContent = originalBonoPrice + '€';
-                priceBadge.style.background = '#15803d';
-                priceBadge.title = "";
-            } else {
-                priceBadge.textContent = '0.00€';
-                priceBadge.style.background = '#64748b';
-                priceBadge.title = "";
-            }
-        }
+        updatePriceBadgeCalculations(v);
     };
 
     // Función para sincronizar los PAX y Sesiones de los items internos con los campos globales
@@ -3780,27 +3689,7 @@ async function openVoucherManagement(code) {
     // Actualizar precio y breakdown visualmente al abrir
     window.updateBreakdownFromGlobalInputs();
 
-    // Show/hide Re-sync button
-    const resyncBtn = document.getElementById("vm-resync-btn");
-    if (resyncBtn) {
-        // Show button if manually updated OR if price is missing/zero
-        const isManuallyUpdated = v.manual_update === true;
-        const hasMissingPrice = !v.importe || parseFloat(v.importe) === 0;
-        const isWooCommerceVoucher = v.origen !== 'local';
-        const isLocalVoucher = (v.bono || '').startsWith('exc.Loc') || (v.bono || '').startsWith('LOC-');
 
-        // Only show for WooCommerce vouchers, NEVER for local vouchers
-        if (isWooCommerceVoucher && !isLocalVoucher && (isManuallyUpdated || hasMissingPrice)) {
-            resyncBtn.style.display = "block";
-            if (hasMissingPrice) {
-                resyncBtn.title = "Precio faltante - Click para sincronizar desde WooCommerce";
-                resyncBtn.style.borderColor = "#dc2626";
-                resyncBtn.style.color = "#dc2626";
-            }
-        } else {
-            resyncBtn.style.display = "none";
-        }
-    }
 }
 
 function closeVoucherModal() {
@@ -3900,56 +3789,15 @@ async function saveVoucherChanges() {
         // Get voucher from state to access variation_id and product_id
         const v = state.bonos.find(b => b.bono === code);
 
-        // RECALCULATE PRICE FOR SAVING - ONLY for local vouchers without a fixed WC price
-        // If voucher has a fixed importe/precio from WooCommerce, preserve it
-        const hasFixedWCPrice = v && (v.importe > 0 || v.precio > 0) && v.origen !== 'local';
-
-        if (!hasFixedWCPrice) {
-            // Only recalculate for local vouchers or those without a fixed price
-            const prodName = updates.producto;
-            const finalProduct = findCatalogProduct({
-                producto: prodName,
-                variation_id: v?.variation_id,
-                product_id: v?.product_id
-            });
-
-            if (finalProduct) {
-                const basePrice = parseFloat(finalProduct.precio) || 0;
-                const basePax = parseInt(finalProduct.personas || finalProduct.pax || 1);
-                const baseSessions = parseInt(finalProduct.sesiones || 1);
-
-                const paxRatio = updates.pax_por_sesion / basePax;
-
-                // FIX: Para packs/rituales con múltiples items, NO multiplicar por sessionsRatio
-                // porque el precio del pack ya incluye todos los componentes
-                const hasCatalogItems = finalProduct.items_incluidos && finalProduct.items_incluidos.length > 1;
-                const hasVoucherItems = updates.items_desglosados && updates.items_desglosados.length > 1;
-                const isPack = hasCatalogItems || hasVoucherItems;
-                const sessionsRatio = isPack ? 1 : (updates.sesiones_totales / baseSessions);
-
-                let calculatedPrice = basePrice * paxRatio * sessionsRatio;
-
-                // APPLY MANUAL DISCOUNT TO SAVED PRICE
-                const discountToApply = parseFloat(updates.discount_percent_max) || 0;
-                if (discountToApply > 0) {
-                    calculatedPrice = calculatedPrice * (1 - (discountToApply / 100));
-                }
-
-                updates.importe = calculatedPrice;
-                updates.precio = updates.importe; // Mantener consistencia precio/importe
-                console.log(`[SAVE] Precio recalculado (isPack: ${isPack}, dto ${discountToApply}%): ${updates.importe}€`);
-            }
-        } else {
-            // Preserve existing WooCommerce price
-            updates.importe = v.importe || v.precio;
-            updates.precio = updates.importe;
-            console.log(`[SAVE] Preservando precio de WooCommerce: ${updates.importe}€`);
-        }
+        // PRESERVE PRICE ON SAVE: 
+        // We no longer auto-recalculate on every save because it was causing pack prices to multiply incorrectly.
+        // If the user wants to update the price, they use the "Recalcular" button which is visible when out of sync.
+        updates.importe = v ? (v.importe || v.precio || 0) : 0;
+        updates.precio = updates.importe;
+        console.log(`[SAVE] Preservando precio actual: ${updates.importe}€`);
 
         // Auto estado logic (Item-aware)
         // Priority: If Global Counters say Completed (Used >= Total), force Completed.
-        // Otherwise, if items exist, rely on items state.
-
         const globalComplete = updates.sesiones_usadas >= updates.sesiones_totales && updates.sesiones_totales > 0;
         const globalPartial = updates.sesiones_usadas > 0;
 
@@ -3965,16 +3813,14 @@ async function saveVoucherChanges() {
             } else if (anyItemUsed) {
                 updates.estado = 'partially';
             } else {
-                updates.estado = 'pending';
+                updates.estado = (v && v.estado) ? v.estado : 'pending';
             }
         } else {
             // Simple/Legacy logic
-            if (globalComplete) {
-                updates.estado = 'completed'; // Redundant but clear
-            } else if (globalPartial) {
+            if (globalPartial) {
                 updates.estado = 'partially';
             } else {
-                updates.estado = 'pending';
+                updates.estado = (v && v.estado) ? v.estado : 'pending';
             }
         }
 
@@ -5028,14 +4874,24 @@ function addToCartLocal() {
         items = itemsIncluidos.map(it => {
             // Normalizar item del catálogo (puede ser string o objeto)
             const itemName = (typeof it === 'string') ? it : (it.name || it.producto || name);
-            const itemSessions = (typeof it === 'object' && it.sesiones) ? it.sesiones : 1;
             const itemSpace = (typeof it === 'object' && it.espacio) ? it.espacio : (getSpaceForService(itemName) || '');
+            const itemNameLower = itemName.toLowerCase();
+
+            // Detectar si es item de restaurante (siempre 1 sesión, pax = personas)
+            const isRestaurant = itemNameLower.includes('menú') ||
+                itemNameLower.includes('restaurante') ||
+                (typeof itemSpace === 'string' && itemSpace.toLowerCase() === 'rest');
+
+            // Para restaurante: siempre 1 sesión, pax = número de personas
+            // Para otros servicios: sesiones del catálogo, pax del formulario
+            const itemSessions = isRestaurant ? 1 : ((typeof it === 'object' && it.sesiones) ? it.sesiones : 1);
+            const itemPax = isRestaurant ? pax : pax; // En restaurante, pax indica comensales
 
             return {
                 name: itemName.trim(),
                 sessions: itemSessions,
                 space: itemSpace,
-                pax: pax,
+                pax: itemPax,
                 price: pricePerItem,
                 original_id: (typeof it === 'object') ? (it.wc_id || it.id) : null
             };
@@ -5116,7 +4972,16 @@ function renderLVCart() {
                 <div style="flex: 1; overflow: hidden;">
                     <div style="font-weight: 700; font-size: 0.85rem; color: #1e293b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${item.name}</div>
                     <div style="font-size: 0.75rem; color: #64748b;">
-                        ${item.sessions} ses. x ${itemPrice.toFixed(2)}€ = <strong style="color: var(--accent);">${subtotal.toFixed(2)}€</strong>
+                        ${(() => {
+                const isRestaurant = item.isExtra || (item.name || '').toLowerCase().includes('menú') || (item.name || '').toLowerCase().includes('restaurante');
+                if (isRestaurant) {
+                    // Restaurante: 1 sesión × N personas × precio
+                    return `1 ses. × ${item.pax || item.sessions} pers. × ${itemPrice.toFixed(2)}€ = <strong style=\"color: var(--accent);\">${subtotal.toFixed(2)}€</strong>`;
+                } else {
+                    // Servicios normales: N sesiones × precio
+                    return `${item.sessions} ses. × ${itemPrice.toFixed(2)}€ = <strong style=\"color: var(--accent);\">${subtotal.toFixed(2)}€</strong>`;
+                }
+            })()}
                     </div>
                 </div>
                 <button onclick="removeFromLVCart(${index})" style="background: #fef2f2; border: 1px solid #fee2e2; color: #ef4444; width: 28px; height: 28px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s;">
@@ -5159,8 +5024,12 @@ async function createLocalVoucher() {
         return showToast("El teléfono es obligatorio", "warning");
     }
 
-    const codeInput = document.getElementById("lv-code").value.trim();
-    // Generación de código mejorada: LOC + Año + Secuencial aleatorio (SIN ESPACIOS AL FINAL)
+    let codeInput = document.getElementById("lv-code").value.trim();
+    // Si el usuario puso un código manual (ej: 18067), le ponemos el prefijo Tarj- 
+    // si no tiene ya un prefijo conocido (Tarj-, LOC-, BONO-)
+    if (codeInput && !/^(Tarj|LOC|BONO)-/i.test(codeInput)) {
+        codeInput = `Tarj-${codeInput}`;
+    }
     const code = codeInput || `LOC-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
 
     // FIX: Para packs/rituales con items_breakdown > 1, el precio NO debe multiplicarse por sessions
@@ -6968,6 +6837,114 @@ window.deleteVoucher = async function (bonoCode) {
 };
 
 
+/**
+ * Recalcula un bono local basándose en el catálogo actual
+ * Útil para corregir precios incorrectos o desactualizados
+ */
+window.recalculateVoucherFromCatalog = async function () {
+    const code = document.getElementById("vm-code")?.value;
+    const productName = document.getElementById("vm-cat-name")?.textContent || document.getElementById("vm-producto")?.value;
+
+    if (!code) return;
+    if (!productName) return showToast("No se detectó el producto para recalcular", "warning");
+
+    try {
+        // 1. Buscar en el catálogo
+        const product = state.catalogProducts.find(p => p.nombre === productName);
+        if (!product) {
+            return showToast("Producto no encontrado en el catálogo para recálculo automático", "error");
+        }
+
+        // 2. Preparar nuevos datos respetando Pax y Sesiones actuales
+        const basePrice = parseFloat(product.precio) || 0;
+        const basePax = parseInt(product.personas || product.pax || 1);
+        const baseSessions = parseInt(product.sesiones || 1);
+
+        const currentPax = parseInt(document.getElementById("vm-pax-sesion")?.value) || 1;
+        const currentSessions = parseInt(document.getElementById("vm-sesiones-total")?.value) || 1;
+
+        // Detección de Pack/Ritual para no multiplicar por sesiones
+        const prodNameLower = (product.nombre || '').toLowerCase();
+        const hasCatalogItems = product.items_incluidos && product.items_incluidos.length > 1;
+        const isPackName = prodNameLower.includes('ritual') || prodNameLower.includes('pack') || prodNameLower.includes('fantasía') || prodNameLower.includes('sueño') || prodNameLower.includes('bono');
+        const isPack = hasCatalogItems || isPackName;
+
+        const sessionsRatio = isPack ? 1 : (currentSessions / baseSessions);
+        const newPrice = basePrice * (currentPax / basePax) * sessionsRatio;
+
+        if (!confirm(`¿Quieres actualizar el bono ${code} con los datos actuales del catálogo?\n\nProducto: ${product.nombre}\nNuevo Precio: ${newPrice.toFixed(2)}€ (${currentPax} pax, ${currentSessions} ses.)\nEsta acción sobrescribirá el precio y el desglose de servicios.`)) {
+            return;
+        }
+
+        showToast("Actualizando bono...", "info");
+
+        // Generar nuevo desglose de items
+        const itemsIncluidos = product.items_incluidos || [];
+        let newItems = [];
+
+        if (itemsIncluidos.length > 0) {
+            const pricePerItem = newPrice / itemsIncluidos.length;
+            newItems = itemsIncluidos.map(it => {
+                const itemName = (typeof it === 'string') ? it : (it.name || it.producto || product.nombre);
+                const itemSpace = (typeof it === 'object' && it.espacio) ? it.espacio : (getSpaceForService(itemName) || '');
+                const itemNameLower = itemName.toLowerCase();
+
+                // Aplicar lógica de restaurante corregida
+                const isRestaurant = itemNameLower.includes('menú') || itemNameLower.includes('restaurante') || (itemSpace === 'rest');
+                const sessions = isRestaurant ? 1 : ((typeof it === 'object' && it.sesiones) ? it.sesiones : 1);
+
+                return {
+                    itemId: 'it_' + Math.random().toString(36).substr(2, 9),
+                    name: itemName.trim(),
+                    sessions: sessions,
+                    space: itemSpace,
+                    pax: currentPax,
+                    price: pricePerItem,
+                    used: 0
+                };
+            });
+        } else {
+            newItems = [{
+                itemId: 'it_' + Math.random().toString(36).substr(2, 9),
+                name: product.nombre,
+                sessions: currentSessions,
+                space: product.espacio || getSpaceForService(product.nombre) || '',
+                pax: currentPax,
+                price: newPrice,
+                used: 0
+            }];
+        }
+
+        // 3. Actualizar Firestore
+        const docId = code;
+        const updateData = {
+            precio: newPrice,
+            importe: newPrice,
+            sesiones_totales: currentSessions,
+            items_desglosados: newItems,
+            recalculated_at: new Date().toISOString()
+        };
+
+        await db.collection("spa_vouchers").doc(docId).set(updateData, { merge: true });
+
+        // 4. Actualizar estado local
+        const idx = state.bonos.findIndex(b => (b.bono || b.codigo) === code);
+        if (idx !== -1) {
+            state.bonos[idx] = { ...state.bonos[idx], ...updateData };
+        }
+
+        showToast("✅ Bono recalculado y guardado correctamente", "success");
+
+        // 5. Refrescar UI del modal
+        closeVoucherModal();
+        setTimeout(() => openVoucherManagement(code), 300);
+
+    } catch (error) {
+        console.error("[RECALCULATE] Error:", error);
+        showToast("Error al recalcular: " + error.message, "error");
+    }
+};
+
 
 // ============================================
 // FORCE RE-SYNC FROM WOOCOMMERCE
@@ -7113,7 +7090,7 @@ function updatePriceBadgeCalculations(v) {
     if (!priceBadge) return;
 
     const catalogMatch = findCatalogProduct(v);
-    const bonoPrice = parseFloat(v.importe) || parseFloat(v.precio) || 0;
+    const bonoPrice = parseFloat(v.snapshot_price) || parseFloat(v.importe) || parseFloat(v.precio) || 0;
 
     if (catalogMatch) {
         // Detect sessions/pax from voucher first, fallback to catalog defaults
@@ -7127,9 +7104,11 @@ function updatePriceBadgeCalculations(v) {
         // FIX: Para packs con items_incluidos, las "sesiones" son los componentes del pack,
         // no repeticiones del mismo servicio. No multiplicar el precio por sesiones en packs.
         // AMPLIACIÓN: También detectar packs por editingVoucherItems (para bonos locales/rituales)
+        const prodNameLower = (v.producto || '').toLowerCase();
         const hasCatalogItems = catalogMatch.items_incluidos && catalogMatch.items_incluidos.length > 1;
         const hasVoucherItems = state.editingVoucherItems && state.editingVoucherItems.length > 1;
-        const isPack = hasCatalogItems || hasVoucherItems;
+        const isPackName = prodNameLower.includes('ritual') || prodNameLower.includes('pack') || prodNameLower.includes('fantasía') || prodNameLower.includes('sueño') || prodNameLower.includes('bono');
+        const isPack = hasCatalogItems || hasVoucherItems || isPackName;
         const sessionsRatio = isPack ? 1 : (sessions / baseSessions);
         let calculated = basePrice * (pax / basePax) * sessionsRatio;
 
@@ -7137,9 +7116,12 @@ function updatePriceBadgeCalculations(v) {
         if (state.editingVoucherItems && state.editingVoucherItems.length > 0) {
             // Verificar si hay extras (items NO incluidos en el pack base)
             const hasExtras = state.editingVoucherItems.some(item => {
-                const isExtra = item.tipo === 'complemento' ||
-                    (item.codigo && item.codigo.startsWith('ext.'));
-                return isExtra;
+                const itemNameLower = (item.name || '').toLowerCase();
+                const spaceName = (item.space || item.espacio || '').toLowerCase();
+                return item.tipo === 'complemento' ||
+                    (item.codigo && item.codigo.startsWith('ext.')) ||
+                    spaceName === 'complemento' ||
+                    itemNameLower.match(/(botella|cava|vino|ramo|flores|fruta|bombones|detalle)/i);
             });
 
             if (hasExtras) {
@@ -7231,4 +7213,173 @@ function updatePriceBadgeCalculations(v) {
         priceBadge.style.background = '#15803d';
         priceBadge.title = "";
     }
+
+    // --- VISIBILIDAD DE BOTONES DE RECTIFICACIÓN (Nueva lógica) ---
+    // Si el precio está en verde (#15803d), significa que coincide o es correcto -> OCULTAR BOTONES
+    const isGreen = priceBadge.style.background === 'rgb(21, 128, 61)' || priceBadge.style.background === '#15803d';
+    const isNumeric = /^\d+$/.test(String(v.bono || v.codigo || ''));
+    const isLocal = isNumeric || (v.bono && (String(v.bono).startsWith('LOC-') || String(v.bono).startsWith('exc.Loc'))) || v.origen === 'local';
+
+    const recalculateBtn = document.getElementById("vm-recalculate-btn");
+    const resyncBtn = document.getElementById("vm-resync-btn");
+
+    if (recalculateBtn) {
+        // "Recalcular" solo para ventas locales con discrepancias
+        recalculateBtn.style.display = (isLocal && !isGreen) ? "block" : "none";
+    }
+
+    if (resyncBtn) {
+        // "Re-sync WC" solo para ventas online (WooCommerce) con discrepancias
+        resyncBtn.style.display = (!isLocal && !isGreen) ? "block" : "none";
+    }
+
+    // --- BOTÓN GLOBAL DE REPARACIÓN (Solo si hay basura en el estado) ---
+    const repairBtn = document.getElementById("repair-vouchers-btn");
+    if (repairBtn && state.bonos) {
+        const hasGarbage = state.bonos.some(b => {
+            const code = String(b.bono || b.codigo || '');
+            return code === '-' || /^\d+$/.test(code);
+        });
+        repairBtn.style.display = hasGarbage ? "block" : "none";
+    }
 }
+
+/**
+ * REPARACIÓN Y NORMALIZACIÓN ATÓMICA
+ * Elimina duplicados, borra el bono '-', y normaliza numéricos a Tarj-
+ */
+window.repararBonosDuplicados = async function () {
+    // 1. Identificar candidatos ANTES del confirm para poder listarlos
+    const codes = state.bonos.map(b => String(b.bono || b.codigo || '').trim());
+    const toDeleteDocs = []; // { id, code, label }
+    const toMigrateDocs = []; // { bono, code }
+
+    for (const b of state.bonos) {
+        let code = String(b.bono || b.codigo || '').trim();
+        let docId = b.id || code;
+
+        // Caso A: Bono '-' o vacío (Corrupto)
+        if (code === '-' || !code || code.length === 0) {
+            toDeleteDocs.push({ id: docId, code: code, label: 'Corrupto/Vacío (-)' });
+            continue;
+        }
+
+        // Caso B: Numérico puro
+        if (/^\d+$/.test(code)) {
+            const prefixed = `Tarj-${code}`;
+            if (codes.includes(prefixed)) {
+                // Ya existe el normalizado, marcamos el numérico para borrar
+                toDeleteDocs.push({ id: docId, code: code, label: `Duplicado (ya existe Tarj-${code})` });
+            } else {
+                // Solo existe el numérico, hay que migrarlo
+                toMigrateDocs.push(b);
+            }
+        }
+    }
+
+    if (toDeleteDocs.length === 0 && toMigrateDocs.length === 0) {
+        return showToast("No se encontraron bonos para reparar", "info");
+    }
+
+    // Preparar mensaje detallado
+    let msg = "¡Atención! Se han detectado los siguientes ajustes:\n\n";
+
+    if (toDeleteDocs.length > 0) {
+        msg += "🗑️ BONOS A ELIMINAR (Duplicados o Basura):\n";
+        toDeleteDocs.forEach(d => msg += ` • ${d.code} -> ${d.label}\n`);
+        msg += "\n";
+    }
+
+    if (toMigrateDocs.length > 0) {
+        msg += "🔄 BONOS A NORMALIZAR (a formato Tarj-XXXX):\n";
+        toMigrateDocs.forEach(b => msg += ` • ${b.bono || b.codigo} -> Tarj-${b.bono || b.codigo}\n`);
+        msg += "\n";
+    }
+
+    msg += "¿Deseas proceder con la reparación automática?";
+
+    if (!confirm(msg)) return;
+
+    showToast("🕒 Iniciando reparación detallada...", "warning");
+
+    const deletedNames = [];
+    const migratedNames = [];
+
+    // Ejecutar eliminaciones
+    for (const target of toDeleteDocs) {
+        try {
+            await db.collection("spa_vouchers").doc(target.id).delete();
+            deletedCount++;
+            deletedNames.push(target.code);
+        } catch (e) {
+            console.error("[REPAIR] Error borrando", target.id, e);
+        }
+    }
+
+    // Ejecutar migraciones (Crear -> Mover Reservas -> Eliminar Antiguo)
+    const collections = [
+        'reservas_spa', 'reservas_suite', 'reservas_panacea',
+        'reservas_peluqueria', 'reservas_vip', 'reservas_restaurante',
+        'reservas_gimnasio', 'reservas_complementos', 'reservas_rest',
+        'reservas_menu', 'reservas', 'reservas_evento'
+    ];
+
+    for (const b of toMigrateDocs) {
+        try {
+            const oldCode = String(b.bono || b.codigo);
+            const docId = b.id || oldCode;
+            const newCode = `Tarj-${oldCode}`;
+
+            console.log(`[REPAIR] Migrando: ${oldCode} -> ${newCode} (ID: ${docId})`);
+
+            // 1. Clonar registro con el nuevo ID (usamos el código como ID para que sea canónico)
+            const newBonoData = {
+                ...b,
+                bono: newCode,
+                codigo: newCode,
+                migration_repair: true,
+                updated_at: new Date().toISOString()
+            };
+            if (newBonoData.id) delete newBonoData.id;
+
+            await db.collection("spa_vouchers").doc(newCode).set(newBonoData);
+
+            // 2. Mover Reservas en bloque
+            for (const col of collections) {
+                const snap = await db.collection(col).where("bono", "==", oldCode).get();
+                if (!snap.empty) {
+                    const batch = db.batch();
+                    snap.forEach(doc => batch.update(doc.ref, { bono: newCode }));
+                    await batch.commit();
+                }
+            }
+
+            // 3. ELIMINAR EL ANTIGUO INMEDIATAMENTE usando su ID REAL
+            await db.collection("spa_vouchers").doc(docId).delete();
+            migratedCount++;
+            migratedNames.push(`${oldCode} -> ${newCode}`);
+        } catch (e) {
+            console.error("[REPAIR] Error migrando", b.bono, e);
+        }
+    }
+
+    let finalMsg = "✅ OPERACIÓN COMPLETADA:\n\n";
+    if (deletedNames.length > 0) {
+        finalMsg += `🗑️ ELIMINADOS (${deletedNames.length}):\n${deletedNames.join(', ')}\n\n`;
+    }
+    if (migratedNames.length > 0) {
+        finalMsg += `🔄 NORMALIZADOS (${migratedNames.length}):\n${migratedNames.join('\n')}\n\n`;
+    }
+    finalMsg += "La página se recargará para mostrar los cambios.";
+
+    alert(finalMsg); // Feedback modal for user clarity
+
+    // Recargar estado
+    if (typeof cargarBonos === 'function') await cargarBonos();
+};
+
+
+
+
+
+
