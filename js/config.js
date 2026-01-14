@@ -816,6 +816,99 @@ async function deduplicateMasterItems() {
     }
 }
 
+/**
+ * CRITICAL CATALOG NORMALIZATION
+ * Enforces strict structure:
+ * 1. Code is primary key (ltXXX).
+ * 2. AllowedSpaces is ALWAYS an array of valid strings.
+ * 3. Removes "X espacios", "bono", etc.
+ */
+async function normalizeCatalogStruct() {
+    if (!confirm("⚠️ ATENCIÓN: Esta acción normalizará la estructura del catálogo completo.\n\n- Convertirá espacios a arrays strictos.\n- Eliminará valores basura ('3 espacios', 'bono').\n- Generará códigos ltXXX si faltan.\n\n¿Estás seguro?")) return;
+
+    try {
+        const snapshot = await db.collection("spa_item_master").get();
+        const batch = db.batch();
+        let updateCount = 0;
+
+        snapshot.forEach(doc => {
+            const data = doc.data();
+            const ref = doc.ref;
+            let needsUpdate = false;
+            let updates = {};
+
+            // 1. Ensure Code (ltXXX) if completely missing
+            if (!data.code || !data.code.startsWith('lt')) {
+                // Only generate if totally missing, keep existing "It..." if they have it from before
+                if (!data.code) {
+                    updates.code = "lt" + Math.floor(10000 + Math.random() * 90000);
+                    needsUpdate = true;
+                }
+            }
+
+            // 2. Normalize Spaces
+            let newSpaces = [];
+
+            // Prioritize existing array if valid
+            if (Array.isArray(data.allowedSpaces) && data.allowedSpaces.length > 0) {
+                newSpaces = data.allowedSpaces;
+            }
+            // Fallback to legacy string
+            else if (data.space) {
+                const s = data.space.toLowerCase().trim();
+                if (['spa', 'circuitospa'].includes(s)) newSpaces = ['spa'];
+                else if (['suite', 'suite_privada'].includes(s)) newSpaces = ['suite'];
+                else if (['vip', 'panacea'].includes(s)) newSpaces = ['vip', 'panacea'];
+                else if (s.includes('cabina')) newSpaces = ['cabina'];
+                else if (['gym', 'gimnasio', 'fitness'].includes(s)) newSpaces = ['gimnasio'];
+                else if (['hotel', 'restaurante', 'peluqueria'].includes(s)) newSpaces = [s];
+                // "3 espacios", "bono", "sin asignar" -> [] (Empty)
+            }
+
+            // Sanitization Check
+            const cleanSpaces = newSpaces.filter(s => {
+                const sv = String(s).toLowerCase();
+                return !sv.includes('espacios') && !sv.includes('bono') && sv !== 'sin asignar';
+            });
+
+            // Compare with current
+            const currentStr = JSON.stringify(data.allowedSpaces || []);
+            const newStr = JSON.stringify(cleanSpaces);
+
+            if (currentStr !== newStr) {
+                updates.allowedSpaces = cleanSpaces;
+                needsUpdate = true;
+            }
+
+            // 3. Clear Legacy Junk
+            if (data.space && (data.space.includes('espacios') || data.space === 'bono')) {
+                updates.space = ""; // Clear confusing legacy field
+                needsUpdate = true;
+            }
+
+            if (needsUpdate) {
+                updates.updated_at = new Date().toISOString();
+                updates.normalization_version = 1;
+                batch.update(ref, updates);
+                updateCount++;
+            }
+        });
+
+        if (updateCount > 0) {
+            await batch.commit();
+            alert(`✅ Normalización completada.\n\nSe han actualizado ${updateCount} items con el formato estricto.`);
+        } else {
+            alert("El catálogo ya está normalizado.");
+        }
+
+        cargarMasterItems();
+
+    } catch (err) {
+        console.error(err);
+        alert("Error durante la normalización: " + err.message);
+    }
+}
+
 async function deleteMasterItem(id) {
     if (!confirm("¿Eliminar este item maestro?")) return;
     try {

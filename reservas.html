@@ -1000,51 +1000,143 @@
 
     <!-- STUB TEMPORAL: Sistema de Personal -->
     <script>
-        // Función temporal que siempre retorna alta disponibilidad de personal
-        // TODO: Implementar sistema completo de gestión de personal
-        window.getDailyStaffAvailability = function (moduleType, date) {
-            console.log('[STUB] getDailyStaffAvailability called for:', moduleType, date);
+        // GLOBAL STATE FOR STAFF & RESERVATIONS
+        window.allStaff = [];
+        window.dailyGlobalReservations = []; // Cache for collision detection
 
-            const availability = {};
+        // Load Staff from Firestore
+        window.loadStaff = async function () {
+            try {
+                const snapshot = await db.collection('spa_staff').where('activo', '==', true).get();
+                window.allStaff = [];
+                snapshot.forEach(doc => {
+                    window.allStaff.push({ id: doc.id, ...doc.data() });
+                });
+                console.log(`[STAFF] Loaded ${window.allStaff.length} active staff members.`);
+            } catch (err) {
+                console.error("Error loading staff:", err);
+            }
+        };
 
-            // Valid Slots Logic
-            let validSlots = [];
-            const daysMap = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-            const dateObj = new Date(date);
-            const dayName = daysMap[dateObj.getDay()];
+        // Load Global Reservations for the Day (For collision check)
+        window.loadGlobalReservations = async function (date) {
+            window.dailyGlobalReservations = [];
+            const collections = [
+                'reservas_cabina1', 'reservas_cabina2', 'reservas_cabina3',
+                'reservas_suite', 'reservas_vip', 'reservas_panacea',
+                'reservas_peluqueria'
+            ];
+            // Note: We skip 'reservas_spa' as it usually doesn't assign specific staff or has pool logic
 
-            // Use global schedule if available
-            if (window.SPA_SCHEDULES && window.SPA_SCHEDULES[dayName]) {
-                validSlots = window.SPA_SCHEDULES[dayName];
-            } else {
-                // Fallback: Generar slots de 15 minutos de 10:00 a 21:45
-                for (let h = 10; h <= 21; h++) {
-                    for (let m of [0, 15, 30, 45]) {
-                        if (h === 21 && m > 45) continue;
-                        validSlots.push(`${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`);
-                    }
-                }
+            const promises = collections.map(col =>
+                db.collection(col).where('fecha', '==', date).get()
+                    .then(snap => {
+                        snap.forEach(doc => {
+                            const d = doc.data();
+                            if (d.staff_id && d.estado !== 'cancelada' && d.status !== 'cancelled') {
+                                window.dailyGlobalReservations.push({
+                                    id: doc.id,
+                                    staff_id: d.staff_id,
+                                    hora: d.hora,
+                                    duracion: parseInt(d.duracion || 60),
+                                    sala: col // For debugging
+                                });
+                            }
+                        });
+                    })
+                    .catch(e => console.warn(`Error loading global res for ${col}:`, e))
+            );
+
+            await Promise.all(promises);
+            console.log(`[STAFF] Loaded ${window.dailyGlobalReservations.length} global reservations for conflict check.`);
+        };
+
+
+        // CORE: Get Available Staff
+        window.getAvailableStaffForRoom = async function (roomCode, date, time, duration, excludeResId = null) {
+            console.log(`[STAFF] Checking availability for Room: ${roomCode}, Date: ${date}, Time: ${time}`);
+
+            // 1. Validate Inputs
+            if (!date || !time) return [];
+
+            // 2. Ensure Data is Loaded
+            if (window.allStaff.length === 0) await window.loadStaff();
+
+            // We reload global reservations if the cache date doesn't match
+            // (Basic check, effectively we should trigger this on date change)
+            if (!window.lastLoadedDate || window.lastLoadedDate !== date) {
+                await window.loadGlobalReservations(date);
+                window.lastLoadedDate = date;
             }
 
-            // Populate availability
-            validSlots.forEach(time => {
-                availability[time] = 10; // Mock high availability
+            const reqStart = timeToMinutes(time);
+            const reqEnd = reqStart + parseInt(duration || 60);
+
+            // 3. Filter
+            const available = window.allStaff.filter(s => {
+                // A. Room Check (Strict)
+                // Normalize roomCode (cabina1 -> cabina might be needed if staff stores generic 'cabina')
+                // User requirement: "terapeuta.salas.includes(salaActual)"
+                // Typically 'cabina1', 'cabina2' share 'cabina' skill? 
+                // Let's assume strict match first, or safe fallback mapping.
+
+                const sSalas = (s.salas || []).map(x => x.toLowerCase());
+                const cleanRoom = roomCode.toLowerCase();
+                const genericRoom = cleanRoom.startsWith('cabina') ? 'cabina' : cleanRoom;
+
+                const worksInRoom = sSalas.includes(cleanRoom) || sSalas.includes(genericRoom);
+                if (!worksInRoom) return false;
+
+                // B. Schedule Check (Dias y Horas)
+                if (!s.horario) return false; // No schedule = no work
+                const dayName = getDayNameKey(date);
+                const dayShifts = s.horario[dayName]; // Array of strings "10:00-14:00"
+
+                if (!dayShifts || !Array.isArray(dayShifts) || dayShifts.length === 0) return false;
+
+                // Check if requested time fits IN ANY shift
+                const isWithinShift = dayShifts.some(shift => {
+                    const [startStr, endStr] = shift.split('-');
+                    if (!startStr || !endStr) return false;
+                    const shiftStart = timeToMinutes(startStr);
+                    const shiftEnd = timeToMinutes(endStr);
+                    return (reqStart >= shiftStart && reqEnd <= shiftEnd);
+                });
+
+                if (!isWithinShift) return false;
+
+                // C. Collision Check (Global)
+                const hasConflict = window.dailyGlobalReservations.some(res => {
+                    if (res.staff_id !== s.id) return false;
+                    if (excludeResId && res.id === excludeResId) return false; // Ignore self when editing
+
+                    const rStart = timeToMinutes(res.hora);
+                    const rEnd = rStart + res.duracion;
+
+                    // Overlap logic: (StartA < EndB) and (EndA > StartB)
+                    return (reqStart < rEnd && reqEnd > rStart);
+                });
+
+                if (hasConflict) return false;
+
+                return true;
             });
 
-            console.log(`[STUB] Returning availability for ${validSlots.length} slots`);
-            return Promise.resolve(availability);
+            return available;
         };
 
-        // Función para obtener terapeutas disponibles para una sala específica
-        window.getAvailableStaffForRoom = async function (roomCode, date, time, duration) {
-            console.log('[STUB] getAvailableStaffForRoom called:', { roomCode, date, time, duration });
-            // Retornar lista de terapeutas disponibles (stub)
-            return [
-                { id: 'staff1', name: 'Terapeuta 1' },
-                { id: 'staff2', name: 'Terapeuta 2' },
-                { id: 'staff3', name: 'Terapeuta 3' }
-            ];
-        };
+        // Helpers
+        function timeToMinutes(t) {
+            if (!t) return 0;
+            const [h, m] = t.split(':').map(Number);
+            return h * 60 + m;
+        }
+
+        function getDayNameKey(dateStr) {
+            const date = new Date(dateStr);
+            const days = ['D', 'L', 'M', 'X', 'J', 'V', 'S'];
+            return days[date.getDay()];
+        }
     </script>
 
     <!-- Dexie loaded by db-local.js -->
@@ -1549,25 +1641,41 @@
                 staffSel.innerHTML = html;
                 staffSel.disabled = false;
 
-                // If editing, try to re-select the original staff
+                // VALIDACIÓN CRÍTICA: Mantener selección solo si sigue siendo válida
                 if (formId) {
                     const res = currentData.find(r => r.id === formId);
+                    // Caso 1: Editando reserva existente -> Intentar mantener el staff original
                     if (res && res.staff_id) {
-                        const exists = staffList.find(s => s.id === res.staff_id);
-                        if (!exists) {
-                            const label = res.staff_name || "Terapeuta Asignado (Conflicto?)";
-                            staffSel.innerHTML += `<option value="${res.staff_id}" selected>${label}</option>`;
+                        const stillValid = staffList.find(s => s.id === res.staff_id);
+                        if (stillValid) {
+                            staffSel.value = res.staff_id;
+                        } else {
+                            // El terapeuta original YA NO es válido para la nueva hora/sala
+                            // Opción A: Deseleccionar (Forzar al usuario a elegir uno valido) -> MÁS SEGURO
+                            staffSel.value = "";
+                            // Opción B: Mostrarlo pero marcarlo como inválido (avisar visualmente)
+                            // Implementamos Opción A para cumplir la Regla 3 estricta.
+                            console.warn(`[STAFF] El terapeuta original (${res.staff_name}) no es válido para el nuevo horario.`);
                         }
-                        staffSel.value = res.staff_id;
                     }
+                } else {
+                    // Caso 2: Nueva reserva (o cambio de hora en nueva reserva)
+                    // Si ya había algo seleccionado manualmente, ver si sigue en la lista
+                    const previousSelection = staffSel.dataset.prevSelection;
+                    /* Nota: necesitaríamos guardar la selección previa antes de repoblar si queremos esto.
+                       Por seguridad/simplicidad en flujo estricto: al cambiar hora, se resetea staff.
+                       El usuario debe re-confirmar disponibilidad conscientemente. */
+                    staffSel.value = "";
                 }
 
             } catch (err) {
                 console.error("Error updating staff list:", err);
                 staffSel.innerHTML = '<option value="">Error: ' + err.message + '</option>';
-                alert("Error cargando staff: " + err.message);
             }
         }
+
+
+
 
         async function validateBonoBalance(bonoId, currentResId = null) {
             try {
@@ -1759,6 +1867,11 @@
 
             // Sync price and duration after populating
             updatePriceAutomation();
+
+            // Trigger therapist update (if time/date/service selected)
+            if (currentModule.requiresStaff) {
+                handleStaffFieldsChange();
+            }
         }
 
         async function registrarPagoParticular() {
@@ -3652,6 +3765,20 @@
                 btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Guardando...';
 
                 console.log("Iniciando proceso de guardado...");
+
+                // --- VALIDACIÓN ESTRICTA DE PERSONAL (Regla 3 y 4) ---
+                if (currentModule.requiresStaff && !isAgendaLess) {
+                    const staffId = document.getElementById("booking-staff")?.value;
+                    if (!staffId) {
+                        alert("⛔ DEBES SELECCIONAR UN TERAPEUTA VÁLIDO.\n\nEl sistema no permite guardar reservas 'sin asignar' en esta sala.");
+                        isSavingReservation = false;
+                        btn.disabled = false;
+                        btn.innerHTML = originalText;
+                        return;
+                    }
+                }
+                // -----------------------------------------------------
+
                 // FORCE FALLBACK: If DOM is empty, use global variable
                 let id = document.getElementById("form-id").value || window.currentEditingId;
                 let date = document.getElementById("form-date").value;

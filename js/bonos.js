@@ -2144,43 +2144,18 @@ function detectSessions(voucher) {
             }
         }
 
-        // --- LÓGICA DE RATIO POR PRECIO ---
+        // --- LÓGICA DE RATIO POR PRECIO (DESACTIVADA POR SEGURIDAD) ---
+        /* 
+        BLOQUEO DEFINITIVO DEL BUG:
+        Prohibido inferir sesiones extras basándose en el precio.
+        El precio es soberano y no debe alterar la estructura del servicio.
+        
         if (catalogMatch.precio > 0 && voucherPrice > 0) {
             const catalogPrice = parseFloat(catalogMatch.precio);
             const ratio = Math.round(voucherPrice / catalogPrice);
-
-            if (ratio > 1 && Math.abs((catalogPrice * ratio) - voucherPrice) < 2 && quantity === 0) {
-                // NUEVO: Detectar si es un pack especial de "Experiencia" o combinado
-                const isExperiencePack = lower.includes("experiencia") ||
-                    lower.includes("experience") ||
-                    (lower.includes("pack") && lower.includes("+"));
-
-                const isBono = lower.includes("bono") || lower.includes("sesion") || lower.includes("pack");
-
-                // Si es pack de experiencia, el ratio probablemente sea por PAX, no por sesiones
-                if (isExperiencePack && (ratio === 2 || ratio === 4)) {
-                    // No aplicar ratio a sesiones, es un pack especial
-                    // El precio alto es por ser un pack premium, no más sesiones
-                    console.log(`[DETECT] Pack especial detectado: ${lower}, ratio ${ratio} ignorado para sesiones`);
-                } else {
-                    // EXCEPCIÓN DE SEGURIDAD: "Sesión de XX" (sin bono/pack explícito) = 1 siempre
-                    const isExplicitSingle = lower.match(/sesi[oó]n\s+de\s+\d+/i);
-
-                    if (isExplicitSingle && !lower.includes("bono") && !lower.includes("pack") && !lower.includes("+")) {
-                        console.log(`[DETECT] 'Sesión de XX' detectado: ignorando ratio por precio (Total=1)`);
-                    } else if (isBono || ratio > 3) {
-                        total = (catalogMatch.sesiones || 1) * ratio;
-                    } else {
-                        // Fallback standard
-                        if (lower.includes("pareja") || lower.includes("duo")) {
-                            pax = 2;
-                        } else {
-                            total = (catalogMatch.sesiones || 1) * ratio;
-                        }
-                    }
-                }
-            }
-        }
+            // ... (Lógica peligrosa eliminada) ...
+        } 
+        */
 
         // Priorizar detección por texto si el catálogo dice 1 y el nombre es muy explícito
         if (total === 1 && detectedTotal > 1) {
@@ -2669,7 +2644,20 @@ function resolveVoucherBreakdown(voucher, catalog = state.catalogProducts, overr
             paxCount = detResult.paxPerSession;
         }
 
-        const itemsIncluidos = primaryMatch.items_incluidos || [];
+        let itemsIncluidos = primaryMatch.items_incluidos || [];
+
+        // ---------------------------------------------------------
+        // IMPROVED AD-HOC PACK DETECTION
+        // If catalog has 0 or 1 item, but the Name implies "A + B", trust the Name.
+        // ---------------------------------------------------------
+        const nameParts = (voucher.producto || "").split(/\s+\+\s+/).filter(s => s.trim().length > 2);
+        const isSessionPattern = /\d+\s*\+\s*\d+/.test(voucher.producto); // Avoid "5+1" being treated as 2 services
+
+        if (nameParts.length > 1 && itemsIncluidos.length <= 1 && !isSessionPattern) {
+            console.log('[RESOLVE] Override: Detectado pack compuesto por nombre:', nameParts);
+            itemsIncluidos = nameParts; // Override with split parts
+        }
+
         // Detección de pack: Más de un item o marcado como tal
         const isPack = itemsIncluidos.length > 1 || (primaryMatch.categoria === 'pack_pareja' || primaryMatch.categoria === 'pack_hosteleria');
 
@@ -2686,15 +2674,25 @@ function resolveVoucherBreakdown(voucher, catalog = state.catalogProducts, overr
                     if (!p.nombre) return false;
                     const pNameLower = p.nombre.toLowerCase().trim();
                     const iNameLower = (itemName || '').toLowerCase().trim();
-                    return pNameLower === iNameLower || pNameLower.includes(iNameLower);
+                    return pNameLower === iNameLower || pNameLower.includes(iNameLower) || iNameLower.includes(pNameLower);
                 });
 
-                const detectedSpace = getSpaceForService(itemName) || itemCatalog?.espacio || primaryMatch.espacio || '';
-                const detectedAllowed = itemCatalog?.allowedSpaces || (detectedSpace ? [detectedSpace] : []);
+                // Determine Space
+                let detectedSpace = '';
+                let detectedAllowed = [];
+
+                if (itemCatalog) {
+                    detectedSpace = itemCatalog.espacio || getSpaceForService(itemName) || '';
+                    detectedAllowed = itemCatalog.allowedSpaces || (detectedSpace ? [detectedSpace] : []);
+                } else {
+                    detectedSpace = getSpaceForService(itemName) || primaryMatch.espacio || '';
+                    detectedAllowed = (detectedSpace ? [detectedSpace] : []);
+                    // Primary match might restrict space, so be careful if sticking 'Masaje' into 'Spa' space
+                }
 
                 services.push({
                     itemId: 'srv_' + Math.random().toString(36).substr(2, 9),
-                    name: itemName.trim(),
+                    name: (itemName || "").trim(),
                     imagen: itemCatalog?.imagen || primaryMatch.imagen,
                     descripcion: itemCatalog?.descripcion || `Parte del pack: ${primaryMatch.nombre}`,
                     sessions: multiplier, // Cada item del pack se consume N veces
