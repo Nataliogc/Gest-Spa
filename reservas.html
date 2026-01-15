@@ -904,10 +904,17 @@
                         <div id="price-group" style="display: flex; flex-direction: column; gap: 2px;">
                             <span
                                 style="font-size: 0.65rem; font-weight: 700; color: #94a3b8; text-transform: uppercase;">Precio/PAX</span>
-                            <div style="display: flex; align-items: baseline; gap: 2px;">
+                            <div style="display: flex; align-items: baseline; gap: 4px;">
                                 <input type="number" id="res-precio-pax" step="0.01" value="0"
                                     style="width: 65px; background: transparent; border: none; font-size: 1.1rem; color: #fff; font-weight: 700; padding: 0;">
                                 <span style="color: #94a3b8; font-size: 0.9rem;">€</span>
+                                <button type="button" onclick="updatePriceAutomation()"
+                                    title="Recalcular según configuración"
+                                    style="background: none; border: none; color: var(--accent); cursor: pointer; padding: 2px; font-size: 0.75rem; transition: transform 0.2s;"
+                                    onmouseover="this.style.transform='rotate(180deg)'"
+                                    onmouseout="this.style.transform='rotate(0deg)'">
+                                    <i class="fas fa-sync-alt"></i>
+                                </button>
                             </div>
                         </div>
 
@@ -1839,7 +1846,7 @@
 
             // Determine Origin / Flow
             const origenVal = document.getElementById("res-origen")?.value || 'particular';
-            const isLocalFlow = (origenVal === 'particular' || origenVal === 'venta_local');
+            const isLocalFlow = (origenVal === 'particular' || origenVal === 'hotel_no_inc' || origenVal === 'venta_local');
 
             let servicesToShow = [];
 
@@ -2307,11 +2314,17 @@
             if (existingHelper) existingHelper.remove();
 
             if (!svcName) {
-                pricePaxInput.value = "0.00";
-                paxInput.disabled = false;
-                updateTotal();
-                if (staffGroup) staffGroup.style.display = "none";
-                return;
+                // EXCEPTION FOR SPA: Even if no service selected, if it's SPA and a payment origin, use dynamic price
+                if (currentModule.code === 'spa' && (origen === 'particular' || origen === 'hotel_no_inc')) {
+                    // Bypass exit and proceed to calculation logic below
+                    console.log("[DEBUG] updatePriceAutomation: No svcName but in SPA module. Calculating dynamic price...");
+                } else {
+                    pricePaxInput.value = "0.00";
+                    paxInput.disabled = false;
+                    updateTotal();
+                    if (staffGroup) staffGroup.style.display = "none";
+                    return;
+                }
             }
 
             // Reset fixed pricing view elements
@@ -2329,19 +2342,20 @@
                     const isWeekend = dayOfWeek === 0 || dayOfWeek === 5 || dayOfWeek === 6;
 
                     let dynamicPrice = 0;
+                    const roomPriceWeekday = (spaConfig.particularPriceWeekday || 25);
+                    const roomPriceWeekend = (spaConfig.particularPriceWeekend || 25);
+                    const hotelPriceWeekday = (spaConfig.hotelPriceWeekday || 12);
+                    const hotelPriceWeekend = (spaConfig.hotelPriceWeekend || 18);
 
                     if (origen === 'hotel_no_inc') {
-                        dynamicPrice = isWeekend
-                            ? (spaConfig.hotelPriceWeekend || 18)
-                            : (spaConfig.hotelPriceWeekday || 12);
-                    } else if (origen === 'particular') {
-                        dynamicPrice = isWeekend
-                            ? (spaConfig.particularPriceWeekend || 25)
-                            : (spaConfig.particularPriceWeekday || 25);
+                        dynamicPrice = isWeekend ? hotelPriceWeekend : hotelPriceWeekday;
+                    } else {
+                        // Particular
+                        dynamicPrice = isWeekend ? roomPriceWeekend : roomPriceWeekday;
                     }
 
                     pricePaxInput.value = parseFloat(dynamicPrice).toFixed(2);
-                    console.log(`[DYNAMIC PRICE SPA Fallback] Origin: ${origen}, Day: ${dayOfWeek}, Weekend: ${isWeekend}, Price: ${dynamicPrice}`);
+                    console.log(`[DYNAMIC PRICE SPA Fallback] Origin: ${origen}, Day: ${dayOfWeek} (Weekend: ${isWeekend}), Price: ${dynamicPrice}`);
                 } else {
                     pricePaxInput.value = "0.00";
                 }
@@ -2386,7 +2400,6 @@
                 if (origen === 'particular' || origen === 'hotel_no_inc') {
                     // DYNAMIC PRICING for SPA module
                     // For SPA module, always use dynamic pricing for origins with payment
-                    const isCircuito = (serviceData.nombre || '').toLowerCase().includes('circuito');
 
                     if (currentModule.code === 'spa') {
                         // SPA Module: Use dynamic pricing for all services with payment
@@ -2396,20 +2409,20 @@
                         const isWeekend = dayOfWeek === 0 || dayOfWeek === 5 || dayOfWeek === 6;
 
                         let dynamicPrice = 0;
+                        const roomPriceWeekday = (spaConfig.particularPriceWeekday || 25);
+                        const roomPriceWeekend = (spaConfig.particularPriceWeekend || 25);
+                        const hotelPriceWeekday = (spaConfig.hotelPriceWeekday || 12);
+                        const hotelPriceWeekend = (spaConfig.hotelPriceWeekend || 18);
 
                         if (origen === 'hotel_no_inc') {
-                            dynamicPrice = isWeekend
-                                ? (spaConfig.hotelPriceWeekend || 18)
-                                : (spaConfig.hotelPriceWeekday || 12);
+                            dynamicPrice = isWeekend ? hotelPriceWeekend : hotelPriceWeekday;
                         } else {
                             // Particular
-                            dynamicPrice = isWeekend
-                                ? (spaConfig.particularPriceWeekend || 25)
-                                : (spaConfig.particularPriceWeekday || 25);
+                            dynamicPrice = isWeekend ? roomPriceWeekend : roomPriceWeekday;
                         }
 
                         pricePaxInput.value = parseFloat(dynamicPrice).toFixed(2);
-                        console.log(`[DYNAMIC PRICE SPA] Origin: ${origen}, Day: ${dayOfWeek}, Weekend: ${isWeekend}, Price: ${dynamicPrice}`);
+                        console.log(`[DYNAMIC PRICE SPA] Origin: ${origen}, Day: ${dayOfWeek} (Weekend: ${isWeekend}), Final Price: ${dynamicPrice} (Config: ${roomPriceWeekday}/${roomPriceWeekend})`);
                     } else {
                         // Other modules: use catalog price
                         pricePaxInput.value = parseFloat(serviceData.precio || 0).toFixed(2);
@@ -3765,6 +3778,13 @@
                 pricePaxGroup.style.display = (moduleType === 'suite') ? "none" : "block";
             }
 
+            // FORCE PRICE RE-CALCULATION (Fix for 0€ prices in SPA)
+            if (currentModule.code === 'spa' && (parseFloat(res.precio_pax) === 0 || !res.precio_pax)) {
+                console.log("[DEBUG] Edit mode: Price is 0 for SPA, forcing re-calculation...");
+                updatePriceAutomation();
+            }
+
+            updateTotal(); // Final total sync
             window.updatePaymentControlBlock();
             document.getElementById("booking-modal").style.display = "flex";
 
