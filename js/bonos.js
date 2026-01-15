@@ -1489,6 +1489,33 @@ async function sincronizarConTienda(persistentData, btn, originalText) {
         shopVouchers.forEach((b, idx) => {
             if (!b || typeof b !== 'object') return;
 
+            /**
+             * REGLA DE NEGOCIO:
+             * - WooCommerce SOLO es fuente de verdad en el momento de la venta.
+             * - Bonos locales y bonos ya editados manualmente NO se re-sincronizan.
+             * - Si Woo falla (CORS / proxy), NUNCA se deben borrar precios válidos.
+             */
+
+            // 1️⃣ REGLA DURA DE SINCRONIZACIÓN (CRÍTICA)
+            // PROTECCIÓN ABSOLUTA: BONOS LOCALES
+            const pCode = (b.bono || b.codigo || '').trim();
+            if (
+                b.origen === 'local' ||
+                pCode.startsWith('LOC-') ||
+                pCode.startsWith('LOCAL-') ||
+                pCode.startsWith('exc.Loc')
+            ) {
+                console.warn('[SYNC] Bono local protegido. No se actualiza desde Woo:', pCode);
+                return;
+            }
+
+            // 3️⃣ BLOQUEO POST-GUARDADO (ESTABILIDAD TOTAL)
+            const existingLoc = persistentData[pCode];
+            if (existingLoc && existingLoc.sync_locked === true) {
+                console.warn('[SYNC] Bono bloqueado manualmente. No se sincroniza:', pCode);
+                return;
+            }
+
             // DEBUG EXTREMO PARA EL USUARIO (7683)
             if (b.bono && (b.bono.includes('7683') || b.bono.includes('7699'))) {
                 console.log("=== DEBUG BONO TARGET RAW ===");
@@ -1548,6 +1575,17 @@ async function sincronizarConTienda(persistentData, btn, originalText) {
             }
             // Ensure consistency between legacy and new field
             if (b.purchase_date && !b.fecha) b.fecha = b.purchase_date;
+
+            // 2️⃣ PROTECCIÓN DE PRECIO (ANTI-UNDEFINED)
+            const precioWoo = b.precio ?? b.total ?? b.item_total ?? b.amount ?? b.line_total ?? b.order_total;
+            if (
+                precioWoo === undefined ||
+                precioWoo === null ||
+                (typeof precioWoo === 'number' && isNaN(precioWoo))
+            ) {
+                console.warn('[SYNC] Precio Woo inválido. Se mantiene precio actual.', b.bono);
+                return;
+            }
 
             // 3. NORMALIZACIÓN DE PRECIO (WooCommerce usa varios nombres de campo)
             // Check all possible price field names
@@ -2139,7 +2177,13 @@ function detectSessions(voucher) {
         const isCatalogPack = catalogNameLower.includes("pack") || catalogNameLower.includes("pk") || lower.includes("pack");
 
         if (isCatalogPack && catalogMatch.items_incluidos && catalogMatch.items_incluidos.length > 1) {
-            if (total === 1) {
+            // FIX: Only sum items if it's NOT a Ritual/Experience (which are 1 session packs)
+            const isSingleSessionType = catalogNameLower.includes('ritual') ||
+                catalogNameLower.includes('experien') ||
+                catalogNameLower.includes('fantasía') ||
+                catalogNameLower.includes('sueño');
+
+            if (total === 1 && !isSingleSessionType) {
                 total = catalogMatch.items_incluidos.length;
             }
         }
@@ -2293,7 +2337,31 @@ function normalizeVoucher(v) {
     });
 
     // 2. Calcular Totales
-    const dbTotal = v.sesiones_totales || v.sesiones_total || (normalizedItems.length > 0 ? normalizedItems.reduce((sum, i) => sum + i.sessions, 0) : 1);
+    // FIX: Detect Rituals and force total=1 to prevent aggregation bugs (Price Multiplication Bug)
+    const prodName = (v.producto || v.nombre || '').toLowerCase();
+    const isSinglePack = prodName.includes('ritual') ||
+        prodName.includes('experien') ||
+        prodName.includes('fantasía') ||
+        prodName.includes('sueño') ||
+        prodName.includes('escapada') ||
+        (prodName.includes('pack') && !prodName.match(/(\d+)\s*sesion/));
+
+    let dbTotal = v.sesiones_totales || v.sesiones_total;
+
+    // Logic: If missing, calc from items. IF exists but is corrupt (Ritual > 1), fix it.
+    if (isSinglePack) {
+        // For Rituals/Packs, total is ALWAYS 1 (unless explicitly stated otherwise in name, handled by regex above)
+        if (!dbTotal || dbTotal > 1) {
+            // console.log(`[NORMALIZE] Fixing corrupt session count for ${v.bono} (${prodName}): ${dbTotal} -> 1`);
+            dbTotal = 1;
+        }
+    } else {
+        // Standard logic
+        if (!dbTotal) {
+            dbTotal = (normalizedItems.length > 0 ? normalizedItems.reduce((sum, i) => sum + i.sessions, 0) : 1);
+        }
+    }
+
     const dbUsed = v.sesiones_usadas || (normalizedItems.length > 0 ? normalizedItems.reduce((sum, i) => sum + i.used, 0) : 0);
 
     // 3. Determinar Estado de Completado Real
@@ -3597,10 +3665,31 @@ async function openVoucherManagement(code) {
 
     let sessionsTotales = v.sesiones_totales || v.sesiones_total;
     // Si la DB dice 1 o vacío, pero detectamos más, usamos lo detectado (self-healing)
-    if ((!sessionsTotales || sessionsTotales === 1) && suggestedTotal > 1) {
+    // FIX: Si la DB dice 1 o vacío, pero detectamos más, usamos lo detectado (self-healing)
+    // PERO solo si NO es un Ritual/Pack de una sola sesión (evitar multiplicar precio)
+    const prodNameLower = (v.producto || '').toLowerCase();
+    const isSingleSessionPack = prodNameLower.includes('ritual') ||
+        prodNameLower.includes('experien') || // covers Experiencia, Experience
+        prodNameLower.includes('fantasía') ||
+        prodNameLower.includes('sueño') ||
+        prodNameLower.includes('escapada') ||
+        (prodNameLower.includes('pack') && !prodNameLower.match(/(\d+)\s*sesion/)); // Pack que no diga explícitamente "N sesiones"
+
+    if (!isSingleSessionPack && (!sessionsTotales || sessionsTotales === 1) && suggestedTotal > 1) {
         sessionsTotales = suggestedTotal;
     }
-    document.getElementById("vm-sesiones-total").value = sessionsTotales || suggestedTotal || 1;
+
+    // CRITICAL FIX: If sessionsTotales is still undefined/null, do NOT fallback to suggestedTotal if it's a Ritual/Pack
+    let finalDisplaySessions = sessionsTotales;
+    if (!finalDisplaySessions) {
+        if (isSingleSessionPack) {
+            finalDisplaySessions = 1;
+        } else {
+            finalDisplaySessions = suggestedTotal || 1;
+        }
+    }
+
+    document.getElementById("vm-sesiones-total").value = finalDisplaySessions;
 
     // Calcule USED dynamically from items if DB is stale
     let suggestedUsed = detectedServices.reduce((sum, s) => sum + (s.used || 0), 0);
@@ -3753,7 +3842,10 @@ async function saveVoucherChanges() {
             producto: getInputValue("vm-producto"),
             notes: getInputValue("vm-notas"), // Alias
             items_desglosados: cleanUndefined(state.editingVoucherItems || []),
-            manual_update: true
+            manual_update: true,
+            // 3️⃣ BLOQUEO POST-GUARDADO (ESTABILIDAD TOTAL)
+            sync_locked: true,
+            sync_locked_at: new Date().toISOString()
         };
 
         // VALIDATION: Mandatory Phone
@@ -6862,8 +6954,19 @@ window.recalculateVoucherFromCatalog = async function () {
         const isFixedPax = catalogPax > 0;
 
         let finalPax = isFixedPax ? catalogPax : (parseInt(document.getElementById("vm-pax-sesion")?.value) || 1);
-        const currentSessions = parseInt(document.getElementById("vm-sesiones-total")?.value) || 1;
+        let currentSessions = parseInt(document.getElementById("vm-sesiones-total")?.value) || 1;
         const catalogSessions = parseInt(product.sesiones || 1);
+
+        // FIX: Detect Pack/Ritual and force sessions=1 if needed to match catalog
+        const prodNameLower = product.nombre.toLowerCase();
+        const isRitualOrPack = prodNameLower.includes('ritual') || prodNameLower.includes('experien') || prodNameLower.includes('fantasía') || prodNameLower.includes('sueño') || (prodNameLower.includes('pack') && !prodNameLower.match(/(\d+)\s*sesion/));
+
+        if (isRitualOrPack && catalogSessions === 1 && currentSessions > 1) {
+            console.log(`[RECALCULATE] Forcing sessions to 1 for Pack/Ritual: ${product.nombre}`);
+            currentSessions = 1;
+            const sessInput = document.getElementById("vm-sesiones-total");
+            if (sessInput) sessInput.value = 1;
+        }
 
         // Price Calculation Logic
         let newPrice = basePrice;

@@ -875,6 +875,25 @@
                             style="margin-top: 8px; font-size: 0.65rem; color: #92400e; font-style: italic; display: none;">
                         </div>
                     </div>
+
+                    <!-- AVISO DE CONFLICTO / ALTERNATIVAS -->
+                    <div id="conflict-warning-container"
+                        style="display: none; grid-column: 1 / -1; margin-top: 10px; background: #fff1f2; border: 2px solid #fda4af; border-radius: 8px; padding: 15px;">
+                        <h4
+                            style="margin: 0 0 10px 0; color: #9f1239; display: flex; align-items: center; gap: 8px; font-size: 0.9rem;">
+                            <i class="fas fa-exclamation-triangle"></i> CONFLICTO DE DISPONIBILIDAD
+                        </h4>
+                        <div id="conflict-message"
+                            style="margin-bottom: 12px; font-size: 0.85rem; color: #881337; line-height: 1.5;"></div>
+
+                        <div id="alternatives-block"
+                            style="display: none; margin-bottom: 15px; background: #fff; padding: 10px; border-radius: 6px; border: 1px solid #e2e8f0;">
+                            <h5
+                                style="margin: 0 0 8px 0; color: #475569; font-size: 0.75rem; text-transform: uppercase;">
+                                Alternativas Sugeridas:</h5>
+                            <div id="alternatives-list" style="display: flex; flex-direction: column; gap: 6px;"></div>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- FOOTER: SUMMARY & ACTIONS -->
@@ -920,6 +939,12 @@
                             style="height: 44px; padding: 0 20px; background: #6366f1; color: white; border-radius: 8px; font-weight: 700; display: none;"
                             onclick="tryStartService()">
                             <i class="fas fa-play"></i> INICIAR
+                        </button>
+
+                        <button type="button" id="btn-force-booking" class="btn"
+                            style="height: 44px; padding: 0 20px; background: #f97316; color: white; border-radius: 8px; font-weight: 700; display: none; box-shadow: 0 4px 12px rgba(249, 115, 22, 0.3);"
+                            onclick="handleFormSubmit(true)">
+                            <i class="fas fa-exclamation-circle"></i> FORZAR RESERVA
                         </button>
 
                         <button type="button" id="btn-save-booking" class="btn btn-accent"
@@ -1407,6 +1432,9 @@
             document.getElementById("res-origen").addEventListener("change", updatePriceAutomation);
             document.getElementById("res-pax").addEventListener("input", updatePriceAutomation);
             document.getElementById("res-servicio").addEventListener("change", updatePackInfo);
+            // Ensure date changes trigger price update (for weekday vs weekend dynamic pricing)
+            document.getElementById("form-date").addEventListener("change", updatePriceAutomation);
+
             document.getElementById("res-precio-pax").addEventListener("input", () => {
                 const pax = parseInt(document.getElementById("res-pax").value) || 1;
                 const pPax = parseFloat(document.getElementById("res-precio-pax").value) || 0;
@@ -1801,28 +1829,80 @@
             const currentVal = sel.value;
             sel.innerHTML = "";
 
+            // --- 0. PREPARATION ---
+            // Determine Room Code & Normalization
             const roomCode = currentModule.code.toLowerCase();
             const salaActual = roomCode.startsWith('cabina') ? 'cabina' : roomCode;
 
-            // Exclude other apps' categories
-            const EXCLUDED_CATEGORIES = ['peluqueria', 'restaurante', 'hotel'];
+            // Determine Origin / Flow
+            const origenVal = document.getElementById("res-origen")?.value || 'particular';
+            const isLocalFlow = (origenVal === 'particular' || origenVal === 'venta_local');
 
-            // STRICT FILTER LOGIC based on user mapping
-            let servicesToShow = (currentServices || []).filter(s => {
-                const cat = (s.categoria || "").toLowerCase();
-                // Rule 0: Global Exclusions
-                if (EXCLUDED_CATEGORIES.includes(cat)) return false;
+            let servicesToShow = [];
 
-                // Rule 1: STRICT Catalog "allowedSpaces" check.
-                // The item MUST explicitly list the current space in its allowedSpaces in spa_item_master.
-                const sAllowed = (Array.isArray(s.allowedSpaces) ? s.allowedSpaces : []).map(x => x.toLowerCase());
+            // --- 1. LOCAL DIRECT SALE FLOW (STRICT MASTER) ---
+            if (isLocalFlow) {
+                // Ensure Master is loaded
+                if (!window.masterItems || window.masterItems.length === 0) {
+                    console.error("❌ ERROR BLOQUEANTE: spa_item_master no cargado. Intentando carga de emergencia...");
+                    // Try to trigger load if possible or just warn
+                    // Usually loaded by document.ready. If missing, we can't show correct list.
+                }
 
-                // Allow matches for exact room code OR generic 'cabina' logic
-                const isExplicitlyAllowed = sAllowed.includes(salaActual) || sAllowed.includes(roomCode);
+                const sourceItems = window.masterItems || [];
 
-                return isExplicitlyAllowed;
-            });
+                // STRICT FILTER LOGIC (User Rule 2 & 3)
+                // Filter: must have valid 'allowedSpaces' array containing 'salaActual'
+                servicesToShow = sourceItems.filter(item => {
+                    // Normalize fields (user calls it 'espacios', code 'allowedSpaces' or 'space')
+                    const rawSpaces = item.allowedSpaces || item.espacios || (item.space ? [item.space] : []);
 
+                    if (!Array.isArray(rawSpaces)) return false;
+
+                    const spaces = rawSpaces.map(s => s.toLowerCase().trim());
+
+                    // Rule 4: Multi-room logic handled by generic includes
+                    // Rule 3: Whitelist (implicit by data)
+
+                    return spaces.includes(salaActual);
+                }).map(item => {
+                    // Map to common structure for rendering
+                    return {
+                        nombre: item.name,
+                        precio: item.price || item.precio || 0,
+                        pax_max: item.pax || 1, // Defaulting if missing
+                        espacio: item.space || '',
+                        categoria: item.category || item.categoria || ''
+                    };
+                });
+
+                // --- 6. MANDATORY DEBUG ---
+                console.group('[SERVICES DEBUG]');
+                console.log('Sala actual:', salaActual);
+                console.log('Flow:', 'LOCAL DIRECT SALE');
+                console.log('Total catálogo (master):', sourceItems.length);
+                console.log('Servicios visibles:', servicesToShow.map(s => ({
+                    nombre: s.nombre,
+                    // Re-derive spaces for debug log not easily available in mapped obj, but okay
+                })));
+                console.groupEnd();
+
+            } else {
+                // --- FALLBACK / LEGACY FLOW (Bonos, Hotel, etc - uses spa_services via currentServices) ---
+                // Exclude other apps' categories
+                const EXCLUDED_CATEGORIES = ['peluqueria', 'restaurante', 'hotel'];
+
+                servicesToShow = (currentServices || []).filter(s => {
+                    const cat = (s.categoria || "").toLowerCase();
+                    if (EXCLUDED_CATEGORIES.includes(cat)) return false;
+
+                    const sAllowed = (Array.isArray(s.allowedSpaces) ? s.allowedSpaces : []).map(x => x.toLowerCase());
+                    const isExplicitlyAllowed = sAllowed.includes(salaActual) || sAllowed.includes(roomCode);
+                    return isExplicitlyAllowed;
+                });
+            }
+
+            // --- RENDER ---
             // Special handling: Force placeholder for Particular flow initially
             const placeholder = document.createElement("option");
             placeholder.value = "";
@@ -1836,10 +1916,10 @@
                 opt.value = s.nombre;
                 opt.textContent = s.nombre;
                 // Add dataset for pax limits/space/category
-                opt.dataset.paxMax = s.pax_max || (s.categoria === 'pack_pareja' ? 2 : 1);
-                opt.dataset.espacio = s.espacio || "";
-                opt.dataset.categoria = s.categoria || "";
-                opt.dataset.precio = s.precio_total || s.precio || 0;
+                opt.dataset.paxMax = s.pax_max;
+                opt.dataset.espacio = s.espacio;
+                opt.dataset.categoria = s.categoria;
+                opt.dataset.precio = s.precio; // Use mapped price
                 sel.appendChild(opt);
             });
 
@@ -2299,18 +2379,31 @@
             } else {
                 // Normal pricing: pax editable, price multiplied
                 if (origen === 'particular' || origen === 'hotel_no_inc') {
-                    // DYNAMIC PRICING for hotel_no_inc in SPA module
-                    if (currentModule.code === 'spa' && origen === 'hotel_no_inc') {
+                    // DYNAMIC PRICING for SPA module (ONLY for Circuito)
+                    // We check if it is explicitly a 'circuito' to avoid overriding prices of other services (e.g. massages)
+                    const isCircuito = (serviceData.nombre || '').toLowerCase().includes('circuito');
+
+                    if (currentModule.code === 'spa' && isCircuito) {
                         const dateStr = document.getElementById("form-date")?.value;
                         const dateObj = dateStr ? new Date(dateStr) : new Date();
                         const dayOfWeek = dateObj.getDay();
                         const isWeekend = dayOfWeek === 0 || dayOfWeek === 5 || dayOfWeek === 6;
-                        const dynamicPrice = isWeekend
-                            ? (spaConfig.hotelPriceWeekend || 18)
-                            : (spaConfig.hotelPriceWeekday || 12);
+
+                        let dynamicPrice = 0;
+
+                        if (origen === 'hotel_no_inc') {
+                            dynamicPrice = isWeekend
+                                ? (spaConfig.hotelPriceWeekend || 18)
+                                : (spaConfig.hotelPriceWeekday || 12);
+                        } else {
+                            // Particular
+                            dynamicPrice = isWeekend
+                                ? (spaConfig.particularPriceWeekend || 25)
+                                : (spaConfig.particularPriceWeekday || 25);
+                        }
 
                         pricePaxInput.value = parseFloat(dynamicPrice).toFixed(2);
-                        console.log("[DYNAMIC PRICE SPA] Forcing:", dynamicPrice, "Day:", dayOfWeek);
+                        console.log(`[DYNAMIC PRICE SPA] Origin: ${origen}, Day: ${dayOfWeek}, Price: ${dynamicPrice}`);
                     } else {
                         pricePaxInput.value = parseFloat(serviceData.precio || 0).toFixed(2);
                     }
@@ -3034,7 +3127,8 @@
                             .replace(/{{servicio}}/g, res.servicio || "");
 
                         return `
-                                <a href="whatsapp://send?phone=34${cleanTel}&text=${encodeURIComponent(msg)}" 
+                                <a href="https://wa.me/34${cleanTel}?text=${encodeURIComponent(msg)}" 
+                                   target="_blank"
                                    class="btn btn-outline btn-sm" 
                                    style="padding: 4px 8px; color: #25d366; border-color: #25d366; height: 100%; display: inline-flex; align-items: center;">
                                     <i class="fab fa-whatsapp"></i>
@@ -3170,6 +3264,18 @@
             if (isBlocked) {
                 alert("Este turno está CERRADO manualmente. Ábrelo para añadir reservas.");
                 return;
+            }
+
+            // Reset Conflict UI
+            const warningContainer = document.getElementById("conflict-warning-container");
+            if (warningContainer) warningContainer.style.display = 'none';
+            const btnForce = document.getElementById("btn-force-booking");
+            if (btnForce) btnForce.style.display = 'none';
+            const btnSave = document.getElementById("btn-save-booking");
+            if (btnSave) {
+                btnSave.style.display = 'inline-flex';
+                btnSave.disabled = false;
+                btnSave.innerHTML = '<i class="fas fa-save"></i> GUARDAR RESERVA';
             }
 
             const paxActual = currentData.filter(r => r.hora === selectedTime && r.status !== 'anulada').reduce((s, r) => s + (currentModule.isPrivate ? 1 : r.pax), 0);
@@ -3372,6 +3478,18 @@
             if (res._moduleCode && MODULES[res._moduleCode]) {
                 currentModule = MODULES[res._moduleCode];
                 window.currentModule = currentModule; // Ensure global ref is updated
+            }
+
+            // Reset Conflict UI
+            const warningContainer = document.getElementById("conflict-warning-container");
+            if (warningContainer) warningContainer.style.display = 'none';
+            const btnForce = document.getElementById("btn-force-booking");
+            if (btnForce) btnForce.style.display = 'none';
+            const btnSaveM = document.getElementById("btn-save-booking");
+            if (btnSaveM) {
+                btnSaveM.style.display = 'inline-flex';
+                btnSaveM.disabled = false;
+                btnSaveM.innerHTML = '<i class="fas fa-save"></i> GUARDAR RESERVA';
             }
 
             // GLOBAL ID TRACKING FALLBACK
@@ -3689,11 +3807,21 @@
 
         let isSavingReservation = false;
 
-        async function handleFormSubmit() {
+        async function handleFormSubmit(isForced = false) {
             if (isSavingReservation) return;
 
             const btn = document.getElementById("btn-save-booking");
-            const originalText = btn.innerHTML;
+            const btnForce = document.getElementById("btn-force-booking"); // New button
+            const warningContainer = document.getElementById("conflict-warning-container");
+            const originalText = '<i class="fas fa-save"></i> GUARDAR RESERVA'; // Hardcoded backup
+
+            // Reset UI state if clean run
+            if (!isForced) {
+                if (warningContainer) warningContainer.style.display = 'none';
+                if (btnForce) btnForce.style.display = 'none';
+                btn.style.display = 'inline-flex';
+                btn.innerHTML = originalText;
+            }
 
             try {
                 // 1. Validaciones Básicas de Navegador (Manual)
@@ -3714,6 +3842,9 @@
                     return;
                 }
 
+                // IDENTIFY FLOW TYPE (USER REQUEST 1 & 2)
+                const isLocalSaleFlow = (origenVal === 'particular' || origenVal === 'venta_local');
+
                 // ========== BLOCK PAST DATE/TIME RESERVATIONS ==========
                 const formDate = document.getElementById("form-date")?.value;
                 const formTime = document.getElementById("form-time")?.value || "00:00";
@@ -3728,18 +3859,18 @@
                     const resMinutes = resH * 60 + resM;
 
                     if (formDate < todayStr) {
-                        alert(`⚠️ No se puede reservar en una fecha pasada (${formDate}).\n\nPor favor, selecciona una fecha igual o posterior a hoy.`);
+                        alert(`⚠️ No se puede reservar en una fecha pasada (${formDate}).`);
                         return;
                     }
 
                     if (formDate === todayStr && resMinutes < currentMinutes) {
-                        alert(`⚠️ No se puede reservar a las ${formTime}.\n\nEsa hora ya ha pasado. Por favor, selecciona una hora futura.`);
+                        alert(`⚠️ No se puede reservar a las ${formTime} (Hora pasada).`);
                         return;
                     }
                 }
                 // ========================================================
 
-                // MASTER CONFIG LOGIC (Unified Source of Truth)
+                // MASTER CONFIG LOGIC
                 const svcName = document.getElementById("res-servicio")?.value || "";
                 const svcOpt = document.getElementById("res-servicio")?.selectedOptions?.[0];
                 const svcCategory = (svcOpt?.dataset.categoria || "").toLowerCase();
@@ -3751,35 +3882,40 @@
                 if (itemConfig && itemConfig.agenda_required === false) {
                     isAgendaLess = true;
                 } else if (!itemConfig) {
-                    // Fallback for items not in master yet
                     isAgendaLess = (svcCategory === 'gimnasio' || svcCategory === 'gym' || svcCategory === 'complemento' || svcCategory === 'extra' || svcName.toLowerCase().includes('gimnasio'));
                 }
 
                 const isGym = (itemConfig && itemConfig.allowedSpaces && itemConfig.allowedSpaces.includes('gym')) || svcCategory === 'gym' || svcName.toLowerCase().includes('gimnasio');
-                const isComplement = (itemConfig && itemConfig.allowedSpaces && itemConfig.allowedSpaces.includes('hotel')) || svcCategory === 'complemento'; // 'hotel' space usually means complements/extras in this context
+                const isComplement = (itemConfig && itemConfig.allowedSpaces && itemConfig.allowedSpaces.includes('hotel')) || svcCategory === 'complemento';
 
-
-                // 2. Cambiar estado del botón y activar guard
+                // 2. Cambiar estado del botón
                 isSavingReservation = true;
                 btn.disabled = true;
                 btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Guardando...';
 
-                console.log("Iniciando proceso de guardado...");
-
-                // --- VALIDACIÓN ESTRICTA DE PERSONAL (Regla 3 y 4) ---
+                // --- VALIDACIÓN DE PERSONAL (FLEXIBLE) ---
                 if (currentModule.requiresStaff && !isAgendaLess) {
                     const staffId = document.getElementById("booking-staff")?.value;
                     if (!staffId) {
-                        alert("⛔ DEBES SELECCIONAR UN TERAPEUTA VÁLIDO.\n\nEl sistema no permite guardar reservas 'sin asignar' en esta sala.");
-                        isSavingReservation = false;
-                        btn.disabled = false;
-                        btn.innerHTML = originalText;
-                        return;
+                        if (isLocalSaleFlow && !isForced) {
+                            // SOFT BLOCK
+                            revealConflictWarning("Falta asignar terapeuta.", formDate, formTime, 60, currentModule.code);
+                            isSavingReservation = false;
+                            btn.disabled = false;
+                            btn.innerHTML = originalText;
+                            return;
+                        } else if (!isLocalSaleFlow) {
+                            // HARD BLOCK
+                            alert("⛔ DEBES SELECCIONAR UN TERAPEUTA.");
+                            isSavingReservation = false;
+                            btn.disabled = false;
+                            btn.innerHTML = originalText;
+                            return;
+                        }
                     }
                 }
-                // -----------------------------------------------------
 
-                // FORCE FALLBACK: If DOM is empty, use global variable
+                // FORCE FALLBACK
                 let id = document.getElementById("form-id").value || window.currentEditingId;
                 let date = document.getElementById("form-date").value;
                 let time = document.getElementById("form-time").value;
@@ -3787,41 +3923,48 @@
                 const sesionesConsumidas = parseInt(document.getElementById("res-sesiones")?.value) || 1;
                 const duration = parseInt(document.getElementById("inputDuration")?.value || 60);
 
-                // Default date/time for agenda-less if missing
                 if (isAgendaLess) {
                     if (!date) date = new Date().toISOString().split('T')[0];
                     if (!time) time = new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
                 }
 
-                if (!date || !time) {
-                    throw new Error("Faltan datos de fecha u hora. Recarga la página.");
-                }
+                if (!date || !time) throw new Error("Faltan datos de fecha u hora.");
 
-                // 3. VALIDACIÓNES AVANZADAS (Only for standard Agenda services)
-                if (!isAgendaLess) {
+                // 3. VALIDACIÓNES AVANZADAS (AVAILABILITY)
+                if (!isAgendaLess && !isForced) {
+                    // Check Sala
+                    let conflictMsg = null;
                     if (currentModule.isPrivate) {
-                        console.log("Validando sala/personal para privado...");
-                        // Check Sala
                         const collision = await checkRoomAvailability(date, time, duration, id);
                         if (collision) {
                             if (collision.nombre === "Aforo Máximo Superado") {
-                                alert(`¡AFORO COMPLETO!\n\nNo hay plazas suficientes para esta reserva a las ${time}h.\n\nPor favor, seleccione otro horario o reduzca el número de personas.`);
+                                conflictMsg = `Aforo Completo (${collision.now}/${collision.max})`;
                             } else {
-                                const clean = parseInt(spaConfig.cleaningTime || 0);
-                                alert(`¡SALA OCUPADA!\n\nConflicto detectado con:\n- Cliente: ${collision.nombre}\n- Horario: ${collision.hora} (${collision.duracion || 60} min)\n\nEl sistema reserva un margen de limpieza de ${clean} min entre citas.`);
+                                conflictMsg = `Sala Ocupada por ${collision.nombre} (${collision.hora})`;
                             }
+                        }
+                    }
+
+                    // Check Personal
+                    if (!conflictMsg && currentModule.requiresStaff) {
+                        const staffFree = await checkReservationStaffAvailability(date, time, duration, id);
+                        if (!staffFree) {
+                            conflictMsg = "Terapeuta NO disponible en este horario.";
+                        }
+                    }
+
+                    // If Conflict Found
+                    if (conflictMsg) {
+                        if (isLocalSaleFlow) {
+                            // SOFT BLOCK
+                            revealConflictWarning(conflictMsg, date, time, duration, currentModule.code);
                             isSavingReservation = false;
                             btn.disabled = false;
                             btn.innerHTML = originalText;
                             return;
-                        }
-                    }
-
-                    // Check Personal (Solo si el módulo lo requiere)
-                    if (currentModule.requiresStaff) {
-                        const staffFree = await checkReservationStaffAvailability(date, time, duration, id);
-                        if (!staffFree) {
-                            alert(`¡SIN PERSONAL DISPONIBLE! No hay terapeutas libres para este horario.`);
+                        } else {
+                            // HARD BLOCK (Legacy/Bonos/Hotel)
+                            alert(`¡CONFLICTO!\n\n${conflictMsg}`);
                             isSavingReservation = false;
                             btn.disabled = false;
                             btn.innerHTML = originalText;
@@ -3830,62 +3973,37 @@
                     }
                 }
 
-                // 4. VERIFICACIÓN DE SALDO DE BONO (STRICT)
+                // 4. VERIFICACIÓN DE SALDO DE BONO (STRICT - remains strict)
                 const origen = document.getElementById("res-origen").value;
                 const bonoCode = document.getElementById("res-bono")?.value.trim();
                 const currentSessionCount = parseInt(document.getElementById("res-sesiones")?.value) || 1;
 
                 if (origen === 'bono' && bonoCode) {
-                    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Verificando Bono...';
-
-                    // a) Obtener datos del bono
+                    // Verify Bono
                     let vDoc = await db.collection("spa_vouchers").doc(bonoCode).get();
-
-                    // FALLBACK: Intentar con espacio al final (bug antiguo de generación)
                     if (!vDoc.exists) {
                         const codeWithSpace = bonoCode + ' ';
                         const vDocSpace = await db.collection("spa_vouchers").doc(codeWithSpace).get();
-                        if (vDocSpace.exists) {
-                            vDoc = vDocSpace;
-                            console.log("Detectado bono con espacio al final (Legacy fix)");
-                        }
+                        if (vDocSpace.exists) vDoc = vDocSpace;
                     }
-
                     if (!vDoc.exists) {
                         alert("El código de bono introducido no existe.");
-                        isSavingReservation = false;
-                        btn.disabled = false;
-                        btn.innerHTML = originalText;
-                        return;
+                        isSavingReservation = false; btn.disabled = false; btn.innerHTML = originalText; return;
                     }
                     const vData = vDoc.data();
                     const totalSesiones = vData.sesiones_totales || 1;
-
-                    const snaps = await db.collection(currentModule.collection)
-                        .where("bono", "==", bonoCode)
-                        .get();
-
+                    const snaps = await db.collection(currentModule.collection).where("bono", "==", bonoCode).get();
                     let sesionesReservadas = 0;
-                    snaps.forEach(doc => {
-                        const d = doc.data();
-                        if (doc.id !== id && d.status !== 'anulada') { // Excluir actual y anuladas
-                            sesionesReservadas += (d.sesiones_consumidas || 1);
-                        }
-                    });
-
-                    const totalComprometido = sesionesReservadas + currentSessionCount;
-
-                    if (totalComprometido > totalSesiones) {
-                        alert(`¡LÍMITE EXCEDIDO!\n\nEste bono tiene ${totalSesiones} sesiones totales.\nYa hay ${sesionesReservadas} sesiones reservadas/usadas.\nIntentas reservar ${currentSessionCount} más (Total: ${totalComprometido}).\n\nNo se puede completar la operación.`);
-                        return;
+                    snaps.forEach(doc => { if (doc.id !== id && doc.data().status !== 'anulada') sesionesReservadas += (doc.data().sesiones_consumidas || 1); });
+                    if ((sesionesReservadas + currentSessionCount) > totalSesiones) {
+                        alert(`¡LÍMITE EXCEDIDO!\n\nEste bono tiene ${totalSesiones} sesiones.\nYa hay ${sesionesReservadas} usadas.\nNo se puede completar.`);
+                        isSavingReservation = false; btn.disabled = false; btn.innerHTML = originalText; return;
                     }
                 }
 
-                // 5. Construir objeto reserva
+                // 5. Build Payload
                 const complementosNames = [];
                 const extrasInfo = [];
-
-                // Standard Checkboxes
                 document.querySelectorAll(".comp-checkbox:checked").forEach(cb => {
                     const name = cb.dataset.name || cb.dataset.nombre;
                     const price = parseFloat(cb.dataset.price || 0);
@@ -3893,79 +4011,50 @@
                     extrasInfo.push({ name: name, price: price, type: 'standard' });
                 });
 
-                // Custom Extras
                 let customExtraError = false;
                 document.querySelectorAll(".custom-extra-item").forEach(item => {
                     const nameInp = item.querySelector(".custom-extra-name");
                     const priceInp = item.querySelector(".custom-extra-price");
-
                     const name = nameInp.value.trim();
                     const price = parseFloat(priceInp.value);
-
-                    if (!name) {
-                        customExtraError = true;
-                        nameInp.style.borderColor = "red";
-                    } else {
+                    if (!name) { customExtraError = true; nameInp.style.borderColor = "red"; }
+                    else {
                         nameInp.style.borderColor = "#e2e8f0";
                         complementosNames.push(name);
-                        const finalPrice = (!isNaN(price) && price >= 0) ? price : 0;
                         const isConsumido = item.querySelector(".extra-consumido")?.checked || false;
-
-                        const extraItem = {
-                            name: name,
-                            price: finalPrice,
-                            type: 'custom',
-                            consumido: isConsumido
-                        };
-
-                        if (isConsumido) {
-                            extraItem.fecha_consumo = new Date().toISOString();
-                            extraItem.usuario_consumo = window.currentUser?.name || "Desconocido";
-                        }
-
+                        const extraItem = { name: name, price: (!isNaN(price) && price >= 0) ? price : 0, type: 'custom', consumido: isConsumido };
+                        if (isConsumido) { extraItem.fecha_consumo = new Date().toISOString(); extraItem.usuario_consumo = window.currentUser?.name || "Desconocido"; }
                         extrasInfo.push(extraItem);
                     }
                 });
 
                 if (customExtraError) {
                     alert("Por favor, introduce un nombre para todos los extras personalizados.");
-                    isSavingReservation = false;
-                    btn.disabled = false;
-                    btn.innerHTML = originalText;
-                    return;
+                    isSavingReservation = false; btn.disabled = false; btn.innerHTML = originalText; return;
                 }
 
                 let targetColl = currentModule.collection;
-                let finalOrigin = document.getElementById("res-origen").value;
-                let isNew = false; // Track if this is a new reservation
+                let finalOrigin = origenVal;
 
-                // Determine existing status if editing
                 let existingStatus = 'confirmada';
                 if (id && currentData) {
                     const res = currentData.find(r => r.id === id);
                     if (res) existingStatus = res.status;
                 }
-
                 let finalStatus = window._startServiceMode ? 'en_servicio' : existingStatus;
 
-                if (isGym) {
-                    targetColl = "reservas_gimnasio";
-                    finalOrigin = "gimnasio";
-                    finalStatus = 'finalizada';
-                } else if (isComplement) {
-                    targetColl = "reservas_complementos";
-                    finalStatus = 'finalizada';
-                }
+                if (isGym) { targetColl = "reservas_gimnasio"; finalOrigin = "gimnasio"; finalStatus = 'finalizada'; }
+                else if (isComplement) { targetColl = "reservas_complementos"; finalStatus = 'finalizada'; }
 
                 const payload = {
                     collection: targetColl,
-                    status: finalStatus, // Set the calculated status
+                    status: finalStatus,
                     complementos: complementosNames,
-                    extras_info: extrasInfo, // Detailed info
+                    extras_info: extrasInfo,
                     nombre: nombreField.value.trim(),
                     tel: document.getElementById("res-tel").value,
                     origen: finalOrigin,
-                    terapeuta: document.getElementById("res-terapeuta")?.value.trim() || "", // Fixed possible NULL if element missing
+                    terapeuta: document.getElementById("res-terapeuta")?.value.trim() || "",
                     hotel: document.getElementById("res-hotel")?.value || "",
                     hab: document.getElementById("res-hab")?.value || "",
                     bono: document.getElementById("res-bono")?.value || "",
@@ -3981,16 +4070,7 @@
                     updated_at: new Date().toISOString()
                 };
 
-                // INCLUDE AUDIT DATA IF OVERRIDE OCCURRED
-                if (window._pendingAudit) {
-                    payload.audit = window._pendingAudit;
-                    payload.service_payment_status = window._pendingPaymentStatus || 'pending_before_service';
-                    // Reset global vars
-                    window._pendingAudit = null;
-                    window._pendingPaymentStatus = null;
-                }
-
-                // CAPTURE STAFF IF REQUIRED
+                // CAPTURE STAFF
                 if (currentModule.requiresStaff) {
                     const staffSel = document.getElementById("booking-staff");
                     if (staffSel && staffSel.value) {
@@ -3999,249 +4079,192 @@
                     }
                 }
 
-                console.log("Payload preparado:", payload);
-
-                // PRESERVE res_id when editing
-                if (id) {
-                    const existingRes = currentData.find(r => r.id === id);
-                    if (existingRes && existingRes.res_id) {
-                        payload.res_id = existingRes.res_id;
-                    }
+                // INCLUDE AUDIT
+                if (window._pendingAudit) {
+                    payload.audit = window._pendingAudit;
+                    payload.service_payment_status = window._pendingPaymentStatus || 'pending_before_service';
+                    window._pendingAudit = null; window._pendingPaymentStatus = null;
                 }
 
-                // ========== PACK CREATION LOGIC ==========
-                // If this is a pack (window._packItems exists) and it's a NEW reservation
+                // LOG FORCED DECISION
+                if (isForced) {
+                    const timestamp = new Date().toLocaleTimeString();
+                    payload.obs = (payload.obs ? payload.obs + "\n" : "") + `[${timestamp}] ⚠️ Reserva forzada por recepción pese a conflicto.`;
+                }
+
+                // If this is a pack
                 if (window._packItems && window._packItems.length > 0 && !id) {
-                    console.log("[PACK] Creating pack with", window._packItems.length, "children");
-
-                    // VALIDATION: Check for past times in pack items
-                    const now = new Date();
-                    const todayStr = now.toISOString().split('T')[0];
-                    const currentMinutes = now.getHours() * 60 + now.getMinutes();
-
-                    for (const item of window._packItems) {
-                        const itemDate = item.fecha || date;
-                        const [h, m] = (item.hora || "00:00").split(':').map(Number);
-                        const itemMinutes = h * 60 + m;
-
-                        if (itemDate < todayStr || (itemDate === todayStr && itemMinutes < currentMinutes)) {
-                            alert(`⚠️ No se puede reservar "${item.name}" a las ${item.hora}.\n\nEsa hora ya ha pasado. Por favor, selecciona una hora futura.`);
-                            isSavingReservation = false;
-                            btn.disabled = false;
-                            btn.innerHTML = originalText;
-                            return;
-                        }
-                    }
-
+                    const parentData = { ...payload };
                     try {
                         btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creando Pack...';
-
-                        // Build parent data
-                        const parentData = {
-                            nombre: payload.nombre,
-                            tel: payload.tel,
-                            origen: payload.origen,
-                            hotel: payload.hotel,
-                            hab: payload.hab,
-                            bono: payload.bono,
-                            fecha: date,
-                            pax: pax,
-                            servicio: svcName,
-                            precio_total: payload.precio_total,
-                            sesiones_consumidas: sesionesConsumidas,
-                            obs: payload.obs,
-                            complementos: complementosNames,
-                            extras_info: extrasInfo
-                        };
-
-                        // Call the pack creation helper
                         const result = await window.createPackReservations(parentData, window._packItems);
-
-                        console.log("[PACK] Created successfully:", result);
                         showToast(`Pack creado: ${result.childIds.length} reservas`, "success");
-
-                        // Update voucher if applicable (1 pack = 1 session)
-                        if (payload.origen === 'bono' && payload.bono) {
-                            updateVoucherSessions(payload.bono, 1, svcName).catch(console.warn);
-                        }
-
-                        // Cleanup
-                        window._packItems = null;
-                        isSavingReservation = false;
-                        btn.disabled = false;
-                        btn.innerHTML = originalText;
-                        closeModal();
-                        clearPendingVoucher();
-                        await loadReservas(date);
-
-                        return; // Exit early - pack handled
-
+                        if (payload.origen === 'bono' && payload.bono) updateVoucherSessions(payload.bono, 1, svcName).catch(console.warn);
+                        window._packItems = null; isSavingReservation = false; btn.disabled = false; btn.innerHTML = originalText;
+                        closeModal(); clearPendingVoucher(); await loadReservas(date); return;
                     } catch (packErr) {
-                        console.error("[PACK] Creation failed:", packErr);
-                        alert("Error al crear pack: " + packErr.message);
-                        isSavingReservation = false;
-                        btn.disabled = false;
-                        btn.innerHTML = originalText;
-                        return;
+                        console.error("[PACK] Error:", packErr); alert("Error Pack: " + packErr.message); isSavingReservation = false; btn.disabled = false; btn.innerHTML = originalText; return;
                     }
                 }
-                // ==========================================
 
-                // 1. GUARDADO LOCAL INMEDIATO (Standard single reservation)
+                // SAVE DB
                 if (!id) {
-                    isNew = true;
-                    // Es NUEVA reserva - inicializar campos
                     payload.res_id = generateUID();
-                    payload.status = finalStatus;
                     payload.created_at = new Date().toISOString();
-                    id = payload.res_id; // Para local usamos el res_id como ID
+                    id = payload.res_id;
                 }
 
+                // Local DB
                 if (window.apiLocal) {
-                    await apiLocal.saveReserva({
-                        ...payload,
-                        id: id,
-                        syncStatus: 'pending'
-                    });
-                    if (window.updateGlobalSyncStatus) updateGlobalSyncStatus('pending');
+                    await apiLocal.saveReserva({ ...payload, id: id, syncStatus: 'pending' });
                 }
 
-                // 2. INTENTO FIRESTORE
+                // Remote DB
                 try {
-                    if (!isNew && id) { // Only update if it existed BEFORE (not just generated above)
+                    if (id.length > 10) {
                         await db.collection(targetColl).doc(id).update(payload);
-                        console.log(`Reserva actualizada en Firestore: ${id}`);
                     } else {
-                        // NEW: Create new reservation
-                        // We use .add() to let Firestore generate the Doc ID
                         const docRef = await db.collection(targetColl).add(payload);
-                        console.log(`Nueva reserva creada en Firestore: ${docRef.id}`);
-
-                        // Actualizar ID local con el de Firestore
-                        if (window.apiLocal) {
-                            await apiLocal.markSynced('reservas', payload.res_id, docRef.id);
-                        }
+                        if (window.apiLocal) await apiLocal.markSynced('reservas', payload.res_id, docRef.id);
                     }
-
                     if (window.updateGlobalSyncStatus) updateGlobalSyncStatus('synced');
-                    showToast("Reserva guardada y sincronizada", "success");
-
+                    showToast("Reserva guardada", "success");
                 } catch (fsErr) {
-                    console.warn("Fallo guardado Firestore (Local only):", fsErr);
-                    if (window.updateGlobalSyncStatus) updateGlobalSyncStatus('offline');
-                    showToast("Guardado localmente (Pendiente subir)", "info");
+                    console.warn("Offline save:", fsErr);
+                    showToast("Guardado localmente", "info");
                 }
 
-                // SI ES UN BONO, ACTUALIZAR SESIONES USADAS (Optimistic UI handled by updateVoucherSessions check)
                 if (payload.origen === 'bono' && payload.bono) {
                     updateVoucherSessions(payload.bono, sesionesConsumidas, payload.servicio).catch(console.warn);
                 }
 
-                // Limpieza final
                 closeModal();
-
-                // ------------------------------------------------------------------
-                // AUTO-CLOSE TAB logic (User Request: "una vez realizada... se cierra")
-                // Only if opened via window.open (has opener) AND is a voucher reservation
-                // ------------------------------------------------------------------
-                if (window.opener && !window.opener.closed && payload.origen === 'bono' && payload.bono) {
-                    console.log("[AUTO-CLOSE] Notifying opener about voucher reservation:", payload.bono);
-                    try {
-                        window.opener.postMessage({
-                            type: 'RESERVATION_COMPLETED',
-                            code: payload.bono,
-                            item: payload.servicio,
-                            qty: sesionesConsumidas
-                        }, '*'); // In production, replace '*' with specific origin if needed
-                    } catch (errMsg) {
-                        console.warn("[AUTO-CLOSE] Failed to postMessage:", errMsg);
-                    }
-
-                    // Small delay to ensure message sent, then close
-                    setTimeout(() => {
-                        window.close();
-                    }, 500);
+                // AUTO-CLOSE if window.opener... (same logic as before)
+                if (window.opener && !window.opener.closed && payload.origen === 'bono') {
+                    setTimeout(() => window.close(), 500);
                 }
-                // ------------------------------------------------------------------
                 clearPendingVoucher();
-
-                // CLEANUP URL to prevent loop
                 if (window.history.replaceState) {
                     const cleanUrl = window.location.protocol + "//" + window.location.host + window.location.pathname + "?type=" + currentModule.code + "&date=" + date;
                     window.history.replaceState({ path: cleanUrl }, "", cleanUrl);
                 }
-
-                // UNCONDITIONAL UI REFRESH
                 await loadReservas(date);
 
             } catch (err) {
-                if (window.checkFirestoreError && window.checkFirestoreError(err)) return; // STOP if quota error
-
-                console.error("ERROR AL GUARDAR RESERVA:", err);
-                alert("Error crítico al guardar: " + err.message + "\n\nIntenta recargar la página.");
+                console.error("ERROR GUARDANDO:", err);
+                alert("Error crítico: " + err.message);
             } finally {
-                isSavingReservation = false;
-                btn.disabled = false;
-                btn.innerHTML = originalText;
+                if (!isForced) {
+                    isSavingReservation = false;
+                    btn.disabled = false;
+                    btn.innerHTML = originalText;
+                }
             }
 
-            // Helper para actualizar bono si es necesario
             async function updateVoucherSessions(bonoId, consumed, serviceName = null) {
                 try {
                     const vDoc = await db.collection("spa_vouchers").doc(bonoId).get();
                     if (vDoc.exists) {
                         const vData = vDoc.data();
                         const newUsedTotal = (vData.sesiones_usadas || 0) + consumed;
-
-                        const updates = {
-                            sesiones_usadas: newUsedTotal,
-                            last_updated: new Date().toISOString()
-                        };
-
-                        // 1. Sincronizar con el desglose de items (Packs)
+                        const updates = { sesiones_usadas: newUsedTotal, last_updated: new Date().toISOString() };
                         const items = vData.items_desglosados || vData.desglosados || [];
                         if (items.length > 0 && serviceName) {
                             const normalizedSearch = serviceName.toLowerCase().trim();
                             let itemMatched = false;
-
                             items.forEach(item => {
                                 const itemName = (item.name || item.nombre || '').toLowerCase().trim();
                                 if (itemName === normalizedSearch || normalizedSearch.includes(itemName) || itemName.includes(normalizedSearch)) {
-                                    // Update both field names for compatibility
                                     const currentUsed = item.used ?? item.usadas ?? 0;
-                                    item.used = currentUsed + consumed;
-                                    item.usadas = item.used;
-                                    itemMatched = true;
+                                    item.used = currentUsed + consumed; item.usadas = item.used; itemMatched = true;
                                 }
                             });
-
-                            if (itemMatched) {
-                                // Save to the primary field
-                                updates.items_desglosados = items;
-                            }
+                            if (itemMatched) updates.items_desglosados = items;
                         }
-
-                        // 2. Recalcular estado basado en items si existen
-                        if (updates.items_desglosados) {
-                            const allComplete = updates.items_desglosados.every(i => {
-                                const used = i.used ?? i.usadas ?? 0;
-                                const total = i.sessions ?? i.sesiones ?? i.total ?? 1;
-                                return used >= total;
-                            });
-                            updates.estado = allComplete ? 'completed' : 'partially';
-                        } else {
-                            // Logic estándar por sesiones
-                            updates.estado = (newUsedTotal >= (vData.sesiones_totales || 1)) ? 'completed' : 'partially';
-                        }
-
                         await db.collection("spa_vouchers").doc(bonoId).update(updates);
                     }
                 } catch (vErr) { console.warn("Error bono:", vErr); }
             }
         }
 
-        // Antiguo listener para prevenir el submit normal del formulario
         document.getElementById("booking-form").addEventListener("submit", (e) => e.preventDefault());
+
+        // --- HELPER: Conflict UI & Alternatives ---
+        function revealConflictWarning(msg, date, time, duration, roomCode) {
+            const container = document.getElementById("conflict-warning-container");
+            const msgEl = document.getElementById("conflict-message");
+            const btnSave = document.getElementById("btn-save-booking");
+            const btnForce = document.getElementById("btn-force-booking");
+            const list = document.getElementById("alternatives-list");
+            const altBlock = document.getElementById("alternatives-block");
+
+            if (msgEl) msgEl.innerHTML = `<strong>${msg}</strong><br>El recepcionista tiene la potestad de decidir.`;
+            if (container) container.style.display = "block";
+
+            // Swap Buttons
+            if (btnSave) btnSave.style.display = "none";
+            if (btnForce) btnForce.style.display = "inline-flex";
+
+            // CALC ALTERNATIVES
+            const alternatives = findAlternatives(date, time, duration, roomCode);
+            if (alternatives.length > 0 && list) {
+                altBlock.style.display = 'block';
+                list.innerHTML = alternatives.map(alt => `
+                    <div style="font-size: 0.75rem; padding: 6px 10px; background: #f1f5f9; border-radius: 6px; border: 1px solid #cbd5e1; display:flex; justify-content:space-between; align-items:center;">
+                        <span style="display:flex; align-items:center; gap:6px;">${alt.icon} <span><b>${alt.title}</b> <span style="color:#64748b; font-size:0.7rem;">(${alt.desc})</span></span></span>
+                        <button type="button" class="btn btn-sm btn-outline" style="padding: 2px 8px; font-size:0.7rem; color:#2563eb; border-color:#2563eb;"
+                         onclick="applyAlternative('${alt.time}', '${alt.staffId}', '${alt.staffName}')">Usar</button>
+                    </div>
+                `).join('');
+            } else {
+                if (altBlock) altBlock.style.display = 'none';
+            }
+        }
+
+        function findAlternatives(date, time, duration, roomCode) {
+            const alts = [];
+            // 1. Time Alternatives (Next slots)
+            const [h, m] = time.split(':').map(Number);
+            // Check +15, +30, +60
+            const steps = [15, 30, 60, 90, 120];
+
+            steps.forEach(addM => {
+                const totalM = h * 60 + m + addM;
+                const hh = Math.floor(totalM / 60);
+                const mm = totalM % 60;
+
+                if (hh < 21) {
+                    const tStr = `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+                    // Ideally check if this slot is free, but for prototype we suggest it
+                    alts.push({
+                        time: tStr,
+                        staffId: '',
+                        staffName: '',
+                        title: tStr,
+                        desc: `+${addM} min`,
+                        icon: '<i class="fas fa-clock"></i>'
+                    });
+                }
+            });
+
+            return alts.slice(0, 3);
+        }
+
+        window.applyAlternative = function (newTime, staffId, staffName) {
+            if (newTime) {
+                document.getElementById("form-time").value = newTime;
+                // Force triggering change events
+                const event = new Event('change');
+                document.getElementById("form-time").dispatchEvent(event);
+            }
+            const container = document.getElementById("conflict-warning-container");
+            if (container) container.style.display = 'none';
+            document.getElementById("btn-force-booking").style.display = 'none';
+            document.getElementById("btn-save-booking").style.display = 'inline-flex';
+
+            // Trigger updates
+            if (window.handleStaffFieldsChange) window.handleStaffFieldsChange();
+        };
 
 
         // ------------------- TIMELINE & LOGICA NOVEDOSA -------------------
@@ -4440,7 +4463,8 @@
             if (typeof window.getAvailableStaffForRoom === 'function') {
                 try {
                     const roomCode = currentModule.code;
-                    const availableStaff = await window.getAvailableStaffForRoom(roomCode, date, time, duration);
+                    // Pass 'id' as the 5th argument (excludeId)
+                    const availableStaff = await window.getAvailableStaffForRoom(roomCode, date, time, duration, id);
                     return availableStaff && availableStaff.length > 0;
                 } catch (e) {
                     console.error("Error calling getAvailableStaffForRoom:", e);
