@@ -1,0 +1,791 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Auditoría de Configuración - Zenith Manager</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --accent: #d4af37;
+            --bg: #0f172a;
+            --card: #1e293b;
+            --text: #e2e8f0;
+            --muted: #64748b;
+            --success: #22c55e;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            text-align: center;
+            color: var(--accent);
+            font-size: 2rem;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: var(--muted);
+            margin-bottom: 30px;
+        }
+
+        .nav {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            justify-content: center;
+            margin-bottom: 30px;
+            padding: 15px;
+            background: var(--card);
+            border-radius: 12px;
+        }
+
+        .nav a {
+            padding: 8px 16px;
+            background: rgba(212, 175, 55, 0.1);
+            color: var(--accent);
+            text-decoration: none;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            transition: all 0.2s;
+        }
+
+        .nav a:hover {
+            background: var(--accent);
+            color: var(--bg);
+        }
+
+        section {
+            background: var(--card);
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 20px;
+            border-left: 4px solid var(--accent);
+        }
+
+        h2 {
+            color: var(--accent);
+            font-size: 1.3rem;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        h3 {
+            color: var(--text);
+            font-size: 1rem;
+            margin: 20px 0 10px;
+            padding-bottom: 5px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0;
+            font-size: 0.9rem;
+        }
+
+        th,
+        td {
+            padding: 10px 12px;
+            text-align: left;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        th {
+            background: rgba(212, 175, 55, 0.15);
+            color: var(--accent);
+            font-weight: 600;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+        }
+
+        tr:hover {
+            background: rgba(255, 255, 255, 0.03);
+        }
+
+        code {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'Consolas', monospace;
+            font-size: 0.85em;
+            color: #a5f3fc;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .badge-success {
+            background: rgba(34, 197, 94, 0.2);
+            color: var(--success);
+        }
+
+        .badge-warning {
+            background: rgba(245, 158, 11, 0.2);
+            color: var(--warning);
+        }
+
+        .badge-danger {
+            background: rgba(239, 68, 68, 0.2);
+            color: var(--danger);
+        }
+
+        .badge-info {
+            background: rgba(59, 130, 246, 0.2);
+            color: #3b82f6;
+        }
+
+        ul {
+            padding-left: 20px;
+            margin: 10px 0;
+        }
+
+        li {
+            margin: 5px 0;
+            color: var(--muted);
+        }
+
+        li strong {
+            color: var(--text);
+        }
+
+        .formula {
+            background: rgba(0, 0, 0, 0.4);
+            padding: 15px;
+            border-radius: 8px;
+            font-family: 'Consolas', monospace;
+            margin: 15px 0;
+            border-left: 3px solid var(--accent);
+        }
+
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        @media (max-width: 768px) {
+            .grid-2 {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .print-btn {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: var(--accent);
+            color: var(--bg);
+            border: none;
+            padding: 12px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            box-shadow: 0 4px 15px rgba(212, 175, 55, 0.3);
+        }
+
+        @media print {
+            body {
+                background: white;
+                color: black;
+            }
+
+            .nav,
+            .print-btn {
+                display: none;
+            }
+
+            section {
+                border: 1px solid #ccc;
+                break-inside: avoid;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1><i class="fas fa-clipboard-check"></i> Auditoría de Configuración</h1>
+        <p class="subtitle">Zenith Manager - 15/01/2026</p>
+
+        <nav class="nav">
+            <a href="#general"><i class="fas fa-cog"></i> General</a>
+            <a href="#servicios"><i class="fas fa-spa"></i> Servicios</a>
+            <a href="#origenes"><i class="fas fa-route"></i> Orígenes</a>
+            <a href="#planning"><i class="fas fa-calendar"></i> Planning</a>
+            <a href="#economico"><i class="fas fa-calculator"></i> Cálculo</a>
+            <a href="#pagos"><i class="fas fa-credit-card"></i> Pagos</a>
+            <a href="#vinculaciones"><i class="fas fa-link"></i> Vinculaciones</a>
+            <a href="#casuisticas"><i class="fas fa-list-check"></i> Casuísticas</a>
+        </nav>
+
+        <!-- SECCIÓN 1: GENERAL -->
+        <section id="general">
+            <h2><i class="fas fa-cog"></i> 1. Configuración General</h2>
+
+            <h3>1.1 Firebase / Base de Datos</h3>
+            <table>
+                <tr>
+                    <th>Parámetro</th>
+                    <th>Valor</th>
+                </tr>
+                <tr>
+                    <td>Proyecto</td>
+                    <td><code>gest-spa</code></td>
+                </tr>
+                <tr>
+                    <td>Auth Domain</td>
+                    <td><code>gest-spa.firebaseapp.com</code></td>
+                </tr>
+                <tr>
+                    <td>Storage Bucket</td>
+                    <td><code>gest-spa.appspot.com</code></td>
+                </tr>
+                <tr>
+                    <td>Modo Conexión</td>
+                    <td>Long Polling</td>
+                </tr>
+            </table>
+
+            <h3>1.2 Módulos Activados</h3>
+            <table>
+                <tr>
+                    <th>Módulo</th>
+                    <th>Código</th>
+                    <th>Colección</th>
+                    <th>Capacidad</th>
+                    <th>Staff</th>
+                </tr>
+                <tr>
+                    <td>Circuito Spa</td>
+                    <td><code>spa</code></td>
+                    <td><code>reservas_spa</code></td>
+                    <td>20 pax</td>
+                    <td><span class="badge badge-danger">No</span></td>
+                </tr>
+                <tr>
+                    <td>Suite Spa</td>
+                    <td><code>suite</code></td>
+                    <td><code>reservas_suite</code></td>
+                    <td>1</td>
+                    <td><span class="badge badge-danger">No</span></td>
+                </tr>
+                <tr>
+                    <td>Panacea</td>
+                    <td><code>panacea</code></td>
+                    <td><code>reservas_panacea</code></td>
+                    <td>1</td>
+                    <td><span class="badge badge-success">Sí</span></td>
+                </tr>
+                <tr>
+                    <td>Sala VIP</td>
+                    <td><code>vip</code></td>
+                    <td><code>reservas_vip</code></td>
+                    <td>1</td>
+                    <td><span class="badge badge-success">Sí</span></td>
+                </tr>
+                <tr>
+                    <td>Peluquería</td>
+                    <td><code>peluqueria</code></td>
+                    <td><code>reservas_peluqueria</code></td>
+                    <td>2</td>
+                    <td><span class="badge badge-success">Sí</span></td>
+                </tr>
+                <tr>
+                    <td>Cabina 1</td>
+                    <td><code>cabina1</code></td>
+                    <td><code>reservas_cabina1</code></td>
+                    <td>1</td>
+                    <td><span class="badge badge-success">Sí</span></td>
+                </tr>
+                <tr>
+                    <td>Cabina 2</td>
+                    <td><code>cabina2</code></td>
+                    <td><code>reservas_cabina2</code></td>
+                    <td>1</td>
+                    <td><span class="badge badge-success">Sí</span></td>
+                </tr>
+                <tr>
+                    <td>Cabina 3</td>
+                    <td><code>cabina3</code></td>
+                    <td><code>reservas_cabina3</code></td>
+                    <td>1</td>
+                    <td><span class="badge badge-success">Sí</span></td>
+                </tr>
+            </table>
+
+            <h3>1.3 Parámetros Globales</h3>
+            <table>
+                <tr>
+                    <th>Parámetro</th>
+                    <th>Valor Default</th>
+                    <th>Ubicación</th>
+                </tr>
+                <tr>
+                    <td>Capacidad SPA</td>
+                    <td>20 personas</td>
+                    <td><code>spa_config.settings.capacity</code></td>
+                </tr>
+                <tr>
+                    <td>Tiempo Limpieza</td>
+                    <td>30 minutos</td>
+                    <td><code>spa_config.settings.cleaningTime</code></td>
+                </tr>
+                <tr>
+                    <td>Días Cerrados</td>
+                    <td>Array</td>
+                    <td><code>spa_config.settings.closedDates</code></td>
+                </tr>
+            </table>
+        </section>
+
+        <!-- SECCIÓN 2: SERVICIOS -->
+        <section id="servicios">
+            <h2><i class="fas fa-spa"></i> 2. Configuración de Servicios</h2>
+
+            <h3>2.1 Catálogo de Servicios</h3>
+            <ul>
+                <li><strong>Fuente:</strong> Colección <code>spa_services</code></li>
+                <li><strong>Filtro:</strong> Solo <code>active === true</code></li>
+                <li><strong>Campos:</strong> nombre, precio, categoria, pax, duracion, items_incluidos</li>
+            </ul>
+
+            <h3>2.2 Precios Dinámicos (Módulo SPA)</h3>
+            <table>
+                <tr>
+                    <th>Origen</th>
+                    <th>Entre Semana (L-J)</th>
+                    <th>Fin de Semana (V-D)</th>
+                </tr>
+                <tr>
+                    <td><strong>Particular</strong></td>
+                    <td>25€/pax</td>
+                    <td>25€/pax</td>
+                </tr>
+                <tr>
+                    <td><strong>Hotel - NO Incluidos</strong></td>
+                    <td>12€/pax</td>
+                    <td>18€/pax</td>
+                </tr>
+                <tr>
+                    <td>Hotel - Incluido</td>
+                    <td colspan="2" style="text-align:center">0€ (cortesía)</td>
+                </tr>
+                <tr>
+                    <td>Bono Spa</td>
+                    <td colspan="2" style="text-align:center">0€ (prepagado)</td>
+                </tr>
+                <tr>
+                    <td>Smartbox/Wonderbox/Ego</td>
+                    <td colspan="2" style="text-align:center">0€ (prepagado)</td>
+                </tr>
+            </table>
+
+            <h3>2.3 Items Maestros</h3>
+            <table>
+                <tr>
+                    <th>Campo</th>
+                    <th>Descripción</th>
+                </tr>
+                <tr>
+                    <td><code>code</code></td>
+                    <td>Código único (ItXXX)</td>
+                </tr>
+                <tr>
+                    <td><code>name</code></td>
+                    <td>Nombre del item</td>
+                </tr>
+                <tr>
+                    <td><code>duration</code></td>
+                    <td>Duración en minutos</td>
+                </tr>
+                <tr>
+                    <td><code>allowedSpaces</code></td>
+                    <td>Array de espacios permitidos</td>
+                </tr>
+                <tr>
+                    <td><code>pax_max</code></td>
+                    <td>Máximo PAX permitido</td>
+                </tr>
+            </table>
+        </section>
+
+        <!-- SECCIÓN 3: ORÍGENES -->
+        <section id="origenes">
+            <h2><i class="fas fa-route"></i> 3. Orígenes y Canales</h2>
+
+            <h3>3.1 Orígenes Configurados</h3>
+            <table>
+                <tr>
+                    <th>Código</th>
+                    <th>Nombre</th>
+                    <th>Pago</th>
+                    <th>Campos Visibles</th>
+                </tr>
+                <tr>
+                    <td><code>particular</code></td>
+                    <td>Particular (Pago Directo)</td>
+                    <td><span class="badge badge-success">Sí</span></td>
+                    <td>Control de pago</td>
+                </tr>
+                <tr>
+                    <td><code>hotel_inc</code></td>
+                    <td>Hotel - Incluido</td>
+                    <td><span class="badge badge-danger">No</span></td>
+                    <td>Hotel, Habitación</td>
+                </tr>
+                <tr>
+                    <td><code>hotel_no_inc</code></td>
+                    <td>Hotel - NO Incluidos</td>
+                    <td><span class="badge badge-success">Sí</span></td>
+                    <td>Hotel, Hab, Pago</td>
+                </tr>
+                <tr>
+                    <td><code>bono</code></td>
+                    <td>Bono Spa (Interno)</td>
+                    <td><span class="badge badge-danger">No</span></td>
+                    <td>ID Bono, Sesiones</td>
+                </tr>
+                <tr>
+                    <td><code>smartbox</code></td>
+                    <td>Smartbox</td>
+                    <td><span class="badge badge-danger">No</span></td>
+                    <td>ID Bono</td>
+                </tr>
+                <tr>
+                    <td><code>wonderbox</code></td>
+                    <td>Wonderbox</td>
+                    <td><span class="badge badge-danger">No</span></td>
+                    <td>ID Bono</td>
+                </tr>
+                <tr>
+                    <td><code>ego</code></td>
+                    <td>Ego Experiencias</td>
+                    <td><span class="badge badge-danger">No</span></td>
+                    <td>ID Bono</td>
+                </tr>
+            </table>
+
+            <div class="grid-2">
+                <div>
+                    <h3>Orígenes CON Pago</h3>
+                    <ul>
+                        <li><code>particular</code>, <code>hotel_no_inc</code></li>
+                        <li>Muestran bloque "Control de Pago"</li>
+                        <li>Precio dinámico activo</li>
+                    </ul>
+                </div>
+                <div>
+                    <h3>Orígenes SIN Pago</h3>
+                    <ul>
+                        <li><code>hotel_inc</code>, <code>bono</code>, <code>smartbox</code>...</li>
+                        <li>Precio = 0.00€</li>
+                        <li>Campo precio deshabilitado</li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+
+        <!-- SECCIÓN 4: PLANNING -->
+        <section id="planning">
+            <h2><i class="fas fa-calendar"></i> 4. Configuración del Planning</h2>
+
+            <h3>4.1 Horarios por Día</h3>
+            <table>
+                <tr>
+                    <th>Día</th>
+                    <th>Slots</th>
+                </tr>
+                <tr>
+                    <td>Lunes - Sábado</td>
+                    <td>10:00, 11:00, 12:15, 13:30, 15:45, 16:45, 18:00, 19:00, 20:30</td>
+                </tr>
+                <tr>
+                    <td>Domingo</td>
+                    <td>10:00, 11:00, 12:15, 13:30</td>
+                </tr>
+            </table>
+
+            <h3>4.2 Reglas de Disponibilidad</h3>
+            <ul>
+                <li>Slots pasados se filtran automáticamente (fecha actual)</li>
+                <li>Reservas existentes se excluyen del cálculo</li>
+                <li>Se preserva el slot original al editar</li>
+                <li>Módulos Timeline: slots cada 15 min (10:00-22:00)</li>
+            </ul>
+
+            <h3>4.3 Días Cerrados</h3>
+            <ul>
+                <li>Formato: <code>{ date: "YYYY-MM-DD", reason: "Motivo" }</code></li>
+                <li>Verificación de reservas antes de cerrar</li>
+                <li>Bloquean todas las reservas del día</li>
+            </ul>
+        </section>
+
+        <!-- SECCIÓN 5: CÁLCULO ECONÓMICO -->
+        <section id="economico">
+            <h2><i class="fas fa-calculator"></i> 5. Cálculo Económico</h2>
+
+            <h3>5.1 Fórmula de Cálculo</h3>
+            <div class="formula">
+                Total = (PAX × Precio/PAX) + Σ Extras
+            </div>
+
+            <h3>5.2 Selección de Precio (Módulo SPA)</h3>
+            <table>
+                <tr>
+                    <th>Paso</th>
+                    <th>Acción</th>
+                </tr>
+                <tr>
+                    <td>1</td>
+                    <td>Si origen = <code>particular</code> o <code>hotel_no_inc</code> → Calcular día</td>
+                </tr>
+                <tr>
+                    <td>2</td>
+                    <td>Si V/S/D → Usar precio fin de semana</td>
+                </tr>
+                <tr>
+                    <td>3</td>
+                    <td>Si L/M/X/J → Usar precio entre semana</td>
+                </tr>
+                <tr>
+                    <td>4</td>
+                    <td>Si otro origen → Precio = 0€</td>
+                </tr>
+            </table>
+
+            <h3>5.3 Casos que Provocan Total = 0€</h3>
+            <table>
+                <tr>
+                    <th>Escenario</th>
+                    <th>Razón</th>
+                </tr>
+                <tr>
+                    <td>Origen sin pago</td>
+                    <td><code>hotel_inc</code>, <code>bono</code>, etc.</td>
+                </tr>
+                <tr>
+                    <td>Sin servicio seleccionado</td>
+                    <td><code>!svcName</code></td>
+                </tr>
+                <tr>
+                    <td>Servicio no en catálogo</td>
+                    <td><code>!serviceData</code> (módulo ≠ SPA)</td>
+                </tr>
+                <tr>
+                    <td>PAX = 0</td>
+                    <td>Cálculo <code>0 × precio</code></td>
+                </tr>
+            </table>
+        </section>
+
+        <!-- SECCIÓN 6: PAGOS -->
+        <section id="pagos">
+            <h2><i class="fas fa-credit-card"></i> 6. Control de Pagos</h2>
+
+            <h3>6.1 Estados de Pago</h3>
+            <table>
+                <tr>
+                    <th>Estado</th>
+                    <th>Código</th>
+                    <th>Color</th>
+                </tr>
+                <tr>
+                    <td><span class="badge badge-success">PAGADO</span></td>
+                    <td><code>pagado</code></td>
+                    <td>#22c55e</td>
+                </tr>
+                <tr>
+                    <td><span class="badge badge-warning">PARCIAL</span></td>
+                    <td><code>parcial</code></td>
+                    <td>#f59e0b</td>
+                </tr>
+                <tr>
+                    <td><span class="badge badge-danger">PENDIENTE</span></td>
+                    <td><code>pendiente</code></td>
+                    <td>#ef4444</td>
+                </tr>
+            </table>
+
+            <h3>6.2 Métodos de Pago</h3>
+            <ul>
+                <li>Efectivo</li>
+                <li>Tarjeta</li>
+                <li>Transferencia</li>
+                <li>Otro</li>
+            </ul>
+
+            <h3>6.3 Campos Generados</h3>
+            <table>
+                <tr>
+                    <th>Campo</th>
+                    <th>Fuente</th>
+                </tr>
+                <tr>
+                    <td><strong>Total</strong></td>
+                    <td><code>res-precio-total</code> (calculado)</td>
+                </tr>
+                <tr>
+                    <td><strong>Pagado</strong></td>
+                    <td><code>res.payment?.paid</code> o <code>res.paid_amount</code></td>
+                </tr>
+                <tr>
+                    <td><strong>Pendiente</strong></td>
+                    <td><code>Total - Pagado</code></td>
+                </tr>
+            </table>
+        </section>
+
+        <!-- SECCIÓN 7: VINCULACIONES -->
+        <section id="vinculaciones">
+            <h2><i class="fas fa-link"></i> 7. Vinculaciones entre Módulos</h2>
+
+            <h3>7.1 Datos Transferidos Automáticamente</h3>
+            <table>
+                <tr>
+                    <th>Origen → Destino</th>
+                    <th>Datos</th>
+                </tr>
+                <tr>
+                    <td>Bonos → Reservas</td>
+                    <td>cliente, telefono, bono_id, servicio, pax</td>
+                </tr>
+                <tr>
+                    <td>Dashboard → Reservas</td>
+                    <td>pendingVoucherBooking (sessionStorage)</td>
+                </tr>
+                <tr>
+                    <td>Catálogo → Reservas</td>
+                    <td>nombre, precio, duracion, items_incluidos</td>
+                </tr>
+                <tr>
+                    <td>Item Master → Servicios</td>
+                    <td>code, duration, allowedSpaces, pax_max</td>
+                </tr>
+            </table>
+
+            <h3>7.2 Packs Multiservicio</h3>
+            <ul>
+                <li>Crean reserva padre + reservas hijas (batch)</li>
+                <li>Datos compartidos: <code>parent_id</code> en hijas, <code>child_ids</code> en padre</li>
+                <li>Cancelación en cascada automática</li>
+            </ul>
+        </section>
+
+        <!-- SECCIÓN 8: CASUÍSTICAS -->
+        <section id="casuisticas">
+            <h2><i class="fas fa-list-check"></i> 8. Casuísticas Configuradas</h2>
+
+            <h3>8.1 Combinaciones Activas (Módulo SPA)</h3>
+            <table>
+                <tr>
+                    <th>Origen</th>
+                    <th>Día</th>
+                    <th>PAX</th>
+                    <th>Precio/PAX</th>
+                    <th>Total</th>
+                </tr>
+                <tr>
+                    <td>particular</td>
+                    <td>L-J</td>
+                    <td>2</td>
+                    <td>25€</td>
+                    <td>50€</td>
+                </tr>
+                <tr>
+                    <td>particular</td>
+                    <td>V-D</td>
+                    <td>2</td>
+                    <td>25€</td>
+                    <td>50€</td>
+                </tr>
+                <tr>
+                    <td>hotel_no_inc</td>
+                    <td>L-J</td>
+                    <td>2</td>
+                    <td>12€</td>
+                    <td>24€</td>
+                </tr>
+                <tr>
+                    <td>hotel_no_inc</td>
+                    <td>V-D</td>
+                    <td>2</td>
+                    <td>18€</td>
+                    <td>36€</td>
+                </tr>
+                <tr>
+                    <td>hotel_no_inc</td>
+                    <td>V-D</td>
+                    <td>1</td>
+                    <td>18€</td>
+                    <td>18€</td>
+                </tr>
+            </table>
+
+            <h3>8.2 Validaciones de PAX</h3>
+            <table>
+                <tr>
+                    <th>Módulo</th>
+                    <th>PAX Máximo</th>
+                </tr>
+                <tr>
+                    <td>spa</td>
+                    <td>16 (configurable por item)</td>
+                </tr>
+                <tr>
+                    <td>panacea, vip, suite</td>
+                    <td>2</td>
+                </tr>
+                <tr>
+                    <td>cabina1, cabina2, cabina3</td>
+                    <td>1</td>
+                </tr>
+                <tr>
+                    <td>gym</td>
+                    <td>1</td>
+                </tr>
+            </table>
+        </section>
+
+        <div style="text-align: center; padding: 30px; color: var(--muted); font-size: 0.85rem;">
+            <p>Documento generado automáticamente - 15/01/2026</p>
+            <p>Zenith Manager v2026.01</p>
+        </div>
+    </div>
+
+    <button class="print-btn" onclick="window.print()">
+        <i class="fas fa-print"></i> Imprimir
+    </button>
+</body>
+
+</html>
