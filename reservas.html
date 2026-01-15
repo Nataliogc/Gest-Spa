@@ -1352,7 +1352,10 @@
                     // Dynamic Pricing for Hotel (no incluido)
                     spaConfig.hotelPriceWeekday = parseFloat(settings.hotelPriceWeekday) || 12;
                     spaConfig.hotelPriceWeekend = parseFloat(settings.hotelPriceWeekend) || 18;
-                    console.log("[DEBUG] Dynamic pricing loaded:", spaConfig.hotelPriceWeekday, spaConfig.hotelPriceWeekend);
+                    // Dynamic Pricing for Particular
+                    spaConfig.particularPriceWeekday = parseFloat(settings.particularPriceWeekday) || 25;
+                    spaConfig.particularPriceWeekend = parseFloat(settings.particularPriceWeekend) || 25;
+                    console.log("[DEBUG] Dynamic pricing loaded - Hotel:", spaConfig.hotelPriceWeekday, "/", spaConfig.hotelPriceWeekend, "Particular:", spaConfig.particularPriceWeekday, "/", spaConfig.particularPriceWeekend);
                 }
 
             } catch (err) {
@@ -2318,25 +2321,27 @@
 
             if (!serviceData) {
                 const svcLower = (svcName || '').toLowerCase();
-                if (currentModule.code === 'spa' && svcLower.includes('circuito')) {
-                    // Apply dynamic pricing for hotel_no_inc in spa
+                // SPA module - apply dynamic pricing for origins with payment
+                if (currentModule.code === 'spa' && (origen === 'particular' || origen === 'hotel_no_inc')) {
+                    const dateStr = document.getElementById("form-date")?.value;
+                    const dateObj = dateStr ? new Date(dateStr + 'T12:00:00') : new Date();
+                    const dayOfWeek = dateObj.getDay();
+                    const isWeekend = dayOfWeek === 0 || dayOfWeek === 5 || dayOfWeek === 6;
+
+                    let dynamicPrice = 0;
+
                     if (origen === 'hotel_no_inc') {
-                        const dateStr = document.getElementById("form-date")?.value;
-                        if (dateStr) {
-                            const dayOfWeek = new Date(dateStr).getDay();
-                            const isWeekend = dayOfWeek === 0 || dayOfWeek === 5 || dayOfWeek === 6;
-                            const dynamicPrice = isWeekend
-                                ? (spaConfig.hotelPriceWeekend || 18)
-                                : (spaConfig.hotelPriceWeekday || 12);
-                            pricePaxInput.value = parseFloat(dynamicPrice).toFixed(2);
-                        } else {
-                            pricePaxInput.value = parseFloat(spaConfig.hotelPriceWeekday || 12).toFixed(2);
-                        }
+                        dynamicPrice = isWeekend
+                            ? (spaConfig.hotelPriceWeekend || 18)
+                            : (spaConfig.hotelPriceWeekday || 12);
                     } else if (origen === 'particular') {
-                        pricePaxInput.value = parseFloat(baseCircuitoPrice || 25).toFixed(2);
-                    } else {
-                        pricePaxInput.value = "0.00";
+                        dynamicPrice = isWeekend
+                            ? (spaConfig.particularPriceWeekend || 25)
+                            : (spaConfig.particularPriceWeekday || 25);
                     }
+
+                    pricePaxInput.value = parseFloat(dynamicPrice).toFixed(2);
+                    console.log(`[DYNAMIC PRICE SPA Fallback] Origin: ${origen}, Day: ${dayOfWeek}, Weekend: ${isWeekend}, Price: ${dynamicPrice}`);
                 } else {
                     pricePaxInput.value = "0.00";
                 }
@@ -2379,13 +2384,14 @@
             } else {
                 // Normal pricing: pax editable, price multiplied
                 if (origen === 'particular' || origen === 'hotel_no_inc') {
-                    // DYNAMIC PRICING for SPA module (ONLY for Circuito)
-                    // We check if it is explicitly a 'circuito' to avoid overriding prices of other services (e.g. massages)
+                    // DYNAMIC PRICING for SPA module
+                    // For SPA module, always use dynamic pricing for origins with payment
                     const isCircuito = (serviceData.nombre || '').toLowerCase().includes('circuito');
 
-                    if (currentModule.code === 'spa' && isCircuito) {
+                    if (currentModule.code === 'spa') {
+                        // SPA Module: Use dynamic pricing for all services with payment
                         const dateStr = document.getElementById("form-date")?.value;
-                        const dateObj = dateStr ? new Date(dateStr) : new Date();
+                        const dateObj = dateStr ? new Date(dateStr + 'T12:00:00') : new Date();
                         const dayOfWeek = dateObj.getDay();
                         const isWeekend = dayOfWeek === 0 || dayOfWeek === 5 || dayOfWeek === 6;
 
@@ -2403,8 +2409,9 @@
                         }
 
                         pricePaxInput.value = parseFloat(dynamicPrice).toFixed(2);
-                        console.log(`[DYNAMIC PRICE SPA] Origin: ${origen}, Day: ${dayOfWeek}, Price: ${dynamicPrice}`);
+                        console.log(`[DYNAMIC PRICE SPA] Origin: ${origen}, Day: ${dayOfWeek}, Weekend: ${isWeekend}, Price: ${dynamicPrice}`);
                     } else {
+                        // Other modules: use catalog price
                         pricePaxInput.value = parseFloat(serviceData.precio || 0).toFixed(2);
                     }
                 } else {
@@ -3196,7 +3203,11 @@
 
         // Old updateTotal removed. New one is below.
 
-        document.getElementById("res-pax").addEventListener("input", updateTotal);
+        document.getElementById("res-pax").addEventListener("input", () => {
+            // Recalculate price per pax first (for origins with payment like Particular/Hotel NO Inc)
+            updatePriceAutomation();
+            updateTotal();
+        });
         document.getElementById("res-precio-pax").addEventListener("input", updateTotal);
 
         function toggleRoomField() {
@@ -3249,16 +3260,52 @@
             const dateStr = document.getElementById("main-date-picker").value;
             const isBlocked = (spaConfig.blockedSlots && spaConfig.blockedSlots[dateStr] && spaConfig.blockedSlots[dateStr].includes(selectedTime));
 
-            // Bloquear creación en el pasado
+            // === CORTESÍA DE INICIO SPA (≤15 MIN) ===
+            // Solo aplica a: SPA module + origen particular/venta_local
+            // NO aplica a: cabinas, panacea, suite, vip, bonos, hotel
             const now = new Date();
             const todayStr = now.toISOString().split('T')[0];
-            const currentMin = now.getHours() * 60 + now.getMinutes();
+            const currentTotalMin = now.getHours() * 60 + now.getMinutes();
             const [h, m] = selectedTime.split(':').map(Number);
-            const isPast = (dateStr < todayStr) || (dateStr === todayStr && (h * 60 + m) < currentMin);
+            const slotTotalMin = h * 60 + m;
+
+            // Calculate how many minutes in the past (positive = past, negative = future)
+            let minutesInPast = 0;
+            if (dateStr < todayStr) {
+                // Date is in the past (yesterday or earlier)
+                minutesInPast = 9999; // Force block
+            } else if (dateStr === todayStr) {
+                minutesInPast = currentTotalMin - slotTotalMin;
+            } else {
+                minutesInPast = -1; // Future date
+            }
+
+            const isPast = minutesInPast > 0;
+            const isWithinCourtesy = minutesInPast > 0 && minutesInPast <= 15;
+            const isBeyondCourtesy = minutesInPast > 15;
+
+            // SPA Courtesy Rule: Only applies to SPA module with particular/venta_local
+            const isSpaCourtesyEligible = currentModule.code === 'spa';
+
+            // Store courtesy state for use in handleFormSubmit
+            window._spaCourtesyActive = false;
+            window._spaCourtesyMinutes = 0;
 
             if (isPast) {
-                alert("No se pueden crear reservas en turnos que ya han pasado.");
-                return;
+                if (isSpaCourtesyEligible && isWithinCourtesy) {
+                    // Allow with courtesy - will validate origin in handleFormSubmit
+                    window._spaCourtesyActive = true;
+                    window._spaCourtesyMinutes = minutesInPast;
+                    console.log(`[SPA CORTESÍA] Permitido: ${minutesInPast} min en pasado`);
+                } else if (isBeyondCourtesy || !isSpaCourtesyEligible) {
+                    // Block strictly
+                    if (isSpaCourtesyEligible && isBeyondCourtesy) {
+                        alert("No se puede crear una reserva con más de 15 minutos de retraso.");
+                    } else {
+                        alert("No se pueden crear reservas en turnos que ya han pasado.");
+                    }
+                    return;
+                }
             }
 
             if (isBlocked) {
@@ -3456,6 +3503,29 @@
 
             window.updatePaymentControlBlock();
             document.getElementById("booking-modal").style.display = "flex";
+
+            // === SPA COURTESY WARNING UI ===
+            // Remove previous warning if exists
+            const prevCourtesyWarn = document.getElementById("spa-courtesy-warning");
+            if (prevCourtesyWarn) prevCourtesyWarn.remove();
+
+            if (window._spaCourtesyActive && window._spaCourtesyMinutes > 0) {
+                const courtesyWarn = document.createElement("div");
+                courtesyWarn.id = "spa-courtesy-warning";
+                courtesyWarn.style.cssText = "background: #fef3c7; border: 1px solid #f59e0b; border-left: 4px solid #f59e0b; color: #92400e; padding: 10px 15px; border-radius: 0 6px 6px 0; margin-bottom: 15px; font-size: 0.8rem; display: flex; align-items: center; gap: 10px;";
+                courtesyWarn.innerHTML = `
+                    <i class="fas fa-clock" style="font-size: 1.2rem; color: #f59e0b;"></i>
+                    <div>
+                        <strong>⏱️ Entrada con cortesía (${window._spaCourtesyMinutes} min)</strong><br>
+                        <span style="font-size: 0.75rem;">La sesión ya ha comenzado. El cliente dispondrá de menos tiempo. La duración NO se amplía.</span>
+                    </div>
+                `;
+                // Insert at top of form
+                const formGrid = document.getElementById("booking-form");
+                if (formGrid && formGrid.firstChild) {
+                    formGrid.insertBefore(courtesyWarn, formGrid.firstChild);
+                }
+            }
 
             // Trigger balance check if coming from dashboard
             if (pending) {
@@ -3845,13 +3915,29 @@
                 // IDENTIFY FLOW TYPE (USER REQUEST 1 & 2)
                 const isLocalSaleFlow = (origenVal === 'particular' || origenVal === 'venta_local');
 
+                // === SPA COURTESY VALIDATION ===
+                // If courtesy is active, validate origin is particular/venta_local
+                if (window._spaCourtesyActive && window._spaCourtesyMinutes > 0) {
+                    if (!isLocalSaleFlow) {
+                        // Block: Courtesy only for direct sales
+                        alert("⚠️ La cortesía de inicio solo aplica a ventas directas (Particular). Para este origen, no se permiten reservas en el pasado.");
+                        isSavingReservation = false;
+                        btn.disabled = false;
+                        btn.innerHTML = originalText;
+                        return;
+                    }
+                    // If valid, skip the normal past-time blocking below
+                    console.log(`[SPA CORTESÍA] Bypass: ${window._spaCourtesyMinutes} min retraso permitido`);
+                }
+
                 // ========== BLOCK PAST DATE/TIME RESERVATIONS ==========
                 const formDate = document.getElementById("form-date")?.value;
                 const formTime = document.getElementById("form-time")?.value || "00:00";
                 const dateTimeContainer = document.getElementById("date-time-container");
 
                 // Only validate if date/time fields are visible (not for agenda-less services)
-                if (dateTimeContainer && dateTimeContainer.style.display !== "none" && formDate && formTime) {
+                // AND not within SPA courtesy window
+                if (!window._spaCourtesyActive && dateTimeContainer && dateTimeContainer.style.display !== "none" && formDate && formTime) {
                     const now = new Date();
                     const todayStr = now.toISOString().split('T')[0];
                     const currentMinutes = now.getHours() * 60 + now.getMinutes();
@@ -4090,6 +4176,17 @@
                 if (isForced) {
                     const timestamp = new Date().toLocaleTimeString();
                     payload.obs = (payload.obs ? payload.obs + "\n" : "") + `[${timestamp}] ⚠️ Reserva forzada por recepción pese a conflicto.`;
+                }
+
+                // LOG SPA COURTESY ENTRY
+                if (window._spaCourtesyActive && window._spaCourtesyMinutes > 0) {
+                    const timestamp = new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+                    payload.obs = (payload.obs ? payload.obs + "\n" : "") + `[${timestamp}] ℹ️ Entrada con cortesía de inicio en SPA (≤15 min). Duración no ampliada.`;
+                    payload.courtesy_entry = true;
+                    payload.courtesy_minutes = window._spaCourtesyMinutes;
+                    // Reset courtesy flag after use
+                    window._spaCourtesyActive = false;
+                    window._spaCourtesyMinutes = 0;
                 }
 
                 // If this is a pack
