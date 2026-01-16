@@ -3005,14 +3005,32 @@
                 console.log("[DEBUG] renderSlots", { dateString, dayName, hasSchedules: !!window.SPA_SCHEDULES, schedules: window.SPA_SCHEDULES });
 
                 if (window.SPA_SCHEDULES && window.SPA_SCHEDULES[dayName] && window.SPA_SCHEDULES[dayName].length > 0) {
-                    slots = window.SPA_SCHEDULES[dayName];
+                    slots = [...window.SPA_SCHEDULES[dayName]];
                 } else {
                     console.warn("[DEBUG] Using fallback slots for", dayName);
-                    slots = isSunday ? currentModule.slotsSun : currentModule.slotsWeek;
+                    slots = isSunday ? [...currentModule.slotsSun] : [...currentModule.slotsWeek];
                 }
             } else {
-                slots = isSunday ? currentModule.slotsSun : currentModule.slotsWeek;
+                slots = isSunday ? [...currentModule.slotsSun] : [...currentModule.slotsWeek];
             }
+
+            // SAFETY NET: Add slots from existing bookings if they are not in the config (Legacy protection)
+            // This ensures we never "lose" a reservation just because the schedule changed
+            const existingTimes = [...new Set(currentData.map(r => r.hora).filter(h => h))];
+            existingTimes.forEach(time => {
+                if (!slots.includes(time)) {
+                    console.log(`[SAFETY] Adding legacy slot ${time} to view because it has bookings.`);
+                    slots.push(time);
+                }
+            });
+
+            // Sort slots chronologically
+            slots.sort((a, b) => {
+                const [h1, m1] = a.split(':').map(Number);
+                const [h2, m2] = b.split(':').map(Number);
+                return (h1 * 60 + m1) - (h2 * 60 + m2);
+            });
+
             const container = document.getElementById("slots-container");
 
             const dateBlockedSlots = (spaConfig.blockedSlots && spaConfig.blockedSlots[dateString]) || [];
