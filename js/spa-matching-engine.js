@@ -37,8 +37,9 @@ const CATEGORY_TO_SKILL_MAP = {
     'ritual': 'ritual',
     'suite_privada': 'suite',
     'pack_pareja': 'suite',
+    'pack_hosteleria': 'suite',
     'manicura': 'manicura',
-    'pedicura': 'pedicura',
+    'pedicura': 'manicura',
     'peluqueria': 'peluqueria',
     'depilacion': 'depilacion',
     'maquillaje': 'maquillaje'
@@ -490,8 +491,25 @@ async function matchServiceToTherapists(serviceId, roomCode, date, time, duratio
         result.debug.push(`Filtrado por sala ${roomCode}: ${staff.length}`);
 
         // 5. Filtrar por skill
-        const serviceCategory = (service.categoria || '').toLowerCase();
-        const requiredSkill = CATEGORY_TO_SKILL_MAP[serviceCategory] || serviceCategory;
+        // Buscamos si hay una habilidad específica requerida (prioridad: service field > item master field > category fallback)
+        let requiredSkill = service.required_skill || service.skill;
+
+        if (!requiredSkill && typeof db !== 'undefined') {
+            // Intentar buscar en Master Items si no viene en el servicio
+            try {
+                const itemConfig = await window.getItemConfig(service.nombre);
+                if (itemConfig && itemConfig.required_skill) {
+                    requiredSkill = itemConfig.required_skill;
+                }
+            } catch (e) {
+                console.warn("No se pudo consultar Item Master para skill:", e);
+            }
+        }
+
+        if (!requiredSkill) {
+            const serviceCategory = (service.categoria || '').toLowerCase();
+            requiredSkill = CATEGORY_TO_SKILL_MAP[serviceCategory] || serviceCategory;
+        }
 
         staff = staff.filter(s => {
             const skills = s.skills || [];

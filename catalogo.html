@@ -722,11 +722,11 @@
                     // "Bonos" tab shows ALL bonos (aggregated view)
                     if (state.currentTab === 'bonos') return isBono;
 
-                    // REMOVED: if (isBono) return false;  <-- This line prevented bonos from appearing in category tabs
+                    if (isBono) return false;
 
                     if (state.currentTab === 'spa') {
                         // Include standard circuits AND circuit vouchers
-                        return cat === 'circuito' || cat === 'bono_circuito' || cat === 'pack_hotel';
+                        return ['circuito', 'bono_circuito'].includes(cat);
                     }
 
                     if (state.currentTab === 'masajes') {
@@ -1062,7 +1062,6 @@
                 pax: parseInt(document.getElementById("sm-pax").value) || 1,
                 sesiones: parseInt(document.getElementById("sm-sesiones").value) || 1,
                 imagen: document.getElementById("sm-imagen").value.trim(),
-                categoria: document.getElementById("sm-categoria").value,
                 categoria: document.getElementById("sm-categoria").value,
                 espacio: espacioValue, // Legacy support
                 allowedSpaces: allowedSpaces, // New Multi-Selection

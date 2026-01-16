@@ -8,7 +8,19 @@ const staffState = {
     currentMonth: new Date(),
     selectedStaff: null,
     availability: {},
-    currentCalendarDate: null
+    currentCalendarDate: null,
+    skillsList: [
+        { id: 'masaje', name: 'Masajes' },
+        { id: 'facial', name: 'Facial' },
+        { id: 'corporal', name: 'Corporal' },
+        { id: 'ritual', name: 'Rituales' },
+        { id: 'suite', name: 'Suite Spa' },
+        { id: 'manicura', name: 'Manicura/Pedicura' },
+        { id: 'peluqueria', name: 'Peluquería' },
+        { id: 'depilacion', name: 'Depilación' },
+        { id: 'maquillaje', name: 'Maquillaje' },
+        { id: 'circuito', name: 'Circuito Spa' }
+    ]
 };
 
 // ===== INITIALIZATION =====
@@ -151,8 +163,9 @@ function openStaffModal(staffId = null) {
     form.reset();
     document.getElementById("staff-id").value = "";
 
-    // Populate rooms checkboxes FIRST (before setting values)
+    // Populate rooms and skills checkboxes FIRST
     renderRoomsCheckboxes();
+    renderSkillsCheckboxes();
 
     if (staffId) {
         const staff = staffState.staff.find(s => s.id === staffId);
@@ -165,9 +178,15 @@ function openStaffModal(staffId = null) {
             document.getElementById("staff-notes").value = staff.notes || '';
             document.getElementById("staff-status").value = staff.status || 'active';
 
-            // Set assigned rooms checkboxes AFTER renderRoomsCheckboxes
+            // Set assigned rooms checkboxes
             (staff.assigned_rooms || []).forEach(code => {
                 const checkbox = document.querySelector(`input[name="assigned-rooms"][value="${code}"]`);
+                if (checkbox) checkbox.checked = true;
+            });
+
+            // Set skills checkboxes
+            (staff.skills || []).forEach(skillId => {
+                const checkbox = document.querySelector(`input[name="staff-skills"][value="${skillId}"]`);
                 if (checkbox) checkbox.checked = true;
             });
 
@@ -178,7 +197,6 @@ function openStaffModal(staffId = null) {
         }
     } else {
         title.textContent = "Nuevo Personal";
-        // Set default schedule (all days disabled by default)
     }
 
     modal.style.display = "flex";
@@ -192,6 +210,18 @@ function renderRoomsCheckboxes() {
         <label style="display: flex; align-items: center; gap: 8px; padding: 8px; background: #f8fafc; border-radius: 6px; cursor: pointer;">
             <input type="checkbox" name="assigned-rooms" value="${space.code}">
             <span style="font-size: 0.85rem;">${space.name}</span>
+        </label>
+    `).join('');
+}
+
+function renderSkillsCheckboxes() {
+    const container = document.getElementById("staff-skills-container");
+    if (!container) return;
+
+    container.innerHTML = staffState.skillsList.map(skill => `
+        <label style="display: flex; align-items: center; gap: 8px; padding: 8px; background: #f8fafc; border-radius: 6px; cursor: pointer;">
+            <input type="checkbox" name="staff-skills" value="${skill.id}">
+            <span style="font-size: 0.85rem;">${skill.name}</span>
         </label>
     `).join('');
 }
@@ -239,6 +269,10 @@ async function saveStaff(e) {
     const assignedRooms = Array.from(document.querySelectorAll('input[name="assigned-rooms"]:checked'))
         .map(cb => cb.value);
 
+    // Get skills
+    const skills = Array.from(document.querySelectorAll('input[name="staff-skills"]:checked'))
+        .map(cb => cb.value);
+
     // Build schedule from inputs
     const schedule = buildScheduleFromInputs();
 
@@ -249,6 +283,7 @@ async function saveStaff(e) {
         notes,
         status,
         assigned_rooms: assignedRooms,
+        skills: skills,
         default_schedule: schedule,
         updated_at: new Date().toISOString()
     };

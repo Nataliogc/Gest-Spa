@@ -710,14 +710,26 @@
                     <!-- STAFF SELECTOR (Injected) -->
                     <div class="form-group" id="staff-selector-group"
                         style="display: none; margin-bottom: 0; grid-column: 1 / -1;">
-                        <label
-                            style="font-size: 0.7rem; font-weight: 800; color: #4a5568; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; display: block;">Terapeuta</label>
-                        <div style="display: flex; gap: 10px; align-items: center;">
+                        <label id="label-staff-1"
+                            style="font-size: 0.7rem; font-weight: 800; color: #4a5568; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; display: block;">Terapeuta
+                            1</label>
+                        <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 8px;">
                             <select id="booking-staff"
                                 style="flex: 1; padding: 8px 10px; border-radius: 6px; border: 1px solid #e2e8f0; font-size: 0.9rem; background: #fff; cursor: pointer;">
                                 <option value="">Seleccionar...</option>
                             </select>
                             <span id="staff-availability-msg" style="font-size: 0.8rem; font-weight: 600;"></span>
+                        </div>
+
+                        <!-- Second Staff Selector -->
+                        <div id="staff-2-container" style="display: none;">
+                            <label
+                                style="font-size: 0.7rem; font-weight: 800; color: #4a5568; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; display: block;">Terapeuta
+                                2</label>
+                            <select id="booking-staff-2"
+                                style="width: 100%; padding: 8px 10px; border-radius: 6px; border: 1px solid #e2e8f0; font-size: 0.9rem; background: #fff; cursor: pointer;">
+                                <option value="">Seleccionar...</option>
+                            </select>
                         </div>
                     </div>
 
@@ -1645,72 +1657,7 @@
             }
         }
 
-        // NUEVA FUNCIÓN NECESARIA: Manejar cambio de campos para staff
-        async function handleStaffFieldsChange() {
-            const staffSel = document.getElementById("booking-staff");
-            // Relaxed check: Run if module requires it OR if the element exists (safety fallback)
-            if (!currentModule.requiresStaff && !staffSel) return;
-            if (!staffSel) return;
-
-            // Show loading state
-            staffSel.innerHTML = '<option>Cargando...</option>';
-            staffSel.disabled = true;
-
-            const date = document.getElementById("form-date").value;
-            const time = document.getElementById("form-time").value;
-            const duration = parseInt(document.getElementById("inputDuration")?.value || 60);
-            const formId = document.getElementById("form-id").value; // Exclude current reservation
-
-            if (!date || !time) {
-                staffSel.innerHTML = '<option value="">Seleccione hora...</option>';
-                return;
-            }
-
-            try {
-                // Call the optimized batch function
-                const staffList = await getAvailableStaffForRoom(currentModule.code, date, time, duration, formId);
-
-                // Populate dropdown
-                let html = '<option value="">Seleccionar terapeuta...</option>';
-                staffList.forEach(s => {
-                    html += `<option value="${s.id}">${s.alias || s.name}</option>`;
-                });
-
-                staffSel.innerHTML = html;
-                staffSel.disabled = false;
-
-                // VALIDACIÓN CRÍTICA: Mantener selección solo si sigue siendo válida
-                if (formId) {
-                    const res = currentData.find(r => r.id === formId);
-                    // Caso 1: Editando reserva existente -> Intentar mantener el staff original
-                    if (res && res.staff_id) {
-                        const stillValid = staffList.find(s => s.id === res.staff_id);
-                        if (stillValid) {
-                            staffSel.value = res.staff_id;
-                        } else {
-                            // El terapeuta original YA NO es válido para la nueva hora/sala
-                            // Opción A: Deseleccionar (Forzar al usuario a elegir uno valido) -> MÁS SEGURO
-                            staffSel.value = "";
-                            // Opción B: Mostrarlo pero marcarlo como inválido (avisar visualmente)
-                            // Implementamos Opción A para cumplir la Regla 3 estricta.
-                            console.warn(`[STAFF] El terapeuta original (${res.staff_name}) no es válido para el nuevo horario.`);
-                        }
-                    }
-                } else {
-                    // Caso 2: Nueva reserva (o cambio de hora en nueva reserva)
-                    // Si ya había algo seleccionado manualmente, ver si sigue en la lista
-                    const previousSelection = staffSel.dataset.prevSelection;
-                    /* Nota: necesitaríamos guardar la selección previa antes de repoblar si queremos esto.
-                       Por seguridad/simplicidad en flujo estricto: al cambiar hora, se resetea staff.
-                       El usuario debe re-confirmar disponibilidad conscientemente. */
-                    staffSel.value = "";
-                }
-
-            } catch (err) {
-                console.error("Error updating staff list:", err);
-                staffSel.innerHTML = '<option value="">Error: ' + err.message + '</option>';
-            }
-        }
+        // handleStaffFieldsChange is now handled in reservas-staff.js to support multi-therapists
 
 
 
@@ -1850,56 +1797,93 @@
 
             let servicesToShow = [];
 
-            // --- 1. LOCAL DIRECT SALE FLOW (STRICT MASTER) ---
+            // --- 1. LOCAL DIRECT SALE FLOW (STRICT MASTER + CATALOG FALLBACK) ---
             if (isLocalFlow) {
-                // Ensure Master is loaded
-                if (!window.masterItems || window.masterItems.length === 0) {
-                    console.error("❌ ERROR BLOQUEANTE: spa_item_master no cargado. Intentando carga de emergencia...");
-                    // Try to trigger load if possible or just warn
-                    // Usually loaded by document.ready. If missing, we can't show correct list.
-                }
-
                 const sourceItems = window.masterItems || [];
+                const catalogItems = currentServices || [];
+                const isCabina = roomCode.startsWith('cabina');
 
-                // STRICT FILTER LOGIC (User Rule 2 & 3)
-                // Filter: must have valid 'allowedSpaces' array containing 'salaActual'
-                servicesToShow = sourceItems.filter(item => {
-                    // Normalize fields (user calls it 'espacios', code 'allowedSpaces' or 'space')
-                    const rawSpaces = item.allowedSpaces || item.espacios || (item.space ? [item.space] : []);
+                if (isCabina) {
+                    console.log(`[SERVICES] CABINA DIRECT FLOW: Room=${roomCode}, SalaActual=${salaActual}`);
+                    console.log("[SERVICES] Total Items in Master:", sourceItems.length);
 
-                    if (!Array.isArray(rawSpaces)) return false;
+                    servicesToShow = sourceItems.filter(item => {
+                        const rawSpaces = item.allowedSpaces || item.espacios || (item.space ? [item.space] : []);
+                        const spaces = Array.isArray(rawSpaces) ? rawSpaces.map(s => s.toLowerCase().trim()) : [];
 
-                    const spaces = rawSpaces.map(s => s.toLowerCase().trim());
+                        const matchesRoom = spaces.includes(roomCode) || spaces.includes(salaActual);
 
-                    // Rule 4: Multi-room logic handled by generic includes
-                    // Rule 3: Whitelist (implicit by data)
+                        // Agenda is true if explicitly true OR not explicitly false (handles legacy undefined)
+                        const hasAgenda = item.agenda_required !== false;
 
-                    return spaces.includes(salaActual);
-                }).map(item => {
-                    // Map to common structure for rendering
-                    return {
+                        if (item.name.includes("Cereza") || item.name.includes("Bambú")) {
+                            console.log(`[SERVICES DEBUG] Checking ${item.name}: matchesRoom=${matchesRoom}, hasAgenda=${hasAgenda}, spaces=[${spaces.join(', ')}]`);
+                        }
+
+                        return matchesRoom && hasAgenda;
+                    }).map(item => ({
+                        nombre: item.name,
+                        precio: item.price_pax || item.price || 0,
+                        pax_max: item.pax_max || 1,
+                        espacio: item.space || '',
+                        categoria: item.category || item.categoria || '',
+                        source: 'master_cabina'
+                    }));
+
+                    console.log(`[SERVICES] CABINA DIRECT FLOW Result: Found ${servicesToShow.length} items.`);
+                } else {
+                    // --- STANDARD FLOW (Master + Fallback) ---
+
+                    // Filter Master Items
+                    const masterFiltered = sourceItems.filter(item => {
+                        const rawSpaces = item.allowedSpaces || item.espacios || (item.space ? [item.space] : []);
+                        if (!Array.isArray(rawSpaces)) return false;
+                        const spaces = rawSpaces.map(s => s.toLowerCase().trim());
+
+                        // User Rule: Visible if assigned to room AND (duration > 0 OR Agenda == Sí)
+                        const matchesSpace = spaces.includes(salaActual) || spaces.includes(roomCode);
+                        const hasAgenda = item.agenda_required !== false;
+                        const hasDuration = (parseInt(item.duration) || 0) > 0;
+
+                        return matchesSpace && (hasAgenda || hasDuration);
+                    }).map(item => ({
                         nombre: item.name,
                         precio: item.price || item.precio || 0,
-                        pax_max: item.pax || 1, // Defaulting if missing
+                        pax_max: item.pax || 1,
                         espacio: item.space || '',
-                        categoria: item.category || item.categoria || ''
-                    };
-                });
+                        categoria: item.category || item.categoria || '',
+                        source: 'master'
+                    }));
 
-                // --- 6. MANDATORY DEBUG ---
-                console.group('[SERVICES DEBUG]');
-                console.log('Sala actual:', salaActual);
-                console.log('Flow:', 'LOCAL DIRECT SALE');
-                console.log('Total catálogo (master):', sourceItems.length);
-                console.log('Servicios visibles:', servicesToShow.map(s => ({
-                    nombre: s.nombre,
-                    // Re-derive spaces for debug log not easily available in mapped obj, but okay
-                })));
-                console.groupEnd();
+                    // Filter Catalog Items (to include missing services like "Envoltura de Cereza")
+                    const catalogFiltered = catalogItems.filter(s => {
+                        const cat = (s.categoria || "").toLowerCase();
+                        const EXCLUDED_CATEGORIES = ['peluqueria', 'restaurante', 'hotel'];
+                        if (EXCLUDED_CATEGORIES.includes(cat)) return false;
 
+                        const rawSpaces = s.allowedSpaces || (s.espacio ? [s.espacio] : []);
+                        const spaces = rawSpaces.map(x => x.toLowerCase().trim());
+                        const matchesSpace = spaces.includes(salaActual) || spaces.includes(roomCode);
+
+                        // Avoid duplicates with master
+                        const isAlreadyInMaster = masterFiltered.some(m => m.nombre === s.nombre);
+
+                        // User Rule: Visible if assigned to room, regardless of duration (inclusive fallback)
+                        return matchesSpace && !isAlreadyInMaster;
+                    }).map(s => ({
+                        nombre: s.nombre,
+                        precio: s.precio || 0,
+                        pax_max: s.pax || 1,
+                        espacio: s.espacio || '',
+                        categoria: s.categoria || '',
+                        source: 'catalog'
+                    }));
+
+                    servicesToShow = [...masterFiltered, ...catalogFiltered];
+
+                }
             } else {
                 // --- FALLBACK / LEGACY FLOW (Bonos, Hotel, etc - uses spa_services via currentServices) ---
-                // Exclude other apps' categories
                 const EXCLUDED_CATEGORIES = ['peluqueria', 'restaurante', 'hotel'];
 
                 servicesToShow = (currentServices || []).filter(s => {
@@ -2267,10 +2251,33 @@
         // updateTotal replaced by new version at bottom with Extras support
 
         function updatePriceAutomation() {
+            if (window._isInitializingEdit) return;
             const svcName = document.getElementById("res-servicio").value;
             const pricePaxInput = document.getElementById("res-precio-pax");
             const paxInput = document.getElementById("res-pax");
             const origen = document.getElementById("res-origen").value;
+
+            // --- ZENITH PRICING LOGIC (Rule 1 & 3) ---
+            const formIdStr = document.getElementById("form-id")?.value;
+            const isNewEntry = !formIdStr || formIdStr === '';
+            const excludedOrigins = ['bono', 'smartbox', 'wonderbox', 'ego', 'hotel_inc'];
+            const isLocalPricing = !excludedOrigins.includes(origen) && isNewEntry && currentModule.code !== 'spa';
+            let zenithPrice = null;
+
+            if (isLocalPricing) {
+                const itemMaster = (window.masterItems || []).find(m => m.name === svcName);
+                if (itemMaster) {
+                    zenithPrice = parseFloat(itemMaster.price_pax || 0);
+                    window._currentPricingMode = "item_pax_local";
+                    console.log(`[ZENITH] Master Item Pricing: ${svcName} -> ${zenithPrice}€`);
+                } else if (svcName) {
+                    // Rule 2: Non-Master item in local flow -> Price 0 (No inheritance)
+                    zenithPrice = 0;
+                    window._currentPricingMode = "item_pax_local";
+                }
+            } else {
+                window._currentPricingMode = null;
+            }
 
             // Find service data
             const serviceData = currentServices.find(s => s.nombre === svcName);
@@ -2318,6 +2325,11 @@
                 if (currentModule.code === 'spa' && (origen === 'particular' || origen === 'hotel_no_inc')) {
                     // Bypass exit and proceed to calculation logic below
                     console.log("[DEBUG] updatePriceAutomation: No svcName but in SPA module. Calculating dynamic price...");
+                } else if (zenithPrice !== null) {
+                    // Zenith flow might apply price even if catalog search fails
+                    pricePaxInput.value = zenithPrice.toFixed(2);
+                    updateTotal();
+                    return;
                 } else {
                     pricePaxInput.value = "0.00";
                     paxInput.disabled = false;
@@ -2334,6 +2346,12 @@
 
             if (!serviceData) {
                 const svcLower = (svcName || '').toLowerCase();
+                // ZENITH: Check override first
+                if (zenithPrice !== null) {
+                    pricePaxInput.value = zenithPrice.toFixed(2);
+                    updateTotal();
+                    return;
+                }
                 // SPA module - apply dynamic pricing for origins with payment
                 if (currentModule.code === 'spa' && (origen === 'particular' || origen === 'hotel_no_inc')) {
                     const dateStr = document.getElementById("form-date")?.value;
@@ -2367,7 +2385,8 @@
             // If service has catalog-defined pax (> 0), lock pax and use fixed price
             const catalogPax = parseInt(serviceData.pax) || 0;
             // DYNAMIC FIX: Spa module should NOT use fixed pricing for Pax lock
-            const isFixedPricing = catalogPax > 0 && currentModule.code !== 'spa';
+            // ZENITH FIX: Local Sale logic overrides Fixed Catalog Pax to allow per-person treatment pricing
+            const isFixedPricing = catalogPax > 0 && currentModule.code !== 'spa' && !isLocalPricing;
 
             if (isFixedPricing) {
                 // Lock pax input to catalog value
@@ -2424,8 +2443,12 @@
                         pricePaxInput.value = parseFloat(dynamicPrice).toFixed(2);
                         console.log(`[DYNAMIC PRICE SPA] Origin: ${origen}, Day: ${dayOfWeek} (Weekend: ${isWeekend}), Final Price: ${dynamicPrice} (Config: ${roomPriceWeekday}/${roomPriceWeekend})`);
                     } else {
-                        // Other modules: use catalog price
-                        pricePaxInput.value = parseFloat(serviceData.precio || 0).toFixed(2);
+                        // Other modules: use catalog price (or Zenith Master Price)
+                        if (zenithPrice !== null) {
+                            pricePaxInput.value = zenithPrice.toFixed(2);
+                        } else {
+                            pricePaxInput.value = parseFloat(serviceData.precio || 0).toFixed(2);
+                        }
                     }
                 } else {
                     pricePaxInput.value = (0).toFixed(2);
@@ -3268,6 +3291,8 @@
         }
 
         async function showBookingForm() {
+            window._isInitializingEdit = false;
+            window._currentPricingMode = null;
             if (!selectedTime) return;
 
             const dateStr = document.getElementById("main-date-picker").value;
@@ -3381,7 +3406,8 @@
             if (habField) habField.value = "";
             const bonoFieldReset = document.getElementById("res-bono");
             if (bonoFieldReset) bonoFieldReset.value = "";
-            document.getElementById("res-pax").value = 2;
+            const isCabin = currentModule.code === 'cabina1' || currentModule.code === 'cabina2' || currentModule.code === 'cabina3';
+            document.getElementById("res-pax").value = isCabin ? 1 : 2;
             document.getElementById("res-precio-pax").value = 0;
             document.getElementById("res-total-text").textContent = "0.00 €";
             const obsField = document.getElementById("res-obs");
@@ -3635,6 +3661,8 @@
             if (res.cancelled_at && res.status === 'anulada') auditHtml += `<br>Anulada: ${formatDateTime(res.cancelled_at)}`;
             document.getElementById("audit-info").innerHTML = auditHtml;
 
+            window._isInitializingEdit = true;
+            window._currentPricingMode = res.pricing_mode || null;
             document.getElementById("res-nombre").value = res.nombre;
 
             // Formatear teléfono al cargar (3x3)
@@ -3746,6 +3774,10 @@
                 const staffSel = document.getElementById("booking-staff");
                 staffSel.value = res.staff_id;
             }
+            if (res.staff_id2 && document.getElementById("booking-staff-2")) {
+                const staffSel2 = document.getElementById("booking-staff-2");
+                staffSel2.value = res.staff_id2;
+            }
 
             // Therapist Input Visibility (Edit Mode)
             const therapistInput = document.getElementById("res-terapeuta");
@@ -3792,6 +3824,7 @@
             if (res.origen === 'bono' && res.bono) {
                 validateBonoBalance(res.bono, id);
             }
+            window._isInitializingEdit = false;
         }
 
         async function cancelBookingFromModal() {
@@ -4001,22 +4034,28 @@
 
                 // --- VALIDACIÓN DE PERSONAL (FLEXIBLE) ---
                 if (currentModule.requiresStaff && !isAgendaLess) {
+                    const pax = parseInt(document.getElementById("res-pax").value) || 1;
                     const staffId = document.getElementById("booking-staff")?.value;
+                    const staffId2 = document.getElementById("booking-staff-2")?.value;
+
                     if (!staffId) {
                         if (isLocalSaleFlow && !isForced) {
-                            // SOFT BLOCK
                             revealConflictWarning("Falta asignar terapeuta.", formDate, formTime, 60, currentModule.code);
-                            isSavingReservation = false;
-                            btn.disabled = false;
-                            btn.innerHTML = originalText;
-                            return;
+                            isSavingReservation = false; btn.disabled = false; btn.innerHTML = originalText; return;
                         } else if (!isLocalSaleFlow) {
-                            // HARD BLOCK
                             alert("⛔ DEBES SELECCIONAR UN TERAPEUTA.");
-                            isSavingReservation = false;
-                            btn.disabled = false;
-                            btn.innerHTML = originalText;
-                            return;
+                            isSavingReservation = false; btn.disabled = false; btn.innerHTML = originalText; return;
+                        }
+                    }
+
+                    // For 2 PAX, require 2nd staff
+                    if (pax > 1 && !staffId2) {
+                        if (isLocalSaleFlow && !isForced) {
+                            revealConflictWarning("Falta asignar el segundo terapeuta para 2 pax.", formDate, formTime, 60, currentModule.code);
+                            isSavingReservation = false; btn.disabled = false; btn.innerHTML = originalText; return;
+                        } else if (!isLocalSaleFlow) {
+                            alert("⛔ DEBES SELECCIONAR EL SEGUNDO TERAPEUTA.");
+                            isSavingReservation = false; btn.disabled = false; btn.innerHTML = originalText; return;
                         }
                     }
                 }
@@ -4173,6 +4212,7 @@
                     servicio: svcName,
                     duracion: duration,
                     obs: document.getElementById("res-obs")?.value || "",
+                    pricing_mode: window._currentPricingMode || null,
                     updated_at: new Date().toISOString()
                 };
 
@@ -4182,6 +4222,11 @@
                     if (staffSel && staffSel.value) {
                         payload.staff_id = staffSel.value;
                         payload.staff_name = staffSel.options[staffSel.selectedIndex].text;
+                    }
+                    const staffSel2 = document.getElementById("booking-staff-2");
+                    if (staffSel2 && staffSel2.value) {
+                        payload.staff_id2 = staffSel2.value;
+                        payload.staff_name2 = staffSel2.options[staffSel2.selectedIndex].text;
                     }
                 }
 
@@ -4580,8 +4625,14 @@
             if (typeof window.getAvailableStaffForRoom === 'function') {
                 try {
                     const roomCode = currentModule.code;
+                    const pax = parseInt(document.getElementById("res-pax")?.value) || 1;
                     // Pass 'id' as the 5th argument (excludeId)
                     const availableStaff = await window.getAvailableStaffForRoom(roomCode, date, time, duration, id);
+
+                    // If pax > 1, check if we have at least 2 therapists
+                    if (pax > 1) {
+                        return availableStaff && availableStaff.length >= 2;
+                    }
                     return availableStaff && availableStaff.length > 0;
                 } catch (e) {
                     console.error("Error calling getAvailableStaffForRoom:", e);

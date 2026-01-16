@@ -288,16 +288,20 @@ function timeToMinutes(time) {
 // Exported UI function
 function updateStaffDropdown(availableStaff) {
     const staffSelect = document.getElementById('booking-staff');
+    const staffSelect2 = document.getElementById('booking-staff-2');
     const msgEl = document.getElementById('staff-availability-msg');
 
     if (!staffSelect) return;
 
     // Get current value to preserve if possible
     const currentValue = staffSelect.value;
+    const currentValue2 = staffSelect2 ? staffSelect2.value : "";
 
     if (availableStaff.length === 0) {
         staffSelect.innerHTML = '<option value="">No hay terapeutas disponibles</option>';
+        if (staffSelect2) staffSelect2.innerHTML = '<option value="">No hay terapeutas disponibles</option>';
         staffSelect.disabled = true;
+        if (staffSelect2) staffSelect2.disabled = true;
         if (msgEl) {
             msgEl.textContent = '⚠️ No hay terapeutas disponibles en este horario.';
             msgEl.style.color = '#ef4444';
@@ -307,24 +311,42 @@ function updateStaffDropdown(availableStaff) {
         return;
     }
 
-    staffSelect.innerHTML = '<option value="">Seleccionar terapeuta...</option>' +
+    const optionsHtml = '<option value="">Seleccionar terapeuta...</option>' +
         availableStaff.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+
+    staffSelect.innerHTML = optionsHtml;
+    if (staffSelect2) staffSelect2.innerHTML = optionsHtml;
 
     // Restore value if invalid
     if (currentValue && availableStaff.some(s => s.id === currentValue)) {
         staffSelect.value = currentValue;
-    } else {
-        // If editing and staff was force-set, it might be separate. 
-        // But logic handled elsewhere.
+    }
+
+    if (staffSelect2 && currentValue2 && availableStaff.some(s => s.id === currentValue2)) {
+        staffSelect2.value = currentValue2;
     }
 
     staffSelect.disabled = false;
+    if (staffSelect2) staffSelect2.disabled = false;
+
     if (msgEl) {
         msgEl.textContent = `✅ ${availableStaff.length} terapeuta(s) disponible(s)`;
         msgEl.style.color = '#10b981';
     }
     const submitBtn = document.querySelector('#booking-form button[type="submit"]');
     if (submitBtn) submitBtn.disabled = false;
+
+    // Prevention of duplicate selection
+    const preventDuplicate = () => {
+        const v1 = staffSelect.value;
+        const v2 = staffSelect2 ? staffSelect2.value : "";
+        if (v1 && v2 && v1 === v2) {
+            alert("Atención: No puedes seleccionar al mismo terapeuta para ambos puestos.");
+            staffSelect2.value = "";
+        }
+    };
+    staffSelect.addEventListener('change', preventDuplicate);
+    if (staffSelect2) staffSelect2.addEventListener('change', preventDuplicate);
 }
 
 /**
@@ -409,6 +431,22 @@ async function handleStaffFieldsChange() {
         return;
     }
     // === END PAX VALIDATION ===
+
+    // Toggle Staff 2 Selector visibility based on PAX
+    const staff2Container = document.getElementById('staff-2-container');
+    const labelStaff1 = document.getElementById('label-staff-1');
+
+    if (staff2Container) {
+        if (pax > 1) {
+            staff2Container.style.display = 'block';
+            if (labelStaff1) labelStaff1.textContent = 'Terapeuta 1';
+        } else {
+            staff2Container.style.display = 'none';
+            if (labelStaff1) labelStaff1.textContent = 'Terapeuta';
+            const staffSelect2 = document.getElementById('booking-staff-2');
+            if (staffSelect2) staffSelect2.value = "";
+        }
+    }
 
     // Get current booking ID to exclude from collision check
     const excludeId = document.getElementById('form-id')?.value;

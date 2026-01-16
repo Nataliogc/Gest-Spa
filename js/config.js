@@ -559,9 +559,28 @@ function renderMasterItems() {
                     </div>
                 </div>
             </td>
+            <td style="padding: 10px 12px;">
+                <select onchange="updateMasterItemField('${item.id}', 'required_skill', this.value)" class="param-input" style="width: 100%;">
+                    <option value="">-- Ninguna --</option>
+                    <option value="masaje" ${item.required_skill === 'masaje' ? 'selected' : ''}>Masajes</option>
+                    <option value="facial" ${item.required_skill === 'facial' ? 'selected' : ''}>Facial</option>
+                    <option value="corporal" ${item.required_skill === 'corporal' ? 'selected' : ''}>Corporal</option>
+                    <option value="ritual" ${item.required_skill === 'ritual' ? 'selected' : ''}>Rituales</option>
+                    <option value="suite" ${item.required_skill === 'suite' ? 'selected' : ''}>Suite Spa</option>
+                    <option value="circuito" ${item.required_skill === 'circuito' ? 'selected' : ''}>Circuito Spa</option>
+                    <option value="manicura" ${item.required_skill === 'manicura' ? 'selected' : ''}>Manicura/Pedicura</option>
+                    <option value="peluqueria" ${item.required_skill === 'peluqueria' ? 'selected' : ''}>Peluquería</option>
+                    <option value="depilacion" ${item.required_skill === 'depilacion' ? 'selected' : ''}>Depilación</option>
+                    <option value="maquillaje" ${item.required_skill === 'maquillaje' ? 'selected' : ''}>Maquillaje</option>
+                </select>
+            </td>
             <td style="padding: 10px 12px; text-align: center;">
                 <input type="number" value="${item.pax_max || 1}" onchange="updateMasterItemField('${item.id}', 'pax_max', parseInt(this.value))" 
                         class="param-input" style="width: 60px; text-align: center;" min="1" max="50">
+            </td>
+            <td style="padding: 10px 12px; text-align: center;">
+                <input type="number" step="0.01" value="${item.price_pax || 0}" onchange="updateMasterItemField('${item.id}', 'price_pax', parseFloat(this.value))" 
+                        class="param-input" style="width: 85px; text-align: center; color: var(--accent); font-weight: 700;" min="0">
             </td>
             <td style="padding: 10px 12px; text-align: center;">
                 <select onchange="updateMasterItemField('${item.id}', 'agenda_required', this.value === 'true')" class="param-input" style="width: 80px;">
@@ -755,6 +774,7 @@ async function addMasterItem() {
             code: code,
             duration: 0,
             pax_max: 1, // Default to 1
+            price_pax: 0,
             agenda_required: true, // Default to true
             space: "",
             created_at: new Date().toISOString()
