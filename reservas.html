@@ -1797,93 +1797,120 @@
 
             let servicesToShow = [];
 
-            // --- 1. LOCAL DIRECT SALE FLOW (STRICT MASTER + CATALOG FALLBACK) ---
-            if (isLocalFlow) {
+            // --- 1. FLOW DECISION LOGIC ---
+            const isCabina = roomCode.startsWith('cabina');
+
+            if (isCabina) {
+                // --- CABINA DEFINITIVE LOGIC (STRICT MASTER + ORIGIN INDEPENDENT) ---
+                console.log(`[CABINA] Definitive Logic Applied: Room=${roomCode}, SalaActual=${salaActual}`);
+                const sourceItems = window.masterItems || [];
+
+                servicesToShow = sourceItems.filter(item => {
+                    // Rule 1: Compatible Space (cabinaX or cabina)
+                    const rawSpaces = item.allowedSpaces || item.espacios || (item.space ? [item.space] : []);
+                    const spaces = Array.isArray(rawSpaces) ? rawSpaces.map(s => s.toLowerCase().trim()) : [];
+                    const matchesRoom = spaces.includes(roomCode) || spaces.includes(salaActual);
+
+                    // Rule 2: Active Agenda (Strict True)
+                    const hasAgenda = (item.agenda_required === true || item.agenda === true);
+
+                    // Debug for specific items verification
+                    if (item.name.toLowerCase().includes("cereza") || item.name.toLowerCase().includes("bambú")) {
+                        console.log(`[CABINA-FILTER] ${item.name}: SpaceMatch=${matchesRoom}, AgendaMatch=${hasAgenda}, Spaces=[${spaces.join(', ')}]`);
+                    }
+
+                    return matchesRoom && hasAgenda;
+                }).map(item => ({
+                    nombre: item.name,
+                    precio: item.price_pax || item.price || 0,
+                    pax_max: item.pax_max || 1,
+                    espacio: item.space || '',
+                    categoria: item.category || item.categoria || '',
+                    source: 'master_cabina'
+                }));
+
+                console.log(`[CABINA] Found ${servicesToShow.length} valid services in Master.`);
+
+            } else if (['suite', 'panacea', 'vip'].includes(salaActual)) {
+                // --- SUITE/PANACEA DEFINITIVE LOGIC (STRICT MASTER + ORIGIN INDEPENDENT) ---
+                console.log(`[SUITE/PANACEA] Definitive Logic Applied: Room=${roomCode}`);
+                const sourceItems = window.masterItems || [];
+
+                servicesToShow = sourceItems.filter(item => {
+                    // Rule 1: Compatible Space
+                    const rawSpaces = item.allowedSpaces || item.espacios || (item.space ? [item.space] : []);
+                    const spaces = Array.isArray(rawSpaces) ? rawSpaces.map(s => s.toLowerCase().trim()) : [];
+                    const matchesRoom = spaces.includes(roomCode) || spaces.includes(salaActual);
+
+                    // Rule 2: Agendable OR Duration > 0 (Suite/Panacea often have rituals)
+                    const hasAgenda = (item.agenda_required !== false);
+                    const hasDuration = (parseInt(item.duration) || 0) > 0;
+
+                    return matchesRoom && (hasAgenda || hasDuration);
+                }).map(item => ({
+                    nombre: item.name,
+                    precio: item.price_pax || item.price || 0,
+                    pax_max: item.pax_max || 2,
+                    espacio: item.space || '',
+                    categoria: item.category || item.categoria || '',
+                    source: 'master_suite_panacea'
+                }));
+
+                console.log(`[SUITE/PANACEA] Found ${servicesToShow.length} valid services in Master.`);
+
+            } else if (isLocalFlow) {
+                // --- STANDARD DIRECT FLOW (NON-CABINA: SPA, SUITE, PANACEA, VIP...) ---
                 const sourceItems = window.masterItems || [];
                 const catalogItems = currentServices || [];
-                const isCabina = roomCode.startsWith('cabina');
 
-                if (isCabina) {
-                    console.log(`[SERVICES] CABINA DIRECT FLOW: Room=${roomCode}, SalaActual=${salaActual}`);
-                    console.log("[SERVICES] Total Items in Master:", sourceItems.length);
+                // 1. Filter Master Items
+                const masterFiltered = sourceItems.filter(item => {
+                    const rawSpaces = item.allowedSpaces || item.espacios || (item.space ? [item.space] : []);
+                    const spaces = Array.isArray(rawSpaces) ? rawSpaces.map(s => s.toLowerCase().trim()) : [];
 
-                    servicesToShow = sourceItems.filter(item => {
-                        const rawSpaces = item.allowedSpaces || item.espacios || (item.space ? [item.space] : []);
-                        const spaces = Array.isArray(rawSpaces) ? rawSpaces.map(s => s.toLowerCase().trim()) : [];
+                    // User Rule: Visible if assigned to room AND (duration > 0 OR Agenda == Sí)
+                    const matchesSpace = spaces.includes(salaActual) || spaces.includes(roomCode);
+                    const hasAgenda = item.agenda_required !== false;
+                    const hasDuration = (parseInt(item.duration) || 0) > 0;
 
-                        const matchesRoom = spaces.includes(roomCode) || spaces.includes(salaActual);
+                    return matchesSpace && (hasAgenda || hasDuration);
+                }).map(item => ({
+                    nombre: item.name,
+                    precio: item.price_pax || item.price || item.precio || 0,
+                    pax_max: item.pax_max || item.pax || 1,
+                    espacio: item.space || '',
+                    categoria: item.category || item.categoria || '',
+                    source: 'master'
+                }));
 
-                        // Agenda is true if explicitly true OR not explicitly false (handles legacy undefined)
-                        const hasAgenda = item.agenda_required !== false;
+                // 2. Filter Catalog Items (Fallback for non-sync items)
+                const catalogFiltered = catalogItems.filter(s => {
+                    const cat = (s.categoria || "").toLowerCase();
+                    const EXCLUDED_CATEGORIES = ['peluqueria', 'restaurante', 'hotel'];
+                    if (EXCLUDED_CATEGORIES.includes(cat)) return false;
 
-                        if (item.name.includes("Cereza") || item.name.includes("Bambú")) {
-                            console.log(`[SERVICES DEBUG] Checking ${item.name}: matchesRoom=${matchesRoom}, hasAgenda=${hasAgenda}, spaces=[${spaces.join(', ')}]`);
-                        }
+                    const rawSpaces = s.allowedSpaces || (s.espacio ? [s.espacio] : []);
+                    const spaces = rawSpaces.map(x => x.toLowerCase().trim());
+                    const matchesSpace = spaces.includes(salaActual) || spaces.includes(roomCode);
 
-                        return matchesRoom && hasAgenda;
-                    }).map(item => ({
-                        nombre: item.name,
-                        precio: item.price_pax || item.price || 0,
-                        pax_max: item.pax_max || 1,
-                        espacio: item.space || '',
-                        categoria: item.category || item.categoria || '',
-                        source: 'master_cabina'
-                    }));
+                    // Avoid duplicates with master
+                    const isAlreadyInMaster = masterFiltered.some(m => m.nombre === s.nombre);
 
-                    console.log(`[SERVICES] CABINA DIRECT FLOW Result: Found ${servicesToShow.length} items.`);
-                } else {
-                    // --- STANDARD FLOW (Master + Fallback) ---
+                    // Exclusive for non-cabina: Visible if assigned to room
+                    return matchesSpace && !isAlreadyInMaster;
+                }).map(s => ({
+                    nombre: s.nombre,
+                    precio: s.precio || 0,
+                    pax_max: s.pax || 1,
+                    espacio: s.espacio || '',
+                    categoria: s.categoria || '',
+                    source: 'catalog'
+                }));
 
-                    // Filter Master Items
-                    const masterFiltered = sourceItems.filter(item => {
-                        const rawSpaces = item.allowedSpaces || item.espacios || (item.space ? [item.space] : []);
-                        if (!Array.isArray(rawSpaces)) return false;
-                        const spaces = rawSpaces.map(s => s.toLowerCase().trim());
+                servicesToShow = [...masterFiltered, ...catalogFiltered];
 
-                        // User Rule: Visible if assigned to room AND (duration > 0 OR Agenda == Sí)
-                        const matchesSpace = spaces.includes(salaActual) || spaces.includes(roomCode);
-                        const hasAgenda = item.agenda_required !== false;
-                        const hasDuration = (parseInt(item.duration) || 0) > 0;
-
-                        return matchesSpace && (hasAgenda || hasDuration);
-                    }).map(item => ({
-                        nombre: item.name,
-                        precio: item.price || item.precio || 0,
-                        pax_max: item.pax || 1,
-                        espacio: item.space || '',
-                        categoria: item.category || item.categoria || '',
-                        source: 'master'
-                    }));
-
-                    // Filter Catalog Items (to include missing services like "Envoltura de Cereza")
-                    const catalogFiltered = catalogItems.filter(s => {
-                        const cat = (s.categoria || "").toLowerCase();
-                        const EXCLUDED_CATEGORIES = ['peluqueria', 'restaurante', 'hotel'];
-                        if (EXCLUDED_CATEGORIES.includes(cat)) return false;
-
-                        const rawSpaces = s.allowedSpaces || (s.espacio ? [s.espacio] : []);
-                        const spaces = rawSpaces.map(x => x.toLowerCase().trim());
-                        const matchesSpace = spaces.includes(salaActual) || spaces.includes(roomCode);
-
-                        // Avoid duplicates with master
-                        const isAlreadyInMaster = masterFiltered.some(m => m.nombre === s.nombre);
-
-                        // User Rule: Visible if assigned to room, regardless of duration (inclusive fallback)
-                        return matchesSpace && !isAlreadyInMaster;
-                    }).map(s => ({
-                        nombre: s.nombre,
-                        precio: s.precio || 0,
-                        pax_max: s.pax || 1,
-                        espacio: s.espacio || '',
-                        categoria: s.categoria || '',
-                        source: 'catalog'
-                    }));
-
-                    servicesToShow = [...masterFiltered, ...catalogFiltered];
-
-                }
             } else {
-                // --- FALLBACK / LEGACY FLOW (Bonos, Hotel, etc - uses spa_services via currentServices) ---
+                // --- LEGACY FLOW (NON-CABINA: BONOS, HOTEL, SMARTBOX...) ---
                 const EXCLUDED_CATEGORIES = ['peluqueria', 'restaurante', 'hotel'];
 
                 servicesToShow = (currentServices || []).filter(s => {
@@ -1893,8 +1920,16 @@
                     const sAllowed = (Array.isArray(s.allowedSpaces) ? s.allowedSpaces : []).map(x => x.toLowerCase());
                     const isExplicitlyAllowed = sAllowed.includes(salaActual) || sAllowed.includes(roomCode);
                     return isExplicitlyAllowed;
-                });
+                }).map(s => ({
+                    nombre: s.nombre,
+                    precio: s.precio || 0,
+                    pax_max: s.pax || 1,
+                    espacio: s.espacio || '',
+                    categoria: s.categoria || '',
+                    source: 'catalog_legacy'
+                }));
             }
+
 
             // --- RENDER ---
             // Special handling: Force placeholder for Particular flow initially
