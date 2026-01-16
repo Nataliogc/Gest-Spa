@@ -18,22 +18,21 @@ const ROOM_ALIASES = {
     'panacea': ['panacea', 'pan'],
     'vip': ['vip', 'sala_vip', 'vipspa'],
     'suite': ['suite', 'suitespa', 'suite_spa'],
-    'suite': ['suite', 'suitespa', 'suite_spa'],
     'spa': ['spa', 'circuito', 'circuito_spa'],
-    'cabina1': ['cabina1', 'cab1', 'c1'],
-    'cabina2': ['cabina2', 'cab2', 'c2'],
-    'cabina3': ['cabina3', 'cab3', 'c3']
+    'cabina1': ['cabina1', 'cab1', 'c1', 'cabinauno', 'cabina_uno'],
+    'cabina2': ['cabina2', 'cab2', 'c2', 'cabinados', 'cabina_dos'],
+    'cabina3': ['cabina3', 'cab3', 'c3', 'cabinatres', 'cabina_tres']
 };
 
 const STAFF_POOLS = {
     'vip': ['vip', 'panacea'],
-    'panacea': ['vip', 'panacea'],
+    'panacea': ['panacea', 'vip'],
     'suite': ['suite'],
     'spa': ['spa'],
     'peluqueria': ['peluqueria'],
-    'cabina1': ['spa', 'cabinas'],
-    'cabina2': ['spa', 'cabinas'],
-    'cabina3': ['spa', 'cabinas']
+    'cabina1': ['cabina1', 'cabinas', 'spa'],
+    'cabina2': ['cabina2', 'cabinas', 'spa'],
+    'cabina3': ['cabina3', 'cabinas', 'spa']
 };
 
 // === PAX LIMITS BY ROOM ===
@@ -148,6 +147,7 @@ async function getAllBookingsForDate(date) {
 // Optimized availability checker
 async function getAvailableStaffForRoom(roomCode, date, time, duration, excludeId = null) {
     try {
+        console.log(`[STAFF-OPT] Check: ${roomCode} @ ${time} (${duration}m)`);
         // Step 1: Get Staff (1 Read or Cached)
         const allStaff = await getActiveStaff();
         if (allStaff.length === 0) return [];
@@ -368,6 +368,7 @@ function resetStaffDropdown(message = 'Selecciona servicio y hora primero') {
 }
 
 async function handleStaffFieldsChange() {
+    console.log("[STAFF-OPT] handleStaffFieldsChange Triggered");
     let date = document.getElementById('form-date')?.value;
     if (!date) date = document.getElementById('main-date-picker')?.value;
 
@@ -456,6 +457,8 @@ async function handleStaffFieldsChange() {
 
 // Export resetStaffDropdown
 window.resetStaffDropdown = resetStaffDropdown;
+window.handleStaffFieldsChange = handleStaffFieldsChange;
+window.getAvailableStaffForRoom = getAvailableStaffForRoom;
 
 // WhatsApp Helper
 async function sendStaffWhatsAppNotification(staff, booking) {

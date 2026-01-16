@@ -1106,8 +1106,6 @@
             // 2. Ensure Data is Loaded
             if (window.allStaff.length === 0) await window.loadStaff();
 
-            // We reload global reservations if the cache date doesn't match
-            // (Basic check, effectively we should trigger this on date change)
             if (!window.lastLoadedDate || window.lastLoadedDate !== date) {
                 await window.loadGlobalReservations(date);
                 window.lastLoadedDate = date;
@@ -1118,23 +1116,32 @@
 
             // 3. Filter
             const available = window.allStaff.filter(s => {
-                // A. Room Check (Strict)
-                // Normalize roomCode (cabina1 -> cabina might be needed if staff stores generic 'cabina')
-                // User requirement: "terapeuta.salas.includes(salaActual)"
-                // Typically 'cabina1', 'cabina2' share 'cabina' skill? 
-                // Let's assume strict match first, or safe fallback mapping.
-
-                const sSalas = (s.salas || []).map(x => x.toLowerCase());
+                // A. Room Check (Support both 'assigned_rooms' and legacy 'salas')
+                const rawRooms = s.assigned_rooms || s.salas || [];
+                const sSalas = rawRooms.map(x => x.toLowerCase());
                 const cleanRoom = roomCode.toLowerCase();
                 const genericRoom = cleanRoom.startsWith('cabina') ? 'cabina' : cleanRoom;
 
                 const worksInRoom = sSalas.includes(cleanRoom) || sSalas.includes(genericRoom);
                 if (!worksInRoom) return false;
 
-                // B. Schedule Check (Dias y Horas)
-                if (!s.horario) return false; // No schedule = no work
-                const dayName = getDayNameKey(date);
-                const dayShifts = s.horario[dayName]; // Array of strings "10:00-14:00"
+                // B. Schedule Check (Support 'default_schedule' and legacy 'horario')
+                let dayShifts = [];
+
+                // New Format (personal.js)
+                if (s.default_schedule) {
+                    const dayKey = getDayFullKey(date); // monday, tuesday...
+                    const dayConfig = s.default_schedule[dayKey];
+                    if (dayConfig && dayConfig.enabled && dayConfig.shifts) {
+                        // Convert objects {start, end} to strings "start-end" for uniform processing
+                        dayShifts = dayConfig.shifts.map(sh => `${sh.start}-${sh.end}`);
+                    }
+                }
+                // Legacy Format fallback
+                else if (s.horario) {
+                    const dayKey = getDayNameKey(date); // L, M...
+                    dayShifts = s.horario[dayKey];
+                }
 
                 if (!dayShifts || !Array.isArray(dayShifts) || dayShifts.length === 0) return false;
 
@@ -1144,6 +1151,7 @@
                     if (!startStr || !endStr) return false;
                     const shiftStart = timeToMinutes(startStr);
                     const shiftEnd = timeToMinutes(endStr);
+                    // Standard logic: Shift Start <= Request Start AND Shift End >= Request End
                     return (reqStart >= shiftStart && reqEnd <= shiftEnd);
                 });
 
@@ -1152,12 +1160,11 @@
                 // C. Collision Check (Global)
                 const hasConflict = window.dailyGlobalReservations.some(res => {
                     if (res.staff_id !== s.id) return false;
-                    if (excludeResId && res.id === excludeResId) return false; // Ignore self when editing
+                    if (excludeResId && res.id === excludeResId) return false;
 
                     const rStart = timeToMinutes(res.hora);
                     const rEnd = rStart + res.duracion;
 
-                    // Overlap logic: (StartA < EndB) and (EndA > StartB)
                     return (reqStart < rEnd && reqEnd > rStart);
                 });
 
@@ -1179,6 +1186,12 @@
         function getDayNameKey(dateStr) {
             const date = new Date(dateStr);
             const days = ['D', 'L', 'M', 'X', 'J', 'V', 'S'];
+            return days[date.getDay()];
+        }
+
+        function getDayFullKey(dateStr) {
+            const date = new Date(dateStr);
+            const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
             return days[date.getDay()];
         }
     </script>
