@@ -1807,16 +1807,30 @@
 
                 servicesToShow = sourceItems.filter(item => {
                     // Rule 1: Compatible Space (cabinaX or cabina)
+                    // Rule 1: Compatible Space (cabinaX or cabina)
                     const rawSpaces = item.allowedSpaces || item.espacios || (item.space ? [item.space] : []);
-                    const spaces = Array.isArray(rawSpaces) ? rawSpaces.map(s => s.toLowerCase().trim()) : [];
-                    const matchesRoom = spaces.includes(roomCode) || spaces.includes(salaActual);
+                    const spaces = Array.isArray(rawSpaces) ? rawSpaces.map(s => {
+                        let clean = s.toLowerCase().trim();
+                        // Normalize aliases
+                        if (clean === 'cabinauno') return 'cabina1';
+                        if (clean === 'cabinados') return 'cabina2';
+                        if (clean === 'cabinatres') return 'cabina3';
+                        if (clean === 'panacea (cabinas)') return 'cabina';
+                        return clean;
+                    }) : [];
 
-                    // Rule 2: Active Agenda (Strict True)
-                    const hasAgenda = (item.agenda_required === true || item.agenda === true);
+                    // Also normalize current room code just in case
+                    const normalizedRoomCode = roomCode.toLowerCase().replace('uno', '1').replace('dos', '2').replace('tres', '3');
+
+                    const matchesRoom = spaces.includes(normalizedRoomCode) || spaces.includes(salaActual) || spaces.includes('cabina');
+
+                    // Rule 2: Active Agenda (Relaxed - if it has duration and is in a cabina, it's valid)
+                    // Old Strict: const hasAgenda = (item.agenda_required === true || item.agenda === true);
+                    const hasAgenda = (item.agenda_required !== false && (parseInt(item.duration) > 0 || item.agenda === true));
 
                     // Debug for specific items verification
                     if (item.name.toLowerCase().includes("cereza") || item.name.toLowerCase().includes("bambú")) {
-                        console.log(`[CABINA-FILTER] ${item.name}: SpaceMatch=${matchesRoom}, AgendaMatch=${hasAgenda}, Spaces=[${spaces.join(', ')}]`);
+                        console.log(`[CABINA-FILTER] ${item.name}: SpaceMatch=${matchesRoom}, AgendaMatch=${hasAgenda}, NormRoom=${normalizedRoomCode}, Spaces=[${spaces.join(', ')}]`);
                     }
 
                     return matchesRoom && hasAgenda;
