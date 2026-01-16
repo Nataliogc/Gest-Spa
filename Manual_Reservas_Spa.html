@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manual de Reservas – Circuito Spa (Recepción)</title>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root {
+            --primary: #1e293b;
+            --secondary: #64748b;
+            --accent: #d4af37;
+            --bg: #f8fafc;
+            --card-bg: #ffffff;
+            --border: #e2e8f0;
+            --success: #22c55e;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+        }
+
+        body {
+            font-family: 'Montserrat', sans-serif;
+            line-height: 1.6;
+            color: var(--primary);
+            background-color: var(--bg);
+            margin: 0;
+            padding: 0;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 40px auto;
+            padding: 40px;
+            background: var(--card-bg);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+            border-radius: 12px;
+        }
+
+        header {
+            text-align: center;
+            border-bottom: 2px solid var(--accent);
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+        }
+
+        h1 {
+            color: var(--primary);
+            margin-bottom: 10px;
+            font-size: 2rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .meta {
+            color: var(--secondary);
+            font-size: 0.9rem;
+            font-weight: 500;
+        }
+
+        .intro {
+            background: #eff6ff;
+            padding: 20px;
+            border-radius: 8px;
+            border-left: 5px solid #3b82f6;
+            margin-bottom: 30px;
+        }
+
+        h2 {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: var(--primary);
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 10px;
+            margin-top: 40px;
+        }
+
+        h2 i {
+            color: var(--accent);
+        }
+
+        .step {
+            margin-bottom: 30px;
+        }
+
+        .step-content {
+            margin-left: 10px;
+        }
+
+        img {
+            max-width: 100%;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            margin: 20px 0;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+            transition: transform 0.3s ease;
+        }
+
+        img:hover {
+            transform: scale(1.02);
+        }
+
+        .rules-box {
+            background: #fffbeb;
+            border: 1px solid #fef3c7;
+            padding: 25px;
+            border-radius: 10px;
+            margin-top: 40px;
+        }
+
+        .rules-title {
+            color: #92400e;
+            font-weight: 700;
+            font-size: 1.2rem;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .rules-list {
+            list-style: none;
+            padding: 0;
+        }
+
+        .rules-list li {
+            margin-bottom: 12px;
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+        }
+
+        .rules-list li i {
+            color: var(--warning);
+            margin-top: 5px;
+        }
+
+        .faq-box {
+            background: #f1f5f9;
+            padding: 25px;
+            border-radius: 10px;
+            margin-top: 30px;
+        }
+
+        .faq-item {
+            margin-bottom: 20px;
+        }
+
+        .faq-question {
+            font-weight: 700;
+            color: var(--primary);
+            margin-bottom: 5px;
+        }
+
+        .faq-answer {
+            color: var(--secondary);
+            font-size: 0.95rem;
+        }
+
+        .badge-zero {
+            background: var(--success);
+            color: white;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-weight: 700;
+        }
+
+        .footer {
+            text-align: center;
+            margin-top: 50px;
+            padding-top: 20px;
+            border-top: 1px solid var(--border);
+            font-size: 0.85rem;
+            color: var(--secondary);
+        }
+
+        @media print {
+            body {
+                background: white;
+            }
+
+            .container {
+                box-shadow: none;
+                margin: 0;
+                max-width: 100%;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="container">
+        <header>
+            <h1>Manual de Reservas</h1>
+            <div class="meta">Circuito Spa (Recepción) • Versión 1.0 • Enero 2026</div>
+        </header>
+
+        <div class="intro">
+            <p><strong>OBJETIVO:</strong> Este manual detalla el paso a paso exclusivo para que el personal de recepción
+                gestione reservas de <strong>Circuito Spa</strong> mediante el sistema Zenith, garantizando la correcta
+                aplicación de tarifas según el origen del cliente.</p>
+        </div>
+
+        <h2><i class="fas fa-calendar-alt"></i> 1. Acceso a la Agenda</h2>
+        <div class="step-content">
+            <p>Selecciona <strong>"Spa"</strong> en el panel de gestión para visualizar los turnos disponibles.</p>
+            <img src="Imagenes/manual_spa/agenda_view.png" alt="Agenda de Spa Zenith">
+            <p>Identifica el turno deseado y verifica que queden plazas disponibles.</p>
+        </div>
+
+        <h2><i class="fas fa-hotel"></i> 2. Escenario A — Hotel Incluido</h2>
+        <div class="step-content">
+            <p>Para clientes con el Spa incluido en su tarifa de habitación.</p>
+            <ol>
+                <li>Haz clic en <strong>"Añadir Reserva"</strong> dentro del turno elegido.</li>
+                <li>Introduce los datos del cliente (Nombre y Teléfono).</li>
+                <li>Selecciona el origen <strong>Hotel - Incluido</strong>.</li>
+                <li>Verifica que el sistema marque el total como <span class="badge-zero">0.00 €</span>.</li>
+            </ol>
+            <img src="Imagenes/manual_spa/hotel_incluido.png" alt="Reserva Hotel Incluido">
+            <p><em>Nota: El control de pago se gestionará automáticamente sin deuda.</em></p>
+        </div>
+
+        <h2><i class="fas fa-receipt"></i> 3. Escenario B — Hotel No Incluido</h2>
+        <div class="step-content">
+            <p>Para clientes alojados que deben abonar el circuito a precio preferente.</p>
+            <ol>
+                <li>Sigue los mismos pasos iniciales de apertura de formulario.</li>
+                <li>Selecciona el origen <strong>Hotel - NO Incluidos</strong>.</li>
+                <li>El sistema aplicará el <strong>Precio Automático</strong> configurado.</li>
+                <li>Observa en el "Control de Pago" la deuda pendiente para proceder al cobro.</li>
+            </ol>
+            <img src="Imagenes/manual_spa/hotel_no_incluido.png" alt="Reserva Hotel No Incluido">
+        </div>
+
+        <div class="rules-box">
+            <div class="rules-title"><i class="fas fa-crown"></i> REGLAS DE ORO (BLOQUE CRÍTICO)</div>
+            <ul class="rules-list">
+                <li><i class="fas fa-user-slash"></i> <strong>Sin Terapeutas:</strong> El Circuito Spa no utiliza
+                    personal directo. No asocies terapeutas.</li>
+                <li><i class="fas fa-users"></i> <strong>Aforo Automático:</strong> El sistema controla el límite de 20
+                    plazas. Respeta los bloqueos.</li>
+                <li><i class="fas fa-hand-holding-usd"></i> <strong>Precios Automáticos:</strong> Nunca introduzcas el
+                    precio manual. Todo depende del "Origen" seleccionado.</li>
+                <li><i class="fas fa-exclamation-triangle"></i> <strong>Alojados sin Spa:</strong> No uses "Particular"
+                    para clientes del hotel; usa siempre "Hotel - NO Incluidos".</li>
+            </ul>
+        </div>
+
+        <div class="faq-box">
+            <h2><i class="fas fa-question-circle"></i> Errores Comunes</h2>
+            <div class="faq-item">
+                <div class="faq-question">¿No aparece "Circuito Spa" en el selector?</div>
+                <div class="faq-answer">Comprueba que estás en el menú principal de "Spa" y no en "Cabinas".</div>
+            </div>
+            <div class="faq-item">
+                <div class="faq-question">¿Qué pasa si el aforo está completo?</div>
+                <div class="faq-answer">El sistema no permitirá guardar. Ofrece al cliente el siguiente turno disponible
+                    con plazas.</div>
+            </div>
+        </div>
+
+        <div class="footer">
+            &copy; 2026 Cumbria Bienestar - Zenith Manager System | Documentación Operativa
+        </div>
+    </div>
+
+</body>
+
+</html>
