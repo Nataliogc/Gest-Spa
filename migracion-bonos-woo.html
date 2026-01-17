@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Migración Bonos WooCommerce | Zenith Manager</title>
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 40px 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 40px;
+        }
+
+        h1 {
+            color: #1e293b;
+            font-size: 2rem;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            color: #64748b;
+            margin-bottom: 30px;
+        }
+
+        .alert {
+            padding: 16px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border-left: 4px solid;
+        }
+
+        .alert-warning {
+            background: #fef3c7;
+            border-color: #f59e0b;
+            color: #92400e;
+        }
+
+        .alert-info {
+            background: #dbeafe;
+            border-color: #3b82f6;
+            color: #1e40af;
+        }
+
+        .alert-success {
+            background: #dcfce7;
+            border-color: #22c55e;
+            color: #166534;
+        }
+
+        .alert-error {
+            background: #fee2e2;
+            border-color: #ef4444;
+            color: #991b1b;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin: 30px 0;
+        }
+
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 12px;
+            text-align: center;
+        }
+
+        .stat-number {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+
+        .stat-label {
+            font-size: 0.875rem;
+            opacity: 0.9;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border-radius: 8px;
+            border: none;
+            font-weight: 600;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: all 0.3s;
+        }
+
+        .btn-primary {
+            background: #3b82f6;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #2563eb;
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(59, 130, 246, 0.3);
+        }
+
+        .btn-danger {
+            background: #ef4444;
+            color: white;
+        }
+
+        .btn-success {
+            background: #22c55e;
+            color: white;
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .table-container {
+            max-height: 400px;
+            overflow-y: auto;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th {
+            position: sticky;
+            top: 0;
+            background: #f8fafc;
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+            color: #1e293b;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        td {
+            padding: 12px;
+            border-bottom: 1px solid #f1f5f9;
+        }
+
+        tr:hover {
+            background: #f8fafc;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .badge-woo {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+
+        .badge-local {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .badge-pending {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .badge-paid {
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #e2e8f0;
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 20px 0;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            transition: width 0.3s;
+        }
+
+        #log {
+            background: #1e293b;
+            color: #e2e8f0;
+            padding: 20px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.875rem;
+            max-height: 300px;
+            overflow-y: auto;
+            margin-top: 20px;
+        }
+
+        .log-entry {
+            margin-bottom: 8px;
+        }
+
+        .log-success {
+            color: #22c55e;
+        }
+
+        .log-error {
+            color: #ef4444;
+        }
+
+        .log-warning {
+            color: #f59e0b;
+        }
+
+        .log-info {
+            color: #3b82f6;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>🔧 Migración de Bonos WooCommerce</h1>
+        <p class="subtitle">Actualización masiva de campos de pago para bonos de tienda virtual</p>
+
+        <div class="alert alert-warning">
+            <strong>⚠️ Importante:</strong> Este script actualizará TODOS los bonos de WooCommerce detectados en la base
+            de datos.
+            Los bonos locales (LOC-*, exc.Loc*) NO serán afectados.
+        </div>
+
+        <div class="stats" id="stats">
+            <div class="stat-card">
+                <div class="stat-number" id="totalBonos">-</div>
+                <div class="stat-label">Total Bonos</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="wooBonos">-</div>
+                <div class="stat-label">Bonos WooCommerce</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="needUpdate">-</div>
+                <div class="stat-label">Requieren Actualización</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="updated">0</div>
+                <div class="stat-label">Actualizados</div>
+            </div>
+        </div>
+
+        <div id="controls">
+            <button class="btn btn-primary" onclick="analyzeVouchers()" id="analyzeBtn">
+                📊 Analizar Bonos
+            </button>
+
+            <div
+                style="margin: 20px 0; padding: 16px; background: #fef3c7; border-radius: 8px; border: 2px solid #f59e0b;">
+                <label style="display: flex; align-items: center; gap: 8px; font-weight: 600; color: #92400e;">
+                    <input type="checkbox" id="testMode" onchange="updateMigrateButton()">
+                    🧪 MODO TEST (solo 10 bonos) - Recomendado para primera ejecución
+                </label>
+            </div>
+
+            <button class="btn btn-primary" onclick="exportBackup()" id="backupBtn" disabled
+                style="background: #8b5cf6;">
+                💾 Descargar Backup (JSON)
+            </button>
+            <button class="btn btn-success" onclick="startMigration()" id="migrateBtn" disabled>
+                ✅ Ejecutar Migración
+            </button>
+            <button class="btn btn-danger" onclick="location.href='bonos.html'">
+                ❌ Cancelar
+            </button>
+        </div>
+
+        <div class="progress-bar" style="display: none;" id="progressBar">
+            <div class="progress-fill" id="progressFill" style="width: 0%"></div>
+        </div>
+
+        <div id="preview" style="display: none;">
+            <h3>📋 Vista Previa de Bonos a Actualizar</h3>
+            <div class="alert alert-info" id="testModeWarning" style="display: none;">
+                <strong>🧪 MODO TEST ACTIVO:</strong> Solo se procesarán los primeros 10 bonos. Desactiva el modo test
+                para migrar todos.
+            </div>
+            <div class="table-container">
+                <table id="previewTable">
+                    <thead>
+                        <tr>
+                            <th>Código</th>
+                            <th>Cliente</th>
+                            <th>Precio</th>
+                            <th>Origen Actual</th>
+                            <th>Estado Pago Actual</th>
+                            <th>Cambios</th>
+                        </tr>
+                    </thead>
+                    <tbody id="previewBody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div id="log"></div>
+    </div>
+
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <script src="firebase-config.js"></script>
+
+    <script>
+        const db = firebase.firestore();
+        let vouchersToUpdate = [];
+        let originalVouchersData = {}; // Para backup
+
+        // Cache de datos remotos para recuperar nombres perdidos
+        // Cache de datos remotos para recuperar nombres perdidos
+        let remoteWooData = {};
+        let isRemoteDataLoaded = false;
+
+        async function fetchRemoteData() {
+            if (isRemoteDataLoaded) return true;
+
+            const targetUrl = 'https://cumbriabienestar.es/wp-json/robahotel/v1/bonos?desde=2021-01-01&per_page=9999&limit=9999';
+            let data = null;
+            let errorMsg = '';
+
+            // INTENTO 1: corsproxy.io
+            log('🌐 Conectando con WooCommerce (Proxy 1: corsproxy.io)...', 'info');
+            try {
+                const response = await fetch('https://corsproxy.io/?' + encodeURIComponent(targetUrl));
+                if (response.ok) {
+                    data = await response.json();
+                    log('✅ Conexión establecida vía Proxy 1.', 'success');
+                } else {
+                    throw new Error('Status ' + response.status);
+                }
+            } catch (error) {
+                console.warn('Proxy 1 failed:', error);
+                errorMsg += `Proxy 1: ${error.message}. `;
+                log(`⚠️ Intento 1 fallido. Probando ruta alternativa...`, 'warning');
+            }
+
+            // INTENTO 2: allorigins.win (Backup)
+            if (!data) {
+                log('🌐 Conectando con WooCommerce (Proxy 2: allorigins)...', 'info');
+                try {
+                    const response = await fetch('https://api.allorigins.win/get?url=' + encodeURIComponent(targetUrl));
+                    if (response.ok) {
+                        const wrapper = await response.json();
+                        if (wrapper.contents) {
+                            data = JSON.parse(wrapper.contents);
+                            log('✅ Conexión establecida vía Proxy 2.', 'success');
+                        }
+                    } else {
+                        throw new Error('Status ' + response.status);
+                    }
+                } catch (error) {
+                    console.error('Proxy 2 failed:', error);
+                    errorMsg += `Proxy 2: ${error.message}.`;
+                    log(`❌ Intento 2 fallido.`, 'error');
+                }
+            }
+
+            if (data) {
+                log(`📥 Procesando ${data.length} registros remotos...`, 'info');
+                data.forEach(item => {
+                    const codes = [
+                        item.bono,
+                        `BONO${item.id}`,
+                        `BONO${item.order_id}`,
+                        String(item.id),
+                        String(item.order_id)
+                    ];
+                    codes.forEach(c => {
+                        if (c) remoteWooData[c] = item;
+                    });
+                });
+                isRemoteDataLoaded = true;
+                return true;
+            } else {
+                log('🔥 ERROR CRÍTICO: No se pudieron descargar los datos de la web.', 'error');
+                alert('ERROR DE CONEXIÓN:\nNo se han podido descargar los datos de WooCommerce.\nDetalle: ' + errorMsg + '\n\nLos teléfonos NO se actualizarán.\nVerifica tu conexión y vuelve a intentarlo.');
+                return false;
+            }
+        }
+
+
+        function log(message, type = 'info') {
+            const logEl = document.getElementById('log');
+            const entry = document.createElement('div');
+            entry.className = `log-entry log-${type}`;
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logEl.appendChild(entry);
+            logEl.scrollTop = logEl.scrollHeight;
+        }
+
+        function updateMigrateButton() {
+            const migrateBtn = document.getElementById('migrateBtn');
+            const testMode = document.getElementById('testMode').checked;
+            const testWarning = document.getElementById('testModeWarning');
+
+            if (vouchersToUpdate.length > 0) {
+                if (testMode) {
+                    migrateBtn.textContent = `🧪 Migrar (TEST: máx 10 bonos)`;
+                    if (testWarning) testWarning.style.display = 'block';
+                } else {
+                    migrateBtn.textContent = `✅ Ejecutar Migración (${vouchersToUpdate.length} bonos)`;
+                    if (testWarning) testWarning.style.display = 'none';
+                }
+            }
+        }
+
+        function exportBackup() {
+            if (originalVouchersData && Object.keys(originalVouchersData).length > 0) {
+                const dataStr = JSON.stringify(originalVouchersData, null, 2);
+                const dataBlob = new Blob([dataStr], { type: 'application/json' });
+                const url = URL.createObjectURL(dataBlob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = `backup-bonos-woo-${new Date().toISOString().split('T')[0]}.json`;
+                link.click();
+                URL.revokeObjectURL(url);
+
+                log('✅ Backup exportado correctamente', 'success');
+                alert('💾 Backup guardado!\n\nSi necesitas revertir los cambios, contacta con soporte técnico con este archivo.');
+            }
+        }
+
+        function isWooCommerceVoucher(voucher) {
+            const code = String(voucher.bono || voucher.codigo || '').trim();
+
+            // Códigos que NO son de WooCommerce
+            if (code.startsWith('LOC-') || code.startsWith('LOCAL-') || code.startsWith('exc.Loc')) {
+                return false;
+            }
+
+            // Códigos que SÍ son de WooCommerce
+            if (code.startsWith('BONO') || code.startsWith('Tarj-')) {
+                return true;
+            }
+
+            // También considerar si tiene origen woo/woocommerce
+            const origen = String(voucher.origen || '').toLowerCase();
+            if (origen.includes('woo') || origen.includes('web') || origen === 'online') {
+                return true;
+            }
+
+            // Si no tiene origen definido y no es local, probablemente es WooCommerce
+            if (!voucher.origen && !code.startsWith('LOC')) {
+                return true;
+            }
+
+            return false;
+        }
+
+        function needsUpdate(voucher) {
+            // Necesita actualización si:
+            // 1. No tiene estado_pago definido
+            // 2. Estado_pago es 'pendiente' pero es un bono de WooCommerce
+            // 3. No tiene origen='woocommerce'
+
+            if (!voucher.estado_pago) return true;
+            if (voucher.estado_pago === 'pendiente') return true;
+            if (voucher.origen !== 'woocommerce') return true;
+            if (!voucher.metodo_pago || voucher.metodo_pago !== 'online') return true;
+
+            // NUEVO: También actualizar si falta nombre o teléfono
+            if (!voucher.cliente || voucher.cliente === '-' || voucher.cliente === 'Nombre Cliente') return true;
+            if (!voucher.telefono || voucher.telefono.length < 5) return true;
+
+            return false;
+        }
+
+        async function analyzeVouchers() {
+            const btn = document.getElementById('analyzeBtn');
+            btn.disabled = true;
+            btn.textContent = '🔄 Analizando...';
+
+            log('Iniciando análisis de bonos...', 'info');
+
+            // 1. Intentar descargar datos remotos primero
+            await fetchRemoteData();
+
+            try {
+                // Cargar todos los bonos
+                const snapshot = await db.collection('spa_vouchers').get();
+                const allVouchers = [];
+
+                snapshot.forEach(doc => {
+                    allVouchers.push({
+                        id: doc.id,
+                        ...doc.data()
+                    });
+                });
+
+                log(`✅ Cargados ${allVouchers.length} bonos totales`, 'success');
+                document.getElementById('totalBonos').textContent = allVouchers.length;
+
+                // Filtrar bonos de WooCommerce
+                const wooVouchers = allVouchers.filter(v => isWooCommerceVoucher(v));
+                log(`🛒 Detectados ${wooVouchers.length} bonos de WooCommerce`, 'info');
+                document.getElementById('wooBonos').textContent = wooVouchers.length;
+
+                // Filtrar los que necesitan actualización
+                vouchersToUpdate = wooVouchers.filter(v => needsUpdate(v));
+                log(`⚠️ ${vouchersToUpdate.length} bonos requieren actualización`, 'warning');
+                document.getElementById('needUpdate').textContent = vouchersToUpdate.length;
+
+                // Guardar datos originales para backup
+                vouchersToUpdate.forEach(v => {
+                    originalVouchersData[v.id] = { ...v };
+                });
+
+                // Mostrar vista previa
+                if (vouchersToUpdate.length > 0) {
+                    showPreview();
+                    document.getElementById('migrateBtn').disabled = false;
+                    document.getElementById('backupBtn').disabled = false;
+                    updateMigrateButton();
+                    log('💡 Recomendación: Descarga el backup antes de migrar', 'warning');
+                } else {
+                    log('✅ Todos los bonos de WooCommerce ya están correctamente configurados', 'success');
+                }
+
+                btn.textContent = '📊 Analizar Bonos';
+                btn.disabled = false;
+
+            } catch (error) {
+                log(`❌ Error en análisis: ${error.message}`, 'error');
+                console.error(error);
+                btn.textContent = '📊 Analizar Bonos';
+                btn.disabled = false;
+            }
+        }
+
+        function showPreview() {
+            document.getElementById('preview').style.display = 'block';
+            const tbody = document.getElementById('previewBody');
+            tbody.innerHTML = '';
+
+            vouchersToUpdate.slice(0, 50).forEach(v => {
+                const row = document.createElement('tr');
+                const totalPrice = parseFloat(v.precio) || parseFloat(v.importe) || 0;
+
+                let changes = [];
+                if (!v.origen || v.origen !== 'woocommerce') changes.push('origen ➜ woocommerce');
+                if (!v.estado_pago || v.estado_pago === 'pendiente') changes.push('estado_pago ➜ pagado');
+                if (!v.metodo_pago) changes.push('metodo_pago ➜ online');
+
+                row.innerHTML = `
+                    <td><strong>${v.bono || v.codigo}</strong></td>
+                    <td>${v.cliente || '-'}</td>
+                    <td>${totalPrice.toFixed(2)}€</td>
+                    <td><span class="badge ${v.origen === 'woocommerce' ? 'badge-woo' : 'badge-local'}">${v.origen || 'sin origen'}</span></td>
+                    <td><span class="badge ${v.estado_pago === 'pagado' ? 'badge-paid' : 'badge-pending'}">${v.estado_pago || 'sin estado'}</span></td>
+                    <td style="font-size: 0.75rem;">${changes.join(', ')}</td>
+                `;
+                tbody.appendChild(row);
+            });
+
+            if (vouchersToUpdate.length > 50) {
+                const row = document.createElement('tr');
+                row.innerHTML = `<td colspan="6" style="text-align: center; font-style: italic; color: #64748b;">... y ${vouchersToUpdate.length - 50} bonos más</td>`;
+                tbody.appendChild(row);
+            }
+        }
+
+        async function startMigration() {
+            const testMode = document.getElementById('testMode').checked;
+            const bonosToProcess = testMode ? Math.min(10, vouchersToUpdate.length) : vouchersToUpdate.length;
+
+            if (!confirm(`⚠️ Confirmación necesaria\n\n${testMode ? '🧪 MODO TEST ACTIVO\n\n' : ''}¿Estás seguro de actualizar ${bonosToProcess} bonos de WooCommerce?\n\nEsta acción:\n• Marcará los bonos como PAGADOS\n• Establecerá origen = 'woocommerce'\n• Agregará método de pago = 'online'\n• Recuperará nombres perdidos desde la web\n\n¿Continuar?`)) {
+                return;
+            }
+
+            const migrateBtn = document.getElementById('migrateBtn');
+            const analyzeBtn = document.getElementById('analyzeBtn');
+            const backupBtn = document.getElementById('backupBtn');
+            migrateBtn.disabled = true;
+            analyzeBtn.disabled = true;
+            backupBtn.disabled = true;
+
+            document.getElementById('progressBar').style.display = 'block';
+            log('🚀 Iniciando migración...', 'info');
+            if (testMode) {
+                log(`🧪 MODO TEST: Limitando a ${bonosToProcess} bonos`, 'warning');
+            }
+
+            let successCount = 0;
+            let errorCount = 0;
+
+            const batch = db.batch();
+            let batchCount = 0;
+            const BATCH_SIZE = 500; // Firestore limit
+
+            for (let i = 0; i < bonosToProcess; i++) {
+                const v = vouchersToUpdate[i];
+                const totalPrice = parseFloat(v.precio) || parseFloat(v.importe) || 0;
+
+                try {
+                    // FIX: Convertir ID a string para evitar error con IDs numéricos
+                    const docRef = db.collection('spa_vouchers').doc(String(v.id));
+
+                    const updateData = {
+                        origen: 'woocommerce',
+                        estado_pago: 'pagado',
+                        metodo_pago: 'online',
+                        importe_pagado: totalPrice,
+                        importe_pendiente: 0,
+                        migration_updated: new Date().toISOString()
+                    };
+
+                    // --- RECUPERACIÓN DE DATOS (MEJORADA CON REMOTE DATA) ---
+                    // 1. Buscar en datos remotos descargados
+                    const remote = remoteWooData[v.bono] || remoteWooData[v.id] || remoteWooData[v.codigo];
+
+                    let candidateName = '';
+                    let candidatePhone = '';
+                    let candidateEmail = '';
+
+                    // DEBUG EXTREMO PARA BONO 7712
+                    if ((v.bono === 'BONO7712' || v.bono === '7712') && remote) {
+                        const debugDiv = document.createElement('div');
+                        debugDiv.style.background = '#000';
+                        debugDiv.style.color = '#0f0';
+                        debugDiv.style.padding = '10px';
+                        debugDiv.style.margin = '10px 0';
+                        debugDiv.style.whiteSpace = 'pre-wrap';
+                        debugDiv.style.fontFamily = 'monospace';
+                        debugDiv.innerHTML = '<strong>DEBUG BONO 7712 (ESTRUCTURA REMOTA):</strong><br>' + JSON.stringify(remote, null, 2);
+                        document.querySelector('.container').insertBefore(debugDiv, document.getElementById('log-container'));
+                        log('🔍 DEBUG: Estructura de BONO 7712 volcada arriba en negro.', 'info');
+                    }
+
+                    // Función Helper para buscar teléfono recursivamente
+                    // Función Helper para buscar teléfono recursivamente (VERSIÓN ULTRA-AGRESIVA)
+                    function findPhoneInObject(obj, visited = new Set()) {
+                        if (!obj || visited.has(obj) || typeof obj !== 'object') return '';
+                        visited.add(obj);
+
+                        // Patrón español: 9 dígitos empezando por 6,7,8,9 (opcional prefijo +34/0034)
+                        const phoneRegex = /^(?:(?:\+|00)34[\s.-]?)?([6789]\d{8,12})$/;
+                        let bestMatch = '';
+
+                        for (let key in obj) {
+                            const val = obj[key];
+                            const keyLower = key.toLowerCase();
+
+                            if (typeof val === 'string' || typeof val === 'number') {
+                                const strVal = String(val).trim();
+                                const cleanVal = strVal.replace(/[\s\.\-\(\)]/g, '');
+
+                                if (cleanVal.length >= 9 && cleanVal.length <= 13 && /^[6789]/.test(cleanVal.replace(/^\+34|0034/, ''))) {
+                                    if (keyLower.includes('phone') || keyLower.includes('tel') || keyLower.includes('movil') || keyLower.includes('contact')) {
+                                        return strVal;
+                                    }
+                                    if (!bestMatch) bestMatch = strVal;
+                                }
+                            } else if (typeof val === 'object' && val !== null) {
+                                const found = findPhoneInObject(val, visited);
+                                if (found) return found;
+                            }
+                        }
+                        return bestMatch;
+                    }
+
+                    // Prioridad 1: Datos Remotos
+                    if (remote) {
+                        // Construir nombre
+                        candidateName = ((remote.billing_first_name || '') + ' ' + (remote.billing_last_name || '')).trim();
+                        if (!candidateName) candidateName = ((remote.shipping_first_name || '') + ' ' + (remote.shipping_last_name || '')).trim();
+                        if (!candidateName) candidateName = remote.cliente || '';
+
+                        // ESTRATEGIA: Búsqueda directa primero
+                        candidatePhone = remote.billing_phone || remote.phone || remote.shipping_phone || '';
+                        if (!candidatePhone && remote.billing) candidatePhone = remote.billing.phone;
+
+                        // Si falla la directa, usar la búsqueda profunda recursiva ULTRA-AGRESIVA
+                        if (!candidatePhone || candidatePhone.length < 5) {
+                            candidatePhone = findPhoneInObject(remote);
+                            if (candidatePhone) console.log('📞 Teléfono encontrado recursivamente:', candidatePhone);
+                        }
+
+                        candidateEmail = remote.billing_email || remote.email || (remote.billing ? remote.billing.email : '') || '';
+                    }
+
+                    // Prioridad 2: Datos Locales (si no hay remotos o están vacíos)
+                    if (!candidateName) {
+                        candidateName = ((v.billing_first_name || '') + ' ' + (v.billing_last_name || '')).trim();
+                    }
+                    if (!candidatePhone) {
+                        candidatePhone = v.billing_phone || v.phone || '';
+                    }
+                    if (!candidateEmail) {
+                        candidateEmail = v.billing_email || v.email_address || '';
+                    }
+
+                    // APLICAR ACTUALIZACIONES SI FALTAN
+                    if ((!v.cliente || v.cliente === '-' || v.cliente === 'Nombre Cliente') && candidateName.length > 1) {
+                        updateData.cliente = candidateName;
+                    }
+
+                    // FIX: Permitir actualizar si es placeholder o muy corto
+                    // Y limpiar formato de teléfono si viene sucio
+                    if ((!v.telefono || v.telefono.length < 5 || v.telefono.includes('Obligatorio')) && candidatePhone && candidatePhone.length > 5) {
+                        updateData.telefono = candidatePhone;
+                    }
+
+                    if ((!v.email || !v.email.includes('@')) && candidateEmail.includes('@')) {
+                        updateData.email = candidateEmail;
+                    }
+
+                    // Solo agregar historial de pagos si no existe
+                    if (!v.pagos || v.pagos.length === 0) {
+                        updateData.pagos = [{
+                            fecha: v.fecha || new Date().toISOString().split('T')[0],
+                            metodo: 'online',
+                            importe: totalPrice,
+                            usuario: 'tienda-online'
+                        }];
+                    }
+
+                    batch.update(docRef, updateData);
+                    batchCount++;
+
+                    // Commit batch cada 500 operaciones
+                    if (batchCount >= BATCH_SIZE || i === bonosToProcess - 1) {
+                        await batch.commit();
+                        successCount += batchCount;
+                        batchCount = 0;
+                        log(`✅ Actualizado batch: ${successCount}/${bonosToProcess} bonos`, 'success');
+                    }
+
+                    // Actualizar progreso
+                    const progress = ((i + 1) / bonosToProcess) * 100;
+                    document.getElementById('progressFill').style.width = `${progress}%`;
+                    document.getElementById('updated').textContent = successCount;
+
+                } catch (error) {
+                    log(`❌ Error actualizando ${v.bono}: ${error.message}`, 'error');
+                    errorCount++;
+                }
+            }
+
+            log(`\n🎉 ¡Migración completada!`, 'success');
+            log(`✅ Actualizados: ${successCount} bonos`, 'success');
+            if (errorCount > 0) {
+                log(`❌ Errores: ${errorCount} bonos`, 'error');
+            }
+
+            setTimeout(() => {
+                alert(`✅ Migración completada con éxito!\n\n${successCount} bonos actualizados\n\nAhora puedes volver a Bonos y sincronizar para ver los cambios.`);
+                location.href = 'bonos.html';
+            }, 2000);
+        }
+
+        // Auto-analyze on load
+        window.addEventListener('DOMContentLoaded', () => {
+            log('Sistema de migración iniciado', 'info');
+            log('Presiona "Analizar Bonos" para comenzar', 'info');
+        });
+    </script>
+</body>
+
+</html>

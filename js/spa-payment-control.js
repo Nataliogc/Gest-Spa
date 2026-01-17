@@ -76,7 +76,10 @@ function initializePaymentFields(voucher, origen) {
 function normalizePaymentFields(voucher) {
     const v = { ...voucher };
 
-    const totalPrice = parseFloat(v.snapshot_price) || parseFloat(v.precio) || parseFloat(v.importe) || 0;
+    // Obtener precio total de forma robusta
+    let rawPrice = v.snapshot_price || v.precio || v.importe || v.total || v.sale_price;
+    if (typeof rawPrice === 'string') rawPrice = rawPrice.replace(',', '.');
+    const totalPrice = parseFloat(rawPrice) || 0;
 
     // Si ya tiene estado_pago definido, normalizar tipos
     if (v.estado_pago) {
@@ -91,6 +94,13 @@ function normalizePaymentFields(voucher) {
         }
     }
 
+    // FIX GLOBAL: Los bonos de WooCommerce u Online SIEMPRE están pagados
+    // Prevalece sobre cualquier estado corrupto en la base de datos local
+    const origenNorm = (v.origen || '').toLowerCase();
+    if (origenNorm.includes('woo') || v.metodo_pago === 'online') {
+        v.estado_pago = PAYMENT_STATUS.PAGADO;
+    }
+
     // Normalizar importes
     v.importe_pagado = parseFloat(v.importe_pagado) || 0;
 
@@ -101,7 +111,7 @@ function normalizePaymentFields(voucher) {
         v.importe_pagado = 0;
         v.importe_pendiente = totalPrice;
     } else {
-        v.importe_pendiente = totalPrice - v.importe_pagado;
+        v.importe_pendiente = Math.max(0, totalPrice - v.importe_pagado);
     }
 
     // Asegurar array de pagos

@@ -1577,7 +1577,7 @@ async function sincronizarConTienda(persistentData, btn, originalText) {
             if (b.purchase_date && !b.fecha) b.fecha = b.purchase_date;
 
             // 2️⃣ PROTECCIÓN DE PRECIO (ANTI-UNDEFINED)
-            const precioWoo = b.precio ?? b.total ?? b.item_total ?? b.amount ?? b.line_total ?? b.order_total;
+            const precioWoo = b.precio ?? b.importe ?? b.total ?? b.item_total ?? b.amount ?? b.line_total ?? b.order_total;
             if (
                 precioWoo === undefined ||
                 precioWoo === null ||
@@ -1772,6 +1772,28 @@ async function sincronizarConTienda(persistentData, btn, originalText) {
                     console.log(`[Sync] Saltando actualización de datos (Protección manual activa): ${b.bono}`);
                 }
 
+                // NUEVO: Asegurar que bonos de WooCommerce existentes tengan campos de pago
+                // IMPORTANTE: Permitir actualización DE PAGO incluso si tiene manual_update,
+                // pero SOLO si no tiene estado_pago configurado (para no sobrescribir pagos manuales)
+                if (!persisted.estado_pago || persisted.estado_pago === 'pendiente') {
+                    const totalPrice = parseFloat(b.precio) || parseFloat(b.importe) || 0;
+                    console.log(`[Sync] 🔧 Actualizando campos de pago para bono WooCommerce ${b.bono} (manual_update: ${!!persisted.manual_update})`);
+                    updateData.origen = 'woocommerce';
+                    updateData.estado_pago = 'pagado';
+                    updateData.metodo_pago = 'online';
+                    updateData.importe_pagado = totalPrice;
+                    updateData.importe_pendiente = 0;
+                    if (!persisted.pagos || persisted.pagos.length === 0) {
+                        updateData.pagos = [{
+                            fecha: b.fecha || new Date().toISOString().split('T')[0],
+                            metodo: 'online',
+                            importe: totalPrice,
+                            usuario: 'tienda-online'
+                        }];
+                    }
+                    needsUpdate = true;
+                }
+
                 // Actualizar searchTokens para incluir los nuevos datos
                 if (needsUpdate) {
                     updateData.searchTokens = generateSearchTokens({ ...persisted, ...b, ...updateData });
@@ -1785,7 +1807,7 @@ async function sincronizarConTienda(persistentData, btn, originalText) {
                 const docRef = db.collection("spa_vouchers").doc(b.bono);
                 // Calcular sesiones totales basado en los items fusionados
                 // Si tenemos items desglosados, la suma de sesiones de cada uno podría ser el total
-                // Pero por defecto, dejemos que la lógica de detección individual lo maneje o sumemos 1 por item
+                // Pero por defecto, dejemos que la lógica de detección individual lo maneje o sum emos 1 por item
                 let calculatedTotal = b.items_desglosados ? b.items_desglosados.length : 1;
 
                 // Refinar cálculo de sesiones por item
@@ -1826,8 +1848,27 @@ async function sincronizarConTienda(persistentData, btn, originalText) {
 
                 // Asegurar persistencia de IDs a nivel de raíz para el bono (usa el del primer item si es nuevo)
                 const firstItem = b.items_desglosados?.[0] || {};
+
+                // NUEVO: Inicializar campos de pago para bonos de WooCommerce
+                // Los bonos de venta online deben estar PAGADOS con método 'online' por defecto
+                const totalPrice = parseFloat(b.precio) || parseFloat(b.importe) || 0;
+                const paymentFields = {
+                    origen: 'woocommerce',
+                    estado_pago: 'pagado',
+                    metodo_pago: 'online',
+                    importe_pagado: totalPrice,
+                    importe_pendiente: 0,
+                    pagos: [{
+                        fecha: b.fecha || new Date().toISOString().split('T')[0],
+                        metodo: 'online',
+                        importe: totalPrice,
+                        usuario: 'tienda-online'
+                    }]
+                };
+
                 const topLevelDataRaw = {
                     ...b,
+                    ...paymentFields,
                     product_id: b.product_id || firstItem.product_id,
                     variation_id: b.variation_id || firstItem.variation_id,
                     estado: finalState,
@@ -1846,13 +1887,47 @@ async function sincronizarConTienda(persistentData, btn, originalText) {
             return { ...b, ...persisted, estado: finalState, precio: b.precio || b.importe };
         });
 
-        // Merge
+        // Merge CORRECTO:
+        // 1. WebVouchers = bonos recién sincronizados de WooCommerce
+        // 2. LocalVouchers = bonos que NO están en esta sync PERO que tampoco son de WooCommerce
+        // 3. ExistingWooVouchers = bonos de WooCommerce que YA están en Firestore pero no vinieron en esta sync
+
         const webCodes = shopVouchers.map(x => x.bono);
+
+        // Bonos locales (LOC-*, exc.Loc*, etc) - NUNCA son de WooCommerce
         const localVouchers = Object.values(persistentData)
-            .filter(p => !webCodes.includes(p.bono))
+            .filter(p => {
+                // Excluir si vino en esta sincronización
+                if (webCodes.includes(p.bono)) return false;
+
+                // Excluir si es un bono de WooCommerce (ya está en persistentData)
+                // Los bonos de WooCommerce se identifican por tener origen='woocommerce'
+                // o por su código (BONO*, Tarj-*)
+                const isWooCommerce = p.origen === 'woocommerce' ||
+                    p.origen === 'woo' ||
+                    (p.bono && (p.bono.startsWith('BONO') || p.bono.startsWith('Tarj-')));
+
+                return !isWooCommerce; // Solo incluir si NO es de WooCommerce
+            })
             .map(p => ({ ...p, importe: p.importe || p.precio }));
 
-        state.bonos = [...webVouchers, ...localVouchers];
+        // Bonos de WooCommerce que están en Firestore pero NO vinieron en esta sync
+        const existingWooVouchers = Object.values(persistentData)
+            .filter(p => {
+                // NO incluir si ya vino en esta sincronización
+                if (webCodes.includes(p.bono)) return false;
+
+                // SÍ incluir si es de WooCommerce
+                const isWooCommerce = p.origen === 'woocommerce' ||
+                    p.origen === 'woo' ||
+                    (p.bono && (p.bono.startsWith('BONO') || p.bono.startsWith('Tarj-')));
+
+                return isWooCommerce;
+            })
+            .map(p => ({ ...p, importe: p.importe || p.precio }));
+
+        // MERGE FINAL: WooCommerce nuevos + WooCommerce existentes + Locales
+        state.bonos = [...webVouchers, ...existingWooVouchers, ...localVouchers];
         state.bonos.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
 
         if (ops > 0) await batch.commit();
@@ -2817,13 +2892,69 @@ function resolveVoucherBreakdown(voucher, catalog = state.catalogProducts, overr
 }
 
 async function openVoucherManagement(code) {
-    // Mostrar modal inmediatamente para mejor sensación de carga
+    // Mostrar modal inmediatamente
     const modal = document.getElementById("voucher-modal");
     if (modal) modal.style.display = "flex";
 
-    const v = state.bonos.find(b => b.bono === code);
+    const titleEl = document.getElementById("vm-title-code");
+    if (titleEl) {
+        titleEl.textContent = code;
+        // Indicador sutil de "verificando..."
+        titleEl.style.opacity = "0.7";
+    }
+
+    // --- LÓGICA DE PRODUCCIÓN: SIEMPRE VERIFICAR DATOS FRESCOS ---
+    // Esto garantiza que si se acaba de migrar un bono, el modal lo vea bien
+    // aunque la tabla de fondo tenga datos viejos en caché.
+    let v = null;
+    let freshLoaded = false;
+
+    try {
+        if (typeof firebase !== 'undefined') {
+            const db = firebase.firestore();
+
+            // Intentar buscar por ID de documento primero
+            let doc = await db.collection('spa_vouchers').doc(code).get();
+
+            // Si no existe por ID, buscar por campo 'bono' (para bonos antiguos localizados)
+            if (!doc.exists) {
+                const qs = await db.collection('spa_vouchers').where('bono', '==', code).limit(1).get();
+                if (!qs.empty) {
+                    doc = qs.docs[0];
+                }
+            }
+
+            if (doc.exists) {
+                const fresh = doc.data();
+                fresh.id = doc.id; // Asegurar ID
+
+                // Actualizar caché local de estado para persistencia en esta sesión
+                const localIndex = state.bonos.findIndex(b => b.bono === code);
+                if (localIndex !== -1) {
+                    state.bonos[localIndex] = { ...state.bonos[localIndex], ...fresh };
+                    v = state.bonos[localIndex];
+                } else {
+                    v = fresh;
+                    state.bonos.push(v);
+                }
+                freshLoaded = true;
+                // console.log("Datos frescos cargados para bono:", code);
+            }
+        }
+    } catch (e) {
+        console.warn("⚠️ No se pudo verificar en tiempo real, usando caché local:", e);
+    }
+
+    // Fallback final a memoria local si falló la red o no encontró
+    if (!v) {
+        v = state.bonos.find(b => b.bono === code);
+    }
+
+    if (titleEl) titleEl.style.opacity = "1";
+
     if (!v) {
         if (modal) modal.style.display = "none";
+        console.error("Bono no encontrado:", code);
         return;
     }
 
@@ -2860,28 +2991,62 @@ async function openVoucherManagement(code) {
 
 
 
-    // --- INYECCIÓN BOTÓN REFRESH ---
+    // --- DIFERENCIACIÓN ORIGEN Y BOTÓN REFRESH ---
     const headerTitle = document.getElementById("vm-title-code").parentNode; // H2 container
     if (headerTitle) {
-        // Eliminar botón previo si existe
+        // Eliminar elementos previos
         const existingBtn = document.getElementById("vm-btn-refresh");
         if (existingBtn) existingBtn.remove();
+        const existingBadge = document.getElementById("vm-origin-badge");
+        if (existingBadge) existingBadge.remove();
 
-        const refreshBtn = document.createElement("button");
-        refreshBtn.id = "vm-btn-refresh";
-        refreshBtn.innerHTML = '<i class="fas fa-sync-alt"></i>';
-        refreshBtn.className = "btn btn-sm btn-outline";
-        refreshBtn.style.marginLeft = "10px";
-        refreshBtn.style.border = "none";
-        refreshBtn.style.color = "#94a3b8";
-        refreshBtn.title = "Actualizar datos desde Nube/Tienda";
-        refreshBtn.onclick = (e) => {
-            e.stopPropagation();
-            syncSingleVoucher(code);
-        };
-        headerTitle.appendChild(refreshBtn);
+        // Determinar si es LOCAL o ONLINE
+        // PRIORIDAD 1: Detectar LOCAL por código
+        const code = v.bono || '';
+        const isLocalByCode = code.startsWith('Tarj-') || code.startsWith('LOC-') || code.startsWith('exc.Loc');
+        const isLocalByOrigin = (v.origen === 'local');
+        const isLocal = isLocalByCode || isLocalByOrigin;
+
+        // Si NO es local, entonces es online
+        const isOnline = !isLocal;
+
+        // Añadir Badge de Origen
+        const badge = document.createElement("span");
+        badge.id = "vm-origin-badge";
+        badge.style.fontSize = "0.6em";
+        badge.style.padding = "2px 8px";
+        badge.style.borderRadius = "4px";
+        badge.style.marginLeft = "10px";
+        badge.style.verticalAlign = "middle";
+        badge.style.textTransform = "uppercase";
+
+        if (isOnline) {
+            badge.textContent = "Venta Online";
+            badge.style.background = "#dbeafe";
+            badge.style.color = "#1e40af";
+
+            // SI ES ONLINE, añadir botón de sincronizar con WC
+            const refreshBtn = document.createElement("button");
+            refreshBtn.id = "vm-btn-refresh";
+            refreshBtn.innerHTML = '<i class="fas fa-sync-alt"></i> Re-sync WC';
+            refreshBtn.className = "btn btn-sm btn-outline";
+            refreshBtn.style.marginLeft = "10px";
+            refreshBtn.style.fontSize = "0.75rem";
+            refreshBtn.title = "Actualizar datos desde la Tienda Online";
+            refreshBtn.onclick = (e) => {
+                e.stopPropagation();
+                syncSingleVoucher(code);
+            };
+            headerTitle.appendChild(refreshBtn);
+        } else {
+            badge.textContent = "Venta Local";
+            badge.style.background = "#f3f4f6";
+            badge.style.color = "#374151";
+        }
+
+        headerTitle.appendChild(badge);
     }
-    // -------------------------------
+    // ------------------------------------------
 
     // -------------------------------
 
@@ -7535,8 +7700,168 @@ window.repararBonosDuplicados = async function () {
     if (typeof cargarBonos === 'function') await cargarBonos();
 };
 
+// --- FUNCIONES DE SINCRONIZACIÓN CON WOOCOMMERCE ---
 
+/**
+ * Función recursiva para encontrar un teléfono en un objeto JSON complejo
+ */
+function findPhoneInObject(obj, visited = new Set()) {
+    if (!obj || visited.has(obj) || typeof obj !== 'object') return '';
+    visited.add(obj);
 
+    const phoneRegex = /^(?:(?:\+|00)34[\s.-]?)?([6789]\d{8,12})$/;
+    let bestMatch = '';
 
+    for (let key in obj) {
+        const val = obj[key];
+        const keyLower = key.toLowerCase();
 
+        if (typeof val === 'string' || typeof val === 'number') {
+            const strVal = String(val).trim();
+            const cleanVal = strVal.replace(/[\s\.\-\(\)]/g, '');
 
+            if (cleanVal.length >= 9 && cleanVal.length <= 13 && /^[6789]/.test(cleanVal.replace(/^\+34|0034/, ''))) {
+                if (keyLower.includes('phone') || keyLower.includes('tel') || keyLower.includes('movil') || keyLower.includes('contact')) {
+                    return strVal;
+                }
+                if (!bestMatch) bestMatch = strVal;
+            }
+        } else if (typeof val === 'object' && val !== null) {
+            const found = findPhoneInObject(val, visited);
+            if (found) return found;
+        }
+    }
+    return bestMatch;
+}
+
+/**
+ * Sincroniza un único bono directamente con la API de Pedidos de WooCommerce
+ */
+async function syncSingleVoucher(code) {
+    const btn = document.getElementById("vm-btn-refresh");
+    const titleEl = document.getElementById("vm-title-code");
+
+    if (btn) {
+        btn.disabled = true;
+        btn.classList.add("btn-loading");
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sincronizando...';
+    }
+
+    try {
+        console.log(`[Sync] Iniciando sincronización WC para bono: ${code}`);
+
+        // 1. Obtener Configuración WC desde Firestore
+        const snap = await db.collection("spa_config").doc("settings").get();
+
+        // DIAGNÓSTICO: Ver exactamente qué hay en Firebase
+        console.log('[DEBUG] Documento existe?', snap.exists);
+        if (snap.exists) {
+            const cfg = snap.data();
+            console.log('[DEBUG] Datos completos:', cfg);
+            console.log('[DEBUG] wc_url:', cfg.wc_url);
+            console.log('[DEBUG] wc_key:', cfg.wc_key ? '✓ Configurado' : '✗ NO configurado');
+            console.log('[DEBUG] wc_secret:', cfg.wc_secret ? '✓ Configurado' : '✗ NO configurado');
+        }
+
+        if (!snap.exists) throw new Error("Configuración de tienda no encontrada en ajustes.");
+        const cfg = snap.data();
+        if (!cfg.wc_url || !cfg.wc_key || !cfg.wc_secret) {
+            const detalles = [];
+            if (!cfg.wc_url) detalles.push('URL de la tienda');
+            if (!cfg.wc_key) detalles.push('Consumer Key');
+            if (!cfg.wc_secret) detalles.push('Consumer Secret');
+            throw new Error(`Faltan credenciales WooCommerce: ${detalles.join(', ')}. Configúralas en Ajustes → Conexiones.`);
+        }
+
+        // 2. Extraer ID numérico del pedido
+        // Los códigos suelen ser BONO7712 o simplemente 7712.
+        const orderId = code.replace(/\D/g, '');
+        if (!orderId) throw new Error("El código de bono no contiene un ID numérico de pedido válido.");
+
+        // 3. Consultar la API de WooCommerce nativa (v3 Orders)
+        const baseUrl = cfg.wc_url.replace(/\/$/, "");
+        const authParams = `consumer_key=${cfg.wc_key}&consumer_secret=${cfg.wc_secret}`;
+        const wcUrl = `${baseUrl}/wp-json/wc/v3/orders/${orderId}?${authParams}`;
+
+        console.log(`[Sync] Consultando API WooCommerce:`, wcUrl.replace(cfg.wc_secret, '***'));
+
+        const response = await window.fetchWithProxyFallback(wcUrl);
+        if (!response.ok) {
+            if (response.status === 404) throw new Error(`El pedido #${orderId} no existe en WooCommerce.`);
+            throw new Error(`Error de conexión con la tienda (Status ${response.status}).`);
+        }
+
+        const order = await response.json();
+        console.log(`[Sync] Datos recibidos de WC:`, order);
+
+        // 4. Extraer Datos Clave
+        const foundPhone = findPhoneInObject(order);
+        const foundEmail = order.billing ? order.billing.email : (order.email || '');
+        let firstName = order.billing ? order.billing.first_name : '';
+        let lastName = order.billing ? order.billing.last_name : '';
+        const foundName = `${firstName} ${lastName}`.trim() || order.customer_name || 'Cliente WooCommerce';
+
+        // 5. Preparar actualización para Firestore
+        const updateData = {
+            cliente: foundName,
+            email: foundEmail,
+            telefono: foundPhone,
+            migration_updated: new Date().toISOString(),
+            last_wc_sync: new Date().toISOString()
+        };
+
+        // Si el precio es 0, intentar recuperarlo de la orden
+        const vLocal = state.bonos.find(b => b.bono === code);
+        const currentPrice = parseFloat(vLocal ? (vLocal.total || vLocal.precio) : 0) || 0;
+        if (currentPrice <= 0 && order.total) {
+            updateData.precio_total = parseFloat(order.total);
+            updateData.importe_pagado = parseFloat(order.total);
+            updateData.importe_pendiente = 0;
+            updateData.estado_pago = 'pagado';
+        }
+
+        // Guardar en Firestore
+        await db.collection("spa_vouchers").doc(code).update(updateData);
+        console.log(`[Sync] Firestore actualizado con éxito para ${code}`);
+
+        // 6. Actualizar Estado Local y UI
+        if (vLocal) {
+            Object.assign(vLocal, updateData);
+
+            // Refrescar inputs del modal
+            const clienteInp = document.getElementById("vm-cliente");
+            const emailInp = document.getElementById("vm-email");
+            const telInp = document.getElementById("vm-telefono");
+
+            if (clienteInp) clienteInp.value = vLocal.cliente;
+            if (emailInp) emailInp.value = vLocal.email;
+            if (telInp) {
+                telInp.value = vLocal.telefono;
+                if (typeof formatPhoneNumber === 'function') formatPhoneNumber(telInp);
+            }
+
+            // Forzar renderizado de bloques de pago si el modal lo requiere
+            if (typeof renderPaymentBlock === 'function') {
+                const pBlock = document.getElementById('vm-payment-block');
+                if (pBlock) renderPaymentBlock(code, pBlock);
+            }
+        }
+
+        // Notificación de éxito
+        const toast = document.createElement("div");
+        toast.style = "position:fixed; top:20px; right:20px; background:#10b981; color:white; padding:12px 20px; border-radius:8px; z-index:11000; box-shadow:0 4px 10px rgba(0,0,0,0.2); font-weight:600;";
+        toast.innerHTML = '<i class="fas fa-check-circle"></i> Sincronizado con éxito';
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 3000);
+
+    } catch (err) {
+        console.error("[Sync Error]:", err);
+        alert(`❌ Error al sincronizar:\n${err.message}`);
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.classList.remove("btn-loading");
+            btn.innerHTML = '<i class="fas fa-sync-alt"></i> Re-sync WC';
+        }
+    }
+}

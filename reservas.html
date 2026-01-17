@@ -650,6 +650,7 @@
             </div>
             <form id="booking-form" style="display: flex; flex-direction: column; gap: 15px; margin-top: 10px;">
                 <input type="hidden" id="form-id">
+                <input type="hidden" id="res-precio-total" value="0">
                 <!-- Date and Time moved to visible grid below -->
                 <div id="duration-group" style="display:none;">
                     <input type="hidden" id="inputDuration" value="60">
@@ -694,6 +695,7 @@
                             <label
                                 style="font-size: 0.65rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; display: block; margin-bottom: 4px;">Pax</label>
                             <input type="number" id="res-pax" value="2" min="1" max="25" required
+                                onchange="updatePriceAutomation()"
                                 style="width: 100%; padding: 8px 6px; border-radius: 6px; border: 1px solid #e2e8f0; font-size: 0.9rem; text-align: center; background: #f8fafc;">
                         </div>
                     </div>
@@ -1847,14 +1849,26 @@
                     }
 
                     return matchesRoom && hasAgenda;
-                }).map(item => ({
-                    nombre: item.name,
-                    precio: item.price_pax || item.price || 0,
-                    pax_max: item.pax_max || 1,
-                    espacio: item.space || '',
-                    categoria: item.category || item.categoria || '',
-                    source: 'master_cabina'
-                }));
+                }).map(item => {
+                    const precio = item.price_pax || item.price || 0;
+                    // DEBUG: Log price fields for troubleshooting
+                    if (item.name && item.name.toLowerCase().includes('envoltura')) {
+                        console.log(`[DEBUG-PRICE] Item: "${item.name}"`, {
+                            price_pax: item.price_pax,
+                            price: item.price,
+                            precio_final: precio,
+                            all_fields: Object.keys(item)
+                        });
+                    }
+                    return {
+                        nombre: item.name,
+                        precio: precio,
+                        pax_max: item.pax_max || 1,
+                        espacio: item.space || '',
+                        categoria: item.category || item.categoria || '',
+                        source: 'master_cabina'
+                    };
+                });
 
                 console.log(`[CABINA] Found ${servicesToShow.length} valid services in Master.`);
 
@@ -5828,6 +5842,47 @@
             await originalLoadReservas.apply(this, args);
             updateTherapistAvailabilityButton();
         };
+
+        /**
+         * Actualiza automáticamente el precio total basándose en:
+         * - price_pax del servicio seleccionado (dato del dropdown)
+         * - número de pax
+         */
+        function updatePriceAutomation() {
+            const serviceSelector = document.getElementById('res-servicio');
+            const paxInput = document.getElementById('res-pax');
+            const totalField = document.getElementById('res-precio-total');
+            const ppTotalDisplay = document.getElementById('pp-total');
+
+            if (!serviceSelector || !paxInput || !totalField) return;
+
+            // Get selected service
+            const selectedOption = serviceSelector.options[serviceSelector.selectedIndex];
+            if (!selectedOption || !selectedOption.value) {
+                totalField.value = 0;
+                if (ppTotalDisplay) ppTotalDisplay.textContent = '0.00€';
+                return;
+            }
+
+            // Get price_pax from dataset (populated in populateServices)
+            const pricePax = parseFloat(selectedOption.dataset.precio || 0);
+            const pax = parseInt(paxInput.value || 1);
+
+            // Calculate total
+            const total = pricePax * pax;
+
+            // Update fields
+            totalField.value = total.toFixed(2);
+            if (ppTotalDisplay) {
+                ppTotalDisplay.textContent = total.toFixed(2) + '€';
+            }
+
+            console.log(`[PRICE] Service: ${selectedOption.value}, Price/Pax: ${pricePax}€, Pax: ${pax}, Total: ${total.toFixed(2)}€`);
+
+            // Update payment block if visible
+            updatePaymentControlBlock();
+        }
+        window.updatePriceAutomation = updatePriceAutomation;
 
     </script>
 
