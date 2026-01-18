@@ -379,10 +379,18 @@
 
                 if (errores.length > 0) {
                     count++;
+
+                    // Incluir número de bono si existe
+                    const bonoInfo = r.bono_code || r.voucher_code || r.codigo_bono;
+                    const descripcionBase = `Reserva ${r.id}: ${errores.join(', ')}`;
+                    const descripcion = bonoInfo ?
+                        `${descripcionBase} | 🎫 Bono: ${bonoInfo}` :
+                        descripcionBase;
+
                     problemas.push({
                         tipo: 'Datos Inválidos',
                         severidad: 'warning',
-                        descripcion: `Reserva ${r.id}: ${errores.join(', ')}`,
+                        descripcion: descripcion,
                         reserva: r
                     });
                 }
@@ -504,7 +512,39 @@
         function verDetalle(idx) {
             const p = problemas[idx];
             console.log('Detalle del problema:', p);
-            alert(`Tipo: ${p.tipo}\n\nDescripción: ${p.descripcion}\n\n${JSON.stringify(p, null, 2)}`);
+
+            // Formatear información de la reserva
+            let detalles = `TIPO: ${p.tipo}\n`;
+            detalles += `DESCRIPCIÓN: ${p.descripcion}\n\n`;
+            detalles += `═══════════════════════════════\n`;
+            detalles += `DETALLES DE LA RESERVA:\n`;
+            detalles += `═══════════════════════════════\n\n`;
+
+            if (p.reserva) {
+                const r = p.reserva;
+                detalles += `📍 ID: ${r.id}\n`;
+                detalles += `👤 Cliente: ${r.cliente || '(sin datos)'}\n`;
+                detalles += `📞 Teléfono: ${r.telefono || '(sin datos)'}\n`;
+                detalles += `📧 Email: ${r.email || '(sin datos)'}\n`;
+                detalles += `📅 Fecha: ${r.fecha || '(sin datos)'}\n`;
+                detalles += `🕐 Hora: ${r.hora || '(sin datos)'}\n`;
+                detalles += `👥 PAX: ${r.pax || 0}\n`;
+                detalles += `💰 Precio: ${r.precio_total || 0}€\n`;
+                detalles += `📦 Servicio: ${r.servicio || r.service_item || '(sin especificar)'}\n`;
+                detalles += `🏷️ Origen: ${r.origen || '(sin datos)'}\n`;
+                detalles += `📊 Estado: ${r.estado || '(sin datos)'}\n`;
+
+                // Mostrar información del bono si existe
+                const bonoCode = r.bono_code || r.voucher_code || r.codigo_bono;
+                if (bonoCode) {
+                    detalles += `\n🎫 BONO ASOCIADO: ${bonoCode}\n`;
+                }
+
+                // Mostrar colección
+                detalles += `\n📂 Colección: ${r.collection || '(sin datos)'}\n`;
+            }
+
+            alert(detalles);
         }
     </script>
 </body>
