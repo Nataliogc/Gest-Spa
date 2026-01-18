@@ -2962,9 +2962,22 @@ async function openVoucherManagement(code) {
 
     document.getElementById("vm-title-code").textContent = code;
     document.getElementById("vm-code").value = code;
-    document.getElementById("vm-cliente").value = v.cliente || '';
-    document.getElementById("vm-email").value = v.email || '';
-    document.getElementById("vm-telefono").value = v.telefono || '';
+
+    // Validar y limpiar datos de cliente (no mostrar placeholders)
+    const clienteName = v.cliente || '';
+    const isPlaceholderName = clienteName.toLowerCase().includes('nombre cliente') ||
+        clienteName.toLowerCase() === 'cliente' ||
+        clienteName.trim() === '';
+    document.getElementById("vm-cliente").value = isPlaceholderName ? '' : clienteName;
+
+    const clienteEmail = v.email || '';
+    const isPlaceholderEmail = !clienteEmail.includes('@') || clienteEmail.trim() === '';
+    document.getElementById("vm-email").value = isPlaceholderEmail ? '' : clienteEmail;
+
+    const clienteTelefono = v.telefono || '';
+    const isPlaceholderPhone = clienteTelefono.length < 6 || clienteTelefono.trim() === '';
+    document.getElementById("vm-telefono").value = isPlaceholderPhone ? '' : clienteTelefono;
+
     if (document.getElementById("vm-telefono")) {
         formatPhoneNumber(document.getElementById("vm-telefono"));
     }
