@@ -668,7 +668,7 @@
                                 style="font-size: 0.65rem; font-weight: 800; color: #1e40af; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; display: block;">
                                 <i class="fas fa-calendar-day"></i> Fecha
                             </label>
-                            <input type="date" id="form-date" required
+                            <input type="date" id="form-date" required onchange="updatePriceAutomation()"
                                 style="width: 100%; padding: 6px 10px; border-radius: 6px; border: 1px solid #bfdbfe; font-size: 0.95rem; font-weight: 700; color: #1e3a8a; background: #fff;">
                         </div>
                         <div class="form-group" style="flex: 1; margin-bottom: 0;">
@@ -746,7 +746,7 @@
                         <div class="form-group" style="margin-bottom: 0;">
                             <label
                                 style="font-size: 0.65rem; font-weight: 800; color: #4a5568; text-transform: uppercase; display: block; margin-bottom: 4px;">Origen</label>
-                            <select id="res-origen" onchange="toggleRoomField()"
+                            <select id="res-origen" onchange="toggleRoomField(); updatePriceAutomation();"
                                 style="width: 100%; padding: 6px 10px; border-radius: 6px; border: 1px solid #e2e8f0; font-size: 0.85rem; background: #fff; cursor: pointer;">
                                 <option value="particular">Particular (Pago Directo)</option>
                                 <option value="hotel_inc">Hotel - Incluido</option>
@@ -2518,6 +2518,7 @@
 
                         pricePaxInput.value = parseFloat(dynamicPrice).toFixed(2);
                         console.log(`[DYNAMIC PRICE SPA] Origin: ${origen}, Day: ${dayOfWeek} (Weekend: ${isWeekend}), Final Price: ${dynamicPrice} (Config: ${roomPriceWeekday}/${roomPriceWeekend})`);
+                        console.log(`[DEBUG] pricePaxInput value AFTER assignment: ${pricePaxInput.value}`);
                     } else {
                         // Other modules: use catalog price (or Zenith Master Price)
                         if (zenithPrice !== null) {
@@ -2529,7 +2530,20 @@
                 } else {
                     pricePaxInput.value = (0).toFixed(2);
                 }
-                updateTotal();
+
+                // Calculate and update total (price/pax * pax)
+                const pricePax = parseFloat(pricePaxInput.value) || 0;
+                const pax = parseInt(paxInput.value) || 1;
+                const total = pricePax * pax;
+
+                document.getElementById("res-precio-total").value = total.toFixed(2);
+                const totalTextEl = document.getElementById("res-total-text");
+                if (totalTextEl) totalTextEl.textContent = total.toFixed(2) + " €";
+
+                console.log(`[TOTAL CALC] Price/Pax: ${pricePax}€ × Pax: ${pax} = Total: ${total.toFixed(2)}€`);
+
+                // Update payment control block if it exists
+                if (window.updatePaymentControlBlock) window.updatePaymentControlBlock();
             }
             // ==========================================
 
@@ -5843,46 +5857,6 @@
             updateTherapistAvailabilityButton();
         };
 
-        /**
-         * Actualiza automáticamente el precio total basándose en:
-         * - price_pax del servicio seleccionado (dato del dropdown)
-         * - número de pax
-         */
-        function updatePriceAutomation() {
-            const serviceSelector = document.getElementById('res-servicio');
-            const paxInput = document.getElementById('res-pax');
-            const totalField = document.getElementById('res-precio-total');
-            const ppTotalDisplay = document.getElementById('pp-total');
-
-            if (!serviceSelector || !paxInput || !totalField) return;
-
-            // Get selected service
-            const selectedOption = serviceSelector.options[serviceSelector.selectedIndex];
-            if (!selectedOption || !selectedOption.value) {
-                totalField.value = 0;
-                if (ppTotalDisplay) ppTotalDisplay.textContent = '0.00€';
-                return;
-            }
-
-            // Get price_pax from dataset (populated in populateServices)
-            const pricePax = parseFloat(selectedOption.dataset.precio || 0);
-            const pax = parseInt(paxInput.value || 1);
-
-            // Calculate total
-            const total = pricePax * pax;
-
-            // Update fields
-            totalField.value = total.toFixed(2);
-            if (ppTotalDisplay) {
-                ppTotalDisplay.textContent = total.toFixed(2) + '€';
-            }
-
-            console.log(`[PRICE] Service: ${selectedOption.value}, Price/Pax: ${pricePax}€, Pax: ${pax}, Total: ${total.toFixed(2)}€`);
-
-            // Update payment block if visible
-            updatePaymentControlBlock();
-        }
-        window.updatePriceAutomation = updatePriceAutomation;
 
     </script>
 

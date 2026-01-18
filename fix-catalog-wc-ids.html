@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔧 Corrector de IDs WooCommerce - Catálogo</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2rem;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 1.1rem;
+        }
+
+        .content {
+            padding: 30px;
+        }
+
+        .section {
+            margin-bottom: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 12px;
+            border-left: 4px solid #667eea;
+        }
+
+        .section h2 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 1.3rem;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 1rem;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: transform 0.2s, box-shadow 0.2s;
+            margin: 5px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 16px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+        }
+
+        .btn-danger {
+            background: linear-gradient(135deg, #eb3349 0%, #f45c43 100%);
+        }
+
+        .status {
+            padding: 15px;
+            border-radius: 8px;
+            margin: 10px 0;
+            font-weight: 500;
+        }
+
+        .status.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border-left: 4px solid #17a2b8;
+        }
+
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border-left: 4px solid #28a745;
+        }
+
+        .status.warning {
+            background: #fff3cd;
+            color: #856404;
+            border-left: 4px solid #ffc107;
+        }
+
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border-left: 4px solid #dc3545;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        thead {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        th,
+        td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #dee2e6;
+        }
+
+        th {
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.85rem;
+            letter-spacing: 0.5px;
+        }
+
+        tr:hover {
+            background: #f8f9fa;
+        }
+
+        .badge {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+
+        .badge-ok {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .badge-error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .badge-warning {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            vertical-align: middle;
+            margin-right: 10px;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        #results {
+            max-height: 600px;
+            overflow-y: auto;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .stat-card .number {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: #667eea;
+            margin-bottom: 5px;
+        }
+
+        .stat-card .label {
+            color: #6c757d;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔧 Corrector de IDs WooCommerce</h1>
+            <p>Sincroniza automáticamente los wc_id del catálogo con los variation_id de WooCommerce</p>
+        </div>
+
+        <div class="content">
+            <div class="section">
+                <h2>📋 Paso 1: Diagnosticar</h2>
+                <p style="margin-bottom: 15px; color: #6c757d;">
+                    Analiza el catálogo local (spa_services) y compara con los datos de WooCommerce para detectar
+                    discrepancias en los IDs.
+                </p>
+                <button class="btn" onclick="diagnosticar()" id="btn-diagnosticar">
+                    🔍 Analizar Catálogo
+                </button>
+            </div>
+
+            <div class="section">
+                <h2>⚡ Paso 2: Corregir</h2>
+                <p style="margin-bottom: 15px; color: #6c757d;">
+                    Una vez detectadas las discrepancias, corrige automáticamente todos los wc_id incorrectos en el
+                    catálogo.
+                </p>
+                <button class="btn btn-success" onclick="corregir()" id="btn-corregir" disabled>
+                    ✅ Corregir Todos los IDs
+                </button>
+            </div>
+
+            <div id="status-container"></div>
+
+            <div id="stats-container"></div>
+
+            <div id="results"></div>
+        </div>
+    </div>
+
+    <!-- Firebase -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <script src="firebase-config.js"></script>
+
+    <script>
+        let catalogProducts = [];
+        let wooProducts = [];
+        let discrepancies = [];
+
+        function showStatus(message, type = 'info') {
+            const container = document.getElementById('status-container');
+            const status = document.createElement('div');
+            status.className = `status ${type}`;
+            status.innerHTML = message;
+            container.appendChild(status);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function showStats(total, correct, incorrect, missing) {
+            const container = document.getElementById('stats-container');
+
+            // Obtener nombres de productos con problemas
+            const incorrectNames = discrepancies
+                .filter(d => d.status === 'incorrect')
+                .map(d => `• ${d.catalogName}`)
+                .join('<br>');
+
+            const missingNames = discrepancies
+                .filter(d => d.status === 'missing')
+                .map(d => `• ${d.catalogName}`)
+                .join('<br>');
+
+            container.innerHTML = `
+                <div class="stats">
+                    <div class="stat-card">
+                        <div class="number">${total}</div>
+                        <div class="label">Total Productos</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="number" style="color: #28a745;">${correct}</div>
+                        <div class="label">IDs Correctos</div>
+                    </div>
+                    <div class="stat-card" ${incorrect > 0 ? 'style="cursor: pointer;" onclick="document.getElementById(\'results\').scrollIntoView({behavior: \'smooth\'})"' : ''}>
+                        <div class="number" style="color: #dc3545;">${incorrect}</div>
+                        <div class="label">IDs Incorrectos</div>
+                        ${incorrect > 0 ? `<div style="font-size: 0.75rem; margin-top: 10px; text-align: left; color: #721c24;">${incorrectNames}</div>` : ''}
+                    </div>
+                    <div class="stat-card" ${missing > 0 ? 'style="cursor: pointer;" onclick="document.getElementById(\'results\').scrollIntoView({behavior: \'smooth\'})"' : ''}>
+                        <div class="number" style="color: #ffc107;">${missing}</div>
+                        <div class="label">Sin wc_id</div>
+                        ${missing > 0 ? `<div style="font-size: 0.75rem; margin-top: 10px; text-align: left; color: #856404;">${missingNames}</div>` : ''}
+                    </div>
+                </div>
+            `;
+        }
+
+        async function diagnosticar() {
+            const btn = document.getElementById('btn-diagnosticar');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="loading"></span> Analizando...';
+
+            document.getElementById('status-container').innerHTML = '';
+            document.getElementById('results').innerHTML = '';
+            document.getElementById('stats-container').innerHTML = '';
+            discrepancies = [];
+
+            try {
+                showStatus('📚 Cargando catálogo local (spa_services)...', 'info');
+
+                // Cargar catálogo local
+                const catalogSnap = await db.collection('spa_services').get();
+                catalogProducts = [];
+                catalogSnap.forEach(doc => {
+                    catalogProducts.push({ id: doc.id, ...doc.data() });
+                });
+
+                showStatus(`✅ Catálogo cargado: ${catalogProducts.length} productos`, 'success');
+
+                showStatus('🌐 Cargando productos de WooCommerce...', 'info');
+
+                // Cargar productos de WooCommerce
+                let wooData = [];
+                if (typeof fetchBonosDirect === 'function') {
+                    try {
+                        wooData = await fetchBonosDirect({ per_page: 100 }, 15000);
+                    } catch (e) {
+                        console.warn('fetchBonosDirect failed:', e);
+                        if (typeof fetchBonosWithFallback === 'function') {
+                            wooData = await fetchBonosWithFallback(15000);
+                        }
+                    }
+                } else if (typeof fetchBonosWithFallback === 'function') {
+                    wooData = await fetchBonosWithFallback(15000);
+                }
+
+                if (!Array.isArray(wooData)) {
+                    throw new Error('No se pudieron cargar los datos de WooCommerce');
+                }
+
+                showStatus(`✅ WooCommerce cargado: ${wooData.length} bonos`, 'success');
+
+                // Extraer productos únicos de WooCommerce (evitar duplicados)
+                const wooProductsMap = new Map();
+                wooData.forEach(item => {
+                    if (item.items_desglosados && Array.isArray(item.items_desglosados)) {
+                        item.items_desglosados.forEach(product => {
+                            const key = product.variation_id || product.product_id;
+                            if (key && !wooProductsMap.has(key)) {
+                                wooProductsMap.set(key, {
+                                    name: product.name,
+                                    variation_id: product.variation_id,
+                                    product_id: product.product_id
+                                });
+                            }
+                        });
+                    }
+                    // También agregar el producto principal si tiene IDs
+                    if (item.variation_id || item.product_id) {
+                        const key = item.variation_id || item.product_id;
+                        if (!wooProductsMap.has(key)) {
+                            wooProductsMap.set(key, {
+                                name: item.producto,
+                                variation_id: item.variation_id,
+                                product_id: item.product_id
+                            });
+                        }
+                    }
+                });
+
+                wooProducts = Array.from(wooProductsMap.values());
+                showStatus(`📊 Productos únicos de WooCommerce: ${wooProducts.length}`, 'info');
+
+                // Comparar y detectar discrepancias
+                showStatus('🔍 Analizando discrepancias...', 'info');
+
+                let correct = 0;
+                let incorrect = 0;
+                let missing = 0;
+
+                catalogProducts.forEach(catalogItem => {
+                    const catalogWcId = catalogItem.wc_id ? String(catalogItem.wc_id).trim() : null;
+                    const catalogName = (catalogItem.nombre || '').toLowerCase().trim();
+
+                    // Buscar coincidencia en WooCommerce por nombre
+                    const wooMatch = wooProducts.find(woo =>
+                        (woo.name || '').toLowerCase().trim().includes(catalogName) ||
+                        catalogName.includes((woo.name || '').toLowerCase().trim())
+                    );
+
+                    if (!catalogWcId) {
+                        // Sin wc_id en el catálogo
+                        missing++;
+                        if (wooMatch) {
+                            discrepancies.push({
+                                catalogId: catalogItem.id,
+                                catalogName: catalogItem.nombre,
+                                currentWcId: null,
+                                correctWcId: wooMatch.variation_id || wooMatch.product_id,
+                                wooName: wooMatch.name,
+                                status: 'missing'
+                            });
+                        }
+                    } else if (wooMatch) {
+                        const correctWcId = String(wooMatch.variation_id || wooMatch.product_id).trim();
+                        if (catalogWcId !== correctWcId) {
+                            // wc_id incorrecto
+                            incorrect++;
+                            discrepancies.push({
+                                catalogId: catalogItem.id,
+                                catalogName: catalogItem.nombre,
+                                currentWcId: catalogWcId,
+                                correctWcId: correctWcId,
+                                wooName: wooMatch.name,
+                                status: 'incorrect'
+                            });
+                        } else {
+                            // wc_id correcto
+                            correct++;
+                        }
+                    } else {
+                        // No se encontró match en WooCommerce (posiblemente producto solo local)
+                        correct++;
+                    }
+                });
+
+                showStats(catalogProducts.length, correct, incorrect, missing);
+
+                if (discrepancies.length > 0) {
+                    showStatus(`⚠️ Se encontraron ${discrepancies.length} discrepancias`, 'warning');
+                    mostrarDiscrepancias();
+                    document.getElementById('btn-corregir').disabled = false;
+                } else {
+                    showStatus('✅ ¡Perfecto! Todos los wc_id están correctos', 'success');
+                    document.getElementById('btn-corregir').disabled = true;
+                }
+
+            } catch (error) {
+                console.error('Error en diagnóstico:', error);
+                showStatus('❌ Error: ' + error.message, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '🔍 Analizar Catálogo';
+            }
+        }
+
+        function mostrarDiscrepancias() {
+            const results = document.getElementById('results');
+
+            let html = `
+                <div class="section">
+                    <h2>🔍 Discrepancias Detectadas (${discrepancies.length})</h2>
+                    <div style="overflow-x: auto;">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Estado</th>
+                                    <th>Producto (Catálogo)</th>
+                                    <th>wc_id Actual</th>
+                                    <th>wc_id Correcto</th>
+                                    <th>Producto (WooCommerce)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+            `;
+
+            discrepancies.forEach(disc => {
+                const statusBadge = disc.status === 'missing'
+                    ? '<span class="badge badge-warning">SIN wc_id</span>'
+                    : '<span class="badge badge-error">ID INCORRECTO</span>';
+
+                html += `
+                    <tr>
+                        <td>${statusBadge}</td>
+                        <td><strong>${disc.catalogName}</strong><br><small>ID: ${disc.catalogId}</small></td>
+                        <td>${disc.currentWcId || '<em>null</em>'}</td>
+                        <td><strong style="color: #28a745;">${disc.correctWcId}</strong></td>
+                        <td>${disc.wooName}</td>
+                    </tr>
+                `;
+            });
+
+            html += `
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            `;
+
+            results.innerHTML = html;
+        }
+
+        async function corregir() {
+            if (discrepancies.length === 0) {
+                showStatus('⚠️ No hay discrepancias para corregir', 'warning');
+                return;
+            }
+
+            if (!confirm(`¿Confirmas que quieres corregir ${discrepancies.length} IDs en el catálogo?\n\nEsta acción actualizará el campo wc_id en Firebase.`)) {
+                return;
+            }
+
+            const btn = document.getElementById('btn-corregir');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="loading"></span> Corrigiendo...';
+
+            try {
+                showStatus(`⚡ Iniciando corrección de ${discrepancies.length} productos...`, 'info');
+
+                const batch = db.batch();
+                let count = 0;
+
+                discrepancies.forEach(disc => {
+                    const docRef = db.collection('spa_services').doc(disc.catalogId);
+                    batch.update(docRef, {
+                        wc_id: disc.correctWcId,
+                        last_wc_sync: new Date().toISOString()
+                    });
+                    count++;
+                });
+
+                await batch.commit();
+
+                showStatus(`✅ ¡Corrección completada! ${count} productos actualizados`, 'success');
+                showStatus('🔄 Recargando catálogo...', 'info');
+
+                // Esperar un momento y volver a diagnosticar para confirmar
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                await diagnosticar();
+
+            } catch (error) {
+                console.error('Error en corrección:', error);
+                showStatus('❌ Error al corregir: ' + error.message, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '✅ Corregir Todos los IDs';
+            }
+        }
+    </script>
+</body>
+
+</html>

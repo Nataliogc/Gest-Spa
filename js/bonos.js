@@ -7341,15 +7341,58 @@ window.resyncVoucherFromWooCommerce = async function () {
             updateData.variation_id = updateData.items_desglosados[0].variation_id;
         }
 
-        // Also update client info if available
-        if (freshVoucher.cliente && freshVoucher.cliente !== "Nombre Cliente") {
-            updateData.cliente = freshVoucher.cliente;
+        // === NORMALIZE CLIENT DATA FROM WOOCOMMERCE ===
+        // WooCommerce puede enviar los datos en varios formatos:
+        // 1. Objeto anidado: billing.first_name, billing.last_name, billing.email, billing.phone
+        // 2. Campos planos: billing_first_name, billing_last_name, billing_email, billing_phone
+        // 3. Campos directos: cliente, email, telefono
+
+        let clientName = freshVoucher.cliente || '';
+        let clientEmail = freshVoucher.email || '';
+        let clientPhone = freshVoucher.telefono || '';
+
+        // Extraer nombre desde objeto billing anidado
+        if (freshVoucher.billing && typeof freshVoucher.billing === 'object') {
+            const firstName = freshVoucher.billing.first_name || '';
+            const lastName = freshVoucher.billing.last_name || '';
+            if (firstName || lastName) {
+                clientName = `${firstName} ${lastName}`.trim();
+            }
+            if (!clientEmail && freshVoucher.billing.email) {
+                clientEmail = freshVoucher.billing.email;
+            }
+            if (!clientPhone && freshVoucher.billing.phone) {
+                clientPhone = freshVoucher.billing.phone;
+            }
         }
-        if (freshVoucher.email && freshVoucher.email.includes("@")) {
-            updateData.email = freshVoucher.email;
+
+        // Extraer desde campos planos (billing_*)
+        if (!clientName) {
+            const firstName = freshVoucher.billing_first_name || freshVoucher.first_name || '';
+            const lastName = freshVoucher.billing_last_name || freshVoucher.last_name || '';
+            if (firstName || lastName) {
+                clientName = `${firstName} ${lastName}`.trim();
+            }
         }
-        if (freshVoucher.telefono && freshVoucher.telefono.length > 5) {
-            updateData.telefono = freshVoucher.telefono;
+        if (!clientEmail) {
+            clientEmail = freshVoucher.billing_email || '';
+        }
+        if (!clientPhone) {
+            clientPhone = freshVoucher.billing_phone || freshVoucher.phone || '';
+        }
+
+        // Validar y agregar a updateData SOLO si son válidos
+        if (clientName && clientName !== "Nombre Cliente" && clientName.length > 2) {
+            updateData.cliente = clientName;
+            console.log(`[RESYNC] Cliente actualizado: ${clientName}`);
+        }
+        if (clientEmail && clientEmail.includes("@")) {
+            updateData.email = clientEmail;
+            console.log(`[RESYNC] Email actualizado: ${clientEmail}`);
+        }
+        if (clientPhone && clientPhone.length > 5) {
+            updateData.telefono = clientPhone;
+            console.log(`[RESYNC] Teléfono actualizado: ${clientPhone}`);
         }
 
         await docRef.update(updateData);
@@ -7373,9 +7416,26 @@ window.resyncVoucherFromWooCommerce = async function () {
 
     } catch (error) {
         console.error("[RESYNC] Error:", error);
-        showToast("❌ Error al re-sincronizar: " + error.message, "error");
-        btn.disabled = false;
-        btn.innerHTML = originalText;
+
+        // Better error messages based on error type
+        let errorMsg = "Error al re-sincronizar";
+        if (error.message?.includes('timeout') || error.message?.includes('Timeout')) {
+            errorMsg = "Tiempo de espera agotado. WooCommerce no responde.";
+        } else if (error.message?.includes('No hay funciones')) {
+            errorMsg = "Funciones de sincronización no disponibles. Recarga la página.";
+        } else if (error.message?.includes('no encontrado')) {
+            errorMsg = `Bono ${code} no encontrado en WooCommerce`;
+        } else if (error.message) {
+            errorMsg = error.message;
+        }
+
+        showToast("❌ " + errorMsg, "error");
+    } finally {
+        // ALWAYS restore button state, even if there's an error
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+        }
     }
 };
 

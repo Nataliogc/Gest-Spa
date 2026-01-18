@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Diagnóstico de Precios Spa</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 900px;
+            margin: 40px auto;
+            padding: 20px;
+            background: #f5f7fa;
+        }
+
+        .card {
+            background: white;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+
+        h1 {
+            color: #1e293b;
+            margin-bottom: 10px;
+        }
+
+        .status {
+            padding: 10px 15px;
+            border-radius: 8px;
+            margin: 10px 0;
+            font-weight: 600;
+        }
+
+        .status.ok {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .status.warning {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .status.error {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .price-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0;
+        }
+
+        .price-table th,
+        .price-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .price-table th {
+            background: #f8fafc;
+            font-weight: 700;
+            color: #475569;
+        }
+
+        button {
+            background: #d4af37;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            margin: 5px;
+        }
+
+        button:hover {
+            background: #b8941f;
+        }
+
+        #log {
+            background: #1e293b;
+            color: #f1f5f9;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.85rem;
+            max-height: 300px;
+            overflow-y: auto;
+            line-height: 1.6;
+        }
+    </style>
+
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <script src="firebase-config.js"></script>
+</head>
+
+<body>
+    <div class="card">
+        <h1>🔧 Diagnóstico de Precios Circuito Spa</h1>
+        <p style="color: #64748b;">Este diagnóstico verifica que los precios del Circuito Spa se estén guardando y
+            aplicando correctamente.</p>
+    </div>
+
+    <div class="card">
+        <h2>📊 Estado Actual</h2>
+        <div id="status-current">
+            <p>Cargando configuración...</p>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>💰 Precios Configurados</h2>
+        <table class="price-table">
+            <thead>
+                <tr>
+                    <th>Periodo</th>
+                    <th>Origen</th>
+                    <th>Precio (Firebase)</th>
+                    <th>Precio (Esperado)</th>
+                    <th>Estado</th>
+                </tr>
+            </thead>
+            <tbody id="price-comparison">
+                <tr>
+                    <td colspan="5" style="text-align: center;">Cargando...</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <button onclick="verificarPrecios()">🔄 Recargar</button>
+        <button onclick="corregirPrecios()">✅ Corregir Precios</button>
+    </div>
+
+    <div class="card">
+        <h2>📋 Log de Diagnóstico</h2>
+        <div id="log"></div>
+    </div>
+
+    <script>
+        const db = firebase.firestore();
+        let currentConfig = null;
+
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            const color = {
+                'info': '#94a3b8',
+                'success': '#22c55e',
+                'warning': '#f59e0b',
+                'error': '#ef4444'
+            }[type] || '#94a3b8';
+
+            logDiv.innerHTML += `<div style="color: ${color}">[${timestamp}] ${message}</div>`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        async function verificarPrecios() {
+            log('Iniciando diagnóstico...', 'info');
+
+            try {
+                // Leer documento de configuración
+                const settingsDoc = await db.collection('spa_config').doc('settings').get();
+
+                if (!settingsDoc.exists) {
+                    log('❌ ERROR: No existe el documento spa_config/settings', 'error');
+                    document.getElementById('status-current').innerHTML = `
+                        <div class="status error">
+                            ❌ No se encontró la configuración. Es necesario crearla.
+                        </div>
+                    `;
+                    return;
+                }
+
+                currentConfig = settingsDoc.data();
+                log('✅ Configuración cargada correctamente', 'success');
+                log(`Datos completos: ${JSON.stringify(currentConfig, null, 2)}`, 'info');
+
+                // Verificar campos de precio
+                const expectedPrices = {
+                    'Lunes-Jueves Particular': { field: 'particularPriceWeekday', expected: 25 },
+                    'V-Do Particular': { field: 'particularPriceWeekend', expected: 25 },
+                    'Lunes-Jueves Hotel': { field: 'hotelPriceWeekday', expected: 12 },
+                    'V-Do Hotel': { field: 'hotelPriceWeekend', expected: 18 }
+                };
+
+                let html = '';
+                let allOk = true;
+
+                for (const [label, config] of Object.entries(expectedPrices)) {
+                    const actualValue = currentConfig[config.field];
+                    const isOk = actualValue !== undefined && parseFloat(actualValue) === config.expected;
+
+                    if (!isOk) allOk = false;
+
+                    html += `
+                        <tr style="background: ${isOk ? '#f0fdf4' : '#fef2f2'}">
+                            <td>${label.includes('Lunes') ? '📅 Lunes-Jueves' : '🎉 Vie-Dom'}</td>
+                            <td>${label.includes('Hotel') ? '🏨 Hotel (Pago Directo)' : '👤 Particular'}</td>
+                            <td style="font-weight: 700; color: ${isOk ? '#059669' : '#dc2626'}">
+                                ${actualValue !== undefined ? actualValue + '€' : 'No definido'}
+                            </td>
+                            <td>${config.expected}€</td>
+                            <td>${isOk ? '✅ OK' : '⚠️ Incorrecto'}</td>
+                        </tr>
+                    `;
+
+                    log(`Campo "${config.field}": ${actualValue !== undefined ? actualValue + '€' : 'NO EXISTE'} (Esperado: ${config.expected}€)`, isOk ? 'success' : 'warning');
+                }
+
+                document.getElementById('price-comparison').innerHTML = html;
+
+                // Actualizar estado
+                if (allOk) {
+                    document.getElementById('status-current').innerHTML = `
+                        <div class="status ok">
+                            ✅ Todos los precios están correctamente configurados
+                        </div>
+                    `;
+                    log('✅ DIAGNÓSTICO COMPLETO: Todos los precios están correctos', 'success');
+                } else {
+                    document.getElementById('status-current').innerHTML = `
+                        <div class="status warning">
+                            ⚠️ Algunos precios no coinciden con los valores esperados. Haz clic en "Corregir Precios" para solucionarlo.
+                        </div>
+                    `;
+                    log('⚠️ DIAGNÓSTICO COMPLETO: Se encontraron inconsistencias', 'warning');
+                }
+
+            } catch (error) {
+                log(`❌ Error: ${error.message}`, 'error');
+                document.getElementById('status-current').innerHTML = `
+                    <div class="status error">
+                        ❌ Error al cargar la configuración: ${error.message}
+                    </div>
+                `;
+            }
+        }
+
+        async function corregirPrecios() {
+            if (!confirm('¿Estás seguro de que deseas corregir los precios a los valores esperados?')) {
+                return;
+            }
+
+            log('Iniciando corrección de precios...', 'info');
+
+            try {
+                const correctPrices = {
+                    particularPriceWeekday: 25,
+                    particularPriceWeekend: 25,
+                    hotelPriceWeekday: 12,
+                    hotelPriceWeekend: 18
+                };
+
+                await db.collection('spa_config').doc('settings').update(correctPrices);
+
+                log('✅ Precios corregidos exitosamente', 'success');
+                alert('✅ Los precios han sido corregidos correctamente.\n\nRecarga la página de reservas para que se apliquen los cambios.');
+
+                // Recargar diagnóstico
+                verificarPrecios();
+
+            } catch (error) {
+                log(`❌ Error al corregir: ${error.message}`, 'error');
+                alert('❌ Error al corregir los precios: ' + error.message);
+            }
+        }
+
+        // Ejecutar al cargar la página
+        window.addEventListener('DOMContentLoaded', verificarPrecios);
+    </script>
+</body>
+
+</html>
