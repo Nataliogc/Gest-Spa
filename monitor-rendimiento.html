@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>⚡ Monitor de Rendimiento - Zenith Manager</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2rem;
+            margin-bottom: 10px;
+        }
+
+        .content {
+            padding: 30px;
+        }
+
+        .section {
+            margin-bottom: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 12px;
+            border-left: 4px solid #667eea;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 1rem;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: transform 0.2s;
+            margin: 5px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+        }
+
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .stat-card .number {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 5px;
+        }
+
+        .stat-card .label {
+            color: #6c757d;
+            font-size: 0.9rem;
+        }
+
+        .stat-card.good .number {
+            color: #28a745;
+        }
+
+        .stat-card.warning .number {
+            color: #ffc107;
+        }
+
+        .stat-card.bad .number {
+            color: #dc3545;
+        }
+
+        .status {
+            padding: 15px;
+            border-radius: 8px;
+            margin: 10px 0;
+        }
+
+        .status.info {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status.warning {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+
+        thead {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        th,
+        td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #dee2e6;
+        }
+
+        .badge {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+
+        .badge-success {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .badge-warning {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .badge-danger {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        .progress-bar {
+            height: 20px;
+            background: #e9ecef;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            transition: width 0.3s;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>⚡ Monitor de Rendimiento</h1>
+            <p>Detecta cuellos de botella y operaciones lentas</p>
+        </div>
+
+        <div class="content">
+            <div class="section">
+                <h2>🔍 Pruebas de Rendimiento</h2>
+                <p style="margin-bottom: 15px; color: #6c757d;">
+                    Ejecuta pruebas de carga para identificar operaciones lentas y cuellos de botella.
+                </p>
+                <button class="btn" onclick="ejecutarPruebas()" id="btn-pruebas">
+                    ⚡ Ejecutar Pruebas
+                </button>
+            </div>
+
+            <div id="status-container"></div>
+            <div id="stats-container"></div>
+            <div id="results"></div>
+        </div>
+    </div>
+
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <script src="firebase-config.js"></script>
+
+    <script>
+        let resultados = [];
+
+        function showStatus(message, type = 'info') {
+            const container = document.getElementById('status-container');
+            const status = document.createElement('div');
+            status.className = `status ${type}`;
+            status.innerHTML = message;
+            container.appendChild(status);
+        }
+
+        async function ejecutarPruebas() {
+            const btn = document.getElementById('btn-pruebas');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="loading"></span> Ejecutando pruebas...';
+
+            document.getElementById('status-container').innerHTML = '';
+            document.getElementById('results').innerHTML = '';
+            resultados = [];
+
+            try {
+                showStatus('⚡ Iniciando pruebas de rendimiento...', 'info');
+
+                // PRUEBA 1: Tiempo de carga de colecciones
+                await probarCargaColecciones();
+
+                // PRUEBA 2: Tiempo de consultas complejas
+                await probarConsultasComplejas();
+
+                // PRUEBA 3: Tamaño de colecciones
+                await probarTamanoColecciones();
+
+                // PRUEBA 4: Operaciones de escritura
+                await probarEscrituras();
+
+                // Mostrar resultados
+                mostrarResultados();
+
+            } catch (error) {
+                console.error('Error en pruebas:', error);
+                showStatus('❌ Error: ' + error.message, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '⚡ Ejecutar Pruebas';
+            }
+        }
+
+        async function probarCargaColecciones() {
+            showStatus('📚 Prueba 1: Carga de colecciones...', 'info');
+
+            const collections = [
+                'spa_reservas',
+                'suite_reservas',
+                'cabina_reservas',
+                'panacea_reservas',
+                'spa_vouchers',
+                'spa_services',
+                'spa_staff'
+            ];
+
+            for (const collName of collections) {
+                const start = performance.now();
+                const snap = await db.collection(collName).limit(100).get();
+                const end = performance.now();
+                const time = end - start;
+
+                resultados.push({
+                    operacion: `Carga ${collName}`,
+                    tiempo: time.toFixed(2),
+                    status: time < 500 ? 'good' : time < 1000 ? 'warning' : 'bad',
+                    detalles: `${snap.size} documentos`
+                });
+
+                showStatus(`✓ ${collName}: ${time.toFixed(0)}ms (${snap.size} docs)`,
+                    time < 500 ? 'success' : time < 1000 ? 'warning' : 'error');
+            }
+        }
+
+        async function probarConsultasComplejas() {
+            showStatus('🔍 Prueba 2: Consultas complejas...', 'info');
+
+            // Consulta con where
+            let start = performance.now();
+            let snap = await db.collection('spa_reservas')
+                .where('estado', '==', 'confirmada')
+                .limit(50)
+                .get();
+            let end = performance.now();
+            let time = end - start;
+
+            resultados.push({
+                operacion: 'Consulta WHERE (estado)',
+                tiempo: time.toFixed(2),
+                status: time < 300 ? 'good' : time < 700 ? 'warning' : 'bad',
+                detalles: `${snap.size} resultados`
+            });
+
+            // Consulta con orderBy
+            start = performance.now();
+            snap = await db.collection('spa_reservas')
+                .orderBy('fecha', 'desc')
+                .limit(50)
+                .get();
+            end = performance.now();
+            time = end - start;
+
+            resultados.push({
+                operacion: 'Consulta ORDER BY (fecha)',
+                tiempo: time.toFixed(2),
+                status: time < 300 ? 'good' : time < 700 ? 'warning' : 'bad',
+                detalles: `${snap.size} resultados`
+            });
+
+            showStatus(`✓ Consultas completadas`, 'success');
+        }
+
+        async function probarTamanoColecciones() {
+            showStatus('📊 Prueba 3: Análisis de tamaño...', 'info');
+
+            const collections = ['spa_reservas', 'spa_vouchers', 'spa_services'];
+
+            for (const collName of collections) {
+                const start = performance.now();
+                const snap = await db.collection(collName).get();
+                const end = performance.now();
+
+                let totalSize = 0;
+                snap.forEach(doc => {
+                    totalSize += JSON.stringify(doc.data()).length;
+                });
+
+                const avgSize = snap.size > 0 ? (totalSize / snap.size / 1024).toFixed(2) : 0;
+
+                resultados.push({
+                    operacion: `Tamaño ${collName}`,
+                    tiempo: (end - start).toFixed(2),
+                    status: snap.size < 1000 ? 'good' : snap.size < 5000 ? 'warning' : 'bad',
+                    detalles: `${snap.size} docs, ${avgSize}KB promedio`
+                });
+            }
+
+            showStatus(`✓ Análisis de tamaño completado`, 'success');
+        }
+
+        async function probarEscrituras() {
+            showStatus('✏️ Prueba 4: Velocidad de escritura...', 'info');
+
+            // Crear documento de prueba
+            const testData = {
+                test: true,
+                timestamp: new Date().toISOString(),
+                data: 'Test de rendimiento'
+            };
+
+            const start = performance.now();
+            const docRef = await db.collection('_performance_tests').add(testData);
+            const end = performance.now();
+            const writeTime = end - start;
+
+            // Leer el documento
+            const start2 = performance.now();
+            await docRef.get();
+            const end2 = performance.now();
+            const readTime = end2 - start2;
+
+            // Actualizar el documento
+            const start3 = performance.now();
+            await docRef.update({ updated: true });
+            const end3 = performance.now();
+            const updateTime = end3 - start3;
+
+            // Eliminar el documento
+            await docRef.delete();
+
+            resultados.push({
+                operacion: 'Escritura (add)',
+                tiempo: writeTime.toFixed(2),
+                status: writeTime < 200 ? 'good' : writeTime < 500 ? 'warning' : 'bad',
+                detalles: 'Documento de prueba'
+            });
+
+            resultados.push({
+                operacion: 'Lectura (get)',
+                tiempo: readTime.toFixed(2),
+                status: readTime < 100 ? 'good' : readTime < 300 ? 'warning' : 'bad',
+                detalles: 'Documento de prueba'
+            });
+
+            resultados.push({
+                operacion: 'Actualización (update)',
+                tiempo: updateTime.toFixed(2),
+                status: updateTime < 200 ? 'good' : updateTime < 500 ? 'warning' : 'bad',
+                detalles: 'Documento de prueba'
+            });
+
+            showStatus(`✓ Pruebas de escritura completadas`, 'success');
+        }
+
+        function mostrarResultados() {
+            // Calcular estadísticas
+            const tiempos = resultados.map(r => parseFloat(r.tiempo));
+            const tiempoPromedio = (tiempos.reduce((a, b) => a + b, 0) / tiempos.length).toFixed(2);
+            const tiempoMax = Math.max(...tiempos).toFixed(2);
+            const tiempoMin = Math.min(...tiempos).toFixed(2);
+
+            const operacionesLentas = resultados.filter(r => r.status === 'bad').length;
+            const operacionesNormales = resultados.filter(r => r.status === 'warning').length;
+            const operacionesRapidas = resultados.filter(r => r.status === 'good').length;
+
+            // Mostrar estadísticas
+            const statsHTML = `
+                <div class="stats">
+                    <div class="stat-card ${operacionesLentas === 0 ? 'good' : 'bad'}">
+                        <div class="number">${operacionesLentas}</div>
+                        <div class="label">Operaciones Lentas</div>
+                    </div>
+                    <div class="stat-card warning">
+                        <div class="number">${operacionesNormales}</div>
+                        <div class="label">Operaciones Normales</div>
+                    </div>
+                    <div class="stat-card good">
+                        <div class="number">${operacionesRapidas}</div>
+                        <div class="label">Operaciones Rápidas</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="number">${tiempoPromedio}ms</div>
+                        <div class="label">Tiempo Promedio</div>
+                    </div>
+                </div>
+            `;
+
+            document.getElementById('stats-container').innerHTML = statsHTML;
+
+            // Mostrar tabla de resultados
+            let tableHTML = `
+                <div class="section">
+                    <h2>📋 Resultados Detallados</h2>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Operación</th>
+                                <th>Tiempo</th>
+                                <th>Estado</th>
+                                <th>Detalles</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+            `;
+
+            resultados.forEach(r => {
+                const badgeClass = r.status === 'good' ? 'badge-success' :
+                    r.status === 'warning' ? 'badge-warning' : 'badge-danger';
+                const badgeText = r.status === 'good' ? 'RÁPIDO' :
+                    r.status === 'warning' ? 'NORMAL' : 'LENTO';
+
+                tableHTML += `
+                    <tr>
+                        <td><strong>${r.operacion}</strong></td>
+                        <td>${r.tiempo}ms</td>
+                        <td><span class="badge ${badgeClass}">${badgeText}</span></td>
+                        <td>${r.detalles}</td>
+                    </tr>
+                `;
+            });
+
+            tableHTML += '</tbody></table>';
+
+            // Recomendaciones
+            if (operacionesLentas > 0) {
+                tableHTML += `
+                    <div class="status warning" style="margin-top: 20px;">
+                        <strong>⚠️ Recomendaciones:</strong><br>
+                        - ${operacionesLentas} operaciones están tardando más de lo esperado<br>
+                        - Considera agregar índices en Firestore para las consultas más utilizadas<br>
+                        - Verifica la conexión a internet<br>
+                        - Optimiza las consultas para recuperar solo los datos necesarios
+                    </div>
+                `;
+            } else {
+                tableHTML += `
+                    <div class="status success" style="margin-top: 20px;">
+                        <strong>✅ El sistema está funcionando correctamente</strong><br>
+                        Todas las operaciones están dentro de los tiempos esperados.
+                    </div>
+                `;
+            }
+
+            tableHTML += '</div>';
+
+            document.getElementById('results').innerHTML = tableHTML;
+        }
+    </script>
+</body>
+
+</html>

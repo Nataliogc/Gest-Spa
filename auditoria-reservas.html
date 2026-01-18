@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>📝 Auditoría de Reservas - Zenith Manager</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2rem;
+            margin-bottom: 10px;
+        }
+
+        .content {
+            padding: 30px;
+        }
+
+        .section {
+            margin-bottom: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 12px;
+            border-left: 4px solid #667eea;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 1rem;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: transform 0.2s;
+            margin: 5px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+        }
+
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .stat-card .number {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 5px;
+        }
+
+        .stat-card .label {
+            color: #6c757d;
+            font-size: 0.9rem;
+        }
+
+        .status {
+            padding: 15px;
+            border-radius: 8px;
+            margin: 10px 0;
+        }
+
+        .status.info {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status.warning {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+            background: white;
+        }
+
+        thead {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        th,
+        td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #dee2e6;
+        }
+
+        tr:hover {
+            background: #f8f9fa;
+        }
+
+        .badge {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+
+        .badge-danger {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .badge-warning {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .badge-info {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📝 Auditoría de Reservas</h1>
+            <p>Detecta conflictos, cancelaciones anómalas y patrones de problemas</p>
+        </div>
+
+        <div class="content">
+            <div class="section">
+                <h2>🔍 Análisis</h2>
+                <p style="margin-bottom: 15px; color: #6c757d;">
+                    Analiza el historial completo de reservas para detectar problemas y patrones anómalos.
+                </p>
+                <button class="btn" onclick="analizarReservas()" id="btn-analizar">
+                    🔍 Analizar Reservas
+                </button>
+            </div>
+
+            <div id="status-container"></div>
+            <div id="stats-container"></div>
+            <div id="results"></div>
+        </div>
+    </div>
+
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <script src="firebase-config.js"></script>
+
+    <script>
+        let reservas = [];
+        let problemas = [];
+
+        function showStatus(message, type = 'info') {
+            const container = document.getElementById('status-container');
+            const status = document.createElement('div');
+            status.className = `status ${type}`;
+            status.innerHTML = message;
+            container.appendChild(status);
+        }
+
+        async function analizarReservas() {
+            const btn = document.getElementById('btn-analizar');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="loading"></span> Analizando...';
+
+            document.getElementById('status-container').innerHTML = '';
+            document.getElementById('results').innerHTML = '';
+            problemas = [];
+
+            try {
+                showStatus('📚 Cargando reservas...', 'info');
+
+                // Cargar todas las colecciones de reservas
+                const collections = ['spa_reservas', 'suite_reservas', 'cabina_reservas', 'panacea_reservas'];
+                reservas = [];
+
+                for (const collectionName of collections) {
+                    const snap = await db.collection(collectionName).get();
+                    snap.forEach(doc => {
+                        reservas.push({
+                            id: doc.id,
+                            collection: collectionName,
+                            ...doc.data()
+                        });
+                    });
+                }
+
+                showStatus(`✅ ${reservas.length} reservas cargadas`, 'success');
+
+                // ANÁLISIS 1: Conflictos de horario
+                showStatus('🔍 Buscando conflictos de horario...', 'info');
+                const conflictos = detectarConflictos();
+                if (conflictos > 0) {
+                    showStatus(`⚠️ ${conflictos} conflictos de horario detectados`, 'warning');
+                }
+
+                // ANÁLISIS 2: Cancelaciones sospechosas
+                showStatus('🔍 Analizando patrones de cancelación...', 'info');
+                const cancelaciones = analizarCancelaciones();
+                if (cancelaciones > 0) {
+                    showStatus(`⚠️ ${cancelaciones} cancelaciones anómalas detectadas`, 'warning');
+                }
+
+                // ANÁLISIS 3: Reservas sin PAX o precio
+                showStatus('🔍 Validando datos de reservas...', 'info');
+                const datosInvalidos = validarDatos();
+                if (datosInvalidos > 0) {
+                    showStatus(`⚠️ ${datosInvalidos} reservas con datos inválidos`, 'warning');
+                }
+
+                // ANÁLISIS 4: Overbooking
+                showStatus('🔍 Detectando overbooking...', 'info');
+                const overbooking = detectarOverbooking();
+                if (overbooking > 0) {
+                    showStatus(`⚠️ ${overbooking} casos de overbooking detectados`, 'warning');
+                }
+
+                // Mostrar estadísticas
+                mostrarEstadisticas();
+
+                // Mostrar problemas
+                if (problemas.length > 0) {
+                    mostrarProblemas();
+                } else {
+                    showStatus('✅ ¡No se encontraron problemas! El sistema está funcionando correctamente.', 'success');
+                }
+
+            } catch (error) {
+                console.error('Error en auditoría:', error);
+                showStatus('❌ Error: ' + error.message, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '🔍 Analizar Reservas';
+            }
+        }
+
+        function detectarConflictos() {
+            let count = 0;
+            const reservasPorFecha = {};
+
+            reservas.forEach(r => {
+                if (r.estado === 'cancelada') return;
+
+                const key = `${r.fecha}_${r.hora}_${r.espacio || r.sala}`;
+                if (!reservasPorFecha[key]) {
+                    reservasPorFecha[key] = [];
+                }
+                reservasPorFecha[key].push(r);
+            });
+
+            for (const key in reservasPorFecha) {
+                if (reservasPorFecha[key].length > 1) {
+                    count++;
+                    problemas.push({
+                        tipo: 'Conflicto de Horario',
+                        severidad: 'error',
+                        descripcion: `${reservasPorFecha[key].length} reservas en el mismo horario: ${key}`,
+                        reservas: reservasPorFecha[key]
+                    });
+                }
+            }
+
+            return count;
+        }
+
+        function analizarCancelaciones() {
+            let count = 0;
+            const canceladas = reservas.filter(r => r.estado === 'cancelada');
+
+            // Detectar cancelaciones el mismo día
+            canceladas.forEach(r => {
+                const fechaReserva = new Date(r.fecha);
+                const fechaCancelacion = r.fecha_cancelacion ? new Date(r.fecha_cancelacion) : null;
+
+                if (fechaCancelacion) {
+                    const diffTime = Math.abs(fechaCancelacion - fechaReserva);
+                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+                    if (diffDays === 0) {
+                        count++;
+                        problemas.push({
+                            tipo: 'Cancelación Anómala',
+                            severidad: 'warning',
+                            descripcion: `Reserva cancelada el mismo día: ${r.cliente || r.id}`,
+                            reserva: r
+                        });
+                    }
+                }
+            });
+
+            return count;
+        }
+
+        function validarDatos() {
+            let count = 0;
+
+            reservas.forEach(r => {
+                const errores = [];
+
+                if (!r.pax || r.pax === 0) errores.push('Sin PAX');
+                if (!r.precio_total && r.estado !== 'cortesia') errores.push('Sin precio');
+                if (!r.cliente || r.cliente === '') errores.push('Sin cliente');
+                if (!r.telefono || r.telefono === '') errores.push('Sin teléfono');
+
+                if (errores.length > 0) {
+                    count++;
+                    problemas.push({
+                        tipo: 'Datos Inválidos',
+                        severidad: 'warning',
+                        descripcion: `Reserva ${r.id}: ${errores.join(', ')}`,
+                        reserva: r
+                    });
+                }
+            });
+
+            return count;
+        }
+
+        function detectarOverbooking() {
+            let count = 0;
+            const capacidades = {
+                'cabina': 1,
+                'suite': 2,
+                'panacea': 2,
+                'spa': 20 // Capacidad del circuito spa
+            };
+
+            const reservasPorSlot = {};
+
+            reservas.forEach(r => {
+                if (r.estado === 'cancelada') return;
+
+                const key = `${r.fecha}_${r.hora}_${r.espacio || r.sala}`;
+                if (!reservasPorSlot[key]) {
+                    reservasPorSlot[key] = { total: 0, reservas: [] };
+                }
+                reservasPorSlot[key].total += parseInt(r.pax || 0);
+                reservasPorSlot[key].reservas.push(r);
+            });
+
+            for (const key in reservasPorSlot) {
+                const slot = reservasPorSlot[key];
+                const espacio = slot.reservas[0].espacio || slot.reservas[0].sala || 'spa';
+                const capacidad = capacidades[espacio] || 2;
+
+                if (slot.total > capacidad) {
+                    count++;
+                    problemas.push({
+                        tipo: 'Overbooking',
+                        severidad: 'error',
+                        descripcion: `Capacidad excedida en ${key}: ${slot.total} personas (máx: ${capacidad})`,
+                        reservas: slot.reservas
+                    });
+                }
+            }
+
+            return count;
+        }
+
+        function mostrarEstadisticas() {
+            const total = reservas.length;
+            const activas = reservas.filter(r => r.estado === 'confirmada' || r.estado === 'pendiente').length;
+            const canceladas = reservas.filter(r => r.estado === 'cancelada').length;
+            const problematicos = problemas.length;
+
+            const html = `
+                <div class="stats">
+                    <div class="stat-card">
+                        <div class="number">${total}</div>
+                        <div class="label">Total Reservas</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="number" style="color: #28a745;">${activas}</div>
+                        <div class="label">Activas</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="number" style="color: #6c757d;">${canceladas}</div>
+                        <div class="label">Canceladas</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="number" style="color: #dc3545;">${problematicos}</div>
+                        <div class="label">Problemas Detectados</div>
+                    </div>
+                </div>
+            `;
+
+            document.getElementById('stats-container').innerHTML = html;
+        }
+
+        function mostrarProblemas() {
+            let html = `
+                <div class="section">
+                    <h2>⚠️ Problemas Detectados (${problemas.length})</h2>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Tipo</th>
+                                <th>Descripción</th>
+                                <th>Severidad</th>
+                                <th>Acción</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+            `;
+
+            problemas.forEach((p, idx) => {
+                const badgeClass = p.severidad === 'error' ? 'badge-danger' :
+                    p.severidad === 'warning' ? 'badge-warning' : 'badge-info';
+
+                html += `
+                    <tr>
+                        <td><strong>${p.tipo}</strong></td>
+                        <td>${p.descripcion}</td>
+                        <td><span class="badge ${badgeClass}">${p.severidad.toUpperCase()}</span></td>
+                        <td><button class="btn" style="padding: 5px 10px; font-size: 0.85rem;" onclick="verDetalle(${idx})">Ver</button></td>
+                    </tr>
+                `;
+            });
+
+            html += `
+                        </tbody>
+                    </table>
+                </div>
+            `;
+
+            document.getElementById('results').innerHTML = html;
+        }
+
+        function verDetalle(idx) {
+            const p = problemas[idx];
+            console.log('Detalle del problema:', p);
+            alert(`Tipo: ${p.tipo}\n\nDescripción: ${p.descripcion}\n\n${JSON.stringify(p, null, 2)}`);
+        }
+    </script>
+</body>
+
+</html>
