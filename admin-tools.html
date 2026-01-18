@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🛠️ Panel de Administración - Zenith Manager</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        /* Login Screen */
+        .login-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            z-index: 9999;
+        }
+
+        .login-box {
+            background: white;
+            padding: 40px;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            width: 100%;
+            max-width: 400px;
+            text-align: center;
+        }
+
+        .login-box h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 1.8rem;
+        }
+
+        .login-box p {
+            color: #6c757d;
+            margin-bottom: 30px;
+        }
+
+        .login-box input {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 1rem;
+            margin-bottom: 20px;
+            transition: border-color 0.3s;
+        }
+
+        .login-box input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .login-box button {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .login-box button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 16px rgba(102, 126, 234, 0.4);
+        }
+
+        .login-error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 10px;
+            border-radius: 6px;
+            margin-bottom: 15px;
+            display: none;
+        }
+
+        /* Main Dashboard */
+        .dashboard {
+            display: none;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: white;
+            padding: 30px;
+            border-radius: 16px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            margin-bottom: 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            color: #333;
+            font-size: 2rem;
+            margin-bottom: 5px;
+        }
+
+        .header p {
+            color: #6c757d;
+            font-size: 1.1rem;
+        }
+
+        .logout-btn {
+            background: #dc3545;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: background 0.2s;
+        }
+
+        .logout-btn:hover {
+            background: #c82333;
+        }
+
+        .tools-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 25px;
+        }
+
+        .tool-card {
+            background: white;
+            border-radius: 16px;
+            padding: 25px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            transition: transform 0.2s, box-shadow 0.2s;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .tool-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 4px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        .tool-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+        }
+
+        .tool-icon {
+            font-size: 3rem;
+            margin-bottom: 15px;
+        }
+
+        .tool-title {
+            color: #333;
+            font-size: 1.3rem;
+            font-weight: 700;
+            margin-bottom: 10px;
+        }
+
+        .tool-description {
+            color: #6c757d;
+            font-size: 0.95rem;
+            line-height: 1.6;
+            margin-bottom: 20px;
+        }
+
+        .tool-status {
+            display: inline-block;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            margin-bottom: 15px;
+        }
+
+        .status-active {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status-maintenance {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .status-beta {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+
+        .tool-btn {
+            display: inline-block;
+            padding: 12px 24px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 600;
+            transition: transform 0.2s;
+            text-align: center;
+        }
+
+        .tool-btn:hover {
+            transform: scale(1.05);
+        }
+
+        .category-title {
+            color: white;
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin: 40px 0 20px 0;
+            padding-left: 15px;
+            border-left: 5px solid white;
+        }
+
+        .stats-bar {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            margin-bottom: 30px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+        }
+
+        .stat-item {
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #667eea;
+            margin-bottom: 5px;
+        }
+
+        .stat-label {
+            color: #6c757d;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Login Screen -->
+    <div class="login-container" id="login-screen">
+        <div class="login-box">
+            <h1>🛠️ Panel de Administración</h1>
+            <p>Zenith Manager - Acceso Restringido</p>
+            <div class="login-error" id="login-error">
+                ❌ Credenciales incorrectas
+            </div>
+            <form id="login-form" onsubmit="return login(event)">
+                <input type="text" id="username" placeholder="Usuario" autocomplete="username" required>
+                <input type="password" id="password" placeholder="Contraseña" autocomplete="current-password" required>
+                <button type="submit">Iniciar Sesión</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Main Dashboard -->
+    <div class="dashboard" id="dashboard">
+        <div class="container">
+            <div class="header">
+                <div>
+                    <h1>🛠️ Panel de Administración</h1>
+                    <p>Herramientas de Diagnóstico y Corrección</p>
+                </div>
+                <button class="logout-btn" onclick="logout()">
+                    <i>🚪</i> Cerrar Sesión
+                </button>
+            </div>
+
+            <div class="stats-bar">
+                <div class="stat-item">
+                    <div class="stat-value">6</div>
+                    <div class="stat-label">Herramientas Disponibles</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">100%</div>
+                    <div class="stat-label">Sistema Operativo</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="last-sync">-</div>
+                    <div class="stat-label">Última Sincronización</div>
+                </div>
+            </div>
+
+            <h2 class="category-title">📊 Diagnóstico y Corrección</h2>
+            <div class="tools-grid">
+                <div class="tool-card" onclick="openTool('fix-catalog-wc-ids.html')">
+                    <div class="tool-icon">🔧</div>
+                    <span class="tool-status status-active">Activa</span>
+                    <h3 class="tool-title">Corrector de IDs WooCommerce</h3>
+                    <p class="tool-description">
+                        Sincroniza automáticamente los wc_id del catálogo local (spa_services) con los variation_id de
+                        WooCommerce.
+                        Detecta y corrige discrepancias para asegurar que los productos se identifiquen correctamente.
+                    </p>
+                    <a href="#" class="tool-btn" onclick="event.stopPropagation();">Abrir Herramienta</a>
+                </div>
+
+                <div class="tool-card" onclick="openTool('debug-precios-spa.html')">
+                    <div class="tool-icon">💰</div>
+                    <span class="tool-status status-active">Activa</span>
+                    <h3 class="tool-title">Diagnóstico de Precios SPA</h3>
+                    <p class="tool-description">
+                        Verifica que los precios dinámicos del Circuito Spa se apliquen correctamente según el origen
+                        (Particular/Hotel) y el día de la semana (laborable/fin de semana).
+                    </p>
+                    <a href="#" class="tool-btn" onclick="event.stopPropagation();">Abrir Herramienta</a>
+                </div>
+
+                <div class="tool-card" onclick="openTool('bonos.html')">
+                    <div class="tool-icon">🎫</div>
+                    <span class="tool-status status-active">Activa</span>
+                    <h3 class="tool-title">Gestión de Bonos</h3>
+                    <p class="tool-description">
+                        Panel completo de gestión de bonos y vouchers. Incluye sincronización con WooCommerce,
+                        validación de sesiones, y corrección de datos de clientes.
+                    </p>
+                    <a href="#" class="tool-btn" onclick="event.stopPropagation();">Abrir Herramienta</a>
+                </div>
+
+                <div class="tool-card" onclick="openTool('configuracion.html')">
+                    <div class="tool-icon">⚙️</div>
+                    <span class="tool-status status-active">Activa</span>
+                    <h3 class="tool-title">Configuración del Sistema</h3>
+                    <p class="tool-description">
+                        Configura módulos, precios dinámicos, horarios, capacidades, y todas las opciones
+                        del sistema Zenith Manager desde un solo lugar.
+                    </p>
+                    <a href="#" class="tool-btn" onclick="event.stopPropagation();">Abrir Herramienta</a>
+                </div>
+            </div>
+
+            <h2 class="category-title">🔍 Auditoría y Mantenimiento</h2>
+            <div class="tools-grid">
+                <div class="tool-card">
+                    <div class="tool-icon">📝</div>
+                    <span class="tool-status status-beta">Próximamente</span>
+                    <h3 class="tool-title">Auditoría de Reservas</h3>
+                    <p class="tool-description">
+                        Analiza el historial completo de reservas para detectar conflictos, cancelaciones anómalas,
+                        o patrones que requieran atención.
+                    </p>
+                    <a href="#" class="tool-btn" style="opacity: 0.5; cursor: not-allowed;"
+                        onclick="event.preventDefault(); event.stopPropagation();">Próximamente</a>
+                </div>
+
+                <div class="tool-card">
+                    <div class="tool-icon">📊</div>
+                    <span class="tool-status status-beta">Próximamente</span>
+                    <h3 class="tool-title">Dashboard de Métricas</h3>
+                    <p class="tool-description">
+                        Visualiza estadísticas en tiempo real: ocupación, ingresos, servicios más vendidos,
+                        y tendencias de uso para tomar mejores decisiones.
+                    </p>
+                    <a href="#" class="tool-btn" style="opacity: 0.5; cursor: not-allowed;"
+                        onclick="event.preventDefault(); event.stopPropagation();">Próximamente</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Simple authentication (for production, use proper backend auth)
+        const ADMIN_CREDENTIALS = {
+            'admin': 'zenith2024',
+            'nataliogc': 'spa2024'
+        };
+
+        function login(event) {
+            event.preventDefault();
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+
+            if (ADMIN_CREDENTIALS[username] === password) {
+                // Store session
+                sessionStorage.setItem('adminAuth', 'true');
+                sessionStorage.setItem('adminUser', username);
+
+                // Show dashboard
+                document.getElementById('login-screen').style.display = 'none';
+                document.getElementById('dashboard').style.display = 'block';
+
+                // Update last sync time
+                updateLastSync();
+
+                return false;
+            } else {
+                document.getElementById('login-error').style.display = 'block';
+                setTimeout(() => {
+                    document.getElementById('login-error').style.display = 'none';
+                }, 3000);
+                return false;
+            }
+        }
+
+        function logout() {
+            sessionStorage.removeItem('adminAuth');
+            sessionStorage.removeItem('adminUser');
+            document.getElementById('login-screen').style.display = 'flex';
+            document.getElementById('dashboard').style.display = 'none';
+            document.getElementById('username').value = '';
+            document.getElementById('password').value = '';
+        }
+
+        function openTool(url) {
+            window.open(url, '_blank');
+        }
+
+        function updateLastSync() {
+            const now = new Date();
+            const timeStr = now.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+            document.getElementById('last-sync').textContent = timeStr;
+        }
+
+        // Check if already logged in
+        window.addEventListener('DOMContentLoaded', () => {
+            if (sessionStorage.getItem('adminAuth') === 'true') {
+                document.getElementById('login-screen').style.display = 'none';
+                document.getElementById('dashboard').style.display = 'block';
+                updateLastSync();
+            }
+        });
+    </script>
+</body>
+
+</html>
