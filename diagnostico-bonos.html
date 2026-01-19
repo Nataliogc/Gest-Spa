@@ -346,12 +346,19 @@
 
         function detectarBloqueados() {
             bonosFirestore.forEach(b => {
+                const codigo = b.bono || b.id;
+
+                // Ignorar bonos locales (no deben sincronizarse con WooCommerce)
+                if (isLocalVoucher(codigo)) {
+                    return; // Skip local vouchers
+                }
+
                 if (b.manual_update === true) {
                     problemas.push({
                         tipo: 'Bloqueo Manual',
                         severidad: 'warning',
-                        bono: b.bono || b.id,
-                        descripcion: 'El bono está bloqueado y no se sincroniza con WooCommerce',
+                        bono: codigo,
+                        descripcion: 'El bono de WooCommerce está bloqueado y no se sincroniza automáticamente',
                         firestore: b,
                         accion: 'desbloquear'
                     });
@@ -359,9 +366,19 @@
             });
         }
 
+        function isLocalVoucher(codigo) {
+            if (!codigo) return false;
+            const localPrefixes = ['LOC-', 'exc.Loc', 'Tarj-', 'excLoc'];
+            return localPrefixes.some(prefix => codigo.startsWith(prefix));
+        }
+
         function validarDatosCliente() {
             bonosFirestore.forEach(fb => {
                 const codigo = fb.bono || fb.id;
+
+                // Ignorar bonos locales
+                if (isLocalVoucher(codigo)) return;
+
                 const woo = bonosWooCommerce.find(w => {
                     const wooCode = w.bono || w.codigo || w.order_number;
                     return wooCode === codigo;
@@ -426,6 +443,10 @@
         function verificarPrecios() {
             bonosFirestore.forEach(fb => {
                 const codigo = fb.bono || fb.id;
+
+                // Ignorar bonos locales
+                if (isLocalVoucher(codigo)) return;
+
                 const woo = bonosWooCommerce.find(w => {
                     const wooCode = w.bono || w.codigo || w.order_number;
                     return wooCode === codigo;
@@ -455,6 +476,10 @@
         function verificarVariationIds() {
             bonosFirestore.forEach(fb => {
                 const codigo = fb.bono || fb.id;
+
+                // Ignorar bonos locales
+                if (isLocalVoucher(codigo)) return;
+
                 const woo = bonosWooCommerce.find(w => {
                     const wooCode = w.bono || w.codigo || w.order_number;
                     return wooCode === codigo;
