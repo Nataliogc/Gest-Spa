@@ -2869,7 +2869,9 @@ function resolveVoucherBreakdown(voucher, catalog = state.catalogProducts, overr
                 validations: [],
                 precio: primaryMatch.precio || 0,
                 pax: paxCount,
-                wc_id: primaryMatch.wc_id || null,
+                // CRÍTICO: Usar variation_id del input si está disponible
+                variation_id: voucher.variation_id || null,
+                wc_id: voucher.variation_id || primaryMatch.wc_id || null,
                 product_id: primaryMatch.id || null
             });
         }
