@@ -46,7 +46,16 @@ function initializePaymentFields(voucher, origen) {
     const totalPrice = parseFloat(v.snapshot_price) || parseFloat(v.precio) || parseFloat(v.importe) || 0;
 
     // Determinar estado según origen
-    if (origen === 'woocommerce' || origen === 'woo') {
+    const productStr = (v.producto || v.nombre || '').toLowerCase();
+    const discountP = parseFloat(v.discount_percent_max) || parseFloat(v.discount_rate) || 0;
+    const isInvitation = (totalPrice === 0 && (discountP >= 100 || productStr.includes('-100%') || productStr.includes('invitacion')));
+
+    if (isInvitation) {
+        // Si el precio es 0 por INVITACIÓN EXPLÍCITA, nace Pagado
+        v.estado_pago = PAYMENT_STATUS.PAGADO;
+        v.importe_pagado = 0;
+        v.importe_pendiente = 0;
+    } else if (origen === 'woocommerce' || origen === 'woo') {
         v.estado_pago = PAYMENT_STATUS.PAGADO;
         v.importe_pagado = totalPrice;
         v.importe_pendiente = 0;
@@ -99,6 +108,18 @@ function normalizePaymentFields(voucher) {
     const origenNorm = (v.origen || '').toLowerCase();
     if (origenNorm.includes('woo') || v.metodo_pago === 'online') {
         v.estado_pago = PAYMENT_STATUS.PAGADO;
+    }
+
+    // FIX GLOBAL: Los bonos con precio 0 (invitaciones) SIEMPRE están pagados si es invitación explícita
+    // Evita marcar como pagado un bono que tiene precio 0 por un error de carga
+    if (totalPrice === 0) {
+        const productStr = (v.producto || v.nombre || '').toLowerCase();
+        const discountP = parseFloat(v.discount_percent_max) || parseFloat(v.discount_rate) || 0;
+        const isInvitation = discountP >= 100 || productStr.includes('-100%') || productStr.includes('invitacion');
+
+        if (isInvitation) {
+            v.estado_pago = PAYMENT_STATUS.PAGADO;
+        }
     }
 
     // Normalizar importes

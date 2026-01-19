@@ -5335,6 +5335,8 @@ async function createLocalVoucher() {
         }
     });
 
+    const discountPercent = state.lvCart.length > 0 ? Math.max(...state.lvCart.map(i => parseFloat(i.discount_percent) || 0)) : 0;
+
     const newVoucher = {
         bono: code,
         codigo: code,
@@ -5352,7 +5354,7 @@ async function createLocalVoucher() {
         pax_por_sesion: state.lvCart.length > 0 ? Math.max(...state.lvCart.map(i => i.pax || 1)) : 1,
         items_desglosados: allItems,
         // DISCOUNT PERSISTENCE
-        discount_percent_max: state.lvCart.length > 0 ? Math.max(...state.lvCart.map(i => parseFloat(i.discount_percent) || 0)) : 0,
+        discount_percent_max: discountPercent,
         discount_total_amount: state.lvCart.reduce((sum, i) => {
             const rawPrice = (i.originalProduct ? parseFloat(i.originalProduct.precio) : i.price) || i.price;
             const diff = (rawPrice - i.price) * i.sessions;
@@ -5362,9 +5364,9 @@ async function createLocalVoucher() {
         manual_update: true,
         updated_at: new Date().toISOString(),
         // === PAYMENT CONTROL FIELDS ===
-        estado_pago: 'pendiente', // Local vouchers start as pending
+        estado_pago: (totalPrice === 0 && (discountPercent >= 100 || productNames.toLowerCase().includes('invitacion'))) ? 'pagado' : 'pendiente',
         importe_pagado: 0,
-        importe_pendiente: totalPrice,
+        importe_pendiente: (totalPrice === 0 && (discountPercent >= 100 || productNames.toLowerCase().includes('invitacion'))) ? 0 : totalPrice,
         pagos: [],
         service_payment_status: null,
         snapshot_price: totalPrice // Capture price at creation
