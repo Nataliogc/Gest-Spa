@@ -3154,9 +3154,13 @@ async function openVoucherManagement(code) {
             used: item.used || 0,
             validations: item.validations || [],
             space: item.space,
-            variation_id: item.variation_id || catalogItem?.wc_id || null,
-            product_id: item.product_id || item.wc_id || catalogItem?.id || null,
-            wc_id: item.wc_id || catalogItem?.wc_id || null,
+            // Metadata para reserva
+            product_id: item.product_id || catalogItem?.product_id || null,
+            // CRÍTICO: SOLO usar variation_id de WooCommerce, NO del catálogo local
+            // El catálogo puede estar des actualizado y causar IDs incorrectos
+            variation_id: item.variation_id || null,
+            // wc_id mantiene compatibilidad con código legacy
+            wc_id: item.wc_id || item.variation_id || catalogItem?.wc_id || null,
             id: item.id || catalogItem?.id || null
         };
     });
