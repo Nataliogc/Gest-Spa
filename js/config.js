@@ -187,21 +187,20 @@ async function saveSpaSettings() {
     const cleaning = parseInt(document.getElementById("cfg-spa-cleaning").value) || 0;
     const template = document.getElementById("cfg-whatsapp-template").value;
 
-    // WooCommerce Config
+    // WooCommerce Config - SAFETY: only update if input has value OR the tab is active
+    // This prevents clearing keys if the user saves from another tab and the browser didn't populate hidden password fields
     const wcUrl = document.getElementById("cfg-wc-url").value.trim();
     const wcKey = document.getElementById("cfg-wc-key").value.trim();
     const wcSecret = document.getElementById("cfg-wc-secret").value.trim();
     const wcPushKey = document.getElementById("cfg-wc-push-key").value.trim();
 
-    spaConfigState.spaConfig.capacity = capacity;
-    spaConfigState.spaConfig.cleaningTime = cleaning;
-    spaConfigState.spaConfig.whatsappTemplate = template;
-    spaConfigState.spaConfig.wc_url = wcUrl;
-    spaConfigState.spaConfig.wc_key = wcKey;
-    spaConfigState.spaConfig.wc_secret = wcSecret;
-    spaConfigState.spaConfig.wc_key = wcKey;
-    spaConfigState.spaConfig.wc_secret = wcSecret;
-    spaConfigState.spaConfig.wc_push_key = wcPushKey;
+    if (wcUrl) spaConfigState.spaConfig.wc_url = wcUrl;
+    // For sensitive keys, ONLY update if the user has actually entered something OR if the Connections tab is active
+    const isConnectionsTabActive = document.getElementById('tab-conexiones').style.display === 'block';
+
+    if (wcKey || isConnectionsTabActive) spaConfigState.spaConfig.wc_key = wcKey;
+    if (wcSecret || isConnectionsTabActive) spaConfigState.spaConfig.wc_secret = wcSecret;
+    if (wcPushKey || isConnectionsTabActive) spaConfigState.spaConfig.wc_push_key = wcPushKey;
 
     // Dynamic Pricing for Hotel (no incluido)
     const priceWeekdayHotel = parseFloat(document.getElementById("cfg-price-weekday-hotel")?.value) || 12;
@@ -244,10 +243,17 @@ async function saveSpaSettings() {
     console.log("[DEBUG] Saving SPA Config (PAYLOAD):", payload);
 
     try {
-        await db.collection("spa_config").doc("settings").set(payload);
+        // USE .update() instead of .set() to avoid wiping out fields not managed in this UI (like blockedSlots)
+        await db.collection("spa_config").doc("settings").update(payload);
         showToast("Configuración guardada", "success");
     } catch (err) {
-        showToast("Error guardando: " + err.message, "error");
+        // If the document doesn't exist, update will fail. Fallback to set if needed.
+        if (err.code === 'not-found') {
+            await db.collection("spa_config").doc("settings").set(payload);
+            showToast("Configuración creada", "success");
+        } else {
+            showToast("Error guardando: " + err.message, "error");
+        }
     }
 }
 

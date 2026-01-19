@@ -25,105 +25,71 @@ async function renderVoucherHistory(bonoCode, internalValidations = []) {
         // Colecciones donde buscar reservas
         const collections = ['reservas_spa', 'reservas_suite', 'reservas_panacea', 'reservas_peluqueria', 'reservas_vip', 'reservas_restaurante', 'reservas_gimnasio', 'reservas_complementos', 'reservas_rest', 'reservas_menu', 'reservas', 'reservas_evento'];
 
-        console.log(`[HISTORY] Buscando historial para bono: '${bonoCode}' en colecciones:`, collections);
+        console.log(`[HISTORY] Buscando historial para bono: '${bonoCode}'...`);
 
-        for (const col of collections) {
-            try {
-                // 1. Intentar búsqueda exacta por código de bono
-                const snap = await db.collection(col).where("bono", "==", bonoCode).get();
-                snap.forEach(doc => {
-                    const d = doc.data();
-                    if (d.status !== 'anulada') {
-                        allReservations.push({ ...d, _col: col, id: doc.id });
-                    }
-                });
+        // Obtener email del state para búsqueda de refuerzo
+        const clientEmail = (state.bonos.find(b => b.bono === bonoCode) || {}).email;
 
-                // 2. Fallback: Búsqueda por email si existe (MUY fiable)
-                const clientEmail = (state.bonos.find(b => b.bono === bonoCode) || {}).email;
-                if (clientEmail) {
-                    const snapEmail = await db.collection(col).where("email", "==", clientEmail).get();
-                    snapEmail.forEach(doc => {
-                        const d = doc.data();
-                        // Solo añadir si NO lo habíamos añadido ya por código y si coincide el bono o no tiene bono asignado
-                        const alreadyAdded = allReservations.some(r => r.id === doc.id);
-                        if (!alreadyAdded && d.status !== 'anulada') {
-                            // Si tiene otro bono asignado diferente, quizás no deberíamos mostrarlo?
-                            // Pero a veces el código cambia ligeramente (espacios, etc).
-                            // Por seguridad, si el origen es 'bono', lo mostramos.
-                            if (d.origen === 'bono') {
-                                allReservations.push({ ...d, _col: col, id: doc.id });
-                            }
-                        }
-                    });
-                }
+        // Generar lista de códigos a buscar para cubrir variaciones (trim, sin espacios, sin WC)
+        const codesToSearch = new Set();
+        codesToSearch.add(bonoCode);
+        codesToSearch.add(bonoCode.trim());
+        if (bonoCode.includes(' ')) codesToSearch.add(bonoCode.replace(/\s+/g, ''));
+        if (bonoCode.startsWith('WC')) codesToSearch.add(bonoCode.substring(2));
 
-                // 3. Fallback: Búsqueda por código sin espacios (TRIMMED) - FIX CRÍTICO
-                const trimmedCode = bonoCode.trim();
-                if (trimmedCode !== bonoCode) {
-                    const snapTrim = await db.collection(col).where("bono", "==", trimmedCode).get();
-                    snapTrim.forEach(doc => {
-                        const d = doc.data();
-                        const alreadyAdded = allReservations.some(r => r.id === doc.id);
-                        if (!alreadyAdded && d.status !== 'anulada') {
-                            allReservations.push({ ...d, _col: col, id: doc.id });
-                        }
-                    });
-                }
+        // Lanzar TODAS las consultas en paralelo para máxima velocidad
+        const queryPromises = [];
 
-                // 4. Fallback: Búsqueda por código sin espacios internos (si aplica)
-                if (bonoCode.includes(' ')) {
-                    const cleanCode = bonoCode.replace(/\s+/g, '');
-                    const snap2 = await db.collection(col).where("bono", "==", cleanCode).get();
-                    snap2.forEach(doc => {
-                        const d = doc.data();
-                        const alreadyAdded = allReservations.some(r => r.id === doc.id);
-                        if (!alreadyAdded && d.status !== 'anulada') {
-                            allReservations.push({ ...d, _col: col, id: doc.id });
-                        }
-                    });
-                }
+        collections.forEach(col => {
+            const colRef = db.collection(col);
 
-                // 4. Fallback: Búsqueda sin prefijo "WC" (para bonos de tienda que se registraron solo con el número)
-                if (bonoCode.startsWith('WC')) {
-                    const shortCode = bonoCode.substring(2);
-                    const snap3 = await db.collection(col).where("bono", "==", shortCode).get();
-                    snap3.forEach(doc => {
-                        const d = doc.data();
-                        const alreadyAdded = allReservations.some(r => r.id === doc.id);
-                        if (!alreadyAdded && d.status !== 'anulada') {
-                            allReservations.push({ ...d, _col: col, id: doc.id });
-                        }
-                    });
-                }
+            // Consultas por código
+            codesToSearch.forEach(code => {
+                queryPromises.push(colRef.where("bono", "==", code).get().then(snap => ({ snap, col })));
+            });
 
-            } catch (errCol) {
-                console.warn(`[HISTORY] Error buscando en ${col}:`, errCol);
+            // Consulta por email (si existe)
+            if (clientEmail) {
+                queryPromises.push(colRef.where("email", "==", clientEmail).get().then(snap => ({ snap, col })));
             }
-        }
+        });
+
+        // Esperar a que terminen todas
+        const results = await Promise.all(queryPromises);
+        const addedIds = new Set();
+
+        results.forEach(({ snap, col }) => {
+            snap.forEach(doc => {
+                if (addedIds.has(doc.id)) return;
+                const d = doc.data();
+
+                // Filtrar anuladas y validar coincidencia si es por email
+                if (d.status !== 'anulada') {
+                    // Si el match fue por email, solo aceptamos si es origen 'bono' para evitar cruces
+                    // (A menos que el código de bono coincida exactamente)
+                    const matchesCode = Array.from(codesToSearch).includes(d.bono);
+                    if (matchesCode || d.origen === 'bono') {
+                        allReservations.push({ ...d, _col: col, id: doc.id });
+                        addedIds.add(doc.id);
+                    }
+                }
+            });
+        });
 
         // 5. MERGE LOCAL PENDING RESERVATIONS (Sync Delay mitigation)
         if (window.apiLocal && typeof apiLocal.getPendingSync === 'function') {
             try {
                 const localPending = await apiLocal.getPendingSync('reservas');
-                const cleanBono = bonoCode.replace(/\s+/g, '');
+                const codesToSearchArray = Array.from(codesToSearch);
 
                 localPending.forEach(loc => {
-                    const locBono = (loc.bono || '').replace(/\s+/g, '');
-                    // Match by bono code (exact or stripped) or Email if available
-                    // We only check bono here for simplicity as pending items usually have it
-                    if (locBono === cleanBono || (loc.bono === bonoCode)) {
-                        // Avoid duplicates if already found in Firestore (rare race conn)
-                        if (!allReservations.some(r => r.id === loc.id)) {
-                            // Infer collection/color
-                            let col = loc.collection || 'reservas_spa';
-                            if (loc.servicio && loc.servicio.toLowerCase().includes('suite')) col = 'reservas_suite';
-
-                            allReservations.push({
-                                ...loc,
-                                _col: col,
-                                _isLocal: true // Marker for UI
-                            });
-                        }
+                    const locBono = (loc.bono || '');
+                    const matches = codesToSearchArray.includes(locBono) || codesToSearchArray.includes(locBono.replace(/\s+/g, ''));
+                    if (matches && !addedIds.has(loc.id)) {
+                        let col = loc.collection || 'reservas_spa';
+                        if (loc.servicio && loc.servicio.toLowerCase().includes('suite')) col = 'reservas_suite';
+                        allReservations.push({ ...loc, _col: col, _isLocal: true });
+                        addedIds.add(loc.id);
                     }
                 });
             } catch (e) {

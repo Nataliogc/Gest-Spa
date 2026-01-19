@@ -1734,20 +1734,25 @@ async function sincronizarConTienda(persistentData, btn, originalText) {
                 // Preparar datos a actualizar
                 const updateData = {};
                 let needsUpdate = false;
+                const isManual = persisted.manual_update === true || persisted.sync_locked === true;
 
-                // Solo actualizamos si el bono guardado no tenía IDs o son diferentes
-                if (topPId != persisted.product_id || topVId != persisted.variation_id) {
+                // Solo actualizamos IDs si el bono guardado no tenía IDs o son diferentes
+                // Y PROTEGEMOS si el usuario ya lo ha gestionado manualmente
+                if (!isManual && (topPId != persisted.product_id || topVId != persisted.variation_id)) {
                     console.log(`[Sync] Actualizando IDs para bono existente ${b.bono}: P:${topPId}, V:${topVId}`);
                     updateData.product_id = topPId;
                     updateData.variation_id = topVId;
-                    updateData.items_desglosados = b.items_desglosados || [];
+
+                    // Solo sobrescribir desglose si el que viene de la tienda parece más completo o el actual es nulo
+                    if (!persisted.items_desglosados || persisted.items_desglosados.length <= 1) {
+                        updateData.items_desglosados = b.items_desglosados || [];
+                    }
                     needsUpdate = true;
                 }
 
                 // CRÍTICO: Actualizar datos del cliente desde WooCommerce si están disponibles
                 // PROTECCIÓN: No sobrescribir si el usuario ha editado a mano (manual_update)
                 // salvo que el usuario explícitamente lo fuerce (sync manual).
-                const isManual = persisted.manual_update === true;
                 const wooNameGeneric = !b.cliente || b.cliente.toLowerCase().includes("nombre cliente") || b.cliente.toLowerCase() === "cliente";
 
                 if (!isManual) {
@@ -2846,8 +2851,10 @@ function resolveVoucherBreakdown(voucher, catalog = state.catalogProducts, overr
                     validations: [],
                     precio: 0,
                     pax: paxCount,
-                    wc_id: itemCatalog?.wc_id || null,
-                    product_id: itemCatalog?.id || null,
+                    // ID SYNC: Prioritize variation_id, fallback to wc_id or product_id
+                    variation_id: itemCatalog?.variation_id || null,
+                    wc_id: itemCatalog?.variation_id || itemCatalog?.wc_id || null,
+                    product_id: itemCatalog?.id || itemCatalog?.product_id || null,
                     parent_pack: primaryMatch.nombre
                 });
             });
@@ -3060,6 +3067,27 @@ async function openVoucherManagement(code) {
         }
 
         headerTitle.appendChild(badge);
+
+        // === SELLO DE PROTECCIÓN (Visual indicator for manual updates) ===
+        if (v.manual_update || v.sync_locked) {
+            const lockBadge = document.createElement("span");
+            lockBadge.id = "vm-lock-badge";
+            lockBadge.innerHTML = '<i class="fas fa-shield-alt"></i> Datos Verificados & Protegidos'; // El "Sello"
+            lockBadge.style.fontSize = "0.65rem";
+            lockBadge.style.fontWeight = "700";
+            lockBadge.style.padding = "3px 10px";
+            lockBadge.style.borderRadius = "20px";
+            lockBadge.style.marginLeft = "10px";
+            lockBadge.style.background = "#dcfce7";
+            lockBadge.style.color = "#15803d";
+            lockBadge.style.border = "1.5px solid #86efac";
+            lockBadge.style.display = "inline-flex";
+            lockBadge.style.alignItems = "center";
+            lockBadge.style.gap = "4px";
+            lockBadge.style.boxShadow = "0 2px 4px rgba(0,0,0,0.05)";
+            lockBadge.title = "Este bono ha sido revisado y guardado. Sus datos (IDs, CLIENTE) no se sobrescribirán al refrescar.";
+            headerTitle.appendChild(lockBadge);
+        }
     }
     // ------------------------------------------
 
@@ -3230,7 +3258,7 @@ async function openVoucherManagement(code) {
 
     console.log('[DEBUG] state.editingVoucherItems asignado. Total items:', state.editingVoucherItems.length);
 
-    function renderEditableBreakdown() {
+    window.renderEditableBreakdown = function () {
         if (!listDiv) {
             // Fallback por si el modal nuevo no está cargado aún (no debería pasar)
             listDiv = document.getElementById(listDivId);
@@ -3423,7 +3451,8 @@ async function openVoucherManagement(code) {
                         <div style="font-size:0.8rem; font-weight:600; color:#334155;">
                             ${item.name} 
                             ${(() => {
-                        let displayId = item.variation_id || item.wc_id || item.product_id || item.id || item.codigo || item.original_id || 'N/A';
+                        // Priority order for ID display: Variation > Product > Internal Código > Bono (Voucher #) > N/A
+                        let displayId = item.variation_id || item.wc_id || item.product_id || item.id || item.codigo || item.original_id || v.bono || v.codigo || 'N/A';
                         if (displayId == 6522) displayId = 6521; // HOTFIX VISUAL
                         return `<span style="font-size:0.65rem; color:#94a3b8; font-weight:400; margin-left:4px;">ID: ${displayId}</span>`;
                     })()}
@@ -3754,6 +3783,48 @@ async function openVoucherManagement(code) {
         }
     };
 
+    // --- POBLAR SESIONES Y PAX (Priorizar detección del catálogo) ---
+    // Lo hacemos ANTES del historial para que el modal no aparezca vacío
+    let suggestedTotal = 0;
+    let suggestedPax = 1;
+
+    if (detectedServices.length > 0) {
+        suggestedTotal = detectedServices.reduce((sum, s) => sum + (s.sessions || s.sesiones || 1), 0);
+        suggestedPax = detectedServices[0].pax || 1;
+    }
+
+    let sessionsTotales = v.sesiones_totales || v.sesiones_total;
+    const prodNameLower = (v.producto || '').toLowerCase();
+    const isSingleSessionPack = prodNameLower.includes('ritual') ||
+        prodNameLower.includes('experien') ||
+        prodNameLower.includes('fantasía') ||
+        prodNameLower.includes('sueño') ||
+        prodNameLower.includes('escapada') ||
+        (prodNameLower.includes('pack') && !prodNameLower.match(/(\d+)\s*sesion/));
+
+    if (!isSingleSessionPack && (!sessionsTotales || sessionsTotales === 1) && suggestedTotal > 1) {
+        sessionsTotales = suggestedTotal;
+    }
+
+    let finalDisplaySessions = sessionsTotales;
+    if (!finalDisplaySessions) {
+        finalDisplaySessions = isSingleSessionPack ? 1 : (suggestedTotal || 1);
+    }
+    document.getElementById("vm-sesiones-total").value = finalDisplaySessions;
+
+    // Inicializar usadas (se actualizará tras el historial)
+    document.getElementById("vm-sesiones-usadas").value = v.sesiones_usadas || 0;
+
+    let paxPorSesion = v.pax_por_sesion || v.pax_sesion;
+    if ((!paxPorSesion || paxPorSesion === 1) && suggestedPax > 1) {
+        paxPorSesion = suggestedPax;
+    }
+    document.getElementById("vm-pax-sesion").value = paxPorSesion || suggestedPax || 1;
+    document.getElementById("vm-notas").value = v.notas_internas || '';
+    document.getElementById("vm-notas").placeholder = "Notas internas visible solo para staff...";
+
+    renderEditableBreakdown();
+
     // --- Sincronizar uso real con Historial ---
     if (typeof renderVoucherHistory === 'function') {
         const voucherCode = v.bono || v.codigo;
@@ -3839,61 +3910,16 @@ async function openVoucherManagement(code) {
         }
     }
 
-    renderEditableBreakdown();
     // -------------------------------------
+    // RE-POBLAR USADAS TRAS SINCRONIZACIÓN DE HISTORIAL
+    const currentUsedUI = parseInt(document.getElementById("vm-sesiones-usadas").value) || 0;
+    const computedUsedFromHistory = detectedServices.reduce((sum, s) => sum + (s.used || 0), 0);
 
-    // --- POBLAR SESIONES Y PAX (Priorizar detección del catálogo) ---
-    let suggestedTotal = 0;
-    let suggestedPax = 1;
-
-    if (detectedServices.length > 0) {
-        suggestedTotal = detectedServices.reduce((sum, s) => sum + (s.sessions || s.sesiones || 1), 0);
-        suggestedPax = detectedServices[0].pax || 1;
+    if (computedUsedFromHistory > currentUsedUI) {
+        document.getElementById("vm-sesiones-usadas").value = computedUsedFromHistory;
     }
 
-    let sessionsTotales = v.sesiones_totales || v.sesiones_total;
-    // Si la DB dice 1 o vacío, pero detectamos más, usamos lo detectado (self-healing)
-    // FIX: Si la DB dice 1 o vacío, pero detectamos más, usamos lo detectado (self-healing)
-    // PERO solo si NO es un Ritual/Pack de una sola sesión (evitar multiplicar precio)
-    const prodNameLower = (v.producto || '').toLowerCase();
-    const isSingleSessionPack = prodNameLower.includes('ritual') ||
-        prodNameLower.includes('experien') || // covers Experiencia, Experience
-        prodNameLower.includes('fantasía') ||
-        prodNameLower.includes('sueño') ||
-        prodNameLower.includes('escapada') ||
-        (prodNameLower.includes('pack') && !prodNameLower.match(/(\d+)\s*sesion/)); // Pack que no diga explícitamente "N sesiones"
-
-    if (!isSingleSessionPack && (!sessionsTotales || sessionsTotales === 1) && suggestedTotal > 1) {
-        sessionsTotales = suggestedTotal;
-    }
-
-    // CRITICAL FIX: If sessionsTotales is still undefined/null, do NOT fallback to suggestedTotal if it's a Ritual/Pack
-    let finalDisplaySessions = sessionsTotales;
-    if (!finalDisplaySessions) {
-        if (isSingleSessionPack) {
-            finalDisplaySessions = 1;
-        } else {
-            finalDisplaySessions = suggestedTotal || 1;
-        }
-    }
-
-    document.getElementById("vm-sesiones-total").value = finalDisplaySessions;
-
-    // Calcule USED dynamically from items if DB is stale
-    let suggestedUsed = detectedServices.reduce((sum, s) => sum + (s.used || 0), 0);
-    // If DB says 0 but we found used items via history sync, use that
-    let sesionesUsadas = v.sesiones_usadas || 0;
-    if (sesionesUsadas < suggestedUsed) {
-        sesionesUsadas = suggestedUsed;
-    }
-    document.getElementById("vm-sesiones-usadas").value = sesionesUsadas;
-
-    let paxPorSesion = v.pax_por_sesion || v.pax_sesion;
-    if ((!paxPorSesion || paxPorSesion === 1) && suggestedPax > 1) {
-        paxPorSesion = suggestedPax;
-    }
-    document.getElementById("vm-pax-sesion").value = paxPorSesion || suggestedPax || 1;
-    document.getElementById("vm-notas").value = v.notas_internas || '';
+    renderEditableBreakdown();
     document.getElementById("vm-notas").placeholder = "Notas internas visible solo para staff...";
 
     // Update Status Badge logic (simplified)
@@ -4031,6 +4057,9 @@ async function saveVoucherChanges() {
             notes: getInputValue("vm-notas"), // Alias
             items_desglosados: cleanUndefined(state.editingVoucherItems || []),
             manual_update: true,
+            // Preserve technical IDs if they exist in state
+            product_id: (state.bonos.find(b => b.bono === code)?.product_id) || null,
+            variation_id: (state.bonos.find(b => b.bono === code)?.variation_id) || null,
             // 3️⃣ BLOQUEO POST-GUARDADO (ESTABILIDAD TOTAL)
             sync_locked: true,
             sync_locked_at: new Date().toISOString()
@@ -5792,270 +5821,8 @@ async function importExcelOrders(event) {
     }
 }
 
-// --- SYNC SINGLE VOUCHER (Manual Refresh) ---
-async function syncSingleVoucher(code) {
-    // Protection: If it's a background sync, don't overwrite manual changes
-    const existing = state.bonos.find(b => (b.bono || b.codigo) === code);
-    if (existing && existing.manual_update && !window.forceSync) {
-        console.log('[SYNC] Skipping sync for manually updated voucher:', code);
-        return;
-    }
+// --- DUPLICATE syncSingleVoucher REMOVED - REPLACED BY VERSION AT THE END OF FILE ---
 
-    const btn = document.getElementById("vm-btn-refresh");
-    if (btn) {
-        btn.innerHTML = '<i class="fas fa-spin fa-sync"></i>';
-        btn.disabled = true;
-    }
-
-    try {
-        console.log(`[DiffSync] Forzando actualización individual para: ${code} `);
-
-        // 1. FIRST FETCH FROM FIRESTORE (Usage source of truth)
-        const doc = await db.collection('spa_vouchers').doc(code).get();
-        if (doc.exists) {
-            const firestoreData = doc.data();
-            console.log("[DiffSync] Firestore Data fetched:", firestoreData);
-
-            // Update local state
-            const localIdx = state.bonos.findIndex(lb => lb.bono === code || lb.codigo === code);
-            if (localIdx >= 0) {
-                state.bonos[localIdx] = { ...state.bonos[localIdx], ...firestoreData };
-            }
-
-            // Trigger UI Refresh for this voucher specifically
-            window.dispatchEvent(new CustomEvent('vouchers-updated', { detail: { code, source: 'manual-sync-firestore' } }));
-        }
-
-        // 2. THEN FETCH FROM SHOP API (Customer info / WooCommerce source)
-        let shopVouchers = [];
-        if (typeof fetchBonosDirect === 'function') {
-            let desdeForced;
-            try {
-                const oneYearAgo = new Date();
-                oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 5);
-                desdeForced = oneYearAgo.toISOString().split('T')[0];
-
-                console.log(`[DiffSync] Fetching with date ${desdeForced} to find ${code}...`);
-                const params = { desde: desdeForced, per_page: 999, limit: 999 };
-                shopVouchers = await fetchBonosDirect(params, 15000);
-            } catch (e) {
-                console.warn("[DiffSync] Direct/Opt failed", e);
-
-                // CRÍTICO: Si falla directo, intentar la MISMA API optimizada vía Proxy
-                // NO usar fetchBonosWithFallback porque usa la API Legacy (listado) que no trae IDs
-                try {
-                    console.log("[DiffSync] Trying Optimized API via Proxy...");
-                    const url = new URL(URL_BONOS_OPTIMIZED);
-                    // Asegurar params
-                    if (desdeForced) url.searchParams.append("desde", desdeForced);
-                    url.searchParams.append("per_page", "50"); // Suficiente para un sync manual
-
-                    const proxyRes = await fetchWithProxyFallback(url.toString(), {}, 20000);
-                    const proxyData = await proxyRes.json();
-
-                    // Normalizar respuesta si viene con wrapper el proxy
-                    shopVouchers = Array.isArray(proxyData) ? proxyData :
-                        (proxyData.contents ? JSON.parse(proxyData.contents) : []);
-
-                } catch (proxyErr) {
-                    console.error("[DiffSync] Proxy also failed, falling back to legacy", proxyErr);
-                    // Último recurso: Legacy
-                    if (typeof fetchBonosWithFallback === 'function') {
-                        shopVouchers = await fetchBonosWithFallback({ desde: desdeForced, per_page: 999, limit: 999 }, 15000);
-                    }
-                }
-            }
-        } else {
-            const endpoint = getBonoEndpoint();
-            const res = await fetch(endpoint);
-            shopVouchers = await res.json();
-            if (shopVouchers.contents) shopVouchers = JSON.parse(shopVouchers.contents);
-        }
-
-        if (!Array.isArray(shopVouchers)) shopVouchers = [];
-
-        const targetBono = shopVouchers.find(b => {
-            const rawCode = (b.bono || '').trim();
-            if (rawCode === code) return true;
-            if (code.includes(b.order_id)) return true;
-            return false;
-        });
-
-        if (targetBono) {
-            console.log("[DiffSync] Found in API:", targetBono);
-            const b = targetBono;
-
-            // --- NORMALIZACIÓN ROBUSTA (Igual que en sincronización masiva) ---
-
-            // 1. Contacto
-            if (b.billing && typeof b.billing === 'object') {
-                const fName = b.billing.first_name || '';
-                const lName = b.billing.last_name || '';
-                if (!b.cliente) b.cliente = (fName + ' ' + lName).trim();
-                if (!b.telefono && b.billing.phone) b.telefono = b.billing.phone;
-                if (!b.email && b.billing.email) b.email = b.billing.email;
-            }
-            if (!b.cliente) {
-                const fName = b.billing_first_name || b.first_name || '';
-                const lName = b.billing_last_name || b.last_name || '';
-                const candidate = (fName + ' ' + lName).trim();
-                if (candidate) b.cliente = candidate;
-            }
-            if (!b.telefono) b.telefono = b.billing_phone || b.phone || '';
-            if (!b.email) b.email = b.billing_email || b.email || '';
-            if (!b.nombre && b.cliente) b.nombre = b.cliente;
-
-            const updateData = {};
-
-            // 2. Precio Real (Net-First logic for discounts)
-            let realTotal = 0;
-
-            // A. Try Net Totals Strategy first (total, item_total, amount)
-            // This avoids issues where line_total is gross (pre-discount)
-            realTotal = parseFloat(b.total) || parseFloat(b.item_total) ||
-                parseFloat(b.amount) || parseFloat(b.order_total) || 0;
-
-            // B. If net total not found, try summing items breakdown (if valid)
-            if (realTotal === 0 && b.items_desglosados && Array.isArray(b.items_desglosados) && b.items_desglosados.length > 0) {
-                realTotal = b.items_desglosados.reduce((sum, i) => sum + (parseFloat(i.price || i.precio || 0)), 0);
-                updateData.items_desglosados = b.items_desglosados; // Trust the breakdown source
-            }
-
-            // C. Fallback to Gross/Simple fields if still zero
-            if (realTotal === 0) {
-                realTotal = parseFloat(b.line_total) || parseFloat(b.subtotal) ||
-                    parseFloat(b.precio) || parseFloat(b.importe) || 0;
-            }
-
-            // D. Distributive Discount Safety Check
-            // If we have an explicit order-level discount and the found price is higher than order total, clamp it.
-            const orderDiscount = parseFloat(b.discount_total) || 0;
-            const orderTotal = parseFloat(b.order_total) || parseFloat(b.total) || 0;
-
-            if (orderDiscount > 0 && orderTotal > 0 && realTotal > orderTotal) {
-                console.log(`[DiffSync] Applying distributive discount logic: ${realTotal} -> ${orderTotal}`);
-                realTotal = orderTotal;
-            }
-
-            if (realTotal > 0) {
-                b.precio = realTotal;
-                b.importe = realTotal;
-                updateData.precio = realTotal;
-                updateData.importe = realTotal;
-            } else {
-                // Should not happen for valid orders, but keep fallback
-                updateData.precio = parseFloat(b.precio || b.importe || 0);
-                updateData.importe = updateData.precio;
-            }
-
-            // 3. Fecha (Universal Date Persistence - Canonical: purchase_date)
-            const extractedDate = b.fecha || b.date_created || b.fecha_compra;
-            if (extractedDate) {
-                b.fecha = extractedDate; // Legacy support
-                b.purchase_date = extractedDate; // New canonical field
-                updateData.fecha = extractedDate;
-                updateData.purchase_date = extractedDate;
-            }
-
-            // 4. IDs Técnicos (Para mapeo determinista)
-            // IMPORTANTE: El API puede devolver variation_id dentro de items_desglosados, no en root
-            if (b.items_desglosados && b.items_desglosados.length > 0) {
-                const firstItem = b.items_desglosados[0];
-                if (!b.variation_id && firstItem.variation_id) b.variation_id = firstItem.variation_id;
-                if (!b.product_id && firstItem.product_id) b.product_id = firstItem.product_id;
-            }
-
-            if (b.product_id) updateData.product_id = b.product_id;
-            if (b.variation_id) updateData.variation_id = b.variation_id;
-
-            // 5. PACK BREAKDOWN PERSISTENCE (Source of Truth: API or Catalog)
-
-            // Solo sincronizar si no tiene ya un desglose real guardado (evitar sobrescribir consumos)
-            const hasExistingItems = (existing && existing.items_desglosados && existing.items_desglosados.length > 0 &&
-                existing.items_desglosados.some(i => i.used > 0));
-
-            // CRÍTICO: Si el API ya trae items desglosados (como en el endpoint nuevo), USARLOS DIRECTAMENTE.
-            // No intentar "adivinar" con resolveVoucherBreakdown porque puede cambiar nombres e IDs.
-            if (b.items_desglosados && Array.isArray(b.items_desglosados) && b.items_desglosados.length > 0) {
-                console.log(`[SYNC] Usando desglose nativo de API para ${code}...`);
-
-                // Mapear items de la API al formato interno, asegurando IDs
-                const mappedItems = b.items_desglosados.map(apiItem => {
-                    // Buscar imagen/metadata en catálogo local pero RESPETAR nombre e IDs de API
-                    const catMatch = state.catalogProducts.find(p => p.wc_id == apiItem.product_id || p.wc_id == apiItem.variation_id) || {};
-
-                    return {
-                        itemId: 'srv_' + Math.random().toString(36).substr(2, 9),
-                        name: apiItem.nombre || apiItem.name || 'Servicio',
-                        sessions: apiItem.sessions || apiItem.cantidad || 1, // Cantidad de WC suele ser sesiones
-                        space: catMatch.espacio || '',
-                        used: 0,
-                        status: 'pendiente',
-                        validations: [],
-                        precio: apiItem.precio || apiItem.price || 0,
-                        pax: apiItem.pax || 1,
-                        // FUERZA BRUTA: Usar IDs de la API
-                        variation_id: apiItem.variation_id || null,
-                        wc_id: apiItem.variation_id || apiItem.product_id || null,
-                        product_id: apiItem.product_id || null,
-                        imagen: catMatch.imagen || null
-                    };
-                });
-
-                updateData.items_desglosados = mappedItems;
-                updateData.sesiones_totales = mappedItems.reduce((sum, i) => sum + (i.sessions || 1), 0);
-
-            } else if (!hasExistingItems) {
-                // FALLBACK: Solo si la API no trajo desglose, calculamos localmente
-                console.log(`[SYNC] Generando desglose local (API sin items) para ${code}...`);
-                const components = resolveVoucherBreakdown(b);
-                if (components && components.length > 0) {
-                    updateData.items_desglosados = components;
-                    const totalSessions = components.reduce((sum, s) => sum + (s.sessions || 1), 0);
-                    const pax = components.length > 0 ? (components[0].pax || 1) : 1;
-                    updateData.sesiones_totales = totalSessions;
-                    updateData.pax_por_sesion = pax;
-                }
-            }
-
-            // Merge explicit contact updates if any
-            if (b.cliente) updateData.cliente = b.cliente;
-            if (b.telefono) updateData.telefono = b.telefono;
-            if (b.email) updateData.email = b.email;
-
-            if (Object.keys(updateData).length > 0) {
-                await db.collection("spa_vouchers").doc(code).update(updateData);
-                console.log("[DiffSync] Firestore Updated with Shop Info:", updateData);
-
-                const localIdx = state.bonos.findIndex(lb => lb.bono === code || lb.codigo === code);
-                if (localIdx >= 0) {
-                    state.bonos[localIdx] = { ...state.bonos[localIdx], ...updateData };
-                    if (document.getElementById("vm-code")?.value === code) {
-                        document.getElementById("vm-cliente").value = updateData.cliente || '';
-                        document.getElementById("vm-telefono").value = updateData.telefono || '';
-                        document.getElementById("vm-email").value = updateData.email || '';
-                    }
-                }
-            }
-            showToast("Sincronización completa", "success");
-        } else {
-            console.warn("[DiffSync] Bono not found in Shop API, but Firestore sync completed.");
-            showToast("Bono actualizado desde servidor local", "info");
-        }
-
-        // Trigger UI Refresh
-        window.dispatchEvent(new CustomEvent('vouchers-updated', { detail: { code, source: 'manual-sync' } }));
-
-    } catch (e) {
-        console.error("[DiffSync] Error:", e);
-        showToast("Error al refrescar: " + e.message, "error");
-    } finally {
-        if (btn) {
-            btn.innerHTML = '<i class="fas fa-sync-alt"></i>';
-            btn.disabled = false;
-        }
-    }
-}
 
 // Mapear estados de WooCommerce a estados internos
 function mapOrderStatus(wcStatus) {
@@ -7961,7 +7728,7 @@ function findPhoneInObject(obj, visited = new Set()) {
  */
 async function syncSingleVoucher(code) {
     const btn = document.getElementById("vm-btn-refresh");
-    const titleEl = document.getElementById("vm-title-code");
+    const vLocal = state.bonos.find(b => b.bono === code); // MOVED UP to avoid scope issues
 
     if (btn) {
         btn.disabled = true;
@@ -7975,46 +7742,27 @@ async function syncSingleVoucher(code) {
         // 1. Obtener Configuración WC desde Firestore
         const snap = await db.collection("spa_config").doc("settings").get();
 
-        // DIAGNÓSTICO: Ver exactamente qué hay en Firebase
-        console.log('[DEBUG] Documento existe?', snap.exists);
-        if (snap.exists) {
-            const cfg = snap.data();
-            console.log('[DEBUG] Datos completos:', cfg);
-            console.log('[DEBUG] wc_url:', cfg.wc_url);
-            console.log('[DEBUG] wc_key:', cfg.wc_key ? '✓ Configurado' : '✗ NO configurado');
-            console.log('[DEBUG] wc_secret:', cfg.wc_secret ? '✓ Configurado' : '✗ NO configurado');
-        }
-
         if (!snap.exists) throw new Error("Configuración de tienda no encontrada en ajustes.");
         const cfg = snap.data();
         if (!cfg.wc_url || !cfg.wc_key || !cfg.wc_secret) {
-            const detalles = [];
-            if (!cfg.wc_url) detalles.push('URL de la tienda');
-            if (!cfg.wc_key) detalles.push('Consumer Key');
-            if (!cfg.wc_secret) detalles.push('Consumer Secret');
-            throw new Error(`Faltan credenciales WooCommerce: ${detalles.join(', ')}. Configúralas en Ajustes → Conexiones.`);
+            throw new Error(`Faltan credenciales WooCommerce. Configúralas en Ajustes → Conexiones.`);
         }
 
         // 2. Extraer ID numérico del pedido
-        // Los códigos suelen ser BONO7712 o simplemente 7712.
         const orderId = code.replace(/\D/g, '');
-        if (!orderId) throw new Error("El código de bono no contiene un ID numérico de pedido válido.");
+        if (!orderId) throw new Error("El código de bono no contiene un ID numérico válido.");
 
-        // 3. Consultar la API de WooCommerce nativa (v3 Orders)
+        // 3. Consultar la API de WooCommerce nativa
         const baseUrl = cfg.wc_url.replace(/\/$/, "");
         const authParams = `consumer_key=${cfg.wc_key}&consumer_secret=${cfg.wc_secret}`;
         const wcUrl = `${baseUrl}/wp-json/wc/v3/orders/${orderId}?${authParams}`;
 
-        console.log(`[Sync] Consultando API WooCommerce:`, wcUrl.replace(cfg.wc_secret, '***'));
-
         const response = await window.fetchWithProxyFallback(wcUrl);
         if (!response.ok) {
-            if (response.status === 404) throw new Error(`El pedido #${orderId} no existe en WooCommerce.`);
             throw new Error(`Error de conexión con la tienda (Status ${response.status}).`);
         }
 
         const order = await response.json();
-        console.log(`[Sync] Datos recibidos de WC:`, order);
 
         // 4. Extraer Datos Clave
         const foundPhone = findPhoneInObject(order);
@@ -8032,19 +7780,43 @@ async function syncSingleVoucher(code) {
             last_wc_sync: new Date().toISOString()
         };
 
-        // Si el precio es 0, intentar recuperarlo de la orden
-        const vLocal = state.bonos.find(b => b.bono === code);
-        const currentPrice = parseFloat(vLocal ? (vLocal.total || vLocal.precio) : 0) || 0;
+        // --- ID SYNC ---
+        if (order.line_items && order.line_items.length > 0) {
+            const firstItem = order.line_items[0];
+            let vId = firstItem.variation_id || firstItem.product_id;
+            let pId = firstItem.product_id;
+
+            // HOTFIX 6522 -> 6521
+            if (vId == 6522) vId = 6521;
+            if (pId == 6522) pId = 6519;
+
+            updateData.product_id = pId;
+            updateData.variation_id = vId;
+
+            if (vLocal && vLocal.items_desglosados && vLocal.items_desglosados.length > 0) {
+                updateData.items_desglosados = vLocal.items_desglosados.map(item => {
+                    let itemVId = item.variation_id || item.wc_id || vId;
+                    let itemPId = item.product_id || pId;
+                    if (itemVId == 6522) itemVId = 6521;
+                    if (itemPId == 6522) itemPId = 6519;
+                    return { ...item, variation_id: itemVId, wc_id: itemVId, product_id: itemPId };
+                });
+            }
+        }
+
+        // Si el precio es 0 o no tiene, intentar recuperarlo de la orden
+        const currentPrice = parseFloat(vLocal ? (vLocal.total || vLocal.precio || vLocal.importe) : 0) || 0;
         if (currentPrice <= 0 && order.total) {
-            updateData.precio_total = parseFloat(order.total);
-            updateData.importe_pagado = parseFloat(order.total);
-            updateData.importe_pendiente = 0;
+            const priceVal = parseFloat(order.total);
+            updateData.precio_total = priceVal;
+            updateData.importe = priceVal;
+            updateData.precio = priceVal;
+            updateData.total = priceVal;
+            updateData.importe_pagado = priceVal;
             updateData.estado_pago = 'pagado';
         }
 
-        // Guardar en Firestore
         await db.collection("spa_vouchers").doc(code).update(updateData);
-        console.log(`[Sync] Firestore actualizado con éxito para ${code}`);
 
         // 6. Actualizar Estado Local y UI
         if (vLocal) {
@@ -8057,28 +7829,25 @@ async function syncSingleVoucher(code) {
 
             if (clienteInp) clienteInp.value = vLocal.cliente;
             if (emailInp) emailInp.value = vLocal.email;
-            if (telInp) {
-                telInp.value = vLocal.telefono;
-                if (typeof formatPhoneNumber === 'function') formatPhoneNumber(telInp);
+            if (telInp) telInp.value = vLocal.telefono;
+
+            // Forzar renderizado
+            if (typeof SpaPaymentControl !== 'undefined' && typeof SpaPaymentControl.renderPaymentBlock === 'function') {
+                const pBlock = document.getElementById('vm-payment-block');
+                if (pBlock) pBlock.innerHTML = SpaPaymentControl.renderPaymentBlock(vLocal);
             }
 
-            // Forzar renderizado de bloques de pago si el modal lo requiere
-            if (typeof renderPaymentBlock === 'function') {
-                const pBlock = document.getElementById('vm-payment-block');
-                if (pBlock) renderPaymentBlock(code, pBlock);
+            if (vLocal.items_desglosados && typeof renderEditableBreakdown === 'function') {
+                state.editingVoucherItems = [...vLocal.items_desglosados];
+                renderEditableBreakdown();
             }
         }
 
-        // Notificación de éxito
-        const toast = document.createElement("div");
-        toast.style = "position:fixed; top:20px; right:20px; background:#10b981; color:white; padding:12px 20px; border-radius:8px; z-index:11000; box-shadow:0 4px 10px rgba(0,0,0,0.2); font-weight:600;";
-        toast.innerHTML = '<i class="fas fa-check-circle"></i> Sincronizado con éxito';
-        document.body.appendChild(toast);
-        setTimeout(() => toast.remove(), 3000);
+        showToast("✅ Bono re-sincronizado con éxito", "success");
 
-    } catch (err) {
-        console.error("[Sync Error]:", err);
-        alert(`❌ Error al sincronizar:\n${err.message}`);
+    } catch (error) {
+        console.error("[Sync Error]:", error);
+        alert(`❌ Error al sincronizar:\n${error.message}`);
     } finally {
         if (btn) {
             btn.disabled = false;

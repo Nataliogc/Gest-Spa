@@ -86,7 +86,7 @@ function normalizePaymentFields(voucher) {
     const v = { ...voucher };
 
     // Obtener precio total de forma robusta
-    let rawPrice = v.snapshot_price || v.precio || v.importe || v.total || v.sale_price;
+    let rawPrice = v.snapshot_price || v.precio || v.importe || v.total || v.sale_price || v.precio_total;
     if (typeof rawPrice === 'string') rawPrice = rawPrice.replace(',', '.');
     const totalPrice = parseFloat(rawPrice) || 0;
 
