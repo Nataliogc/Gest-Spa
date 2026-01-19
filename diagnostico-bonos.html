@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔍 Diagnóstico de Bonos - Zenith Manager</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2rem;
+            margin-bottom: 10px;
+        }
+
+        .content {
+            padding: 30px;
+        }
+
+        .section {
+            margin-bottom: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 12px;
+            border-left: 4px solid #667eea;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 1rem;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: transform 0.2s;
+            margin: 5px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+        }
+
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .stat-card .number {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 5px;
+        }
+
+        .stat-card .label {
+            color: #6c757d;
+            font-size: 0.9rem;
+        }
+
+        .stat-card.good .number {
+            color: #28a745;
+        }
+
+        .stat-card.bad .number {
+            color: #dc3545;
+        }
+
+        .stat-card.warning .number {
+            color: #ffc107;
+        }
+
+        .status {
+            padding: 15px;
+            border-radius: 8px;
+            margin: 10px 0;
+        }
+
+        .status.info {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status.warning {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+            background: white;
+        }
+
+        thead {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        th,
+        td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #dee2e6;
+        }
+
+        tr:hover {
+            background: #f8f9fa;
+        }
+
+        .badge {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+
+        .badge-danger {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .badge-warning {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .badge-ok {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        .diff {
+            font-family: monospace;
+            font-size: 0.9rem;
+        }
+
+        .diff-old {
+            color: #dc3545;
+            text-decoration: line-through;
+        }
+
+        .diff-new {
+            color: #28a745;
+            font-weight: 600;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔍 Diagnóstico de Bonos</h1>
+            <p>Detecta errores de sincronización con WooCommerce</p>
+        </div>
+
+        <div class="content">
+            <div class="section">
+                <h2>🔍 Análisis</h2>
+                <p style="margin-bottom: 15px; color: #6c757d;">
+                    Compara los bonos de Firestore con los de WooCommerce para detectar inconsistencias en datos de
+                    cliente, precios, IDs y bloqueos manuales.
+                </p>
+                <button class="btn" onclick="diagnosticar()" id="btn-diagnosticar">
+                    🔍 Diagnosticar Bonos
+                </button>
+                <button class="btn btn-success" onclick="corregirTodos()" id="btn-corregir" disabled>
+                    ✅ Corregir Todos
+                </button>
+            </div>
+
+            <div id="status-container"></div>
+            <div id="stats-container"></div>
+            <div id="results"></div>
+        </div>
+    </div>
+
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <script src="firebase-config.js"></script>
+
+    <script>
+        let bonosFirestore = [];
+        let bonosWooCommerce = [];
+        let problemas = [];
+
+        function showStatus(message, type = 'info') {
+            const container = document.getElementById('status-container');
+            const status = document.createElement('div');
+            status.className = `status ${type}`;
+            status.innerHTML = message;
+            container.appendChild(status);
+        }
+
+        async function diagnosticar() {
+            const btn = document.getElementById('btn-diagnosticar');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="loading"></span> Diagnosticando...';
+
+            document.getElementById('status-container').innerHTML = '';
+            document.getElementById('results').innerHTML = '';
+            problemas = [];
+
+            try {
+                showStatus('📚 Cargando bonos de Firestore...', 'info');
+
+                // Cargar bonos de Firestore
+                const firestoreSnap = await db.collection('spa_vouchers').get();
+                bonosFirestore = [];
+                firestoreSnap.forEach(doc => {
+                    bonosFirestore.push({ id: doc.id, ...doc.data() });
+                });
+
+                showStatus(`✅ ${bonosFirestore.length} bonos cargados de Firestore`, 'success');
+
+                showStatus('🌐 Cargando bonos de WooCommerce...', 'info');
+
+                // Cargar bonos de WooCommerce
+                let wooData = [];
+                if (typeof fetchBonosDirect === 'function') {
+                    try {
+                        wooData = await fetchBonosDirect({ per_page: 100 }, 15000);
+                    } catch (e) {
+                        console.warn('fetchBonosDirect failed:', e);
+                        if (typeof fetchBonosWithFallback === 'function') {
+                            wooData = await fetchBonosWithFallback(15000);
+                        }
+                    }
+                } else if (typeof fetchBonosWithFallback === 'function') {
+                    wooData = await fetchBonosWithFallback(15000);
+                }
+
+                bonosWooCommerce = Array.isArray(wooData) ? wooData : [];
+                showStatus(`✅ ${bonosWooCommerce.length} bonos cargados de WooCommerce`, 'success');
+
+                // ANÁLISIS 1: Bonos bloqueados manualmente
+                showStatus('🔒 Detectando bonos bloqueados...', 'info');
+                detectarBloqueados();
+
+                // ANÁLISIS 2: Datos de cliente incorrectos
+                showStatus('👤 Validando datos de clientes...', 'info');
+                validarDatosCliente();
+
+                // ANÁLISIS 3: Precios incorrectos
+                showStatus('💰 Verificando precios...', 'info');
+                verificarPrecios();
+
+                // ANÁLISIS 4: IDs de variación incorrectos
+                showStatus('🆔 Verificando variation_id...', 'info');
+                verificarVariationIds();
+
+                // Mostrar resultados
+                mostrarEstadisticas();
+                if (problemas.length > 0) {
+                    mostrarProblemas();
+                    document.getElementById('btn-corregir').disabled = false;
+                } else {
+                    showStatus('✅ ¡Perfecto! No se encontraron problemas.', 'success');
+                }
+
+            } catch (error) {
+                console.error('Error en diagnóstico:', error);
+                showStatus('❌ Error: ' + error.message, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '🔍 Diagnosticar Bonos';
+            }
+        }
+
+        function detectarBloqueados() {
+            bonosFirestore.forEach(b => {
+                if (b.manual_update === true) {
+                    problemas.push({
+                        tipo: 'Bloqueo Manual',
+                        severidad: 'warning',
+                        bono: b.bono || b.id,
+                        descripcion: 'El bono está bloqueado y no se sincroniza con WooCommerce',
+                        firestore: b,
+                        accion: 'desbloquear'
+                    });
+                }
+            });
+        }
+
+        function validarDatosCliente() {
+            bonosFirestore.forEach(fb => {
+                const codigo = fb.bono || fb.id;
+                const woo = bonosWooCommerce.find(w => {
+                    const wooCode = w.bono || w.codigo || w.order_number;
+                    return wooCode === codigo;
+                });
+
+                if (woo) {
+                    const errores = [];
+
+                    // Verificar cliente
+                    const firestoreName = fb.cliente || '';
+                    const wooName = extractClientName(woo);
+                    const isPlaceholder = firestoreName.toLowerCase().includes('nombre cliente') ||
+                        firestoreName.toLowerCase() === 'cliente' ||
+                        firestoreName.trim() === '';
+
+                    if (isPlaceholder && wooName && wooName !== '') {
+                        errores.push({
+                            campo: 'cliente',
+                            actual: firestoreName || '(vacío)',
+                            correcto: wooName
+                        });
+                    }
+
+                    // Verificar email
+                    const firestoreEmail = fb.email || '';
+                    const wooEmail = extractClientEmail(woo);
+                    if ((!firestoreEmail.includes('@') || firestoreEmail.trim() === '') && wooEmail && wooEmail.includes('@')) {
+                        errores.push({
+                            campo: 'email',
+                            actual: firestoreEmail || '(vacío)',
+                            correcto: wooEmail
+                        });
+                    }
+
+                    // Verificar teléfono
+                    const firestorePhone = fb.telefono || '';
+                    const wooPhone = extractClientPhone(woo);
+                    if ((firestorePhone.length < 6 || firestorePhone.trim() === '') && wooPhone && wooPhone.length >= 6) {
+                        errores.push({
+                            campo: 'telefono',
+                            actual: firestorePhone || '(vacío)',
+                            correcto: wooPhone
+                        });
+                    }
+
+                    if (errores.length > 0) {
+                        problemas.push({
+                            tipo: 'Datos de Cliente',
+                            severidad: 'error',
+                            bono: codigo,
+                            descripcion: `${errores.length} campo(s) con datos incorrectos`,
+                            firestore: fb,
+                            woocommerce: woo,
+                            errores: errores,
+                            accion: 'actualizar_cliente'
+                        });
+                    }
+                }
+            });
+        }
+
+        function verificarPrecios() {
+            bonosFirestore.forEach(fb => {
+                const codigo = fb.bono || fb.id;
+                const woo = bonosWooCommerce.find(w => {
+                    const wooCode = w.bono || w.codigo || w.order_number;
+                    return wooCode === codigo;
+                });
+
+                if (woo) {
+                    const firestorePrice = parseFloat(fb.importe || fb.precio || 0);
+                    const wooPrice = parseFloat(woo.importe || woo.precio || woo.total || 0);
+
+                    if (Math.abs(firestorePrice - wooPrice) > 0.01) {
+                        problemas.push({
+                            tipo: 'Precio Incorrecto',
+                            severidad: 'warning',
+                            bono: codigo,
+                            descripcion: `Precio en Firestore (${firestorePrice}€) diferente de WooCommerce (${wooPrice}€)`,
+                            firestore: fb,
+                            woocommerce: woo,
+                            precioActual: firestorePrice,
+                            precioCorrecto: wooPrice,
+                            accion: 'actualizar_precio'
+                        });
+                    }
+                }
+            });
+        }
+
+        function verificarVariationIds() {
+            bonosFirestore.forEach(fb => {
+                const codigo = fb.bono || fb.id;
+                const woo = bonosWooCommerce.find(w => {
+                    const wooCode = w.bono || w.codigo || w.order_number;
+                    return wooCode === codigo;
+                });
+
+                if (woo) {
+                    const firestoreVarId = String(fb.variation_id || '').trim();
+                    const wooVarId = String(woo.variation_id || '').trim();
+
+                    if (firestoreVarId && wooVarId && firestoreVarId !== wooVarId) {
+                        problemas.push({
+                            tipo: 'ID Incorrecto',
+                            severidad: 'error',
+                            bono: codigo,
+                            descripcion: `variation_id en Firestore (${firestoreVarId}) diferente de WooCommerce (${wooVarId})`,
+                            firestore: fb,
+                            woocommerce: woo,
+                            idActual: firestoreVarId,
+                            idCorrecto: wooVarId,
+                            accion: 'actualizar_id'
+                        });
+                    }
+                }
+            });
+        }
+
+        function extractClientName(woo) {
+            if (woo.billing && typeof woo.billing === 'object') {
+                return `${woo.billing.first_name || ''} ${woo.billing.last_name || ''}`.trim();
+            }
+            const firstName = woo.billing_first_name || woo.first_name || '';
+            const lastName = woo.billing_last_name || woo.last_name || '';
+            return `${firstName} ${lastName}`.trim() || woo.cliente || '';
+        }
+
+        function extractClientEmail(woo) {
+            if (woo.billing && woo.billing.email) return woo.billing.email;
+            return woo.billing_email || woo.email || '';
+        }
+
+        function extractClientPhone(woo) {
+            if (woo.billing && woo.billing.phone) return woo.billing.phone;
+            return woo.billing_phone || woo.phone || woo.telefono || '';
+        }
+
+        function mostrarEstadisticas() {
+            const total = bonosFirestore.length;
+            const bloqueados = problemas.filter(p => p.tipo === 'Bloqueo Manual').length;
+            const datosIncorrectos = problemas.filter(p => p.tipo === 'Datos de Cliente').length;
+            const preciosIncorrectos = problemas.filter(p => p.tipo === 'Precio Incorrecto').length;
+            const idsIncorrectos = problemas.filter(p => p.tipo === 'ID Incorrecto').length;
+            const correctos = total - problemas.length;
+
+            const html = `
+                <div class="stats">
+                    <div class="stat-card">
+                        <div class="number">${total}</div>
+                        <div class="label">Total Bonos</div>
+                    </div>
+                    <div class="stat-card good">
+                        <div class="number">${correctos}</div>
+                        <div class="label">Correctos</div>
+                    </div>
+                    <div class="stat-card ${bloqueados > 0 ? 'warning' : 'good'}">
+                        <div class="number">${bloqueados}</div>
+                        <div class="label">Bloqueados</div>
+                    </div>
+                    <div class="stat-card ${datosIncorrectos > 0 ? 'bad' : 'good'}">
+                        <div class="number">${datosIncorrectos}</div>
+                        <div class="label">Datos Incorrectos</div>
+                    </div>
+                    <div class="stat-card ${preciosIncorrectos > 0 ? 'warning' : 'good'}">
+                        <div class="number">${preciosIncorrectos}</div>
+                        <div class="label">Precios Incorrectos</div>
+                    </div>
+                    <div class="stat-card ${idsIncorrectos > 0 ? 'bad' : 'good'}">
+                        <div class="number">${idsIncorrectos}</div>
+                        <div class="label">IDs Incorrectos</div>
+                    </div>
+                </div>
+            `;
+
+            document.getElementById('stats-container').innerHTML = html;
+        }
+
+        function mostrarProblemas() {
+            let html = `
+                <div class="section">
+                    <h2>⚠️ Problemas Detectados (${problemas.length})</h2>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Bono</th>
+                                <th>Tipo</th>
+                                <th>Descripción</th>
+                                <th>Detalles</th>
+                                <th>Acción</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+            `;
+
+            problemas.forEach((p, idx) => {
+                const badgeClass = p.severidad === 'error' ? 'badge-danger' :
+                    p.severidad === 'warning' ? 'badge-warning' : 'badge-ok';
+
+                let detalles = '';
+                if (p.errores) {
+                    detalles = p.errores.map(e =>
+                        `<strong>${e.campo}:</strong> <span class="diff-old">${e.actual}</span> → <span class="diff-new">${e.correcto}</span>`
+                    ).join('<br>');
+                } else if (p.precioActual !== undefined) {
+                    detalles = `<span class="diff-old">${p.precioActual}€</span> → <span class="diff-new">${p.precioCorrecto}€</span>`;
+                } else if (p.idActual) {
+                    detalles = `<span class="diff-old">${p.idActual}</span> → <span class="diff-new">${p.idCorrecto}</span>`;
+                }
+
+                html += `
+                    <tr>
+                        <td><strong>${p.bono}</strong></td>
+                        <td><span class="badge ${badgeClass}">${p.tipo}</span></td>
+                        <td>${p.descripcion}</td>
+                        <td class="diff">${detalles || '-'}</td>
+                        <td>
+                            <button class="btn" style="padding: 5px 10px; font-size: 0.85rem;" onclick="corregirUno(${idx})">
+                                Corregir
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            });
+
+            html += `
+                        </tbody>
+                    </table>
+                </div>
+            `;
+
+            document.getElementById('results').innerHTML = html;
+        }
+
+        async function corregirUno(idx) {
+            const p = problemas[idx];
+            if (!confirm(`¿Corregir el bono ${p.bono}?`)) return;
+
+            try {
+                await aplicarCorreccion(p);
+                showStatus(`✅ ${p.bono} corregido`, 'success');
+                problemas.splice(idx, 1);
+                mostrarEstadisticas();
+                mostrarProblemas();
+                if (problemas.length === 0) {
+                    document.getElementById('btn-corregir').disabled = true;
+                }
+            } catch (error) {
+                showStatus(`❌ Error al corregir ${p.bono}: ${error.message}`, 'error');
+            }
+        }
+
+        async function corregirTodos() {
+            if (!confirm(`¿Corregir todos los ${problemas.length} bonos con problemas?`)) return;
+
+            const btn = document.getElementById('btn-corregir');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="loading"></span> Corrigiendo...';
+
+            try {
+                showStatus(`⚡ Corrigiendo ${problemas.length} bonos...`, 'info');
+
+                for (const p of problemas) {
+                    await aplicarCorreccion(p);
+                }
+
+                showStatus(`✅ Todos los bonos corregidos`, 'success');
+                problemas = [];
+                await diagnosticar();
+
+            } catch (error) {
+                showStatus(`❌ Error: ${error.message}`, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '✅ Corregir Todos';
+            }
+        }
+
+        async function aplicarCorreccion(problema) {
+            const docRef = db.collection('spa_vouchers').doc(problema.firestore.id || problema.bono);
+            const updateData = {};
+
+            switch (problema.accion) {
+                case 'desbloquear':
+                    updateData.manual_update = false;
+                    break;
+
+                case 'actualizar_cliente':
+                    problema.errores.forEach(e => {
+                        updateData[e.campo] = e.correcto;
+                    });
+                    break;
+
+                case 'actualizar_precio':
+                    updateData.importe = problema.precioCorrecto;
+                    updateData.precio = problema.precioCorrecto;
+                    break;
+
+                case 'actualizar_id':
+                    updateData.variation_id = problema.idCorrecto;
+                    break;
+            }
+
+            updateData.last_synced = new Date().toISOString();
+            await docRef.update(updateData);
+        }
+    </script>
+</body>
+
+</html>
