@@ -7420,10 +7420,19 @@ window.resyncVoucherFromWooCommerce = async function () {
 
         // CRÍTICO: Normalizar items desglosados (API -> Interno)
         // Asegurar que usamos los IDs de la API explícitamente
+        // Normalizar items desglosados (API -> Interno)
+        let rawItems = freshVoucher.items_desglosados;
+
+        // Fix: PHP a veces devuelve objetos en vez de arrays {"0": {}, "1": {}}
+        if (rawItems && typeof rawItems === 'object' && !Array.isArray(rawItems)) {
+            console.log("[RESYNC] Detectado objeto items (PHP style), convirtiendo a array...");
+            rawItems = Object.values(rawItems);
+        }
+
         let finalItems = [];
-        if (freshVoucher.items_desglosados && Array.isArray(freshVoucher.items_desglosados) && freshVoucher.items_desglosados.length > 0) {
-            console.log("[RESYNC] Usando items de API Optimizada...");
-            finalItems = freshVoucher.items_desglosados.map(apiItem => {
+        if (rawItems && Array.isArray(rawItems) && rawItems.length > 0) {
+            console.log("[RESYNC] Usando items de API Optimizada (Array)...", rawItems);
+            finalItems = rawItems.map(apiItem => {
                 // Intentar match con catálogo para imagen/espacio
                 const catMatch = state.catalogProducts.find(p => p.wc_id == apiItem.product_id || p.wc_id == apiItem.variation_id) || {};
                 return {
@@ -7462,6 +7471,27 @@ window.resyncVoucherFromWooCommerce = async function () {
             updateData.product_id = updateData.items_desglosados[0].product_id || updateData.items_desglosados[0].id;
             updateData.variation_id = updateData.items_desglosados[0].variation_id;
         }
+
+        // === HOTFIX 6522 KILLER ===
+        // Si detectamos que se ha asignado el ID 6522 (incorrecto para este contexto), lo corregimos a 6521
+        if (updateData.items_desglosados.length > 0) {
+            updateData.items_desglosados.forEach(item => {
+                if (item.wc_id == 6522 || item.variation_id == 6522 || item.product_id == 6522) {
+                    console.log("[HOTFIX] Corrigiendo ID 6522 -> 6521");
+                    item.wc_id = 6521;
+                    item.variation_id = 6521;
+                    if (item.product_id == 6522) item.product_id = 6519; // Padre correcto
+                }
+                // Si variation_id es null pero tenemos product_id 6521
+                if (!item.variation_id && (item.wc_id == 6521 || item.product_id == 6521)) {
+                    item.variation_id = 6521;
+                }
+            });
+            // Reflejar en root también
+            if (updateData.variation_id == 6522) updateData.variation_id = 6521;
+            if (updateData.product_id == 6522) updateData.product_id = 6519;
+        }
+        // === END HOTFIX ===
 
         // === NORMALIZE CLIENT DATA FROM WOOCOMMERCE ===
         // WooCommerce puede enviar los datos en varios formatos:
