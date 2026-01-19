@@ -5962,21 +5962,51 @@ async function syncSingleVoucher(code) {
             if (b.product_id) updateData.product_id = b.product_id;
             if (b.variation_id) updateData.variation_id = b.variation_id;
 
-            // 5. PACK BREAKDOWN PERSISTENCE (Source of Truth: Internal Catalog)
+            // 5. PACK BREAKDOWN PERSISTENCE (Source of Truth: API or Catalog)
+
             // Solo sincronizar si no tiene ya un desglose real guardado (evitar sobrescribir consumos)
             const hasExistingItems = (existing && existing.items_desglosados && existing.items_desglosados.length > 0 &&
                 existing.items_desglosados.some(i => i.used > 0));
 
-            if (!hasExistingItems) {
-                console.log(`[SYNC] Generando desglose desde catálogo para ${code}...`);
+            // CRÍTICO: Si el API ya trae items desglosados (como en el endpoint nuevo), USARLOS DIRECTAMENTE.
+            // No intentar "adivinar" con resolveVoucherBreakdown porque puede cambiar nombres e IDs.
+            if (b.items_desglosados && Array.isArray(b.items_desglosados) && b.items_desglosados.length > 0) {
+                console.log(`[SYNC] Usando desglose nativo de API para ${code}...`);
+
+                // Mapear items de la API al formato interno, asegurando IDs
+                const mappedItems = b.items_desglosados.map(apiItem => {
+                    // Buscar imagen/metadata en catálogo local pero RESPETAR nombre e IDs de API
+                    const catMatch = state.catalogProducts.find(p => p.wc_id == apiItem.product_id || p.wc_id == apiItem.variation_id) || {};
+
+                    return {
+                        itemId: 'srv_' + Math.random().toString(36).substr(2, 9),
+                        name: apiItem.nombre || apiItem.name || 'Servicio',
+                        sessions: apiItem.sessions || apiItem.cantidad || 1, // Cantidad de WC suele ser sesiones
+                        space: catMatch.espacio || '',
+                        used: 0,
+                        status: 'pendiente',
+                        validations: [],
+                        precio: apiItem.precio || apiItem.price || 0,
+                        pax: apiItem.pax || 1,
+                        // FUERZA BRUTA: Usar IDs de la API
+                        variation_id: apiItem.variation_id || null,
+                        wc_id: apiItem.variation_id || apiItem.product_id || null,
+                        product_id: apiItem.product_id || null,
+                        imagen: catMatch.imagen || null
+                    };
+                });
+
+                updateData.items_desglosados = mappedItems;
+                updateData.sesiones_totales = mappedItems.reduce((sum, i) => sum + (i.sessions || 1), 0);
+
+            } else if (!hasExistingItems) {
+                // FALLBACK: Solo si la API no trajo desglose, calculamos localmente
+                console.log(`[SYNC] Generando desglose local (API sin items) para ${code}...`);
                 const components = resolveVoucherBreakdown(b);
                 if (components && components.length > 0) {
                     updateData.items_desglosados = components;
-
-                    // Si el catálogo especifica sesiones o pax, actualizar en el bono
                     const totalSessions = components.reduce((sum, s) => sum + (s.sessions || 1), 0);
                     const pax = components.length > 0 ? (components[0].pax || 1) : 1;
-
                     updateData.sesiones_totales = totalSessions;
                     updateData.pax_por_sesion = pax;
                 }
