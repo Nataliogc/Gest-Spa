@@ -7739,12 +7739,16 @@ function updatePriceBadgeCalculations(v) {
         // Use 5€ tolerance OR 10% of the price (whichever is larger) to account for rounding and minor variations
         const tolerance = Math.max(5.0, calculated * 0.1);
 
-        if (bonoPrice > 0 && Math.abs(bonoPrice - calculated) > tolerance) {
-            priceBadge.style.background = '#f59e0b'; // Naranja para WARNING
+        // LOGIC CHANGE: Online sales are Sovereign. If mismatched with local catalog, assume Online is right (Green).
+        // Only show warning for LOCAL sales or if Online is 0.
+        const isOnline = v.origen !== 'local' && !(v.bono && String(v.bono).startsWith('LOC-'));
+
+        if (!isOnline && bonoPrice > 0 && Math.abs(bonoPrice - calculated) > tolerance) {
+            priceBadge.style.background = '#f59e0b'; // Naranja para WARNING (Solo Local)
             priceBadge.title = `Pagado: ${bonoPrice}€ / Catálogo${effectiveDiscount > 0 ? ` (Dto ${effectiveDiscount}%)` : ''}: ${calculated.toFixed(2)}€`;
         } else {
-            priceBadge.style.background = '#15803d'; // Verde estándar
-            priceBadge.title = effectiveDiscount > 0 ? `Precio ajustado por descuento local (-${effectiveDiscount}%)` : "Coincide con tarifa";
+            priceBadge.style.background = '#15803d'; // Verde estándar (Online o Coincide)
+            priceBadge.title = isOnline ? "Precio Web (Verificado)" : (effectiveDiscount > 0 ? `Precio ajustado por descuento local (-${effectiveDiscount}%)` : "Coincide con tarifa");
         }
     } else {
         priceBadge.textContent = (bonoPrice > 0 ? bonoPrice : 0) + '€';
