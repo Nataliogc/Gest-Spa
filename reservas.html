@@ -1370,9 +1370,11 @@
 
                     if (settings.schedules) {
                         window.SPA_SCHEDULES = settings.schedules;
+                        spaConfig.schedules = settings.schedules; // CRITICAL: Ensure local config has schedules
                         console.log("Horarios dinámicos cargados:", window.SPA_SCHEDULES);
                     } else {
                         console.warn("[DEBUG] Settings doc exists but 'schedules' field is missing or empty.");
+                        // Fallback or leave empty? spaConfig.schedules might be undefined.
                     }
                     // Override with settings if present (migrating to settings doc)
                     if (settings.capacity) {
@@ -3158,7 +3160,9 @@
             }
 
             try {
-                await db.collection("spa_config").doc("settings").set(spaConfig);
+                await db.collection("spa_config").doc("settings").update({
+                    blockedSlots: spaConfig.blockedSlots
+                });
                 renderSlots(dateStr);
                 // Forzar re-selección para actualizar botón
                 const isBlocked = (spaConfig.blockedSlots[dateStr] || []).includes(selectedTime);
