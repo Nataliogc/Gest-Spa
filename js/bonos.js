@@ -5833,9 +5833,30 @@ async function syncSingleVoucher(code) {
                 const params = { desde: desdeForced, per_page: 999, limit: 999 };
                 shopVouchers = await fetchBonosDirect(params, 15000);
             } catch (e) {
-                console.warn("[DiffSync] Opt failed", e);
-                if (typeof fetchBonosWithFallback === 'function') {
-                    shopVouchers = await fetchBonosWithFallback({ desde: desdeForced, per_page: 999, limit: 999 }, 15000);
+                console.warn("[DiffSync] Direct/Opt failed", e);
+
+                // CRÍTICO: Si falla directo, intentar la MISMA API optimizada vía Proxy
+                // NO usar fetchBonosWithFallback porque usa la API Legacy (listado) que no trae IDs
+                try {
+                    console.log("[DiffSync] Trying Optimized API via Proxy...");
+                    const url = new URL(URL_BONOS_OPTIMIZED);
+                    // Asegurar params
+                    if (desdeForced) url.searchParams.append("desde", desdeForced);
+                    url.searchParams.append("per_page", "50"); // Suficiente para un sync manual
+
+                    const proxyRes = await fetchWithProxyFallback(url.toString(), {}, 20000);
+                    const proxyData = await proxyRes.json();
+
+                    // Normalizar respuesta si viene con wrapper el proxy
+                    shopVouchers = Array.isArray(proxyData) ? proxyData :
+                        (proxyData.contents ? JSON.parse(proxyData.contents) : []);
+
+                } catch (proxyErr) {
+                    console.error("[DiffSync] Proxy also failed, falling back to legacy", proxyErr);
+                    // Último recurso: Legacy
+                    if (typeof fetchBonosWithFallback === 'function') {
+                        shopVouchers = await fetchBonosWithFallback({ desde: desdeForced, per_page: 999, limit: 999 }, 15000);
+                    }
                 }
             }
         } else {
