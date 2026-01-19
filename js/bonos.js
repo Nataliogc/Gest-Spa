@@ -3422,7 +3422,7 @@ async function openVoucherManagement(code) {
                     <div style="display: flex; flex-direction: column; flex: 1; overflow:hidden; gap:2px;">
                         <div style="font-size:0.8rem; font-weight:600; color:#334155;">
                             ${item.name} 
-                            <span style="font-size:0.65rem; color:#94a3b8; font-weight:400; margin-left:4px;">ID: ${item.wc_id || item.product_id || item.id || item.codigo || item.original_id || 'N/A'}</span>
+                            <span style="font-size:0.65rem; color:#94a3b8; font-weight:400; margin-left:4px;">ID: ${item.variation_id || item.wc_id || item.product_id || item.id || item.codigo || item.original_id || 'N/A'}</span>
                         </div>
                         <div style="font-size:0.65rem; color:#64748b;">
                             <i class="fas fa-map-marker-alt" style="margin-right:2px;"></i>${spaceName}
