@@ -5931,6 +5931,13 @@ async function syncSingleVoucher(code) {
             }
 
             // 4. IDs Técnicos (Para mapeo determinista)
+            // IMPORTANTE: El API puede devolver variation_id dentro de items_desglosados, no en root
+            if (b.items_desglosados && b.items_desglosados.length > 0) {
+                const firstItem = b.items_desglosados[0];
+                if (!b.variation_id && firstItem.variation_id) b.variation_id = firstItem.variation_id;
+                if (!b.product_id && firstItem.product_id) b.product_id = firstItem.product_id;
+            }
+
             if (b.product_id) updateData.product_id = b.product_id;
             if (b.variation_id) updateData.variation_id = b.variation_id;
 
