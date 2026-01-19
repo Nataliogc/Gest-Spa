@@ -1392,6 +1392,12 @@
                     spaConfig.particularPriceWeekday = parseFloat(settings.particularPriceWeekday) || 25;
                     spaConfig.particularPriceWeekend = parseFloat(settings.particularPriceWeekend) || 25;
                     console.log("[DEBUG] Dynamic pricing loaded - Hotel:", spaConfig.hotelPriceWeekday, "/", spaConfig.hotelPriceWeekend, "Particular:", spaConfig.particularPriceWeekday, "/", spaConfig.particularPriceWeekend);
+
+                    // Load Blocked Slots (Turnos cerrados manualmente)
+                    if (settings.blockedSlots) {
+                        spaConfig.blockedSlots = settings.blockedSlots;
+                        console.log("[DEBUG] Blocked slots loaded:", spaConfig.blockedSlots);
+                    }
                 }
 
             } catch (err) {
