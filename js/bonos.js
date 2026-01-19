@@ -7351,11 +7351,29 @@ window.resyncVoucherFromWooCommerce = async function () {
             try {
                 freshVouchers = await fetchBonosDirect({ per_page: 100 }, 10000);
             } catch (e) {
-                console.warn('[RESYNC] Failed with optimized endpoint, trying fallback');
-                if (typeof fetchBonosWithFallback === 'function') {
-                    freshVouchers = await fetchBonosWithFallback(10000);
-                } else {
-                    throw new Error("No hay funciones de sincronización disponibles");
+                console.warn('[RESYNC] Failed with optimized endpoint, trying Proxy fallback...');
+
+                // Intentar Proxy antes de rendirse al Legacy
+                try {
+                    const url = new URL(URL_BONOS_OPTIMIZED);
+                    url.searchParams.append("per_page", "100");
+                    // Intentar filtrar por fecha si es posible para optimizar, si no, traer recientes
+                    const oneWeekAgo = new Date();
+                    oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+                    url.searchParams.append("desde", oneWeekAgo.toISOString().split('T')[0]);
+
+                    const proxyRes = await fetchWithProxyFallback(url.toString(), {}, 15000);
+                    const proxyData = await proxyRes.json();
+                    freshVouchers = Array.isArray(proxyData) ? proxyData :
+                        (proxyData.contents ? JSON.parse(proxyData.contents) : []);
+
+                } catch (proxyErr) {
+                    console.error('[RESYNC] Proxy also failed, resorting to legacy fallback', proxyErr);
+                    if (typeof fetchBonosWithFallback === 'function') {
+                        freshVouchers = await fetchBonosWithFallback(10000);
+                    } else {
+                        throw new Error("No hay funciones de sincronización disponibles");
+                    }
                 }
             }
         } else {
@@ -7400,12 +7418,39 @@ window.resyncVoucherFromWooCommerce = async function () {
 
         console.log(`[RESYNC] Price extracted: ${freshPrice}€`);
 
+        // CRÍTICO: Normalizar items desglosados (API -> Interno)
+        // Asegurar que usamos los IDs de la API explícitamente
+        let finalItems = [];
+        if (freshVoucher.items_desglosados && Array.isArray(freshVoucher.items_desglosados) && freshVoucher.items_desglosados.length > 0) {
+            console.log("[RESYNC] Usando items de API Optimizada...");
+            finalItems = freshVoucher.items_desglosados.map(apiItem => {
+                // Intentar match con catálogo para imagen/espacio
+                const catMatch = state.catalogProducts.find(p => p.wc_id == apiItem.product_id || p.wc_id == apiItem.variation_id) || {};
+                return {
+                    itemId: 'srv_' + Math.random().toString(36).substr(2, 9),
+                    name: apiItem.nombre || apiItem.name || 'Servicio',
+                    sessions: apiItem.sessions || apiItem.cantidad || 1,
+                    space: catMatch.espacio || '', // Usar catálogo si hay, o vacío
+                    used: 0,
+                    status: 'pendiente',
+                    validations: [],
+                    precio: apiItem.precio || apiItem.price || 0,
+                    pax: apiItem.pax || 1,
+                    // ID CONFIRMADO
+                    variation_id: apiItem.variation_id || null,
+                    wc_id: apiItem.variation_id || apiItem.product_id || null,
+                    product_id: apiItem.product_id || null,
+                    imagen: catMatch.imagen || null
+                };
+            });
+        }
+
         // Update Firestore
         const docRef = db.collection("spa_vouchers").doc(code);
         const updateData = {
             importe: freshPrice,
             precio: freshPrice,
-            items_desglosados: freshVoucher.items_desglosados || [],
+            items_desglosados: finalItems.length > 0 ? finalItems : (freshVoucher.items_desglosados || []),
             product_id: freshVoucher.product_id || null,
             variation_id: freshVoucher.variation_id || null,
             manual_update: false, // Remove manual protection to allow future auto-syncs
