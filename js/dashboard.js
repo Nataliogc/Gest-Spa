@@ -69,7 +69,11 @@ function updateDateDisplay() {
 async function cargarCitasHoy(date) {
     try {
         const targetDate = date || new Date().toISOString().split('T')[0];
-        const collections = ["reservas_spa", "reservas_suite", "reservas_panacea", "reservas_vip", "reservas_peluqueria", "reservas_gimnasio", "reservas_complementos"];
+        const collections = [
+            "reservas_spa", "reservas_suite", "reservas_panacea", "reservas_vip",
+            "reservas_peluqueria", "reservas_gimnasio", "reservas_complementos",
+            "reservas_cabinas", "reservas_cabina1", "reservas_cabina2", "reservas_cabina3"
+        ];
 
         state.citas = [];
 
@@ -104,16 +108,26 @@ async function cargarCitasHoy(date) {
                 let moduleType = 'spa';
                 const col = collections[index];
 
+                let derivedRoomName = null;
+
                 if (col === 'reservas_suite') moduleType = 'suite';
                 else if (col === 'reservas_panacea') moduleType = 'panacea';
                 else if (col === 'reservas_vip') moduleType = 'vip';
                 else if (col === 'reservas_peluqueria') moduleType = 'peluqueria';
                 else if (col === 'reservas_gimnasio') moduleType = 'gym';
                 else if (col === 'reservas_complementos') moduleType = 'complementos';
+                else if (col.startsWith('reservas_cabina')) {
+                    moduleType = 'cabinas';
+                    if (col === 'reservas_cabina1') derivedRoomName = 'Cabina 1';
+                    else if (col === 'reservas_cabina2') derivedRoomName = 'Cabina 2';
+                    else if (col === 'reservas_cabina3') derivedRoomName = 'Cabina 3';
+                    else derivedRoomName = 'Cabinas';
+                }
 
                 state.citas.push({
                     id: doc.id,
                     moduleType: moduleType,
+                    roomVisual: derivedRoomName,
                     ...data
                 });
             });
@@ -347,6 +361,23 @@ function renderDashboard() {
             serviceName = 'Circuito Spa';
         }
 
+        // Determine room/sala name
+        let roomName = c.roomVisual || c.sala || c.roomCode || c.espacio || '';
+        if (!roomName && c.moduleType) {
+            const roomNames = {
+                'spa': 'SPA',
+                'cabina': c.sala ? (c.sala.charAt(0).toUpperCase() + c.sala.slice(1)) : 'Cabina',
+                'cabinas': c.sala || 'Cabina',
+                'suite': 'Suite Spa',
+                'panacea': 'Panacea',
+                'vip': 'VIP',
+                'peluqueria': 'Peluquería',
+                'gym': 'Gimnasio',
+                'complementos': 'Complementos'
+            };
+            roomName = roomNames[c.moduleType] || c.moduleType.toUpperCase();
+        }
+
         // Determine if No-Show handling should be shown
         const isConfirmed = c.status === 'confirmada';
         const isNoShow = c.no_show === true || c.status === 'no_show';
@@ -370,6 +401,7 @@ function renderDashboard() {
                 <td style="font-weight:bold; color:var(--accent);">${c.hora}</td>
                 <td ${isNoShow ? 'style="text-decoration: line-through;"' : ''}>${c.nombre}</td>
                 <td>${serviceName}</td>
+                <td style="font-size:0.8rem; color:#64748b;">${roomName}</td>
                 ${!isGlobalSearch ? `<td>${c.terapeuta || '—'}</td>` : ''}
                 <td style="text-align: center;">
                     ${statusIcon}
@@ -450,7 +482,7 @@ async function buscarReservasGlobal(term) {
     if (tbody) tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding: 40px;"><i class="fas fa-spinner fa-spin"></i> Buscando en todo el historial...</td></tr>`;
 
     try {
-        const collections = ["reservas_spa", "reservas_suite", "reservas_panacea", "reservas_vip", "reservas_peluqueria"];
+        const collections = ["reservas_spa", "reservas_suite", "reservas_panacea", "reservas_vip", "reservas_peluqueria", "reservas_cabinas"];
         const searchPromises = [];
 
         // Firestore range search (Case sensitive start-match is limited)
@@ -631,7 +663,7 @@ function closePrintModal() {
 async function ejecutarImpresion() {
     const fecha = document.getElementById("print-fecha").value;
     try {
-        const collections = ["reservas_spa", "reservas_suite", "reservas_panacea", "reservas_vip", "reservas_peluqueria", "reservas_gimnasio", "reservas_complementos"];
+        const collections = ["reservas_spa", "reservas_suite", "reservas_panacea", "reservas_vip", "reservas_peluqueria", "reservas_gimnasio", "reservas_complementos", "reservas_cabinas"];
         const promises = collections.map(col => db.collection(col).where("fecha", "==", fecha).get());
         const snapshots = await Promise.all(promises);
 

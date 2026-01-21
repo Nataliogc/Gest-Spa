@@ -590,12 +590,20 @@ async function checkTherapistAvailability(therapist, date, time, duration, optio
             }
         }
 
-        // Verificar horario por defecto
-        const schedule = therapist.default_schedule || {};
-        const daySchedule = schedule[dayOfWeek];
+        // 2. Determinar Horario Activo (Temporada o Base)
+        let activeSchedule = therapist.default_schedule || {};
+
+        if (therapist.seasonal_schedules && Array.isArray(therapist.seasonal_schedules)) {
+            const activePeriod = therapist.seasonal_schedules.find(p => date >= p.start && date <= p.end);
+            if (activePeriod) {
+                activeSchedule = activePeriod.schedule || {};
+            }
+        }
+
+        const daySchedule = activeSchedule[dayOfWeek];
 
         if (!daySchedule || !daySchedule.enabled) {
-            // Fallback: si no hay horario definido, asumir disponible (legacy)
+            // Fallback: si no hay horario definido en el schedule activo, asumir disponible (para evitar roturas en datos antiguos)
             if (!daySchedule) {
                 result.available = true;
             } else {

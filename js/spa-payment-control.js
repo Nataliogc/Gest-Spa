@@ -105,8 +105,16 @@ function normalizePaymentFields(voucher) {
 
     // FIX GLOBAL: Los bonos de WooCommerce u Online SIEMPRE están pagados
     // Prevalece sobre cualquier estado corrupto en la base de datos local
-    const origenNorm = (v.origen || '').toLowerCase();
-    if (origenNorm.includes('woo') || v.metodo_pago === 'online') {
+    const origenNorm = (v.origen || v.source || '').toLowerCase();
+    const bonoCode = (v.bono || v.codigo || '').toUpperCase();
+    const metodoNorm = (v.metodo_pago || '').toLowerCase();
+
+    if (
+        origenNorm.includes('woo') ||
+        origenNorm.includes('web') ||
+        metodoNorm === 'online' ||
+        bonoCode.startsWith('TARJ-')
+    ) {
         v.estado_pago = PAYMENT_STATUS.PAGADO;
     }
 

@@ -39,12 +39,15 @@
         </div>
 
         <ul class="nav-links" style="flex:1;">
-            <li><a href="index.html" class="nav-link active"><i class="fas fa-home"></i> Inicio</a></li>
+            <li><a href="index.html" class="nav-link active" title="Inicio"><i class="fas fa-home"
+                        style="color: #3b82f6;"></i></a></li>
             <li><a href="bonos.html" class="nav-link"><i class="fas fa-ticket-alt"></i> Bonos</a></li>
 
 
             <li><a href="reservas.html?type=spa" class="nav-link"><i class="fas fa-water"></i> Spa</a></li>
             <li><a href="reservas.html?type=cabinas" class="nav-link"><i class="fas fa-cubes"></i> Cabinas</a></li>
+            <li><a href="reservas.html?view=staff" class="nav-link"><i class="fas fa-calendar-alt"></i> Ocup Terap</a>
+            </li>
 
             <li class="dropdown">
                 <a href="#" class="nav-link dropdown-toggle">
@@ -103,7 +106,7 @@
 
                 <!-- Dashboard Layout: 2 Columns -->
                 <div class="dashboard-container"
-                    style="display: grid; grid-template-columns: 1fr 300px; gap: 20px; height: 100%; overflow: hidden;">
+                    style="display: grid; grid-template-columns: 1fr 220px; gap: 20px; height: 100%; overflow: hidden;">
 
                     <!-- Main Column: Table -->
                     <div class="dashboard-main"
@@ -149,6 +152,7 @@
                                     style="border: none; border-right: 1px solid #f8fafc; padding: 4px 8px; font-size: 0.75rem; font-weight: 600; color: #475569; background: transparent; cursor: pointer; outline: none;">
                                     <option value="">Todas las Salas</option>
                                     <option value="spa">Spa</option>
+                                    <option value="cabinas">Cabinas</option>
                                     <option value="suite">Suite</option>
                                     <option value="panacea">Panacea</option>
                                     <option value="vip">Vip</option>
@@ -193,6 +197,8 @@
                                             <th style="padding: 15px 20px; font-size: 0.8rem; color: #64748b;">CLIENTE
                                             </th>
                                             <th style="padding: 15px 20px; font-size: 0.8rem; color: #64748b;">SERVICIO
+                                            </th>
+                                            <th style="padding: 15px 20px; font-size: 0.8rem; color: #64748b;">SALA
                                             </th>
                                             <th style="padding: 15px 20px; font-size: 0.8rem; color: #64748b;">TERAPEUTA
                                             </th>

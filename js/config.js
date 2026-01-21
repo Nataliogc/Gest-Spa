@@ -513,7 +513,7 @@ function renderMasterItems() {
         }).length;
 
         // -- LOGICA MULTI-SELECT --
-        // Determinar espacios seleccionados (Legacy 'space' string vs New 'allowedSpaces' array)
+        // Determinar espacios seleccionados
         let selectedCodes = [];
         if (item.allowedSpaces && Array.isArray(item.allowedSpaces)) {
             selectedCodes = item.allowedSpaces;
@@ -534,22 +534,22 @@ function renderMasterItems() {
 
         return `
         <tr style="border-bottom: 1px solid #f1f5f9;">
-            <td style="padding: 10px 12px;">
+            <td style="padding: 6px 2px;">
                 <input type="text" value="${item.code || ''}" placeholder="ID..." onchange="updateMasterItemField('${item.id}', 'code', this.value)" 
-                    class="param-input" style="width:100%;">
+                    class="param-input" style="width:100%; font-size: 0.75rem;">
             </td>
-            <td style="padding: 10px 12px;">
+            <td style="padding: 6px 2px;">
                 <input type="text" value="${item.name}" onchange="updateMasterItemField('${item.id}', 'name', this.value)" 
                     class="param-input" style="width:100%;">
             </td>
-            <td style="padding: 10px 12px; text-align: center;">
+            <td style="padding: 6px 2px; text-align: center;">
                 <input type="number" value="${item.duration || 0}" onchange="updateMasterItemField('${item.id}', 'duration', parseInt(this.value))" 
-                        class="param-input" style="width: 90px; text-align: center;" min="0" max="300">
+                        class="param-input" style="width: 100%; text-align: center;" min="0" max="300">
             </td>
-            <td style="padding: 10px 12px; overflow: visible;">
-                <div class="ms-container" id="ms-${item.id}">
-                    <div class="ms-trigger" onclick="toggleMultiSelect('${item.id}', event)">
-                        <span>${summaryText}</span>
+            <td style="padding: 6px 2px; overflow: visible;">
+                <div class="ms-container" id="ms-${item.id}" style="width: 100%;">
+                    <div class="ms-trigger" onclick="toggleMultiSelect('${item.id}', event)" style="width: 100%; box-sizing: border-box;">
+                        <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${summaryText}</span>
                         <i class="fas fa-chevron-down" style="font-size: 0.7em; opacity: 0.5;"></i>
                     </div>
                     <div class="ms-options">
@@ -565,44 +565,47 @@ function renderMasterItems() {
                     </div>
                 </div>
             </td>
-            <td style="padding: 10px 12px;">
-                <select onchange="updateMasterItemField('${item.id}', 'required_skill', this.value)" class="param-input" style="width: 100%;">
+            <td style="padding: 6px 2px;">
+                <select onchange="updateMasterItemField('${item.id}', 'required_skill', this.value)" class="param-input" style="width: 100%; font-size: 0.75rem;">
                     <option value="">-- Ninguna --</option>
                     <option value="masaje" ${item.required_skill === 'masaje' ? 'selected' : ''}>Masajes</option>
                     <option value="facial" ${item.required_skill === 'facial' ? 'selected' : ''}>Facial</option>
                     <option value="corporal" ${item.required_skill === 'corporal' ? 'selected' : ''}>Corporal</option>
                     <option value="ritual" ${item.required_skill === 'ritual' ? 'selected' : ''}>Rituales</option>
-                    <option value="suite" ${item.required_skill === 'suite' ? 'selected' : ''}>Suite Spa</option>
-                    <option value="circuito" ${item.required_skill === 'circuito' ? 'selected' : ''}>Circuito Spa</option>
-                    <option value="manicura" ${item.required_skill === 'manicura' ? 'selected' : ''}>Manicura/Pedicura</option>
-                    <option value="peluqueria" ${item.required_skill === 'peluqueria' ? 'selected' : ''}>Peluquería</option>
-                    <option value="depilacion" ${item.required_skill === 'depilacion' ? 'selected' : ''}>Depilación</option>
-                    <option value="maquillaje" ${item.required_skill === 'maquillaje' ? 'selected' : ''}>Maquillaje</option>
+                    <option value="suite" ${item.required_skill === 'suite' ? 'selected' : ''}>Suite</option>
+                    <option value="circuito" ${item.required_skill === 'circuito' ? 'selected' : ''}>Circuito</option>
+                    <option value="manicura" ${item.required_skill === 'manicura' ? 'selected' : ''}>Manicura</option>
+                    <option value="peluqueria" ${item.required_skill === 'peluqueria' ? 'selected' : ''}>Pelu</option>
+                    <option value="depilacion" ${item.required_skill === 'depilacion' ? 'selected' : ''}>Depil</option>
+                    <option value="maquillaje" ${item.required_skill === 'maquillaje' ? 'selected' : ''}>Maqui</option>
                 </select>
             </td>
-            <td style="padding: 10px 12px; text-align: center;">
+            <td style="padding: 6px 2px; text-align: center;">
                 <input type="number" value="${item.pax_max || 1}" onchange="updateMasterItemField('${item.id}', 'pax_max', parseInt(this.value))" 
-                        class="param-input" style="width: 60px; text-align: center;" min="1" max="50">
+                        class="param-input" style="width: 100%; text-align: center;" min="1" max="50">
             </td>
-            <td style="padding: 10px 12px; text-align: center;">
+            <td style="padding: 6px 2px; text-align: center;">
+                <input type="number" value="${item.required_therapists || 1}" onchange="updateMasterItemField('${item.id}', 'required_therapists', parseInt(this.value))" 
+                        class="param-input" style="width: 100%; text-align: center; font-weight: bold; color: #3b82f6;" min="0" max="4">
+            </td>
+            <td style="padding: 6px 2px; text-align: center;">
                 <input type="number" step="0.01" value="${item.price_pax || 0}" onchange="updateMasterItemField('${item.id}', 'price_pax', parseFloat(this.value))" 
-                        class="param-input" style="width: 85px; text-align: center; color: var(--accent); font-weight: 700;" min="0">
+                        class="param-input" style="width: 100%; text-align: center; color: var(--accent); font-weight: 700;" min="0">
             </td>
-            <td style="padding: 10px 12px; text-align: center;">
-                <select onchange="updateMasterItemField('${item.id}', 'agenda_required', this.value === 'true')" class="param-input" style="width: 80px;">
+            <td style="padding: 6px 2px; text-align: center;">
+                <select onchange="updateMasterItemField('${item.id}', 'agenda_required', this.value === 'true')" class="param-input" style="width: 100%;">
                     <option value="true" ${item.agenda_required !== false ? 'selected' : ''}>SÍ</option>
                     <option value="false" ${item.agenda_required === false ? 'selected' : ''}>NO</option>
                 </select>
             </td>
-            <td style="padding: 10px 12px; text-align: center;">
+            <td style="padding: 6px 2px; text-align: center;">
                 <span onclick="showItemUsage('${item.id}', '${item.name.replace(/'/g, "\\'")}')"
-                    style="display: inline-block; background: ${usageCount > 0 ? '#e0f2fe' : '#f1f5f9'}; color: ${usageCount > 0 ? '#0369a1' : '#94a3b8'}; padding: 4px 10px; border-radius: 6px; font-weight: 600; font-size: 0.75rem; cursor: ${usageCount > 0 ? 'pointer' : 'default'}; transition: all 0.2s;" 
+                    style="display: inline-block; background: ${usageCount > 0 ? '#e0f2fe' : '#f1f5f9'}; color: ${usageCount > 0 ? '#0369a1' : '#94a3b8'}; padding: 4px 6px; border-radius: 6px; font-weight: 600; font-size: 0.75rem; cursor: ${usageCount > 0 ? 'pointer' : 'default'}; width: 100%; box-sizing: border-box; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;" 
                     ${usageCount > 0 ? 'onmouseover="this.style.background=\'#bfdbfe\'" onmouseout="this.style.background=\'#e0f2fe\'"' : ''}>
-                    <i class="fas fa-${usageCount > 0 ? 'box-open' : 'inbox'}" style="margin-right: 4px; font-size: 0.65rem;"></i>
-                    ${usageCount} ${usageCount === 1 ? 'producto' : 'productos'}
+                    ${usageCount}
                 </span>
             </td>
-            <td style="padding: 10px 12px; text-align: center;">
+            <td style="padding: 6px 2px; text-align: center;">
                 <button onclick="deleteMasterItem('${item.id}')" class="btn-icon danger"><i class="fas fa-trash-alt"></i></button>
             </td>
         </tr>
@@ -780,6 +783,7 @@ async function addMasterItem() {
             code: code,
             duration: 0,
             pax_max: 1, // Default to 1
+            required_therapists: 1, // Nuevo: asignación por defecto
             price_pax: 0,
             agenda_required: true, // Default to true
             space: "",

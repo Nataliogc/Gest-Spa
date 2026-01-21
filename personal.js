@@ -12,6 +12,7 @@ const db = firebase.firestore();
 let allStaffList = [];
 let currentFilter = 'active';
 let editingStaffId = null;
+let globalBaseSchedule = null;
 
 // Configuración de salas disponibles
 const AVAILABLE_ROOMS = [
@@ -52,6 +53,7 @@ let calendarState = {
     currentMonth: new Date().getMonth(),
     currentYear: new Date().getFullYear(),
     staffSchedule: null,
+    seasonalSchedules: [],
     dayExceptions: {}
 };
 
@@ -76,6 +78,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Configurar toggling de opciones en modal de día
     setupDayDetailListeners();
+
+    // Cargar horario base global
+    await loadGlobalBaseSchedule();
 
     // Configurar delegación para colapsar periodos estacionales
     setupSeasonalCollapsible();
@@ -426,26 +431,83 @@ function populateForm(staff) {
 
         // Set shift times
         const shiftsContainer = document.getElementById(`schedule-${day.key}-shifts`);
-        if (shiftsContainer && dayConfig?.shifts?.length > 0) {
-            const startInput = shiftsContainer.querySelector('.schedule-shift-start');
-            const endInput = shiftsContainer.querySelector('.schedule-shift-end');
-            if (startInput && endInput) {
-                startInput.value = dayConfig.shifts[0].start || '10:00';
-                endInput.value = dayConfig.shifts[0].end || '18:00';
+        if (shiftsContainer) {
+            // Limpiar turnos extra previos
+            const extraShifts = shiftsContainer.querySelectorAll('div');
+            extraShifts.forEach(s => s.remove());
+
+            if (dayConfig?.shifts?.length > 0) {
+                const firstStart = shiftsContainer.querySelector('.schedule-shift-start');
+                const firstEnd = shiftsContainer.querySelector('.schedule-shift-end');
+                if (firstStart) firstStart.value = dayConfig.shifts[0].start || '10:00';
+                if (firstEnd) firstEnd.value = dayConfig.shifts[0].end || '18:00';
+
+                // Añadir turnos extra si existen
+                for (let i = 1; i < dayConfig.shifts.length; i++) {
+                    addShift(day.key);
+                    const allStarts = shiftsContainer.querySelectorAll('.schedule-shift-start');
+                    const allEnds = shiftsContainer.querySelectorAll('.schedule-shift-end');
+                    if (allStarts[i]) allStarts[i].value = dayConfig.shifts[i].start;
+                    if (allEnds[i]) allEnds[i].value = dayConfig.shifts[i].end;
+                }
             }
         }
     });
+
+    // Cargar horarios por temporadas
+    const seasonalContainer = document.getElementById('seasonal-periods-container');
+    if (seasonalContainer) {
+        seasonalContainer.innerHTML = '';
+        const seasonalSchedules = staff.seasonal_schedules || [];
+        seasonalSchedules.forEach(data => addSeasonalPeriod(data));
+    }
 }
 
 function setDefaultSchedule() {
-    // Set Mon-Fri as enabled by default
-    ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'].forEach(day => {
-        const checkbox = document.getElementById(`schedule-${day}-enabled`);
-        if (checkbox) checkbox.checked = true;
-    });
-    ['saturday', 'sunday'].forEach(day => {
-        const checkbox = document.getElementById(`schedule-${day}-enabled`);
-        if (checkbox) checkbox.checked = false;
+    if (!globalBaseSchedule) {
+        // Fallback hardcoded if global not loaded
+        ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'].forEach(day => {
+            const checkbox = document.getElementById(`schedule-${day}-enabled`);
+            if (checkbox) checkbox.checked = true;
+        });
+        return;
+    }
+
+    WEEKDAYS.forEach(day => {
+        const config = globalBaseSchedule[day.key];
+        const checkbox = document.getElementById(`schedule-${day.key}-enabled`);
+        if (checkbox) checkbox.checked = config?.enabled || false;
+
+        const container = document.getElementById(`schedule-${day.key}-shifts`);
+        if (container && config?.shifts?.length > 0) {
+            // Clear existing shifts except first one
+            const shifts = container.querySelectorAll('div');
+            shifts.forEach(s => s.remove());
+
+            // Set first shift
+            const startInput = container.querySelector('.schedule-shift-start');
+            const endInput = container.querySelector('.schedule-shift-end');
+            if (startInput) startInput.value = config.shifts[0].start;
+            if (endInput) endInput.value = config.shifts[0].end;
+
+            // Add additional shifts if any
+            for (let i = 1; i < config.shifts.length; i++) {
+                const newShift = document.createElement('div');
+                newShift.style.cssText = 'display: flex; gap: 8px; align-items: center; margin-top: 8px;';
+                newShift.innerHTML = `
+                    <input type="time" value="${config.shifts[i].start}" class="schedule-shift-start"
+                        style="flex: 1; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.85rem;">
+                    <span style="color: #94a3b8;">-</span>
+                    <input type="time" value="${config.shifts[i].end}" class="schedule-shift-end"
+                        style="flex: 1; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.85rem;">
+                    <button type="button" onclick="this.parentElement.remove()" class="btn btn-outline btn-sm"
+                        style="padding: 6px 8px; font-size: 0.75rem; color: #ef4444; border-color: #ef4444;">
+                        <i class="fas fa-times"></i>
+                    </button>
+                `;
+                container.appendChild(newShift);
+            }
+        }
     });
 }
 
@@ -498,6 +560,43 @@ async function saveStaff(event) {
         };
     });
 
+    // Recopilar horarios por temporadas
+    const seasonalSchedules = [];
+    document.querySelectorAll('.seasonal-period-card').forEach(card => {
+        const name = card.querySelector('.seasonal-name').value.trim();
+        const start = card.querySelector('.seasonal-start').value;
+        const end = card.querySelector('.seasonal-end').value;
+
+        if (start && end) {
+            const periodSchedule = {};
+            WEEKDAYS.forEach(day => {
+                const dayEnabled = card.querySelector(`.seasonal-${day.key}-enabled`)?.checked || false;
+                const dayShifts = [];
+
+                // Nota: Por simplicidad ahora tomamos el primer turno, pero podríamos extenderlo
+                const shiftStartInputs = card.querySelectorAll(`.seasonal-${day.key}-shifts .schedule-shift-start`);
+                shiftStartInputs.forEach((startInput, index) => {
+                    const endInput = card.querySelectorAll(`.seasonal-${day.key}-shifts .schedule-shift-end`)[index];
+                    if (startInput?.value && endInput?.value) {
+                        dayShifts.push({ start: startInput.value, end: endInput.value });
+                    }
+                });
+
+                periodSchedule[day.key] = {
+                    enabled: dayEnabled,
+                    shifts: dayShifts.length > 0 ? dayShifts : [{ start: '10:00', end: '18:00' }]
+                };
+            });
+
+            seasonalSchedules.push({
+                name,
+                start,
+                end,
+                schedule: periodSchedule
+            });
+        }
+    });
+
     const staffData = {
         nombre: name,
         name: name, // Legacy compatibility
@@ -511,6 +610,7 @@ async function saveStaff(event) {
         salas: assignedRooms, // Legacy compatibility
         skills: skills,
         default_schedule: defaultSchedule,
+        seasonal_schedules: seasonalSchedules,
         updated_at: firebase.firestore.FieldValue.serverTimestamp()
     };
 
@@ -535,8 +635,9 @@ async function saveStaff(event) {
     }
 }
 
-function addShift(day) {
-    const container = document.getElementById(`schedule-${day}-shifts`);
+function addShift(day, containerId = null) {
+    const id = containerId || `schedule-${day}-shifts`;
+    const container = document.getElementById(id);
     if (!container) return;
 
     const newShift = document.createElement('div');
@@ -556,6 +657,193 @@ function addShift(day) {
     container.appendChild(newShift);
 }
 
+function addShiftToGlobal(day) {
+    addShift(day, `global-schedule-${day}-shifts`);
+}
+
+// ============================================================================
+// HORARIO BASE GLOBAL
+// ============================================================================
+
+async function loadGlobalBaseSchedule() {
+    try {
+        const doc = await db.collection('spa_config').doc('staff_base_schedule').get();
+        if (doc.exists) {
+            globalBaseSchedule = doc.data().schedule;
+            console.log('[PERSONAL] Horario base global cargado');
+        } else {
+            // Default fallback
+            globalBaseSchedule = {};
+            WEEKDAYS.forEach(day => {
+                globalBaseSchedule[day.key] = {
+                    enabled: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'].includes(day.key),
+                    shifts: [{ start: '10:00', end: '18:00' }]
+                };
+            });
+            console.log('[PERSONAL] Horario base global no encontrado, usando web por defecto');
+        }
+    } catch (err) {
+        console.error('[PERSONAL] Error cargando horario base global:', err);
+    }
+}
+
+function openGlobalScheduleModal() {
+    const modal = document.getElementById('global-schedule-modal');
+    if (!modal) return;
+
+    renderGlobalScheduleGrid();
+    modal.style.display = 'flex';
+}
+
+function closeGlobalScheduleModal() {
+    document.getElementById('global-schedule-modal').style.display = 'none';
+}
+
+function renderGlobalScheduleGrid() {
+    const container = document.getElementById('global-schedule-container');
+    if (!container) return;
+
+    let html = '';
+    WEEKDAYS.forEach(day => {
+        const dayConfig = globalBaseSchedule[day.key] || { enabled: false, shifts: [{ start: '10:00', end: '18:00' }] };
+        const isEnabled = dayConfig.enabled;
+
+        html += `
+            <div style="display: flex; align-items: center; gap: 12px; padding: 12px; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;">
+                <label style="min-width: 90px; font-weight: 600; font-size: 0.85rem; display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                    <input type="checkbox" id="global-schedule-${day.key}-enabled" ${isEnabled ? 'checked' : ''}
+                        style="width: 18px; height: 18px; cursor: pointer;">
+                    <span>${day.label}</span>
+                </label>
+                <div id="global-schedule-${day.key}-shifts" style="flex: 1; display: flex; flex-direction: column; gap: 5px;">
+                    ${dayConfig.shifts.map((shift, index) => `
+                        <div style="display: flex; align-items: center; gap: 5px;">
+                            <input type="time" value="${shift.start}" class="schedule-shift-start"
+                                style="width: 100px; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.85rem;">
+                            <span style="color: #94a3b8;">-</span>
+                            <input type="time" value="${shift.end}" class="schedule-shift-end"
+                                style="width: 100px; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.85rem;">
+                            ${index > 0 ? `
+                                <button type="button" onclick="this.parentElement.remove()" class="btn btn-outline btn-sm" style="color:#ef4444; border-color:#ef4444;">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            ` : ''}
+                        </div>
+                    `).join('')}
+                </div>
+                <button type="button" onclick="addShiftToGlobal('${day.key}')" class="btn btn-outline btn-sm"
+                    style="padding: 6px 10px; font-size: 0.75rem;" title="Añadir turno">
+                    <i class="fas fa-plus"></i>
+                </button>
+            </div>
+        `;
+    });
+    container.innerHTML = html;
+}
+
+async function saveGlobalSchedule() {
+    const newSchedule = {};
+    WEEKDAYS.forEach(day => {
+        const enabled = document.getElementById(`global-schedule-${day.key}-enabled`)?.checked || false;
+        const shiftsContainer = document.getElementById(`global-schedule-${day.key}-shifts`);
+
+        const shifts = [];
+        if (shiftsContainer) {
+            const startInputs = shiftsContainer.querySelectorAll('.schedule-shift-start');
+            startInputs.forEach((startInput, index) => {
+                const endInput = shiftsContainer.querySelectorAll('.schedule-shift-end')[index];
+                if (startInput?.value && endInput?.value) {
+                    shifts.push({ start: startInput.value, end: endInput.value });
+                }
+            });
+        }
+
+        newSchedule[day.key] = {
+            enabled,
+            shifts: shifts.length > 0 ? shifts : [{ start: '10:00', end: '18:00' }]
+        };
+    });
+
+    try {
+        await db.collection('spa_config').doc('staff_base_schedule').set({
+            schedule: newSchedule,
+            updated_at: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        globalBaseSchedule = newSchedule;
+        alert('Horario base global guardado correctamente');
+        closeGlobalScheduleModal();
+    } catch (err) {
+        console.error('[PERSONAL] Error guardando horario base global:', err);
+        alert('Error al guardar: ' + err.message);
+    }
+}
+
+function addSeasonalPeriod(data = null) {
+    const container = document.getElementById('seasonal-periods-container');
+    if (!container) return;
+
+    // Generar un ID único para los inputs de este periodo
+    const card = document.createElement('div');
+    card.className = 'seasonal-period-card';
+    card.style.cssText = 'background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 10px; overflow: hidden; margin-bottom: 10px;';
+
+    const name = data?.name || '';
+    const start = data?.start || '';
+    const end = data?.end || '';
+    const schedule = data?.schedule || {};
+
+    let scheduleHtml = '';
+    WEEKDAYS.forEach(day => {
+        const dayConfig = schedule[day.key] || { enabled: false, shifts: [{ start: '10:00', end: '18:00' }] };
+        scheduleHtml += `
+            <div style="display: flex; align-items: center; gap: 10px; padding: 8px; background: white; border-bottom: 1px solid #f1f5f9;">
+                <label style="min-width: 85px; font-weight: 600; font-size: 0.8rem; display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                    <input type="checkbox" class="seasonal-${day.key}-enabled" ${dayConfig.enabled ? 'checked' : ''} style="width: 16px; height: 16px;">
+                    <span>${day.label.substring(0, 3)}</span>
+                </label>
+                <div class="seasonal-${day.key}-shifts" style="flex: 1; display: flex; gap: 6px; flex-wrap: wrap;">
+                    ${(dayConfig.shifts || [{ start: '10:00', end: '18:00' }]).map(sh => `
+                        <div style="display: flex; align-items: center; gap: 4px;">
+                            <input type="time" value="${sh.start}" class="schedule-shift-start" style="padding: 4px; border: 1px solid #cbd5e1; border-radius: 4px; font-size: 0.75rem;">
+                            <span style="color: #94a3b8;">-</span>
+                            <input type="time" value="${sh.end}" class="schedule-shift-end" style="padding: 4px; border: 1px solid #cbd5e1; border-radius: 4px; font-size: 0.75rem;">
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+    });
+
+    card.innerHTML = `
+        <div style="padding: 12px; background: #f1f5f9; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e2e8f0;">
+            <div style="display: flex; gap: 10px; align-items: center; flex: 1;">
+                <input type="text" class="seasonal-name" value="${name}" placeholder="Ej: Temporada Alta" style="padding: 6px 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.85rem; font-weight: 600; width: 140px;">
+                <div style="display: flex; align-items: center; gap: 5px;">
+                    <input type="date" class="seasonal-start" value="${start}" style="padding: 6px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.8rem;">
+                    <span style="color: #64748b;">al</span>
+                    <input type="date" class="seasonal-end" value="${end}" style="padding: 6px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.8rem;">
+                </div>
+            </div>
+            <div style="display: flex; gap: 8px;">
+                <button type="button" class="seasonal-toggle-btn btn-icon-only" style="background:none; border:none; color:#64748b; cursor:pointer;" title="Ver horario">
+                    <i class="fas fa-chevron-down"></i>
+                </button>
+                <button type="button" onclick="this.closest('.seasonal-period-card').remove()" class="btn-icon-only" style="background:none; border:none; color:#ef4444; cursor:pointer;" title="Eliminar periodo">
+                    <i class="fas fa-trash-alt"></i>
+                </button>
+            </div>
+        </div>
+        <div class="seasonal-schedule-body" style="display: none; padding: 5px; background: white;">
+            <div style="font-size: 0.7rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; padding: 5px 8px; border-bottom: 1px solid #f1f5f9;">
+                Configuración Horaria Semanal
+            </div>
+            ${scheduleHtml}
+        </div>
+    `;
+
+    container.appendChild(card);
+}
+
 // ============================================================================
 // MODAL DE CALENDARIO
 // ============================================================================
@@ -567,6 +855,7 @@ async function openCalendarModal(staffId) {
     calendarState.staffId = staffId;
     calendarState.staffName = staff.nombre || staff.name;
     calendarState.staffSchedule = staff.default_schedule || {};
+    calendarState.seasonalSchedules = staff.seasonal_schedules || [];
 
     // Load exceptions for this staff
     await loadStaffExceptions(staffId);
@@ -690,8 +979,16 @@ function getDayInfo(dateStr) {
         }
     }
 
-    // Check default schedule
-    const dayConfig = calendarState.staffSchedule[dayOfWeek];
+    // Check active schedule (Season vs Base)
+    let activeSchedule = calendarState.staffSchedule || {};
+    if (calendarState.seasonalSchedules && Array.isArray(calendarState.seasonalSchedules)) {
+        const activePeriod = calendarState.seasonalSchedules.find(p => dateStr >= p.start && dateStr <= p.end);
+        if (activePeriod) {
+            activeSchedule = activePeriod.schedule || {};
+        }
+    }
+
+    const dayConfig = activeSchedule[dayOfWeek];
     if (dayConfig?.enabled) {
         return { bgColor: '#d1fae5', borderColor: '#a7f3d0', textColor: '#065f46', icon: '🟢' };
     }

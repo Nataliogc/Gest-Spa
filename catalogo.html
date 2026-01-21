@@ -217,12 +217,15 @@
         </div>
 
         <ul class="nav-links" style="flex:1;">
-            <li><a href="index.html" class="nav-link"><i class="fas fa-home"></i> Inicio</a></li>
+            <li><a href="index.html" class="nav-link" title="Inicio"><i class="fas fa-home"
+                        style="color: #3b82f6;"></i></a></li>
             <li><a href="bonos.html" class="nav-link"><i class="fas fa-ticket-alt"></i> Bonos</a></li>
 
 
             <li><a href="reservas.html?type=spa" class="nav-link"><i class="fas fa-water"></i> Spa</a></li>
             <li><a href="reservas.html?type=cabinas" class="nav-link"><i class="fas fa-cubes"></i> Cabinas</a></li>
+            <li><a href="reservas.html?view=staff" class="nav-link"><i class="fas fa-calendar-alt"></i> Ocup Terap</a>
+            </li>
 
             <li class="dropdown">
                 <a href="#" class="nav-link dropdown-toggle">
@@ -894,6 +897,7 @@
                 document.getElementById("sm-pax").value = service.pax || "1";
                 updatePaxIcon(service.pax || "1"); // Update icon based on loaded value
                 document.getElementById("sm-sesiones").value = service.sesiones || "1";
+                document.getElementById("sm-required-therapists").value = service.required_therapists || "1";
                 document.getElementById("sm-categoria").value = service.categoria;
                 document.getElementById("sm-descripcion").value = service.descripcion || "";
 
@@ -1061,6 +1065,7 @@
                 duracion: parseInt(document.getElementById("sm-duracion").value) || 0,
                 pax: parseInt(document.getElementById("sm-pax").value) || 1,
                 sesiones: parseInt(document.getElementById("sm-sesiones").value) || 1,
+                required_therapists: parseInt(document.getElementById("sm-required-therapists").value) || 1,
                 imagen: document.getElementById("sm-imagen").value.trim(),
                 categoria: document.getElementById("sm-categoria").value,
                 espacio: espacioValue, // Legacy support

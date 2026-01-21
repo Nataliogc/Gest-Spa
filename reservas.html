@@ -15,18 +15,20 @@
         /* Specific rules for Spa Turns Grid */
         .grid-7 {
             display: flex;
-            flex-wrap: nowrap;
-            overflow-x: auto;
-            gap: 12px;
-            margin-top: 20px;
+            flex-wrap: wrap;
+            /* Changed from nowrap to wrap as a safety to see all, but reduced sizes will help keep them on one line */
+            gap: 8px;
+            /* Reduced from 12px */
+            margin-top: 15px;
             padding-bottom: 5px;
-            /* Space for scrollbar if needed */
         }
 
         .grid-7 .slot-card {
-            min-width: 110px;
-            /* Reduced width to fit more */
-            flex: 0 0 auto;
+            min-width: 90px;
+            /* Reduced from 110px */
+            flex: 1 1 0px;
+            /* Allow items to grow/shrink and share space */
+            max-width: 120px;
         }
 
         /* Fix scrolling on this page */
@@ -38,8 +40,9 @@
 
         .slot-card {
             background: #fff;
-            padding: 15px;
-            border-radius: 12px;
+            padding: 10px;
+            /* Reduced from 15px */
+            border-radius: 10px;
             border: 1px solid var(--border);
             text-align: center;
             cursor: pointer;
@@ -47,7 +50,8 @@
             display: flex;
             flex-direction: column;
             justify-content: center;
-            min-height: 120px;
+            min-height: 90px;
+            /* Reduced from 120px */
             box-shadow: var(--shadow);
             position: relative;
         }
@@ -84,17 +88,19 @@
         }
 
         .pax-badge {
-            font-size: 1.2rem;
+            font-size: 1rem;
+            /* Reduced from 1.2rem */
             font-weight: 700;
-            margin: 5px 0;
+            margin: 3px 0;
+            /* Reduced from 5px */
             color: var(--text);
         }
 
         .time-label {
-            font-size: 0.85rem;
+            font-size: 0.8rem;
             font-weight: 700;
             color: var(--accent);
-            letter-spacing: 1px;
+            letter-spacing: 0.5px;
         }
 
         .progress-mini {
@@ -102,7 +108,8 @@
             background: #eee;
             border-radius: 2px;
             overflow: hidden;
-            margin-top: 10px;
+            margin-top: 6px;
+            /* Reduced from 10px */
         }
 
         .progress-bar {
@@ -426,12 +433,15 @@
         </div>
 
         <ul class="nav-links" style="flex:1;">
-            <li><a href="index.html" class="nav-link"><i class="fas fa-home"></i> Inicio</a></li>
+            <li><a href="index.html" class="nav-link" title="Inicio"><i class="fas fa-home"
+                        style="color: #3b82f6;"></i></a></li>
             <li><a href="bonos.html" class="nav-link"><i class="fas fa-ticket-alt"></i> Bonos</a></li>
 
 
             <li><a href="reservas.html?type=spa" class="nav-link"><i class="fas fa-water"></i> Spa</a></li>
             <li><a href="reservas.html?type=cabinas" class="nav-link"><i class="fas fa-cubes"></i> Cabinas</a></li>
+            <li id="nav-occupancy-li"><a href="reservas.html?view=staff" class="nav-link"><i
+                        class="fas fa-calendar-alt"></i> Ocup Terap</a></li>
 
             <li class="dropdown">
                 <a href="#" class="nav-link dropdown-toggle">
@@ -513,18 +523,19 @@
                     <span>Ver Anuladas</span>
                 </label>
 
-                <!-- Therapist Availability Button (Only for Cabinas) -->
-                <button id="therapist-availability-btn" onclick="openTherapistAvailability()" class="btn btn-outline"
-                    style="display: none; padding: 6px 12px; font-size: 0.8rem; gap: 6px;"
-                    title="Ver disponibilidad de terapeutas">
-                    <i class="fas fa-user-clock"></i>
-                    <span>Disponibilidad</span>
+                <!-- Block Room Button -->
+                <button id="block-room-btn" onclick="openBlockRoomModal()" class="btn btn-outline"
+                    style="display: none; padding: 6px 12px; font-size: 0.8rem; gap: 6px; color: #ef4444; border-color: #ef4444;"
+                    title="Cerrar o bloquear esta sala">
+                    <i class="fas fa-lock"></i>
+                    <span>Cerrar Sala</span>
                 </button>
             </div>
             <div id="status-legend" style="display: flex; gap: 15px; font-size: 0.75rem; color: var(--text-muted);">
                 <span><i class="fas fa-circle" style="color: #4caf50;"></i> Libre</span>
                 <span><i class="fas fa-circle" style="color: #ff9800;"></i> Casi lleno</span>
                 <span><i class="fas fa-circle" style="color: #f44336;"></i> Completo</span>
+                <span><i class="fas fa-circle" style="color: #64748b;"></i> Bloqueado</span>
             </div>
         </header>
 
@@ -695,7 +706,7 @@
                             <label
                                 style="font-size: 0.65rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; display: block; margin-bottom: 4px;">Pax</label>
                             <input type="number" id="res-pax" value="2" min="1" max="25" required
-                                onchange="updatePriceAutomation()"
+                                onchange="updatePriceAutomation(); updateStaffSelectorsVisibility();"
                                 style="width: 100%; padding: 8px 6px; border-radius: 6px; border: 1px solid #e2e8f0; font-size: 0.9rem; text-align: center; background: #f8fafc;">
                         </div>
                     </div>
@@ -704,7 +715,8 @@
                     <div class="form-group" id="service-group" style="margin-bottom: 0; display: none;">
                         <label id="label-service"
                             style="font-size: 0.7rem; font-weight: 800; color: #4a5568; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; display: block;">Servicio</label>
-                        <select id="res-servicio" onchange="updatePackInfo(); updatePriceAutomation();"
+                        <select id="res-servicio"
+                            onchange="updatePackInfo(); updatePriceAutomation(); updateStaffSelectorsVisibility();"
                             style="width: 100%; padding: 8px 10px; border-radius: 6px; border: 1px solid #e2e8f0; font-size: 0.9rem; background: #fff; cursor: pointer; font-weight: 600; color: var(--accent);">
                         </select>
                     </div>
@@ -997,16 +1009,24 @@
                         </div>
                         <!-- Date Navigation -->
                         <div
-                            style="display: flex; align-items: center; gap: 8px; background: #e2e8f0; padding: 4px; border-radius: 8px;">
+                            style="display: flex; align-items: center; gap: 8px; background: #fff; padding: 4px 12px; border-radius: 8px; border: 1.5px solid #e2e8f0; position: relative; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
                             <button onclick="changeTherapistAvailabilityDate(-1)" class="btn-icon-only"
-                                style="border: none; background: transparent; cursor: pointer; color: #64748b; padding: 6px 10px;"
+                                style="border: none; background: transparent; cursor: pointer; color: #64748b; padding: 4px;"
                                 title="Día anterior">
                                 <i class="fas fa-chevron-left"></i>
                             </button>
-                            <span
-                                style="font-size: 0.75rem; color: #64748b; min-width: 80px; text-align: center; font-weight: 600;">Navegar</span>
+                            <div
+                                style="position: relative; display: flex; align-items: center; cursor: pointer; gap: 8px;">
+                                <i class="fas fa-calendar-alt" style="color: #64748b; font-size: 0.85rem;"></i>
+                                <span
+                                    style="font-size: 0.85rem; color: #1e293b; text-align: center; font-weight: 600;">Elegir
+                                    fecha</span>
+                                <input type="date" id="therapist-date-picker"
+                                    style="position: absolute; top:0; left:0; width:100%; height:100%; opacity:0; cursor:pointer;"
+                                    onchange="setTherapistAvailabilityDate(this.value)">
+                            </div>
                             <button onclick="changeTherapistAvailabilityDate(1)" class="btn-icon-only"
-                                style="border: none; background: transparent; cursor: pointer; color: #64748b; padding: 6px 10px;"
+                                style="border: none; background: transparent; cursor: pointer; color: #64748b; padding: 4px;"
                                 title="Día siguiente">
                                 <i class="fas fa-chevron-right"></i>
                             </button>
@@ -1127,15 +1147,22 @@
                 const worksInRoom = sSalas.includes(cleanRoom) || sSalas.includes(genericRoom);
                 if (!worksInRoom) return false;
 
-                // B. Schedule Check (Support 'default_schedule' and legacy 'horario')
-                let dayShifts = [];
+                // B. Schedule Check (Prioritize seasonal_schedules > default_schedule)
+                let workingSchedule = s.default_schedule || {};
 
-                // New Format (personal.js)
-                if (s.default_schedule) {
+                // Check seasons
+                if (s.seasonal_schedules && Array.isArray(s.seasonal_schedules)) {
+                    const activePeriod = s.seasonal_schedules.find(p => date >= p.start && date <= p.end);
+                    if (activePeriod) {
+                        workingSchedule = activePeriod.schedule || workingSchedule;
+                    }
+                }
+
+                let dayShifts = [];
+                if (workingSchedule) {
                     const dayKey = getDayFullKey(date); // monday, tuesday...
-                    const dayConfig = s.default_schedule[dayKey];
+                    const dayConfig = workingSchedule[dayKey];
                     if (dayConfig && dayConfig.enabled && dayConfig.shifts) {
-                        // Convert objects {start, end} to strings "start-end" for uniform processing
                         dayShifts = dayConfig.shifts.map(sh => `${sh.start}-${sh.end}`);
                     }
                 }
@@ -1348,6 +1375,12 @@
 
         async function cargarSpaConfig() {
             try {
+                // Cargar Horario Base Global (usado para apertura de salas)
+                const globalHoursDoc = await db.collection("spa_config").doc("staff_base_schedule").get();
+                if (globalHoursDoc.exists) {
+                    window.GLOBAL_OPENING_HOURS = globalHoursDoc.data();
+                    console.log("[DEBUG] Horario de apertura global cargado:", window.GLOBAL_OPENING_HOURS);
+                }
                 // Cargar General (Legacy / Split config)
                 const doc = await db.collection("spa_config").doc("general").get();
                 if (doc.exists) {
@@ -1452,6 +1485,13 @@
                         editBooking(resId);
                     }, 600);
                 }
+            }
+
+            // Auto-open Staff Availability if requested via view=staff
+            if (urlParams.get('view') === 'staff') {
+                openTherapistAvailability();
+                // Highlight link
+                document.getElementById('nav-occupancy-li')?.querySelector('a').classList.add('active');
             }
 
             // ... (rest of DOMContentLoaded) ...
@@ -1586,12 +1626,42 @@
                         slots = isSun ? currentModule.slotsSun : currentModule.slotsWeek;
                     }
                 } else {
-                    // Generar slots de 15min hasta cierre
-                    const closingH = isSun ? 15 : 22;
-                    for (let h = 10; h < closingH; h++) {
-                        for (let m of [0, 15, 30, 45]) {
-                            if (h === 21 && m > 45) continue;
-                            slots.push(`${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`);
+                    // Generar slots de 15min según horario global de apertura
+                    const daysMap = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+                    const dayKey = daysMap[dateObj.getDay()];
+                    const dayConfig = (window.GLOBAL_OPENING_HOURS && window.GLOBAL_OPENING_HOURS[dayKey]) ? window.GLOBAL_OPENING_HOURS[dayKey] : null;
+
+                    if (dayConfig && dayConfig.enabled && dayConfig.shifts && dayConfig.shifts.length > 0) {
+                        dayConfig.shifts.forEach(shift => {
+                            const [startH, startM] = shift.start.split(':').map(Number);
+                            const [endH, endM] = shift.end.split(':').map(Number);
+
+                            for (let h = startH; h <= endH; h++) {
+                                for (let m of [0, 15, 30, 45]) {
+                                    if (h === startH && m < startM) continue;
+                                    if (h === endH && m >= endM) {
+                                        if (m === 0) continue; // Si termina en punto, no incluimos el slot del minuto 0 de la hora final
+                                        if (h === endH && m >= endM) continue;
+                                    }
+                                    const time = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+                                    // Evitar duplicados si hay solapamiento de turnos (raro pero posible)
+                                    if (!slots.includes(time)) {
+                                        // No incluir el minuto exacto del fin si es el límite superior
+                                        if (h === endH && m === endM) continue;
+                                        slots.push(time);
+                                    }
+                                }
+                            }
+                        });
+                        // Asegurar orden
+                        slots.sort();
+                    } else {
+                        // Fallback si no hay configuración cargada (10:00 a 22:00 / 15:00 domingos)
+                        const closingH = isSun ? 15 : 22;
+                        for (let h = 10; h < closingH; h++) {
+                            for (let m of [0, 15, 30, 45]) {
+                                slots.push(`${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`);
+                            }
                         }
                     }
                 }
@@ -2334,6 +2404,55 @@
         // renderComplementos replaced by new version at bottom
         // updateTotal replaced by new version at bottom with Extras support
 
+        /**
+         * Controla la visibilidad del segundo selector de terapeuta basado en la configuración del servicio
+         */
+        function updateStaffSelectorsVisibility() {
+            const serviceSelect = document.getElementById('res-servicio');
+            const staff2Container = document.getElementById('staff-2-container');
+            const bookingStaff2 = document.getElementById('booking-staff-2');
+
+            if (!serviceSelect || !staff2Container) return;
+
+            // Si el contenedor está oculto por lógica del módulo (ej. SPA), no hacemos nada
+            const staffSelectorGroup = document.getElementById('staff-selector-group');
+            if (staffSelectorGroup && staffSelectorGroup.style.display === 'none') {
+                staff2Container.style.display = 'none';
+                if (bookingStaff2) bookingStaff2.value = '';
+                return;
+            }
+
+            const selectedService = serviceSelect.value;
+            let requiredTherapists = 1;
+
+            if (selectedService && window.masterItems) {
+                const item = window.masterItems.find(i => i.name === selectedService);
+                if (item && item.required_therapists) {
+                    requiredTherapists = parseInt(item.required_therapists);
+                } else if (item && item.pax === 2 && (item.category || "").includes('masaje')) {
+                    requiredTherapists = 2;
+                }
+            }
+
+            const labelStaff1 = document.getElementById('label-staff-1');
+
+            if (requiredTherapists >= 2) {
+                staff2Container.style.display = 'block';
+                if (labelStaff1) labelStaff1.textContent = 'Terapeuta 1';
+
+                // Asegurar que el selector 2 tenga opciones
+                const staff1 = document.getElementById('booking-staff');
+                if (staff1 && bookingStaff2 && bookingStaff2.options.length <= 1) {
+                    bookingStaff2.innerHTML = staff1.innerHTML;
+                    bookingStaff2.value = '';
+                }
+            } else {
+                staff2Container.style.display = 'none';
+                if (bookingStaff2) bookingStaff2.value = '';
+                if (labelStaff1) labelStaff1.textContent = 'Terapeuta';
+            }
+        }
+
         function updatePriceAutomation() {
             if (window._isInitializingEdit) return;
             const svcName = document.getElementById("res-servicio").value;
@@ -2723,28 +2842,50 @@
         }
 
 
+        let loadReservasInstance = 0;
+
         async function loadReservas(date) {
+            loadReservasInstance++;
+            const currentLoadId = loadReservasInstance;
+
             updateDateDisplay(date);
+
+            // RESET VISIBILITY OF ALL CONTAINERS TO PREVENT DOUBLE RENDERING
+            const slotsCont = document.getElementById("slots-container");
+            const splitCont = document.getElementById("split-view-container");
+            const cabinasCont = document.getElementById("cabinas-view-container");
+            const detailsCont = document.getElementById("details-section");
+
+            if (slotsCont) slotsCont.style.setProperty('display', 'none', 'important');
+            if (splitCont) splitCont.style.setProperty('display', 'none', 'important');
+            if (cabinasCont) cabinasCont.style.setProperty('display', 'none', 'important');
+            if (detailsCont) detailsCont.style.setProperty('display', 'none', 'important');
+
+            // Use currentModule.code as source of truth
+            const activeCode = currentModule.code;
+
             try {
                 // Cargar Notas del Día
                 loadDayNotes(date);
 
                 // Verificar si el día está cerrado
                 if (spaConfig.closedDates.includes(date)) {
-                    document.getElementById("slots-container").innerHTML = `
+                    if (slotsCont) {
+                        slotsCont.style.display = 'grid'; // Show message container
+                        slotsCont.innerHTML = `
                         <div style="grid-column: 1 / -1; background: #ffebee; color: #d32f2f; padding: 40px; border-radius: 12px; text-align: center; border: 1px solid #ffcdd2;">
                             <i class="fas fa-calendar-times" style="font-size: 3rem; margin-bottom: 15px; display: block;"></i>
                             <h3 style="margin:0;">DÍA CERRADO</h3>
                             <p style="margin-top:10px; opacity:0.8;">Este día no acepta reservas por configuración de sistema.</p>
                         </div>
                     `;
+                    }
                     document.getElementById("details-section").style.display = "none";
                     return;
                 }
 
-                if (moduleType === 'combined' || moduleType === 'panacea') {
-                    document.getElementById("slots-container").style.display = 'none';
-                    document.getElementById("split-view-container").style.display = 'grid';
+                if (activeCode === 'combined' || activeCode === 'panacea') {
+                    if (splitCont) splitCont.style.display = 'grid';
 
                     const [panaceaParams, vipParams] = [MODULES['panacea'], MODULES['vip']];
                     let hasLocalData = false;
@@ -2838,9 +2979,8 @@
                     return; // Stop standard flow
                 }
 
-                if (moduleType === 'cabinas') {
-                    document.getElementById("slots-container").style.display = 'none';
-                    document.getElementById("cabinas-view-container").style.display = 'grid';
+                if (activeCode === 'cabinas') {
+                    if (cabinasCont) cabinasCont.style.display = 'grid';
 
                     const [cab1, cab2, cab3] = [MODULES['cabina1'], MODULES['cabina2'], MODULES['cabina3']];
 
@@ -2870,6 +3010,18 @@
                             db.collection(cab2.collection).where("fecha", "==", date).get(),
                             db.collection(cab3.collection).where("fecha", "==", date).get()
                         ]);
+
+                        if (currentLoadId !== loadReservasInstance) {
+                            console.log("Aborting obsolete loadReservas (Cabinas)");
+                            return;
+                        }
+
+                        // RE-FORCE VISIBILITY (Race condition fix)
+                        if (slotsCont) slotsCont.style.setProperty('display', 'none', 'important');
+                        if (cabinasCont) {
+                            cabinasCont.style.removeProperty('display');
+                            cabinasCont.style.display = 'grid';
+                        }
 
                         const d1 = [], d2 = [], d3 = [];
                         snap1.forEach(doc => d1.push({ id: doc.id, ...doc.data(), collection: cab1.collection }));
@@ -2903,6 +3055,24 @@
 
                         if (window.updateGlobalSyncStatus) updateGlobalSyncStatus('synced');
 
+                        // Check URL auto-open logic for Cabinas
+                        const urlParams = new URLSearchParams(window.location.search);
+                        const targetId = urlParams.get('id') || urlParams.get('res_id');
+                        if (targetId) {
+                            const foundRes = currentData.find(r => r.id === targetId);
+                            if (foundRes && typeof editBooking === 'function') {
+                                editBooking(targetId, foundRes);
+                                setTimeout(() => {
+                                    const card = document.querySelector(`.booking-card[data-id="${targetId}"]`);
+                                    if (card) {
+                                        card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                        card.style.boxShadow = "0 0 0 4px #fbbf24";
+                                        setTimeout(() => card.style.boxShadow = "", 3000);
+                                    }
+                                }, 500);
+                            }
+                        }
+
                     } catch (err) {
                         console.error("Error loading cabinas:", err);
                     }
@@ -2933,6 +3103,23 @@
 
                 // 2. Remote Load (Background)
                 const snapshot = await db.collection(currentModule.collection).where("fecha", "==", date).get();
+
+                if (currentLoadId !== loadReservasInstance) return;
+
+                // RE-FORCE SLOT VISIBILITY
+                if (slotsCont) {
+                    slotsCont.style.removeProperty('display');
+                    // Force grid if needed, otherwise let CSS take over (flex !important from class)
+                    // If CSS logic relies on flex, we leave it. Or set to block/grid if module requires.
+                    // For SPA module, it uses flex currently.
+                }
+                if (cabinasCont) cabinasCont.style.setProperty('display', 'none', 'important');
+
+                if (detailsCont) {
+                    detailsCont.style.removeProperty('display');
+                    detailsCont.style.display = 'none';
+                }
+
                 const remoteData = [];
                 snapshot.forEach(doc => {
                     const d = doc.data();
@@ -3109,10 +3296,10 @@
                          onclick="selectSlot('${time}', ${isFull}, ${isBlocked}, ${isPast})">
                         <div class="time-label">${time}</div>
                         ${isBlocked ?
-                        '<div class="pax-badge" style="color: #666; font-size: 0.9rem; margin: 15px 0;">CERRADO</div>' :
-                        `<div class="pax-badge" style="color: ${color}">${paxTotal}<span style="font-size: 0.8rem; color: #999; font-weight: 400;">/${maxCapacity}</span></div>`
+                        '<div class="pax-badge" style="color: #666; font-size: 0.8rem; margin: 8px 0;">CERRADO</div>' :
+                        `<div class="pax-badge" style="color: ${color}">${paxTotal}<span style="font-size: 0.75rem; color: #999; font-weight: 400;">/${maxCapacity}</span></div>`
                     }
-                        <div style="font-size: 0.65rem; color: var(--text-muted); font-weight: 500;">
+                        <div style="font-size: 0.6rem; color: var(--text-muted); font-weight: 500;">
                             ${isBlocked ? 'Turno no disponible' : (isPast ? 'FUERA DE HORA' : (isFull ? 'COMPLETO' : (maxCapacity - paxTotal) + ' disponibles'))}
                         </div>
                         <div class="progress-mini">
@@ -3124,6 +3311,9 @@
         }
 
         function selectSlot(time, isFull, isBlocked, isPast = false) {
+            // Guard: details-section not used in Cabinas
+            if (currentModule && currentModule.code === 'cabinas') return;
+
             selectedTime = time;
             window.selectedTime = time;
             window.isCurrentSlotPast = isPast;
@@ -3603,10 +3793,36 @@
             // NEW: Centralized Origin Filter
             filterOriginOptions();
 
-            // Ocultar precio por persona en Suite
             const pricePaxGroup = document.getElementById("price-group");
             if (pricePaxGroup) {
                 pricePaxGroup.style.display = (moduleType === 'suite') ? "none" : "block";
+            }
+
+            // --- PELUQUERIA SPECIFIC UI ---
+            if (moduleType === 'peluqueria' || currentModule.code === 'peluqueria') {
+                // 1. Title with Room Name
+                const modalTitle = document.getElementById("modal-title");
+                if (modalTitle) modalTitle.innerHTML = `<i class="fas fa-cut"></i> Nueva Reserva · Peluquería`;
+
+                // 2. Hide Complementos
+                const compContainer = document.getElementById("complementos-container");
+                if (compContainer) compContainer.style.setProperty('display', 'none', 'important');
+
+                // 3. PAX = 0
+                const paxInput = document.getElementById("res-pax");
+                if (paxInput) paxInput.value = 0;
+            } else {
+                // Restore Complementos visibility logic (renderComplementos handles block/none but we ensure we don't force hide)
+                const compContainer = document.getElementById("complementos-container");
+                if (compContainer) {
+                    compContainer.style.removeProperty('display');
+                    // Re-evaluate display based on content (simple check)
+                    if (compContainer.querySelectorAll('.comp-checkbox').length > 0) {
+                        compContainer.style.display = 'block';
+                    } else {
+                        compContainer.style.display = 'none';
+                    }
+                }
             }
 
             // AUTO-RELLENAR SI HAY BONO PENDIENTE
@@ -3659,6 +3875,7 @@
             if (saveBtn) saveBtn.style.display = "block";
 
             window.updatePaymentControlBlock();
+            updateStaffSelectorsVisibility();
             document.getElementById("booking-modal").style.display = "flex";
 
             // === SPA COURTESY WARNING UI ===
@@ -3700,6 +3917,22 @@
         async function editBooking(id, explicitRes = null) {
             const res = explicitRes || currentData.find(r => r.id === id);
             if (!res) return;
+
+            // Bloqueos de sala: Manejo especial (Eliminar directamente)
+            if (res.isBlock || res.status === 'blocked') {
+                if (confirm(`BLOQUEO DE SALA: "${res.servicio || 'Mantenimiento'}"\n¿Deseas eliminar este bloqueo y reabrir la sala?`)) {
+                    try {
+                        const targetColl = res._collection || (res._moduleCode ? MODULES[res._moduleCode].collection : currentModule.collection);
+                        await db.collection(targetColl).doc(id).delete();
+                        showToast("Bloqueo eliminado y sala reabierta", "success");
+                        loadReservas(res.fecha);
+                    } catch (err) {
+                        console.error("Error al eliminar bloqueo:", err);
+                        alert("Error al eliminar bloqueo: " + err.message);
+                    }
+                }
+                return;
+            }
 
             // Context Switch for Split Views
             if (res._moduleCode && MODULES[res._moduleCode]) {
@@ -3886,6 +4119,9 @@
             if (typeof window.handleStaffFieldsChange === 'function') {
                 await window.handleStaffFieldsChange();
             }
+            // Ensure 2nd selector is visible/populated if needed before setting value
+            updateStaffSelectorsVisibility();
+
 
             // POPULATE STAFF
             if (res.staff_id && document.getElementById("booking-staff")) {
@@ -4044,6 +4280,14 @@
         function closeModal() {
             document.getElementById("booking-modal").style.display = "none";
             window.currentEditingId = null; // Clear global ID
+
+            // Clean URL params (id, res_id) to prevent reload-reopen
+            const url = new URL(window.location);
+            if (url.searchParams.has('id') || url.searchParams.has('res_id')) {
+                url.searchParams.delete('id');
+                url.searchParams.delete('res_id');
+                window.history.replaceState({}, '', url);
+            }
         }
 
         let isSavingReservation = false;
@@ -4615,7 +4859,23 @@
                             const bEnd = bStart + bDuration;
                             const isCleaning = currentSlotMin >= bEnd;
 
-                            if (booking.hora === timeLabel) {
+                            if (booking.isBlock || booking.status === 'blocked') {
+                                // Especial para bloqueos
+                                const blockCard = document.createElement("div");
+                                blockCard.className = "status-lock";
+                                blockCard.style.background = "#fee2e2";
+                                blockCard.style.color = "#b91c1c";
+                                blockCard.style.padding = "10px";
+                                blockCard.style.borderRadius = "8px";
+                                blockCard.style.border = "1px dashed #f87171";
+                                blockCard.style.cursor = "pointer";
+                                blockCard.innerHTML = `<i class="fas fa-lock"></i> <b>SALA CERRADA:</b> ${booking.servicio || 'Mantenimiento'}`;
+                                blockCard.onclick = (e) => {
+                                    e.stopPropagation();
+                                    editBooking(booking.id, booking);
+                                };
+                                contentCol.appendChild(blockCard);
+                            } else if (booking.hora === timeLabel) {
                                 contentCol.appendChild(createBookingCardTimeline(booking));
                             } else {
                                 const lock = document.createElement("div");
@@ -5687,6 +5947,13 @@
         }
         window.changeTherapistAvailabilityDate = changeTherapistAvailabilityDate;
 
+        async function setTherapistAvailabilityDate(dateStr) {
+            if (!dateStr) return;
+            therapistAvailabilityCurrentDate = dateStr;
+            await renderTherapistTimeline(dateStr);
+        }
+        window.setTherapistAvailabilityDate = setTherapistAvailabilityDate;
+
         function closeTherapistAvailability() {
             const modal = document.getElementById('therapist-availability-modal');
             if (modal) modal.style.display = 'none';
@@ -5720,42 +5987,65 @@
                     return;
                 }
 
-                // Filter staff for cabinas (those assigned to spa, cabinas, or unassigned)
-                const cabinasStaff = allStaff.filter(staff => {
-                    const assigned = staff.assigned_rooms || [];
-                    if (assigned.length === 0) return true; // Unassigned = available for all
-                    return assigned.some(room =>
-                        room.toLowerCase().includes('spa') ||
-                        room.toLowerCase().includes('cabina')
-                    );
-                });
+                // Show ALL active therapists (no room filtering)
+                const cabinasStaff = allStaff.filter(staff => staff.activo !== false);
 
                 if (cabinasStaff.length === 0) {
-                    container.innerHTML = '<div style="padding: 40px; text-align: center; color: #64748b;">No hay terapeutas asignados a cabinas</div>';
+                    container.innerHTML = '<div style="padding: 40px; text-align: center; color: #64748b;">No hay terapeutas activos</div>';
                     return;
                 }
 
-                // Get all bookings for the day
-                const dayBookings = await window.getAllBookingsForDate(dateStr);
+                // Get all bookings and exceptions for the day
+                const [dayBookings, dayExceptions] = await Promise.all([
+                    window.getAllBookingsForDate(dateStr),
+                    window.getDayExceptionsForDate(dateStr)
+                ]);
 
-                // Generate time slots (10:00 to 20:00 in 30-minute intervals)
+                // Generate time slots based on global opening hours
+                const daysMap = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+                const dayKey = daysMap[new Date(dateStr + 'T12:00:00').getDay()];
+                const dayConfig = (window.GLOBAL_OPENING_HOURS && window.GLOBAL_OPENING_HOURS[dayKey]) ? window.GLOBAL_OPENING_HOURS[dayKey] : null;
+
                 const timeSlots = [];
-                for (let hour = 10; hour <= 20; hour++) {
-                    for (let minute of [0, 30]) {
-                        if (hour === 20 && minute === 30) break; // Stop at 20:00
-                        const timeStr = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
-                        timeSlots.push(timeStr);
+                if (dayConfig && dayConfig.enabled && dayConfig.shifts && dayConfig.shifts.length > 0) {
+                    dayConfig.shifts.forEach(shift => {
+                        const [startH, startM] = shift.start.split(':').map(Number);
+                        const [endH, endM] = shift.end.split(':').map(Number);
+
+                        for (let hour = startH; hour <= endH; hour++) {
+                            for (let minute of [0, 30]) {
+                                if (hour === startH && minute < startM) continue;
+                                if (hour === endH && minute > endM) continue;
+                                if (hour === endH && minute === endM) {
+                                    if (minute === 0) break; // Don't add last slot starting at end time if on the hour
+                                    else continue;
+                                }
+                                const timeStr = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+                                if (!timeSlots.includes(timeStr)) timeSlots.push(timeStr);
+                            }
+                        }
+                    });
+                    timeSlots.sort();
+                } else {
+                    // Fallback
+                    const isSunday = new Date(dateStr + 'T12:00:00').getDay() === 0;
+                    const end = isSunday ? 15 : 21;
+                    for (let hour = 10; hour < end; hour++) {
+                        for (let minute of [0, 30]) {
+                            const timeStr = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+                            timeSlots.push(timeStr);
+                        }
                     }
                 }
 
                 // Build the grid
-                let html = '<table style="width: 100%; border-collapse: collapse; font-size: 0.85rem;">';
+                let html = '<table style="width: 100%; border-collapse: separate; border-spacing: 0; font-size: 0.8rem;">';
 
                 // Header row
-                html += '<thead><tr style="background: #f1f5f9; position: sticky; top: 0; z-index: 10;">';
-                html += '<th style="padding: 12px; text-align: left; border: 1px solid #e2e8f0; min-width: 150px; font-weight: 700;">Terapeuta</th>';
+                html += '<thead><tr style="background: #f1f5f9; position: sticky; top: 0; z-index: 20;">';
+                html += '<th style="padding: 12px; text-align: left; border: 1px solid #e2e8f0; min-width: 140px; font-weight: 700; position: sticky; left: 0; background: #f1f5f9; z-index: 30;">Terapeuta</th>';
                 timeSlots.forEach(time => {
-                    html += `<th style="padding: 8px 4px; text-align: center; border: 1px solid #e2e8f0; min-width: 60px; font-size: 0.75rem; font-weight: 600;">${time}</th>`;
+                    html += `<th style="padding: 6px 2px; text-align: center; border: 1px solid #e2e8f0; min-width: 48px; font-size: 0.7rem; font-weight: 600;">${time}</th>`;
                 });
                 html += '</tr></thead>';
 
@@ -5763,17 +6053,27 @@
                 html += '<tbody>';
                 for (const staff of cabinasStaff) {
                     html += '<tr>';
-                    html += `<td style="padding: 12px; border: 1px solid #e2e8f0; font-weight: 600; background: #fafafa;">${staff.name || 'Sin nombre'}</td>`;
+                    html += `<td style="padding: 12px; border: 1px solid #e2e8f0; font-weight: 600; background: #fafafa; position: sticky; left: 0; z-index: 15; box-shadow: 2px 0 5px rgba(0,0,0,0.05);">${staff.name || 'Sin nombre'}</td>`;
 
-                    for (const time of timeSlots) {
-                        const status = await getTherapistStatusForSlot(staff, dateStr, time, dayBookings);
+                    // Pre-calculate all slots for this therapist in parallel
+                    const results = await Promise.all(timeSlots.map(time => getTherapistStatusForSlot(staff, dateStr, time, dayBookings, dayExceptions)));
+
+                    results.forEach((result, idx) => {
+                        const time = timeSlots[idx];
+                        const status = typeof result === 'string' ? result : result.status;
+                        const booking = typeof result === 'object' ? result.booking : null;
+
                         const cellStyle = getStatusCellStyle(status);
-                        const tooltip = getStatusTooltip(status, staff.name, time);
+                        const tooltip = getStatusTooltip(result, staff.name, time);
+
+                        const clickHandler = (status === 'busy' && booking) ?
+                            `onclick="showTimelineBookingDetail('${booking.id}', '${booking._collection}')" style="${cellStyle} cursor: pointer;"` :
+                            `style="${cellStyle}"`;
 
                         html += `<td style="padding: 0; border: 1px solid #e2e8f0; text-align: center;" title="${tooltip}">`;
-                        html += `<div style="${cellStyle}"></div>`;
+                        html += `<div ${clickHandler}></div>`;
                         html += '</td>';
-                    }
+                    });
 
                     html += '</tr>';
                 }
@@ -5787,16 +6087,16 @@
             }
         }
 
-        async function getTherapistStatusForSlot(staff, dateStr, time, dayBookings) {
+        async function getTherapistStatusForSlot(staff, dateStr, time, dayBookings, dayExceptions = null) {
             // Check if staff is scheduled to work at this time
-            const isScheduled = await window.checkStaffAvailability(staff, dateStr, time, 30);
+            const isScheduled = await window.checkStaffAvailability(staff, dateStr, time, 30, dayExceptions);
 
             if (!isScheduled) {
                 return 'not-working'; // Red - not scheduled
             }
 
             // Check if staff has a booking at this time
-            const hasBooking = dayBookings.some(booking => {
+            const booking = dayBookings.find(booking => {
                 if (booking.terapeuta !== staff.name && booking.staff !== staff.name) return false;
                 if (booking.status === 'anulada') return false;
 
@@ -5815,11 +6115,11 @@
                 return slotMinutes >= bookStartMinutes && slotMinutes < bookEndMinutes;
             });
 
-            if (hasBooking) {
-                return 'busy'; // Orange - has booking
+            if (booking) {
+                return { status: 'busy', booking }; // Orange - has booking
             }
 
-            return 'available'; // Green - available
+            return { status: 'available' }; // Green - available
         }
 
         function getStatusCellStyle(status) {
@@ -5837,11 +6137,19 @@
             }
         }
 
-        function getStatusTooltip(status, staffName, time) {
+        function getStatusTooltip(result, staffName, time) {
+            const status = typeof result === 'string' ? result : result.status;
+            const booking = typeof result === 'object' ? result.booking : null;
+
             switch (status) {
                 case 'available':
                     return `${staffName} - Libre a las ${time}`;
                 case 'busy':
+                    if (booking) {
+                        const moduleCode = booking._collection ? booking._collection.replace('reservas_', '') : '';
+                        const moduleName = (window.MODULES && window.MODULES[moduleCode]) ? window.MODULES[moduleCode].name : moduleCode.toUpperCase();
+                        return `${staffName} - OCUPADO en ${moduleName}: ${booking.nombre || 'Cliente'} (${booking.servicio || 'Servicio'}) a las ${time}`;
+                    }
                     return `${staffName} - Ocupado a las ${time}`;
                 case 'not-working':
                     return `${staffName} - No trabaja a las ${time}`;
@@ -5850,28 +6158,213 @@
             }
         }
 
-        // Show/hide therapist availability button based on current module
-        function updateTherapistAvailabilityButton() {
-            const btn = document.getElementById('therapist-availability-btn');
-            if (!btn) return;
+        async function showTimelineBookingDetail(bookingId, collection) {
+            try {
+                // Feedback visual sutil
+                console.log(`[TIMELINE] Intentando abrir reserva ${bookingId} de ${collection}`);
 
-            // Only show for cabinas modules
-            const isCabinas = currentModule && currentModule.code && currentModule.code.startsWith('cabina');
-            btn.style.display = isCabinas ? 'flex' : 'none';
+                // Buscar la reserva en la colección específica
+                const doc = await db.collection(collection).doc(bookingId).get();
+                if (!doc.exists) {
+                    alert('No se encontró la reserva en la base de datos.');
+                    return;
+                }
+
+                const data = doc.data();
+                const bookingData = {
+                    id: doc.id,
+                    ...data,
+                    _moduleCode: collection.replace('reservas_', '')
+                };
+
+                // Normalización de códigos de módulo
+                if (bookingData._moduleCode === 'vip') bookingData._moduleCode = 'vip';
+                if (bookingData._moduleCode === 'panacea') bookingData._moduleCode = 'panacea';
+
+                // Cerrar modal de disponibilidad
+                closeTherapistAvailability();
+
+                // Abrir en el modal de edición principal
+                // editBooking(id, explicitRes) se encarga de todo
+                await editBooking(bookingId, bookingData);
+
+            } catch (err) {
+                console.error("Error al abrir detalle desde timeline:", err);
+                alert('Error al cargar los detalles de la reserva.');
+            }
+        }
+
+        // Show/hide relevant buttons based on current module
+        function updateTimelineButtons() {
+            const availabilityBtn = document.getElementById('therapist-availability-btn');
+            const blockRoomBtn = document.getElementById('block-room-btn');
+
+            const relevantCodes = ['cabina', 'suite', 'panacea', 'vip', 'peluqueria', 'spa'];
+            const isRelevant = currentModule && currentModule.code &&
+                relevantCodes.some(code => currentModule.code.startsWith(code));
+
+            if (availabilityBtn) availabilityBtn.style.display = isRelevant ? 'flex' : 'none';
+            if (blockRoomBtn) blockRoomBtn.style.display = isRelevant ? 'flex' : 'none';
         }
 
         // Hook into loadReservas to update button visibility
         const originalLoadReservas = loadReservas;
         loadReservas = async function (...args) {
             await originalLoadReservas.apply(this, args);
-            updateTherapistAvailabilityButton();
+            updateTimelineButtons();
         };
+
+        // --- BLOCK ROOM LOGIC ---
+        function openBlockRoomModal() {
+            const modal = document.getElementById('block-room-modal');
+            if (!modal) return;
+
+            // Populate room select
+            const roomSel = document.getElementById('br-room');
+            roomSel.innerHTML = '';
+
+            // Si estamos en una vista de sala específica, solo esa
+            if (currentModule.code !== 'cabinas') {
+                const opt = document.createElement('option');
+                opt.value = currentModule.code;
+                opt.textContent = currentModule.name;
+                roomSel.appendChild(opt);
+                roomSel.disabled = true;
+            } else {
+                // Si estamos en cabinas general, permitir elegir cuál
+                ['cabina1', 'cabina2', 'cabina3'].forEach(c => {
+                    const opt = document.createElement('option');
+                    opt.value = c;
+                    opt.textContent = MODULES[c].name;
+                    roomSel.appendChild(opt);
+                });
+                roomSel.disabled = false;
+            }
+
+            // Set current date
+            document.getElementById('br-date').value = document.getElementById('main-date-picker').value;
+
+            modal.style.display = 'flex';
+        }
+
+        function closeBlockRoomModal() {
+            document.getElementById('block-room-modal').style.display = 'none';
+        }
+
+        async function saveRoomBlock() {
+            const room = document.getElementById('br-room').value;
+            const date = document.getElementById('br-date').value;
+            const start = document.getElementById('br-start').value;
+            const end = document.getElementById('br-end').value;
+            const reason = document.getElementById('br-reason').value.trim() || 'Bloqueo / Mantenimiento';
+
+            if (!date || !start || !end) {
+                alert('Por favor, rellena todos los campos.');
+                return;
+            }
+
+            // Calcular duración
+            const startMin = timeToMinutes(start);
+            const endMin = timeToMinutes(end);
+            const duration = endMin - startMin;
+
+            if (duration <= 0) {
+                alert('La hora de fin debe ser posterior a la de inicio.');
+                return;
+            }
+
+            const confirmMsg = `¿Seguro que quieres cerrar la ${room.toUpperCase()} el día ${date} de ${start} a ${end}?`;
+            if (!confirm(confirmMsg)) return;
+
+            try {
+                const targetCollection = MODULES[room].collection;
+                await db.collection(targetCollection).add({
+                    nombre: "SALA CERRADA",
+                    cliente: "SALA CERRADA",
+                    servicio: reason,
+                    hora: start,
+                    duracion: duration,
+                    fecha: date,
+                    pax: 1,
+                    isBlock: true, // Flag especial
+                    status: 'blocked',
+                    created_at: firebase.firestore.FieldValue.serverTimestamp()
+                });
+
+                closeBlockRoomModal();
+                loadReservas(document.getElementById('main-date-picker').value);
+                alert('Sala bloqueada correctamente.');
+
+            } catch (err) {
+                console.error("Error al bloquear sala:", err);
+                alert('Error al guardar el bloqueo.');
+            }
+        }
 
 
     </script>
 
     <!-- Staff Management Integration -->
     <script src="reservas-staff.js"></script>
+
+    <!-- MODAL BLOQUEO DE SALA -->
+    <div id="block-room-modal" class="modal" style="z-index: 10000;">
+        <div class="modal-content" style="max-width: 400px; padding: 25px; border-radius: 15px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h3
+                    style="margin: 0; display: flex; align-items: center; gap: 10px; color: #1e293b; font-size: 1.2rem;">
+                    <i class="fas fa-lock" style="color: #ef4444;"></i> Cerrar Sala
+                </h3>
+                <span class="close-modal" onclick="closeBlockRoomModal()"
+                    style="font-size: 1.5rem; cursor: pointer;">&times;</span>
+            </div>
+
+            <div style="margin-bottom: 15px;">
+                <label
+                    style="display: block; font-size: 0.7rem; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 6px;">Sala
+                    a cerrar</label>
+                <select id="br-room" class="param-input"
+                    style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #e2e8f0; font-size: 0.9rem; background: #f8fafc;"></select>
+            </div>
+
+            <div style="margin-bottom: 15px;">
+                <label
+                    style="display: block; font-size: 0.7rem; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 6px;">Fecha</label>
+                <input type="date" id="br-date" class="param-input"
+                    style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #e2e8f0; font-size: 0.9rem;">
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                <div>
+                    <label
+                        style="display: block; font-size: 0.7rem; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 6px;">Desde</label>
+                    <input type="time" id="br-start" class="param-input"
+                        style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #e2e8f0; font-size: 0.9rem;"
+                        value="10:00">
+                </div>
+                <div>
+                    <label
+                        style="display: block; font-size: 0.7rem; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 6px;">Hasta</label>
+                    <input type="time" id="br-end" class="param-input"
+                        style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #e2e8f0; font-size: 0.9rem;"
+                        value="22:00">
+                </div>
+            </div>
+
+            <div style="margin-bottom: 25px;">
+                <label
+                    style="display: block; font-size: 0.7rem; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 6px;">Motivo
+                    (opcional)</label>
+                <input type="text" id="br-reason" placeholder="Ej: Mantenimiento, Limpieza..." class="param-input"
+                    style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #e2e8f0; font-size: 0.9rem;">
+            </div>
+
+            <button onclick="saveRoomBlock()" class="btn btn-accent"
+                style="width: 100%; padding: 14px; background: #ef4444; color: white; border: none; font-weight: 700; border-radius: 10px; cursor: pointer; transition: all 0.2s;">
+                Confirmar Cierre de Sala
+            </button>
+        </div>
+    </div>
 
 
     <!-- MODAL REGISTRO PAGO PROFESIONAL -->

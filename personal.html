@@ -120,12 +120,15 @@
         </div>
 
         <ul class="nav-links" style="flex:1;">
-            <li><a href="index.html" class="nav-link"><i class="fas fa-home"></i> Inicio</a></li>
+            <li><a href="index.html" class="nav-link" title="Inicio"><i class="fas fa-home"
+                        style="color: #3b82f6;"></i></a></li>
             <li><a href="bonos.html" class="nav-link"><i class="fas fa-ticket-alt"></i> Bonos</a></li>
 
 
             <li><a href="reservas.html?type=spa" class="nav-link"><i class="fas fa-water"></i> Spa</a></li>
             <li><a href="reservas.html?type=cabinas" class="nav-link"><i class="fas fa-cubes"></i> Cabinas</a></li>
+            <li><a href="reservas.html?view=staff" class="nav-link"><i class="fas fa-calendar-alt"></i> Ocup Terap</a>
+            </li>
 
             <li class="dropdown">
                 <a href="#" class="nav-link dropdown-toggle">
@@ -170,9 +173,14 @@
                     <h2 style="margin: 0; font-size: 1.8rem; color: var(--text);">Gestión de Personal</h2>
                     <p class="muted" style="margin: 5px 0 0 0;">Administra terapeutas y su disponibilidad</p>
                 </div>
-                <button onclick="openStaffModal()" class="btn btn-accent">
-                    <i class="fas fa-user-plus"></i> Nuevo Personal
-                </button>
+                <div style="display: flex; gap: 10px;">
+                    <button onclick="openGlobalScheduleModal()" class="btn btn-outline">
+                        <i class="fas fa-clock"></i> Horario Base Global
+                    </button>
+                    <button onclick="openStaffModal()" class="btn btn-accent">
+                        <i class="fas fa-user-plus"></i> Nuevo Personal
+                    </button>
+                </div>
             </div>
 
             <!-- Filters -->
@@ -312,7 +320,7 @@
                     style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; margin-bottom: 20px;">
                     <h4
                         style="margin: 0 0 15px 0; font-size: 0.85rem; font-weight: 700; text-transform: uppercase; color: #64748b; letter-spacing: 0.5px; display: flex; align-items: center; gap: 8px;">
-                        <i class="fas fa-clock" style="color: var(--accent);"></i> Horario Base
+                        <i class="fas fa-clock" style="color: var(--accent);"></i> Horario Individual del Terapeuta
                     </h4>
 
                     <!-- Days Grid -->
@@ -637,6 +645,37 @@
                     <i class="fas fa-save"></i> Guardar
                 </button>
             </form>
+        </div>
+    </div>
+
+    <!-- MODAL: GLOBAL BASE SCHEDULE -->
+    <div id="global-schedule-modal" class="modal" style="display: none;">
+        <div class="modal-content glass"
+            style="max-width: 600px; max-height: 90vh; overflow: hidden; display: flex; flex-direction: column;">
+            <div class="modal-header"
+                style="padding: 18px 25px; background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%); border-bottom: 2px solid #e2e8f0; flex-shrink: 0;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <h3 style="margin: 0; font-size: 1.3rem; font-weight: 700; color: #1e293b;">Horario Base Global
+                        </h3>
+                        <p style="margin: 4px 0 0 0; font-size: 0.8rem; color: #64748b;">Define el horario por defecto
+                            del Spa</p>
+                    </div>
+                    <span class="close-modal" onclick="closeGlobalScheduleModal()"
+                        style="font-size: 1.8rem; color: #64748b; cursor: pointer; line-height: 1;">&times;</span>
+                </div>
+            </div>
+            <div style="flex: 1; overflow-y: auto; padding: 25px;">
+                <div id="global-schedule-container" style="display: grid; gap: 10px;">
+                    <!-- JS Render Global Schedule -->
+                </div>
+            </div>
+            <div style="padding: 20px; border-top: 1px solid #e2e8f0; background: #f8fafc;">
+                <button onclick="saveGlobalSchedule()" class="btn btn-accent"
+                    style="width: 100%; padding: 12px; font-weight: 600;">
+                    <i class="fas fa-save"></i> Guardar Horario Global
+                </button>
+            </div>
         </div>
     </div>
 

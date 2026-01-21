@@ -26,12 +26,15 @@
         </div>
 
         <ul class="nav-links" style="flex:1;">
-            <li><a href="index.html" class="nav-link"><i class="fas fa-home"></i> Inicio</a></li>
+            <li><a href="index.html" class="nav-link" title="Inicio"><i class="fas fa-home"
+                        style="color: #3b82f6;"></i></a></li>
             <li><a href="bonos.html" class="nav-link"><i class="fas fa-ticket-alt"></i> Bonos</a></li>
 
 
             <li><a href="reservas.html?type=spa" class="nav-link"><i class="fas fa-water"></i> Spa</a></li>
             <li><a href="reservas.html?type=cabinas" class="nav-link"><i class="fas fa-cubes"></i> Cabinas</a></li>
+            <li><a href="reservas.html?view=staff" class="nav-link"><i class="fas fa-calendar-alt"></i> Ocup Terap</a>
+            </li>
 
             <li class="dropdown">
                 <a href="#" class="nav-link dropdown-toggle">
@@ -108,6 +111,9 @@
                     </button>
                     <button class="config-tab btn" onclick="switchConfigTab('tab-complementos', this)">
                         <i class="fas fa-plus-circle"></i> Complementos / Extras
+                    </button>
+                    <button class="config-tab btn" onclick="switchConfigTab('tab-mantenimiento', this)">
+                        <i class="fas fa-wrench"></i> Mantenimiento
                     </button>
 
                 </div>
@@ -446,7 +452,7 @@
 
                     <!-- TAB ITEMS MAESTROS -->
                     <div id="tab-items" class="config-tab-content" style="display: none;">
-                        <div style="max-width: 1200px; margin: 0 auto;">
+                        <div style="width: 100%; padding: 0 20px;">
 
                             <div style="text-align: center; margin-bottom: 25px;">
                                 <button onclick="saveSpaSettings()" class="btn btn-accent"
@@ -480,38 +486,54 @@
 
                                 <div id="master-items-table-container"
                                     style="border: 1px solid var(--border); border-radius: 8px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.02); background: #fff;">
-                                    <table style="width: 100%; border-collapse: collapse; font-size: 0.8rem;">
+                                    <style>
+                                        /* Hide number input spinners for cleaner table */
+                                        input[type=number]::-webkit-inner-spin-button,
+                                        input[type=number]::-webkit-outer-spin-button {
+                                            -webkit-appearance: none;
+                                            margin: 0;
+                                        }
+
+                                        input[type=number] {
+                                            -moz-appearance: textfield;
+                                        }
+                                    </style>
+                                    <table
+                                        style="width: 100%; border-collapse: collapse; font-size: 0.75rem; table-layout: fixed;">
                                         <thead
                                             style="background: #f8fafc; border-bottom: 2px solid var(--border); position: sticky; top: 0; z-index: 10;">
                                             <tr>
                                                 <th
-                                                    style="padding: 12px; text-align: left; color: #475569; font-weight: 700; width: 15%;">
+                                                    style="padding: 8px 4px; text-align: left; color: #475569; font-weight: 700; width: 5%;">
                                                     CÓDIGO</th>
                                                 <th
-                                                    style="padding: 12px; text-align: left; color: #475569; font-weight: 700; width: 45%;">
+                                                    style="padding: 8px 4px; text-align: left; color: #475569; font-weight: 700; width: 35%;">
                                                     ITEM / NOMBRE</th>
                                                 <th
-                                                    style="padding: 12px; text-align: center; color: #475569; font-weight: 700; width: 10%;">
+                                                    style="padding: 8px 4px; text-align: center; color: #475569; font-weight: 700; width: 5%;">
                                                     DUR (MIN)</th>
                                                 <th
-                                                    style="padding: 12px; text-align: left; color: #475569; font-weight: 700; width: 25%;">
+                                                    style="padding: 8px 4px; text-align: left; color: #475569; font-weight: 700; width: 12%;">
                                                     ESPACIO</th>
                                                 <th
-                                                    style="padding: 12px; text-align: left; color: #475569; font-weight: 700; width: 15%;">
+                                                    style="padding: 8px 4px; text-align: left; color: #475569; font-weight: 700; width: 10%;">
                                                     HAB REQUERIDA</th>
                                                 <th
-                                                    style="padding: 12px; text-align: center; color: #475569; font-weight: 700; width: 8%;">
+                                                    style="padding: 8px 4px; text-align: center; color: #475569; font-weight: 700; width: 5%;">
                                                     PAX</th>
                                                 <th
-                                                    style="padding: 12px; text-align: center; color: #475569; font-weight: 700; width: 12%;">
+                                                    style="padding: 8px 4px; text-align: center; color: #475569; font-weight: 700; width: 5%;">
+                                                    TERAP</th>
+                                                <th
+                                                    style="padding: 8px 4px; text-align: center; color: #475569; font-weight: 700; width: 6%;">
                                                     PRECIO / PAX</th>
                                                 <th
-                                                    style="padding: 12px; text-align: center; color: #475569; font-weight: 700; width: 10%;">
+                                                    style="padding: 8px 4px; text-align: center; color: #475569; font-weight: 700; width: 5%;">
                                                     AGENDA</th>
                                                 <th
-                                                    style="padding: 12px; text-align: center; color: #475569; font-weight: 700; width: 15%;">
+                                                    style="padding: 8px 4px; text-align: center; color: #475569; font-weight: 700; width: 5%;">
                                                     PROD</th>
-                                                <th style="padding: 12px; text-align: center; width: 5%;"></th>
+                                                <th style="padding: 8px 4px; text-align: center; width: 7%;"></th>
                                             </tr>
                                         </thead>
                                         <tbody id="master-items-tbody">
@@ -578,6 +600,56 @@
                                             </tr>
                                         </tbody>
                                     </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- TAB MANTENIMIENTO -->
+                    <div id="tab-mantenimiento" class="config-tab-content" style="display: none;">
+                        <div style="max-width: 800px; margin: 0 auto;">
+                            <div class="stat-card" style="border-left: 4px solid #ef4444;">
+                                <h3
+                                    style="margin: 0 0 20px 0; font-size: 1.1rem; color: #ef4444; display: flex; align-items: center; gap: 10px;">
+                                    <i class="fas fa-toolbox"></i> Herramientas de Mantenimiento
+                                </h3>
+
+                                <div style="display: grid; gap: 20px;">
+                                    <!-- Reparar Bonos -->
+                                    <div
+                                        style="background: #fdf2f2; padding: 20px; border-radius: 10px; border: 1px solid #fecaca; display: flex; justify-content: space-between; align-items: center; gap: 20px;">
+                                        <div>
+                                            <h4 style="margin: 0 0 5px 0; font-size: 0.95rem; color: #991b1b;">
+                                                Reparación de Bonos y Duplicados</h4>
+                                            <p
+                                                style="margin: 0; font-size: 0.8rem; color: #7f1d1d; opacity: 0.8; line-height: 1.4;">
+                                                Busca bonos con códigos corruptos (como '-'), elimina duplicados, y
+                                                normaliza códigos numéricos al formato 'Tarj-XXXX' moviendo sus reservas
+                                                automáticamente.
+                                            </p>
+                                        </div>
+                                        <button onclick="repararBonosDuplicados()" class="btn"
+                                            style="background: #ef4444; color: white; border: none; padding: 10px 20px; border-radius: 8px; font-weight: 600; cursor: pointer; white-space: nowrap;">
+                                            <i class="fas fa-wrench"></i> Ejecutar Reparación
+                                        </button>
+                                    </div>
+
+                                    <!-- Depuración de Catálogo -->
+                                    <div
+                                        style="background: #f8fafc; padding: 20px; border-radius: 10px; border: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; gap: 20px;">
+                                        <div>
+                                            <h4 style="margin: 0 0 5px 0; font-size: 0.95rem; color: #334155;">Depurar
+                                                Catálogo Maestro</h4>
+                                            <p style="margin: 0; font-size: 0.8rem; color: #64748b; line-height: 1.4;">
+                                                Busca y elimina items duplicados en el listado maestro de servicios
+                                                (Items / Pack).
+                                            </p>
+                                        </div>
+                                        <button onclick="deduplicateMasterItems()" class="btn btn-outline"
+                                            style="border-color: #64748b; color: #64748b;">
+                                            <i class="fas fa-broom"></i> Limpiar Catálogo
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         </div>
