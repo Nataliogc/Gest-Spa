@@ -7,18 +7,24 @@
    - Implementada lógica de visibilidad dinámica en Reservas
    - **Acción requerida**: Configurar "Masaje en Pareja" con 2 terapeutas en el Catálogo.
 
-### 2. **Módulo Peluquería - Mejoras Urgentes** ⚠️
-   - Faltan servicios de peluquería en el selector
-   - No se muestra qué sala se está reservando
-   - Complementos innecesarios
-   - PAX debe ser 0 por defecto
-   - Auto-asignar terapeuta de peluquería
+### 2. **Módulo Peluquería - Mejoras Urgentes** ✅
+   - Faltan servicios de peluquería en el selector (Filter Logic Updated)
+   - No se muestra qué sala se está reservando (Dashboard Fix)
+   - Complementos innecesarios (UI Tweaks)
+   - PAX debe ser 0 por defecto (UI Tweaks)
+   - Auto-asignar terapeuta de peluquería (Implemented in reservas-staff.js)
 
 
-### 3. **Dashboard no muestra reserva de Cabinas**
+### 3. **Dashboard no muestra reserva de Cabinas** ✅
 - Verificar filtros de estado
 - Verificar filtro de tiempo
-- Agregar console.log para debug
+- Mapeo correcto de colecciones y Room Names (Dashboard.js updated)
+
+### 4. **Correcciones UI y Estabilidad (Cabinas & Config)** ✅
+- **UI Fantasma**: Corregido `details-section` apareciendo en Cabinas.
+- **Race Condition**: `loadReservas` ahora maneja concurrencia y limpieza estricta.
+- **Configuración**: Tabla de items optimizada (Full Width, Compacta, Inputs limpios).
+- **UX**: Limpieza de parámetros URL al cerrar modales.
 
 ## 📋 Implementación Paso a Paso
 
