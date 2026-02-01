@@ -40,10 +40,10 @@ function initBonos() {
         dateInput.value = `${yyyy}-${mm}-${dd}`;
     }
 
-    // FIX: Default filter to "pending" (Activos) as requested
+    // FIX: Default filter to "all" (Todos) as requested to show all daily sales
     const filterInput = document.getElementById("voucher-filter");
     if (filterInput) {
-        filterInput.value = "pending";
+        filterInput.value = "all";
     }
 
     // Load static data
