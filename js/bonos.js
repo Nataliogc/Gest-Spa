@@ -30,14 +30,10 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 function initBonos() {
-    // RESTAURADO: Forzar fecha de hoy por defecto como pide el usuario
+    // RESTAURADO: No forzar fecha de hoy para permitir vista por defecto de último mes
     const dateInput = document.getElementById("voucher-date");
     if (dateInput) {
-        const today = new Date();
-        const yyyy = today.getFullYear();
-        const mm = String(today.getMonth() + 1).padStart(2, '0');
-        const dd = String(today.getDate()).padStart(2, '0');
-        dateInput.value = `${yyyy}-${mm}-${dd}`;
+        dateInput.value = ""; // Dejar vacío para que mande el filtro de rango
     }
 
     // FIX: Default filter to "all" (Todos) as requested to show all daily sales
