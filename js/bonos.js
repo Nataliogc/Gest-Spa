@@ -787,23 +787,16 @@ async function goToReservation(client, service, code, space, pax) {
     // Default module
     let type = 'spa';
 
+    // --- DETERMINACIÓN UNIFICADA DE MÓDULO (TYPE) ---
+    // 1. Resolver el "Espacio Crudo" (rawSpace)
+    let rawSpace = '';
+
     if (masterItem && masterItem.space) {
         debugMsg += `Space Config: ${masterItem.space}\n`;
-        // Map common space names to URL types if needed, or use directly if they match
-        // Standardizing: 'sala panacea' -> 'panacea', 'suite spa' -> 'suite', etc.
-        const spaceLower = (masterItem.space || '').toLowerCase();
-
-        if (spaceLower.includes('panacea')) type = 'panacea';
-        else if (spaceLower.includes('suite')) type = 'suite';
-        else if (spaceLower.includes('vip')) type = 'panacea';
-        else if (spaceLower.includes('peluqueria') || spaceLower.includes('estetica')) type = 'peluqueria';
-        else if (spaceLower.includes('hotel') || spaceLower.includes('restaurante') || spaceLower.includes('alojamiento') || spaceLower === 'rest') type = 'hotel';
-        else type = 'spa';
-
-        console.log(`Smart Redirect: Item '${service}' matched to space '${masterItem.space}' -> Module '${type}'`);
+        rawSpace = masterItem.space;
     } else {
         const lowerService = (service || '').toLowerCase().trim();
-        // Try to find in catalog to check category/space property there
+        // Intentar buscar en catálogo para obtener espacio/categoría
         let prod = state.catalogProducts.find(p => (p.nombre || '').toLowerCase() === lowerService);
         if (!prod) {
             prod = state.catalogProducts.find(p => {
@@ -813,34 +806,45 @@ async function goToReservation(client, service, code, space, pax) {
             });
         }
 
-        let category = prod ? (prod.categoria || '').toLowerCase() : '';
-        // Use passed space argument if available, otherwise catalog space
-        let spaceFromCatalog = prod ? (prod.espacio || '').toLowerCase() : '';
-        let resolvedSpace = (space && space !== '') ? space.toLowerCase() : spaceFromCatalog;
+        const spaceFromCatalog = prod ? (prod.espacio || '').toLowerCase() : '';
+        // Priorizar argumento space, luego catálogo
+        rawSpace = (space && space !== '') ? space.toLowerCase() : spaceFromCatalog;
 
-        // Use explicit space if defined
-        if (resolvedSpace && resolvedSpace !== '') {
-            type = resolvedSpace;
-        } else {
-            // Fallback checks on category AND name
-            const checkStr = (category + ' ' + lowerService).trim();
+        // Guardamos categoría para fallback por nombre si falla el espacio
+        var fallbackCategory = prod ? (prod.categoria || '').toLowerCase() : '';
+    }
 
-            if (checkStr.includes('restaurante') || checkStr.includes('menu') || checkStr.includes('menú') || checkStr.includes('comida') || checkStr.includes('cena') || checkStr.includes('desayuno') || checkStr.includes('almuerzo') || checkStr.includes('alojamiento') || checkStr.includes('hotel') || type === 'rest') {
-                type = 'hotel';
-            } else if (checkStr.includes('peluqueria') || checkStr.includes('estetica') || checkStr.includes('manicura') || checkStr.includes('pedicura') || checkStr.includes('depilacion')) {
-                type = 'peluqueria';
-            } else if (checkStr.includes('suite')) {
-                type = 'suite';
-            } else if (checkStr.includes('masaje') || checkStr.includes('tratamiento') || checkStr.includes('ritual') || checkStr.includes('facial') || checkStr.includes('envoltura') || checkStr.includes('panacea') || checkStr.includes('maderoterapia') || checkStr.includes('bambu')) {
-                type = 'panacea';
-            }
-        }
+    const spaceLower = (rawSpace || '').toLowerCase().trim();
 
-        // Corrección final (Legacy)
-        if (type === 'spa' && (lowerService.includes('masaje') || lowerService.includes('tratamiento') || lowerService.includes('ritual') || lowerService.includes('facial'))) {
+    // 2. Mapear Espacio a Módulo (Lógica Centralizada)
+    if (spaceLower.includes('panacea')) type = 'panacea';
+    else if (spaceLower.includes('suite')) type = 'suite';
+    else if (spaceLower.includes('vip')) type = 'panacea'; // FIX: VIP siempre va a Panacea
+    else if (spaceLower.includes('peluqueria') || spaceLower.includes('estetica')) type = 'peluqueria';
+    else if (spaceLower.includes('hotel') || spaceLower.includes('restaurante') || spaceLower.includes('alojamiento') || spaceLower === 'rest') type = 'hotel';
+    else if (spaceLower === 'spa') type = 'spa';
+    else if (spaceLower !== '') {
+        type = spaceLower; // Si tenemos un espacio explícito no mapeado, lo usamos tal cual
+    } else {
+        // 3. Fallback: Detectar por Nombre/Categoría si no hay Espacio definido
+        const lowerService = (service || '').toLowerCase().trim();
+        const checkStr = ((typeof fallbackCategory !== 'undefined' ? fallbackCategory : '') + ' ' + lowerService).trim();
+
+        if (checkStr.includes('restaurante') || checkStr.includes('menu') || checkStr.includes('menú') || checkStr.includes('comida') || checkStr.includes('cena') || checkStr.includes('desayuno') || checkStr.includes('almuerzo') || checkStr.includes('alojamiento') || checkStr.includes('hotel') || type === 'rest') {
+            type = 'hotel';
+        } else if (checkStr.includes('peluqueria') || checkStr.includes('estetica') || checkStr.includes('manicura') || checkStr.includes('pedicura') || checkStr.includes('depilacion')) {
+            type = 'peluqueria';
+        } else if (checkStr.includes('suite')) {
+            type = 'suite';
+        } else if (checkStr.includes('masaje') || checkStr.includes('tratamiento') || checkStr.includes('ritual') || checkStr.includes('facial') || checkStr.includes('envoltura') || checkStr.includes('panacea') || checkStr.includes('maderoterapia') || checkStr.includes('bambu')) {
             type = 'panacea';
-            debugMsg += `Legacy Override: Forced to Panacea\n`;
         }
+    }
+
+    // Corrección final (Legacy Override) - Mantener por seguridad
+    if (type === 'spa' && (serviceNorm.includes('masaje') || serviceNorm.includes('tratamiento') || serviceNorm.includes('ritual') || serviceNorm.includes('facial'))) {
+        type = 'panacea';
+        debugMsg += `Legacy Override: Forced to Panacea\n`;
     }
 
     debugMsg += `FINAL TYPE: ${type}`;
@@ -1206,6 +1210,7 @@ async function cargarBonos() {
     if (!tableBody) return;
 
     // 1. CARGA LOCAL INMEDIATA (Prioridad 1)
+    state.isActiveSearch = false; // Reset search mode when loading standard list
     if (window.apiLocal) {
         try {
             // INTENTO DE SUBIDA DE PENDIENTES (Auto-Sync Up)
@@ -2464,6 +2469,47 @@ function normalizeVoucher(v) {
 }
 
 // --- RENDER ---
+// --- INVOICE TOGGLE ---
+async function toggleInvoiceStatus(bonoCode, isChecked) {
+    if (!bonoCode) return;
+    console.log(`[INVOICE] Toggling status for ${bonoCode}: ${isChecked}`);
+
+    // Find in state
+    const bono = state.bonos.find(b => b.bono === bonoCode || b.codigo === bonoCode);
+    if (!bono) {
+        showToast("Error: Bono no encontrado en memoria", "error");
+        return;
+    }
+
+    // Update Local State
+    bono.facturado = isChecked;
+
+    try {
+        // Save to Firestore
+        const docId = bono.id || bono.bono;
+        if (docId) {
+            await db.collection('spa_vouchers').doc(docId).update({
+                facturado: isChecked,
+                updatedAt: new Date().toISOString()
+            });
+        }
+
+        // Save to Local IndexedDB
+        if (window.apiLocal) {
+            await apiLocal.saveBono({ ...bono, syncStatus: 'synced' });
+        }
+
+        if (isChecked) showToast('✅ Facturado registrado', 'success');
+
+    } catch (e) {
+        console.error('Error saving invoice status:', e);
+        showToast('Error al guardar: ' + e.message, 'error');
+        // Revert visual if needed
+        // const chk = document.querySelector(\`input[onclick*="\${bonoCode}"][type="checkbox"]\`);
+        // if(chk) chk.checked = !isChecked;
+    }
+}
+
 function renderBonosFromState() {
     const tbody = document.getElementById("vouchers-table-body");
     if (!tbody) return;
@@ -2521,8 +2567,13 @@ function renderBonosFromState() {
             const matchesBono = bonoStr.includes(searchTerm);
 
             // Si busca por código y hay coincidencia exacta, IGNORAR filtros de fecha/estado
-            if (isCodeSearch && matchesBono) {
-                return true; // Mostrar este bono sin aplicar filtros
+            if (isCodeSearch) {
+                if (matchesBono) return true;
+
+                // EXTENSION: Si el término es puramente numérico y >= 4 dígitos, 
+                // asumimos que el usuario BUSCA UN BONO ESPECÍFICO.
+                // Por tanto, si no coincide el bono, NO mostramos resultados por teléfono/email para limpiar ruido.
+                if (searchTerm.length >= 4) return false;
             }
 
             if (!matchesTokens &&
@@ -2713,11 +2764,21 @@ function renderBonosFromState() {
             <td>${formatDate(b.fecha || b.fecha_compra || b.date_created)}${expiryText}</td>
             <td style="font-weight:bold">${displayedPrice}€</td>
             <td><span class="st-badge ${badgeClass}">${statusLabel}</span></td>
-            <td style="white-space: nowrap;">
+            <td style="white-space: nowrap; vertical-align: middle;">
                 ${typeof SpaPaymentControl !== 'undefined' ? SpaPaymentControl.renderPaymentBadge(b) : ''}
                 <button class="btn btn-outline btn-sm" onclick="openVoucherManagement('${b.bono}')">
                     <i class="fas fa-cog"></i> Gestionar
                 </button>
+            </td>
+            <td style="vertical-align: middle; text-align: center;">
+                <div style="display: flex; flex-direction: column; align-items: center; justify-content:center; cursor: pointer;" 
+                     title="Recordatorio: Marcar como Facturado">
+                     <input type="checkbox" 
+                            ${(b.facturado === true || (b.facturado !== false && new Date(b.fecha || b.fecha_compra || b.date_created) < new Date().setHours(0, 0, 0, 0))) ? 'checked' : ''} 
+                            onclick="toggleInvoiceStatus('${b.bono}', this.checked)" 
+                            style="cursor: pointer; width: 16px; height: 16px; margin:0; accent-color: var(--accent);">
+                     <span style="font-size: 0.6em; color: #64748b; font-weight:600;">FACT.</span>
+                </div>
             </td>
         </tr>
         `;
@@ -7813,6 +7874,7 @@ async function syncSingleVoucher(code) {
             updateData.precio = priceVal;
             updateData.total = priceVal;
             updateData.importe_pagado = priceVal;
+            updateData.importe_pendiente = 0;
             updateData.estado_pago = 'pagado';
         }
 

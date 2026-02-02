@@ -6,17 +6,17 @@ const URL_BONOS_OPTIMIZED = "https://cumbriabienestar.es/wp-json/robahotel/v1/bo
 
 // --- CORS PROXY FALLBACKS ---
 const CORS_PROXIES = [
-    { name: 'AllOrigins', url: (target) => `https://api.allorigins.win/raw?url=${encodeURIComponent(target)}` },
     { name: 'CorsProxy.io', url: (target) => `https://corsproxy.io/?${encodeURIComponent(target)}` },
-    { name: 'CorsAnywhere', url: (target) => `https://cors-anywhere.herokuapp.com/${target}` },
-    { name: 'ThingProxy', url: (target) => `https://thingproxy.freeboard.io/fetch/${target}` }
+    { name: 'AllOrigins', url: (target) => `https://api.allorigins.win/raw?url=${encodeURIComponent(target)}` },
+    { name: 'ThingProxy', url: (target) => `https://thingproxy.freeboard.io/fetch/${target}` },
+    { name: 'CorsAnywhere', url: (target) => `https://cors-anywhere.herokuapp.com/${target}` }
 ];
 
 /**
  * Generic fetch with Proxy Fallback
  * Tries multiple CORS proxies if the request fails
  */
-window.fetchWithProxyFallback = async function (targetUrl, options = {}, timeout = 15000) {
+window.fetchWithProxyFallback = async function (targetUrl, options = {}, timeout = 25000) {
     const errors = [];
 
     for (const proxy of CORS_PROXIES) {

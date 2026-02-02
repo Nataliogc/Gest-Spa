@@ -43,7 +43,8 @@ function initializePaymentFields(voucher, origen) {
     const v = { ...voucher };
 
     // Obtener precio total (snapshot si existe, sino precio)
-    const totalPrice = parseFloat(v.snapshot_price) || parseFloat(v.precio) || parseFloat(v.importe) || 0;
+    // Obtener precio total (snapshot si existe, sino precio)
+    const totalPrice = parseFloat(v.importe) || parseFloat(v.precio) || parseFloat(v.snapshot_price) || 0;
 
     // Determinar estado según origen
     const productStr = (v.producto || v.nombre || '').toLowerCase();
@@ -86,6 +87,8 @@ function normalizePaymentFields(voucher) {
     const v = { ...voucher };
 
     // Obtener precio total de forma robusta
+    // FIX: Priorizar precio/importe explícito sobre snapshot_price (que a veces es calculado erróneamente)
+    // UPDATE: Unifying priority with getPaymentStatus (Snapshot > Precio > Importe) to avoid inconsistencies
     let rawPrice = v.snapshot_price || v.precio || v.importe || v.total || v.sale_price || v.precio_total;
     if (typeof rawPrice === 'string') rawPrice = rawPrice.replace(',', '.');
     const totalPrice = parseFloat(rawPrice) || 0;
@@ -492,7 +495,7 @@ function calculatePaymentTotals(vouchers) {
  */
 function renderPaymentBadge(voucher) {
     const status = getPaymentStatus(voucher);
-    return `<span class="payment-badge payment-${status.estado}" style="background-color: ${status.color}20; color: ${status.color}; border: 1px solid ${status.color};">${status.icon} ${status.label}</span>`;
+    return `<span class="payment-badge payment-${status.estado}" style="background-color: ${status.color}20; color: ${status.color}; border: 1px solid ${status.color}; display: inline-block; min-width: 110px; text-align: center; margin-right: 5px;">${status.icon} ${status.label}</span>`;
 }
 
 /**
