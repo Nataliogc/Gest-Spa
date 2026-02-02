@@ -89,7 +89,8 @@ function normalizePaymentFields(voucher) {
     // Obtener precio total de forma robusta
     // FIX: Priorizar precio/importe explícito sobre snapshot_price (que a veces es calculado erróneamente)
     // UPDATE: Unifying priority with getPaymentStatus (Snapshot > Precio > Importe) to avoid inconsistencies
-    let rawPrice = v.snapshot_price || v.precio || v.importe || v.total || v.sale_price || v.precio_total;
+    // RE-FIX: Users reported corrupted snapshot_price (440 vs 100). Reverting to trusting 'precio'/'importe' first as they come from source of truth.
+    let rawPrice = v.precio || v.importe || v.snapshot_price || v.total || v.sale_price || v.precio_total;
     if (typeof rawPrice === 'string') rawPrice = rawPrice.replace(',', '.');
     const totalPrice = parseFloat(rawPrice) || 0;
 
@@ -213,7 +214,7 @@ async function registerPayment(voucherId, paymentData, options = {}) {
         }
 
         const voucher = normalizePaymentFields({ id: doc.id, ...doc.data() });
-        const totalPrice = parseFloat(voucher.snapshot_price) || parseFloat(voucher.precio) || parseFloat(voucher.importe) || 0;
+        const totalPrice = parseFloat(voucher.precio) || parseFloat(voucher.importe) || parseFloat(voucher.snapshot_price) || 0;
 
         // Validar importe
         const importe = parseFloat(paymentData.importe);
@@ -285,7 +286,7 @@ async function registerPayment(voucherId, paymentData, options = {}) {
  */
 function getPaymentStatus(voucher) {
     const v = normalizePaymentFields(voucher);
-    const totalPrice = parseFloat(v.snapshot_price) || parseFloat(v.precio) || parseFloat(v.importe) || 0;
+    const totalPrice = parseFloat(v.precio) || parseFloat(v.importe) || parseFloat(v.snapshot_price) || 0;
 
     const status = {
         estado: v.estado_pago,
@@ -469,7 +470,7 @@ function calculatePaymentTotals(vouchers) {
 
     vouchers.forEach(v => {
         const normalized = normalizePaymentFields(v);
-        const total = parseFloat(normalized.snapshot_price) || parseFloat(normalized.precio) || 0;
+        const total = parseFloat(normalized.precio) || parseFloat(normalized.importe) || parseFloat(normalized.snapshot_price) || 0;
 
         totals.totalVentas += total;
         totals.totalPagado += normalized.importe_pagado;

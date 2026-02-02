@@ -30,10 +30,14 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 function initBonos() {
-    // RESTAURADO: No forzar fecha de hoy para permitir vista por defecto de último mes
+    // RESTAURADO: Forzar fecha de hoy por defecto como pide el usuario
     const dateInput = document.getElementById("voucher-date");
     if (dateInput) {
-        dateInput.value = ""; // Dejar vacío para que mande el filtro de rango
+        const today = new Date();
+        const yyyy = today.getFullYear();
+        const mm = String(today.getMonth() + 1).padStart(2, '0');
+        const dd = String(today.getDate()).padStart(2, '0');
+        dateInput.value = `${yyyy}-${mm}-${dd}`;
     }
 
     // FIX: Default filter to "all" (Todos) as requested to show all daily sales
@@ -1517,22 +1521,7 @@ async function sincronizarConTienda(persistentData, btn, originalText) {
                 return;
             }
 
-            // DEBUG EXTREMO PARA EL USUARIO (7683)
-            if (b.bono && (b.bono.includes('7683') || b.bono.includes('7699'))) {
-                console.log("=== DEBUG BONO TARGET RAW ===");
-                console.log(JSON.stringify(b, null, 2));
-                console.log("Has Billing?", !!b.billing);
-                console.log("Prices:", {
-                    precio: b.precio,
-                    importe: b.importe,
-                    total: b.total,
-                    order_total: b.order_total,
-                    line_total: b.line_total,
-                    subtotal: b.subtotal,
-                    item_total: b.item_total
-                });
-                console.log("===========================");
-            }
+
             // Duplicate debug logging removed to clean up output
             // (The specific debug for 7683 is sufficient)
 
@@ -1898,7 +1887,7 @@ async function sincronizarConTienda(persistentData, btn, originalText) {
         // 2. LocalVouchers = bonos que NO están en esta sync PERO que tampoco son de WooCommerce
         // 3. ExistingWooVouchers = bonos de WooCommerce que YA están en Firestore pero no vinieron en esta sync
 
-        const webCodes = shopVouchers.map(x => x.bono);
+        const webCodes = webVouchers.map(x => x.bono);
 
         // Bonos locales (LOC-*, exc.Loc*, etc) - NUNCA son de WooCommerce
         const localVouchers = Object.values(persistentData)
