@@ -34,16 +34,20 @@ async function handleStaffFieldsChange() {
     console.log('[STAFF] handleStaffFieldsChange called');
 
     // 1. Obtener elementos del DOM
-    const staffSelect = document.getElementById("booking-staff");
-    const staffSelect2 = document.getElementById("booking-staff-2");
+    const staffSelect = document.getElementById("res-staff-1"); // CORRECTED ID
+    // Check if it exists, if not try legacy
+    const staffSelectLegacy = document.getElementById("booking-staff");
+    const activeStaffSelect = staffSelect || staffSelectLegacy;
+
+    const staffSelect2 = document.getElementById("res-staff-2"); // CORRECTED ID
     const dateField = document.getElementById("form-date");
     const timeField = document.getElementById("form-time");
     const durationField = document.getElementById("inputDuration");
     const formIdField = document.getElementById("form-id");
     const serviceField = document.getElementById("res-servicio");
 
-    if (!staffSelect || !dateField || !timeField) {
-        console.warn('[STAFF] Elementos necesarios no encontrados en el DOM');
+    if (!activeStaffSelect || !dateField || !timeField) {
+        console.warn('[STAFF] Elementos necesarios no encontrados en el DOM (res-staff-1 or booking-staff)');
         return;
     }
 
@@ -61,11 +65,11 @@ async function handleStaffFieldsChange() {
     }
 
     // 3. Guardar valores seleccionados actualmente para intentar restaurarlos
-    const currentStaffId = staffSelect.value;
+    const currentStaffId = activeStaffSelect.value;
     const currentStaffId2 = staffSelect2 ? staffSelect2.value : '';
 
     // 4. Mostrar estado de carga
-    staffSelect.innerHTML = '<option value="">Buscando disponibles...</option>';
+    activeStaffSelect.innerHTML = '<option value="">Buscando disponibles...</option>';
     if (staffSelect2) staffSelect2.innerHTML = '<option value="">Buscando disponibles...</option>';
 
     try {
@@ -103,7 +107,7 @@ async function handleStaffFieldsChange() {
         };
 
         // 8. Actualizar selects
-        staffSelect.innerHTML = generateOptions(currentStaffId);
+        activeStaffSelect.innerHTML = generateOptions(currentStaffId);
         if (staffSelect2) {
             staffSelect2.innerHTML = generateOptions(currentStaffId2);
         }
@@ -114,14 +118,14 @@ async function handleStaffFieldsChange() {
             // Regla: Auto-seleccionar si es Peluquería (prioridad UX) o si solo hay 1 opción globalmente
             // Esto evita clics innecesarios
             if (roomCode === 'peluqueria' || available.length === 1) {
-                staffSelect.value = available[0].id;
+                activeStaffSelect.value = available[0].id;
                 console.log(`[STAFF] Auto-seleccionado ${available[0].nombre} para ${roomCode}`);
             }
         }
 
     } catch (err) {
         console.error('[STAFF] Error al poblar select de personal:', err);
-        staffSelect.innerHTML = '<option value="">Error al cargar</option>';
+        activeStaffSelect.innerHTML = '<option value="">Error al cargar</option>';
     }
 }
 

@@ -693,8 +693,8 @@
                         </div>
                     </div>
 
-                    <!-- ROW 1: CLIENTE + PAX -->
-                    <div style="display: grid; grid-template-columns: 1fr 70px; gap: 10px; margin-bottom: 5px;">
+                    <!-- ROW 1: NOMBRE + PAX + DURACION -->
+                    <div style="display: grid; grid-template-columns: 2fr 0.5fr 0.5fr; gap: 10px; align-items: start;">
                         <div class="form-group" style="margin-bottom: 0;">
                             <label
                                 style="font-size: 0.7rem; font-weight: 800; color: #4a5568; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; display: block;">Datos
@@ -708,6 +708,13 @@
                             <input type="number" id="res-pax" value="2" min="1" max="25" required
                                 onchange="updatePriceAutomation(); updateStaffSelectorsVisibility();"
                                 style="width: 100%; padding: 8px 6px; border-radius: 6px; border: 1px solid #e2e8f0; font-size: 0.9rem; text-align: center; background: #f8fafc;">
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label
+                                style="font-size: 0.65rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; display: block; margin-bottom: 4px;">Min</label>
+                            <input type="number" id="inputDuration" value="60" min="5" step="5" required
+                                onchange="handleStaffFieldsChange(); updateAvailabilityUI();"
+                                style="width: 100%; padding: 8px 6px; border-radius: 6px; border: 1px solid #e2e8f0; font-size: 0.9rem; text-align: center; background: #fff;">
                         </div>
                     </div>
 
@@ -964,6 +971,10 @@
                             style="height: 44px; padding: 0 20px; border-color: #ef4444; color: #ef4444; border-radius: 8px; font-weight: 700; display: none;"
                             onclick="cancelBookingFromModal()">ANULAR</button>
 
+                        <button type="button" id="btn-reactivar" class="btn btn-outline"
+                            style="height: 44px; padding: 0 20px; border-color: #10b981; color: #10b981; border-radius: 8px; font-weight: 700; display: none;"
+                            onclick="reactivateBookingFromModal()">REACTIVAR</button>
+
                         <button type="button" class="btn btn-outline"
                             style="height: 44px; padding: 0 20px; border-color: #334155; color: #cbd5e1; border-radius: 8px; font-weight: 600;"
                             onclick="closeModal()">CERRAR</button>
@@ -1138,7 +1149,8 @@
 
             // 3. Filter
             const available = window.allStaff.filter(s => {
-                // A. Room Check (Support both 'assigned_rooms' and legacy 'salas')
+                // A. Room Check (DISABLED by User Request: "Cualquier terapeuta puede trabajar en cualquier sala")
+                /*
                 const rawRooms = s.assigned_rooms || s.salas || [];
                 const sSalas = rawRooms.map(x => x.toLowerCase());
                 const cleanRoom = roomCode.toLowerCase();
@@ -1146,6 +1158,7 @@
 
                 const worksInRoom = sSalas.includes(cleanRoom) || sSalas.includes(genericRoom);
                 if (!worksInRoom) return false;
+                */
 
                 // B. Schedule Check (Prioritize seasonal_schedules > default_schedule)
                 let workingSchedule = s.default_schedule || {};
@@ -1458,7 +1471,8 @@
             if (currentModule.viewType === 'timeline') {
                 document.getElementById('slots-container').classList.add('timeline-view');
                 // Inyectar campo duración en modal si no existe
-                injectDurationField();
+                // The inputDuration is now directly in the HTML, so this is not needed.
+                // injectDurationField();
 
                 // Mostrar campo de terapeuta si el módulo lo requiere
                 if (currentModule.requiresStaff) {
@@ -1714,7 +1728,8 @@
 
                     // Check Closing Time (Duplicate check for safety)
                     const [sh, sm] = time.split(':').map(Number);
-                    const sEndTotal = (sh * 60 + sm) + duration + (parseInt(spaConfig.cleaningTime) || 0);
+                    // DISABLED Autocleaning time by user request
+                    const sEndTotal = (sh * 60 + sm) + duration; // + (parseInt(spaConfig.cleaningTime) || 0);
                     const dayLimit = (isSun ? 15 : 22) * 60;
                     if (sEndTotal > dayLimit) continue;
 
@@ -2078,6 +2093,7 @@
                 const defaultSpa = servicesToShow.find(s => s.nombre.toLowerCase().includes('circuito')) || servicesToShow[0];
                 sel.value = defaultSpa ? defaultSpa.nombre : "";
             } else {
+                // FORCE EMPTY for Panacea, Suite, Cabinas etc. to avoid auto-selecting default
                 sel.value = "";
             }
 
@@ -2095,11 +2111,231 @@
 
             // Sync price and duration after populating
             updatePriceAutomation();
+            syncServiceDuration(); // Ensure duration is set after service is populated
 
             // Trigger therapist update (if time/date/service selected)
             if (currentModule.requiresStaff) {
                 handleStaffFieldsChange();
             }
+        }
+
+        /**
+         * Controla la visibilidad del segundo selector de terapeuta basado en la configuración del servicio
+         */
+        function updateStaffSelectorsVisibility() {
+            const serviceSelect = document.getElementById('res-servicio');
+            const staff2Container = document.getElementById('staff-2-container');
+            const bookingStaff2 = document.getElementById('booking-staff-2');
+
+            if (!serviceSelect || !staff2Container) return;
+
+            // Si el contenedor está oculto por lógica del módulo (ej. SPA), no hacemos nada
+            const staffSelectorGroup = document.getElementById('staff-selector-group');
+            if (staffSelectorGroup && staffSelectorGroup.style.display === 'none') {
+                staff2Container.style.display = 'none';
+                if (bookingStaff2) bookingStaff2.value = '';
+                return;
+            }
+
+            const selectedService = serviceSelect.value;
+            let requiredTherapists = 1;
+
+            if (selectedService && window.masterItems) {
+                const item = window.masterItems.find(i => i.name === selectedService);
+                if (item && item.required_therapists) {
+                    requiredTherapists = parseInt(item.required_therapists);
+                } else if (item && item.pax === 2 && (item.category || "").includes('masaje')) {
+                    requiredTherapists = 2;
+                }
+            }
+
+            const labelStaff1 = document.getElementById('label-staff-1');
+
+            if (requiredTherapists >= 2) {
+                staff2Container.style.display = 'block';
+                if (labelStaff1) labelStaff1.textContent = 'Terapeuta 1';
+
+                // Asegurar que el selector 2 tenga opciones
+                const staff1 = document.getElementById('booking-staff');
+                if (staff1 && bookingStaff2 && bookingStaff2.options.length <= 1) {
+                    bookingStaff2.innerHTML = staff1.innerHTML;
+                    bookingStaff2.value = '';
+                }
+            } else {
+                staff2Container.style.display = 'none';
+                if (bookingStaff2) bookingStaff2.value = '';
+                if (labelStaff1) labelStaff1.textContent = 'Terapeuta';
+            }
+        }
+
+        async function updatePriceAutomation() {
+            if (window._isInitializingEdit) return;
+            const svcName = document.getElementById("res-servicio")?.value;
+            const pricePaxInput = document.getElementById("res-precio-pax");
+            const paxInput = document.getElementById("res-pax");
+            const origen = document.getElementById("res-origen")?.value;
+
+            // Find service data
+            const serviceData = currentServices.find(s => s.nombre === svcName);
+
+            // GYM / COMPLEMENT LOGIC
+            const cat = (serviceData?.categoria || "").toLowerCase();
+            const isGym = cat === 'gimnasio' || cat === 'gym' || (svcName && svcName.toLowerCase().includes('gimnasio'));
+            const isComplement = cat === 'complemento';
+            const isAgendaLess = isGym || isComplement;
+
+            // Toggle visibility of agenda-related fields
+            const staffGroup = document.getElementById("staff-selector-group");
+            const roomGroup = document.getElementById("room-group");
+            const dateTimeGroup = document.getElementById("date-time-container");
+            const hotelGroup = document.getElementById("hotel-group");
+
+            if (isAgendaLess) {
+                if (staffGroup) staffGroup.style.display = "none";
+                if (roomGroup) roomGroup.style.display = "none";
+                if (hotelGroup) hotelGroup.style.display = "none";
+                if (dateTimeGroup) dateTimeGroup.style.display = "none";
+
+                const saveBtn = document.getElementById("btn-save-booking");
+                if (saveBtn) {
+                    saveBtn.innerHTML = isGym ? '<i class="fas fa-dumbbell"></i> Validar Sesión Gym' : '<i class="fas fa-check-circle"></i> Consumir Complemento';
+                }
+            } else {
+                if (dateTimeGroup) dateTimeGroup.style.display = "flex";
+                if (staffGroup) {
+                    staffGroup.style.display = currentModule.requiresStaff ? "block" : "none";
+                }
+                const saveBtn = document.getElementById("btn-save-booking");
+                if (saveBtn) saveBtn.innerHTML = '<i class="fas fa-save"></i> Guardar Reserva';
+            }
+
+            // Remove previous helper text
+            const existingHelper = document.getElementById("pax-helper-text");
+            if (existingHelper) existingHelper.remove();
+
+            if (!svcName) {
+                // SPA Module Dynamic Price fallback logic
+                if (currentModule.code === 'spa' && (origen === 'particular' || origen === 'hotel_no_inc')) {
+                    // fall through
+                } else {
+                    pricePaxInput.value = "0.00";
+                    paxInput.disabled = false;
+                    updateTotal();
+                    if (staffGroup) staffGroup.style.display = "none";
+                    return;
+                }
+            }
+
+            paxInput.disabled = false;
+
+            if (!serviceData) {
+                // SPA Dynamic Price Logic
+                if (currentModule.code === 'spa' && (origen === 'particular' || origen === 'hotel_no_inc')) {
+                    const dateStr = document.getElementById("form-date")?.value;
+                    const dateObj = dateStr ? new Date(dateStr + 'T12:00:00') : new Date();
+                    const dayOfWeek = dateObj.getDay();
+                    const isWeekend = dayOfWeek === 0 || dayOfWeek === 5 || dayOfWeek === 6;
+
+                    let dynamicPrice = 0;
+                    const roomPriceWeekday = (spaConfig.particularPriceWeekday || 25);
+                    const roomPriceWeekend = (spaConfig.particularPriceWeekend || 25);
+                    const hotelPriceWeekday = (spaConfig.hotelPriceWeekday || 12);
+                    const hotelPriceWeekend = (spaConfig.hotelPriceWeekend || 18);
+
+                    if (origen === 'hotel_no_inc') {
+                        dynamicPrice = isWeekend ? hotelPriceWeekend : hotelPriceWeekday;
+                    } else {
+                        dynamicPrice = isWeekend ? roomPriceWeekend : roomPriceWeekday;
+                    }
+                    pricePaxInput.value = parseFloat(dynamicPrice).toFixed(2);
+                } else {
+                    pricePaxInput.value = "0.00";
+                }
+                updateTotal();
+                return;
+            }
+
+            // Fixed Pricing Logic (Catalog Pax)
+            const catalogPax = parseInt(serviceData.pax) || 0;
+            // Rule: Spa module does NOT use fixed pricing lock.
+            const isFixedPricing = catalogPax > 0 && currentModule.code !== 'spa';
+
+            if (isFixedPricing) {
+                paxInput.value = catalogPax;
+                paxInput.disabled = true;
+
+                const paxGroup = paxInput.closest('.form-group');
+                if (paxGroup) {
+                    const helper = document.createElement('small');
+                    helper.id = 'pax-helper-text';
+                    helper.style.cssText = 'display:block; color:#059669; font-size:0.7rem; margin-top:3px;';
+                    helper.innerHTML = `<i class="fas fa-lock"></i> Precio para ${catalogPax} pax (incluido)`;
+                    paxGroup.appendChild(helper);
+                }
+
+                if (origen === 'particular' || origen === 'hotel_no_inc') {
+                    const fixedTotal = parseFloat(serviceData.precio || 0);
+                    pricePaxInput.value = (fixedTotal / catalogPax).toFixed(2);
+                    document.getElementById("res-precio-total").value = fixedTotal.toFixed(2);
+                    document.getElementById("res-total-text").textContent = fixedTotal.toFixed(2) + " €";
+                } else {
+                    pricePaxInput.value = "0.00";
+                    document.getElementById("res-precio-total").value = "0.00";
+                    document.getElementById("res-total-text").textContent = "0.00 €";
+                }
+            } else {
+                // Normal Pricing
+                if (origen === 'particular' || origen === 'hotel_no_inc') {
+                    if (currentModule.code === 'spa') {
+                        const dateStr = document.getElementById("form-date")?.value;
+                        const dateObj = dateStr ? new Date(dateStr + 'T12:00:00') : new Date();
+                        const dayOfWeek = dateObj.getDay();
+                        const isWeekend = dayOfWeek === 0 || dayOfWeek === 5 || dayOfWeek === 6;
+
+                        let dynamicPrice = 0;
+                        const roomPriceWeekday = (spaConfig.particularPriceWeekday || 25);
+                        const roomPriceWeekend = (spaConfig.particularPriceWeekend || 25);
+                        const hotelPriceWeekday = (spaConfig.hotelPriceWeekday || 12);
+                        const hotelPriceWeekend = (spaConfig.hotelPriceWeekend || 18);
+
+                        if (origen === 'hotel_no_inc') {
+                            dynamicPrice = isWeekend ? hotelPriceWeekend : hotelPriceWeekday;
+                        } else {
+                            dynamicPrice = isWeekend ? roomPriceWeekend : roomPriceWeekday;
+                        }
+
+                        pricePaxInput.value = parseFloat(dynamicPrice).toFixed(2);
+                    } else {
+                        pricePaxInput.value = parseFloat(serviceData.precio || 0).toFixed(2);
+                    }
+                } else {
+                    pricePaxInput.value = "0.00";
+                }
+                updateTotal();
+            }
+
+            // Sync service duration
+            if (!isAgendaLess && currentModule.requiresStaff) {
+                syncServiceDuration().then(() => {
+                    if (typeof window.handleStaffFieldsChange === 'function') {
+                        window.handleStaffFieldsChange();
+                    }
+                });
+            }
+
+            if (isFixedPricing && typeof window.updatePaymentControlBlock === 'function') {
+                window.updatePaymentControlBlock();
+            }
+        }
+
+        function updateTotal() {
+            const pricePax = parseFloat(document.getElementById("res-precio-pax").value) || 0;
+            const pax = parseInt(document.getElementById("res-pax").value) || 1;
+            const total = pricePax * pax;
+            document.getElementById("res-precio-total").value = total.toFixed(2);
+            const totalText = document.getElementById("res-total-text");
+            if (totalText) totalText.textContent = total.toFixed(2) + " €";
+            if (typeof window.updatePaymentControlBlock === 'function') window.updatePaymentControlBlock();
         }
 
         async function registrarPagoParticular() {
@@ -2201,15 +2437,7 @@
                 // For now, try to set it.
 
                 // Check if option exists
-                let opt = durationInput.querySelector(`option[value="${dur}"]`);
-                if (!opt) {
-                    // Add temporary option if robust
-                    const newOpt = document.createElement("option");
-                    newOpt.value = dur;
-                    newOpt.textContent = dur + " min";
-                    durationInput.appendChild(newOpt);
-                }
-
+                // The inputDuration is now a number input, not a select.
                 durationInput.value = dur;
 
                 // Refresh Staff Availability
@@ -2234,468 +2462,6 @@
             }
         }
 
-        function updatePackInfo() {
-            const serviceEl = document.getElementById("res-servicio");
-            if (!serviceEl) return;
-            const selService = serviceEl.value;
-            const service = currentServices.find(s => s.nombre === selService);
-            const container = document.getElementById("pack-includes-container");
-            const list = document.getElementById("pack-items-list");
-            const reminder = document.getElementById("pack-reminder");
-            const saveBtn = document.getElementById("btn-save-booking");
-
-            // Limpiar avisos previos de redirección
-            const prevAlert = document.getElementById("module-redirect-alert");
-            if (prevAlert) prevAlert.remove();
-            if (saveBtn) saveBtn.disabled = false;
-
-            if (!container || !list || !reminder) return;
-
-            // FORCE HIDE FOR SPA RESERVATIONS (Simple Slots)
-            if (currentModule.code === 'spa') {
-                container.style.display = "none";
-                reminder.style.display = "none";
-                return;
-            }
-
-            // Hide pack info for basic Circuito Spa (no extra info needed)
-            if (selService === 'Circuito Spa') {
-                container.style.display = "none";
-                return;
-            }
-
-            if (!service || !service.items_incluidos || service.items_incluidos.length === 0) {
-                container.style.display = "none";
-                return;
-            }
-
-            container.style.display = "block";
-
-            // CHECK FOR MODULE REDIRECTION
-            let requiredModule = null;
-            let requiredModuleName = "";
-            let triggerItem = "";
-
-            service.items_incluidos.forEach(itemName => {
-                const master = window.masterItems.find(mi => mi.name === itemName);
-                // Support allowedSpaces array or legacy 'space' string
-                const allowed = (master && master.allowedSpaces && Array.isArray(master.allowedSpaces))
-                    ? master.allowedSpaces
-                    : (master && master.space ? [master.space] : []);
-
-                if (allowed.length > 0) {
-                    // Check if current module matches any allowed space
-                    // We need to map allowed codes to checking logic if not direct match
-                    // Current modules: spa, cabinas (cabina1..3), suite, panacea, vip, peluqueria
-
-                    let isAllowedInCurrent = false;
-
-                    // Helper to map code to broader category if needed
-                    const checkMatch = (code) => {
-                        const c = code.toLowerCase();
-                        if (c === currentModule.code) return true;
-                        // Handle Cabinas generic vs specific
-                        if (c === 'panacea' && (currentModule.code === 'panacea' || currentModule.code === 'cabinas')) return true; // Assuming Panacea is separate, but user might group
-                        // Actually 'cabinas' view has cabina1, cabina2. currentModule.code might be 'cabina1'.
-                        if (currentModule.code.startsWith('cabina') && c === 'panacea') return true; // Panacea often implies Cabinas
-                        // Handle "Spa" allowing things? No, restrictions are usually exclusion.
-                        return false;
-                    };
-
-                    // Check if ANY allowed code matches current context
-                    isAllowedInCurrent = allowed.some(code => checkMatch(code));
-
-                    // Direct match check (simplest)
-                    if (allowed.includes(currentModule.code)) isAllowedInCurrent = true;
-
-                    // Special case: Cabinas view usually displays multiple cabinas. 
-                    // If item requires "cabinaXY" and we are in "cabinas" view, it's confusing because "cabinas" view is aggregation?
-                    // But usually we are adding a reservation to a specific module (e.g. cabina1).
-                    // Wait, currentModule.code is defined at top of pages. 
-                    // If viewType is 'cabinas', currentModule might be just one?
-                    // In reservas.html, currentModule is set based on ?type=.
-
-                    // Logic Revamp:
-                    // If allowed does NOT include currentModule.code (and no special mapping applies), suggest redirect.
-                    if (!isAllowedInCurrent && moduleType !== 'combined') {
-
-                        // Determine target to suggest
-                        let targetCode = allowed[0];
-                        let targetName = targetCode; // Should lookup name in config but simplified here
-
-                        // Fix legacy mapping if needed (e.g. if code was 'Panacea (Cabinas)')
-                        if (targetCode.toLowerCase().includes('panacea')) targetCode = 'panacea';
-                        if (targetCode.toLowerCase().includes('suite')) targetCode = 'suite';
-                        if (targetCode.toLowerCase().includes('vip')) targetCode = 'vip';
-                        if (targetCode.toLowerCase().includes('pelu')) targetCode = 'peluqueria';
-
-                        // Avoid self-redirect if logic failed
-                        if (targetCode !== currentModule.code) {
-                            requiredModule = targetCode;
-                            requiredModuleName = targetCode.toUpperCase();
-                            triggerItem = itemName;
-                        }
-                    }
-                }
-            });
-
-            if (requiredModule) {
-                const alertDiv = document.createElement("div");
-                alertDiv.id = "module-redirect-alert";
-                alertDiv.style = "background: #fff3cd; color: #856404; padding: 10px; border-radius: 6px; margin-top: 10px; border: 1px solid #ffeeba; display: flex; flex-direction: column; gap: 8px;";
-                alertDiv.innerHTML = `
-                    <div style="font-weight: bold; font-size: 0.8rem;"><i class="fas fa-exclamation-triangle"></i> Ubicación Incorrecta</div>
-                    <div style="font-size: 0.75rem;">
-                        El item <b>"${triggerItem}"</b> requiere realizarse en <b>${requiredModuleName}</b>.
-                        Actualmente estás en <b>${currentModule.name}</b>.
-                    </div>
-                    <button type="button" class="btn btn-sm btn-accent" 
-                        onclick="window.location.href='reservas.html?type=${requiredModule}&action=new&service=${encodeURIComponent(selService)}&date=${document.getElementById('form-date').value}'"
-                        style="align-self: flex-start; margin-top: 5px;">
-                        <i class="fas fa-external-link-alt"></i> Ir a Agenda ${requiredModuleName}
-                    </button>
-                `;
-                container.appendChild(alertDiv);
-
-                // Deshabilitar guardado para evitar errores
-                if (saveBtn) saveBtn.disabled = true;
-            }
-
-            // Safety Filter: Ocultar ítems de restaurante si el servicio no es de gastronomía (evita datos sucios)
-            const serviceNameLower = (service.nombre || '').toLowerCase();
-            const isGastronomicService = serviceNameLower.includes('sabores') ||
-                serviceNameLower.includes('cena') ||
-                serviceNameLower.includes('comida') ||
-                serviceNameLower.includes('lunch') ||
-                serviceNameLower.includes('gastron') ||
-                serviceNameLower.includes('románt') ||
-                serviceNameLower.includes('brunch');
-
-            const displayItems = service.items_incluidos.filter(item => {
-                const lowerItem = item.toLowerCase();
-                // Si el ítem es de restaurante pero el servicio NO lo anuncia en su nombre, lo ocultamos
-                if (!isGastronomicService && (lowerItem.includes('menú') || lowerItem.includes('restaurante') || lowerItem.includes('cena') || lowerItem.includes('almuerzo'))) {
-                    return false;
-                }
-                return true;
-            });
-
-            list.innerHTML = displayItems.map(item => `
-                <div style="font-size: 0.75rem; color: #4a5568; display: flex; align-items: center; gap: 5px;">
-                    <i class="fas fa-check-circle" style="color: #48bb78;"></i> ${item}
-                </div>
-            `).join('');
-
-            // Detectar restaurante/menú
-            // Detectar restaurante/menú
-            // Detectar restaurante/menú (Solo si es explícitamente un menú o comida en restaurante, no solo la palabra)
-            // USAR LA LISTA FILTRADA (displayItems) para ser consistentes con lo que ve el usuario
-            const needsRestaurant = displayItems.some(item => {
-                const lower = item.toLowerCase();
-                // Excluir explícitamente negaciones comunes
-                if (lower.includes("no incluye") || lower.includes("sin restaurante") || lower.includes("sin comida")) return false;
-
-                // Patrones positivos
-                return (lower.includes("menú") || lower.includes("cena") || lower.includes("almuerzo") || (lower.includes("restaurante") && !lower.includes("bono")));
-            });
-            reminder.style.display = needsRestaurant ? "block" : "none";
-        }
-
-        // renderComplementos replaced by new version at bottom
-        // updateTotal replaced by new version at bottom with Extras support
-
-        /**
-         * Controla la visibilidad del segundo selector de terapeuta basado en la configuración del servicio
-         */
-        function updateStaffSelectorsVisibility() {
-            const serviceSelect = document.getElementById('res-servicio');
-            const staff2Container = document.getElementById('staff-2-container');
-            const bookingStaff2 = document.getElementById('booking-staff-2');
-
-            if (!serviceSelect || !staff2Container) return;
-
-            // Si el contenedor está oculto por lógica del módulo (ej. SPA), no hacemos nada
-            const staffSelectorGroup = document.getElementById('staff-selector-group');
-            if (staffSelectorGroup && staffSelectorGroup.style.display === 'none') {
-                staff2Container.style.display = 'none';
-                if (bookingStaff2) bookingStaff2.value = '';
-                return;
-            }
-
-            const selectedService = serviceSelect.value;
-            let requiredTherapists = 1;
-
-            if (selectedService && window.masterItems) {
-                const item = window.masterItems.find(i => i.name === selectedService);
-                if (item && item.required_therapists) {
-                    requiredTherapists = parseInt(item.required_therapists);
-                } else if (item && item.pax === 2 && (item.category || "").includes('masaje')) {
-                    requiredTherapists = 2;
-                }
-            }
-
-            const labelStaff1 = document.getElementById('label-staff-1');
-
-            if (requiredTherapists >= 2) {
-                staff2Container.style.display = 'block';
-                if (labelStaff1) labelStaff1.textContent = 'Terapeuta 1';
-
-                // Asegurar que el selector 2 tenga opciones
-                const staff1 = document.getElementById('booking-staff');
-                if (staff1 && bookingStaff2 && bookingStaff2.options.length <= 1) {
-                    bookingStaff2.innerHTML = staff1.innerHTML;
-                    bookingStaff2.value = '';
-                }
-            } else {
-                staff2Container.style.display = 'none';
-                if (bookingStaff2) bookingStaff2.value = '';
-                if (labelStaff1) labelStaff1.textContent = 'Terapeuta';
-            }
-        }
-
-        function updatePriceAutomation() {
-            if (window._isInitializingEdit) return;
-            const svcName = document.getElementById("res-servicio").value;
-            const pricePaxInput = document.getElementById("res-precio-pax");
-            const paxInput = document.getElementById("res-pax");
-            const origen = document.getElementById("res-origen").value;
-
-            // --- ZENITH PRICING LOGIC (Rule 1 & 3) ---
-            const formIdStr = document.getElementById("form-id")?.value;
-            const isNewEntry = !formIdStr || formIdStr === '';
-            const excludedOrigins = ['bono', 'smartbox', 'wonderbox', 'ego', 'hotel_inc'];
-            const isLocalPricing = !excludedOrigins.includes(origen) && isNewEntry && currentModule.code !== 'spa';
-            let zenithPrice = null;
-
-            if (isLocalPricing) {
-                const itemMaster = (window.masterItems || []).find(m => m.name === svcName);
-                if (itemMaster) {
-                    zenithPrice = parseFloat(itemMaster.price_pax || 0);
-                    window._currentPricingMode = "item_pax_local";
-                    console.log(`[ZENITH] Master Item Pricing: ${svcName} -> ${zenithPrice}€`);
-                } else if (svcName) {
-                    // Rule 2: Non-Master item in local flow -> Price 0 (No inheritance)
-                    zenithPrice = 0;
-                    window._currentPricingMode = "item_pax_local";
-                }
-            } else {
-                window._currentPricingMode = null;
-            }
-
-            // Find service data
-            const serviceData = currentServices.find(s => s.nombre === svcName);
-
-            // GYM / COMPLEMENT LOGIC
-            const cat = (serviceData?.categoria || "").toLowerCase();
-            const isGym = cat === 'gimnasio' || cat === 'gym' || svcName.toLowerCase().includes('gimnasio');
-            const isComplement = cat === 'complemento';
-            const isAgendaLess = isGym || isComplement;
-
-            // Toggle visibility of agenda-related fields
-            const staffGroup = document.getElementById("staff-selector-group");
-            const roomGroup = document.getElementById("room-group");
-            const dateTimeGroup = document.getElementById("date-time-container");
-            const hotelGroup = document.getElementById("hotel-group");
-
-            if (isAgendaLess) {
-                if (staffGroup) staffGroup.style.display = "none";
-                if (roomGroup) roomGroup.style.display = "none";
-                if (hotelGroup) hotelGroup.style.display = "none";
-                if (dateTimeGroup) dateTimeGroup.style.display = "none";
-
-                // Change Save Button Text
-                const saveBtn = document.getElementById("btn-save-booking");
-                if (saveBtn) {
-                    saveBtn.innerHTML = isGym ? '<i class="fas fa-dumbbell"></i> Validar Sesión Gym' : '<i class="fas fa-check-circle"></i> Consumir Complemento';
-                }
-            } else {
-                if (dateTimeGroup) dateTimeGroup.style.display = "flex";
-                // Room/Hotel visibility depends on toggleRoomField logic, so we don't force show here
-                // but we DO force staff if module requires it
-                if (staffGroup) {
-                    staffGroup.style.display = currentModule.requiresStaff ? "block" : "none";
-                }
-                const saveBtn = document.getElementById("btn-save-booking");
-                if (saveBtn) saveBtn.innerHTML = '<i class="fas fa-save"></i> Guardar Reserva';
-            }
-
-            // Remove previous helper text
-            const existingHelper = document.getElementById("pax-helper-text");
-            if (existingHelper) existingHelper.remove();
-
-            if (!svcName) {
-                // EXCEPTION FOR SPA: Even if no service selected, if it's SPA and a payment origin, use dynamic price
-                if (currentModule.code === 'spa' && (origen === 'particular' || origen === 'hotel_no_inc')) {
-                    // Bypass exit and proceed to calculation logic below
-                    console.log("[DEBUG] updatePriceAutomation: No svcName but in SPA module. Calculating dynamic price...");
-                } else if (zenithPrice !== null) {
-                    // Zenith flow might apply price even if catalog search fails
-                    pricePaxInput.value = zenithPrice.toFixed(2);
-                    updateTotal();
-                    return;
-                } else {
-                    pricePaxInput.value = "0.00";
-                    paxInput.disabled = false;
-                    updateTotal();
-                    if (staffGroup) staffGroup.style.display = "none";
-                    return;
-                }
-            }
-
-            // Reset fixed pricing view elements
-            paxInput.disabled = false;
-            const oldHelper = document.getElementById('pax-helper-text');
-            if (oldHelper) oldHelper.remove();
-
-            if (!serviceData) {
-                const svcLower = (svcName || '').toLowerCase();
-                // ZENITH: Check override first
-                if (zenithPrice !== null) {
-                    pricePaxInput.value = zenithPrice.toFixed(2);
-                    updateTotal();
-                    return;
-                }
-                // SPA module - apply dynamic pricing for origins with payment
-                if (currentModule.code === 'spa' && (origen === 'particular' || origen === 'hotel_no_inc')) {
-                    const dateStr = document.getElementById("form-date")?.value;
-                    const dateObj = dateStr ? new Date(dateStr + 'T12:00:00') : new Date();
-                    const dayOfWeek = dateObj.getDay();
-                    const isWeekend = dayOfWeek === 0 || dayOfWeek === 5 || dayOfWeek === 6;
-
-                    let dynamicPrice = 0;
-                    const roomPriceWeekday = (spaConfig.particularPriceWeekday || 25);
-                    const roomPriceWeekend = (spaConfig.particularPriceWeekend || 25);
-                    const hotelPriceWeekday = (spaConfig.hotelPriceWeekday || 12);
-                    const hotelPriceWeekend = (spaConfig.hotelPriceWeekend || 18);
-
-                    if (origen === 'hotel_no_inc') {
-                        dynamicPrice = isWeekend ? hotelPriceWeekend : hotelPriceWeekday;
-                    } else {
-                        // Particular
-                        dynamicPrice = isWeekend ? roomPriceWeekend : roomPriceWeekday;
-                    }
-
-                    pricePaxInput.value = parseFloat(dynamicPrice).toFixed(2);
-                    console.log(`[DYNAMIC PRICE SPA Fallback] Origin: ${origen}, Day: ${dayOfWeek} (Weekend: ${isWeekend}), Price: ${dynamicPrice}`);
-                } else {
-                    pricePaxInput.value = "0.00";
-                }
-                updateTotal();
-                return;
-            }
-
-            // ========== FIXED PRICING LOGIC ==========
-            // If service has catalog-defined pax (> 0), lock pax and use fixed price
-            const catalogPax = parseInt(serviceData.pax) || 0;
-            // DYNAMIC FIX: Spa module should NOT use fixed pricing for Pax lock
-            // ZENITH FIX: Local Sale logic overrides Fixed Catalog Pax to allow per-person treatment pricing
-            const isFixedPricing = catalogPax > 0 && currentModule.code !== 'spa' && !isLocalPricing;
-
-            if (isFixedPricing) {
-                // Lock pax input to catalog value
-                paxInput.value = catalogPax;
-                paxInput.disabled = true;
-
-                // Show helper text
-                const paxGroup = paxInput.closest('.form-group');
-                if (paxGroup) {
-                    const helper = document.createElement('small');
-                    helper.id = 'pax-helper-text';
-                    helper.style.cssText = 'display:block; color:#059669; font-size:0.7rem; margin-top:3px;';
-                    helper.innerHTML = `<i class="fas fa-lock"></i> Precio para ${catalogPax} pax (incluido)`;
-                    paxGroup.appendChild(helper);
-                }
-
-                // Set price directly (no multiplication)
-                if (origen === 'particular' || origen === 'hotel_no_inc') {
-                    const fixedTotal = parseFloat(serviceData.precio || 0);
-                    pricePaxInput.value = (fixedTotal / catalogPax).toFixed(2); // Display per-pax for clarity
-                    document.getElementById("res-precio-total").value = fixedTotal.toFixed(2);
-                    document.getElementById("res-total-text").textContent = fixedTotal.toFixed(2) + " €";
-                } else {
-                    pricePaxInput.value = "0.00";
-                    document.getElementById("res-precio-total").value = "0.00";
-                    document.getElementById("res-total-text").textContent = "0.00 €";
-                }
-            } else {
-                // Normal pricing: pax editable, price multiplied
-                if (origen === 'particular' || origen === 'hotel_no_inc') {
-                    // DYNAMIC PRICING for SPA module
-                    // For SPA module, always use dynamic pricing for origins with payment
-
-                    if (currentModule.code === 'spa') {
-                        // SPA Module: Use dynamic pricing for all services with payment
-                        const dateStr = document.getElementById("form-date")?.value;
-                        const dateObj = dateStr ? new Date(dateStr + 'T12:00:00') : new Date();
-                        const dayOfWeek = dateObj.getDay();
-                        const isWeekend = dayOfWeek === 0 || dayOfWeek === 5 || dayOfWeek === 6;
-
-                        let dynamicPrice = 0;
-                        const roomPriceWeekday = (spaConfig.particularPriceWeekday || 25);
-                        const roomPriceWeekend = (spaConfig.particularPriceWeekend || 25);
-                        const hotelPriceWeekday = (spaConfig.hotelPriceWeekday || 12);
-                        const hotelPriceWeekend = (spaConfig.hotelPriceWeekend || 18);
-
-                        if (origen === 'hotel_no_inc') {
-                            dynamicPrice = isWeekend ? hotelPriceWeekend : hotelPriceWeekday;
-                        } else {
-                            // Particular
-                            dynamicPrice = isWeekend ? roomPriceWeekend : roomPriceWeekday;
-                        }
-
-                        pricePaxInput.value = parseFloat(dynamicPrice).toFixed(2);
-                        console.log(`[DYNAMIC PRICE SPA] Origin: ${origen}, Day: ${dayOfWeek} (Weekend: ${isWeekend}), Final Price: ${dynamicPrice} (Config: ${roomPriceWeekday}/${roomPriceWeekend})`);
-                        console.log(`[DEBUG] pricePaxInput value AFTER assignment: ${pricePaxInput.value}`);
-                    } else {
-                        // Other modules: use catalog price (or Zenith Master Price)
-                        if (zenithPrice !== null) {
-                            pricePaxInput.value = zenithPrice.toFixed(2);
-                        } else {
-                            pricePaxInput.value = parseFloat(serviceData.precio || 0).toFixed(2);
-                        }
-                    }
-                } else {
-                    pricePaxInput.value = (0).toFixed(2);
-                }
-
-                // Calculate and update total (price/pax * pax)
-                const pricePax = parseFloat(pricePaxInput.value) || 0;
-                const pax = parseInt(paxInput.value) || 1;
-                const total = pricePax * pax;
-
-                document.getElementById("res-precio-total").value = total.toFixed(2);
-                const totalTextEl = document.getElementById("res-total-text");
-                if (totalTextEl) totalTextEl.textContent = total.toFixed(2) + " €";
-
-                console.log(`[TOTAL CALC] Price/Pax: ${pricePax}€ × Pax: ${pax} = Total: ${total.toFixed(2)}€`);
-
-                // Update payment control block if it exists
-                if (window.updatePaymentControlBlock) window.updatePaymentControlBlock();
-            }
-            // ==========================================
-
-            // Sync service duration (hidden) if not agenda-less
-            if (!isAgendaLess && currentModule.requiresStaff) {
-                syncServiceDuration().then(() => {
-                    if (typeof window.handleStaffFieldsChange === 'function') {
-                        window.handleStaffFieldsChange();
-                    }
-                });
-            }
-
-            // Call updatePaymentControlBlock if fixed pricing (since we set total directly)
-            if (isFixedPricing && typeof window.updatePaymentControlBlock === 'function') {
-                window.updatePaymentControlBlock();
-            }
-
-            // Update pack info if applicable
-            updatePackInfo();
-        }
-
-        /**
-         * Detects if selected service is a pack with multiple items.
-         * Renders multi-location scheduling UI with time selectors for each element.
-         */
         function updatePackInfo() {
             const svcName = document.getElementById("res-servicio")?.value;
             const packContainer = document.getElementById("pack-includes-container");
@@ -3161,7 +2927,13 @@
                 const action = urlParams.get('action');
 
                 if (action === 'new') {
-                    // Pre-fill logic for new reservation from Voucher
+                    // Duración
+                    const durationInput = document.getElementById("inputDuration");
+                    if (durationInput) {
+                        durationInput.value = res.duracion || 60;
+                    }
+
+                    // Staff Selectors (Pre-fill logic) for new reservation from Voucher
                     const client = urlParams.get('client');
                     const service = urlParams.get('service');
                     const voucher = urlParams.get('voucher');
@@ -3922,7 +3694,7 @@
             if (res.isBlock || res.status === 'blocked') {
                 if (confirm(`BLOQUEO DE SALA: "${res.servicio || 'Mantenimiento'}"\n¿Deseas eliminar este bloqueo y reabrir la sala?`)) {
                     try {
-                        const targetColl = res._collection || (res._moduleCode ? MODULES[res._moduleCode].collection : currentModule.collection);
+                        const targetColl = res.collection || res._collection || (res._moduleCode ? MODULES[res._moduleCode].collection : currentModule.collection);
                         await db.collection(targetColl).doc(id).delete();
                         showToast("Bloqueo eliminado y sala reabierta", "success");
                         loadReservas(res.fecha);
@@ -3935,9 +3707,22 @@
             }
 
             // Context Switch for Split Views
+            // Context Switch for Split Views
+            // Save current state to restore on close (Fix for "Cabinas" view switching to "Cabina 1")
+            window.previousModule = window.currentModule;
+
             if (res._moduleCode && MODULES[res._moduleCode]) {
                 currentModule = MODULES[res._moduleCode];
                 window.currentModule = currentModule; // Ensure global ref is updated
+            } else if (res.collection) {
+                // Infer module from proper collection (fix for Cabinas view where _moduleCode is missing)
+                for (const key in MODULES) {
+                    if (MODULES[key].collection === res.collection) {
+                        currentModule = MODULES[key];
+                        window.currentModule = currentModule;
+                        break;
+                    }
+                }
             }
 
             // Reset Conflict UI
@@ -3957,7 +3742,10 @@
 
             const isAnulada = res.status === 'anulada';
             const btnCancel = document.getElementById("btn-cancelar");
+            const btnReactivar = document.getElementById("btn-reactivar");
+
             btnCancel.style.display = isAnulada ? "none" : "block";
+            if (btnReactivar) btnReactivar.style.display = isAnulada ? "block" : "none";
 
             document.getElementById("res-id-display").textContent = res.res_id || "SIN ID";
             document.getElementById("form-id").value = id;
@@ -4234,7 +4022,8 @@
             if (!confirm("¿Seguro que deseas ANULAR esta reserva? No se borrará de la base de datos.")) return;
 
             try {
-                await db.collection(currentModule.collection).doc(id).update({
+                const targetColl = resData.collection || (resData._moduleCode ? MODULES[resData._moduleCode].collection : currentModule.collection);
+                await db.collection(targetColl).doc(id).update({
                     status: 'anulada',
                     cancelled_at: new Date().toISOString()
                 });
@@ -4268,11 +4057,57 @@
             } catch (err) { alert("Error al anular: " + err.message); }
         }
 
+        async function reactivateBookingFromModal() {
+            const id = document.getElementById("form-id").value;
+            if (!id) return;
+            const resData = currentData.find(r => r.id === id);
+            if (!resData) return;
+
+            if (!confirm("¿Deseas REACTIVAR esta reserva? Pasará a estado Confirmada.")) return;
+
+            try {
+                // 1. Bono Check Logic
+                if (resData.origen === 'bono' && resData.bono) {
+                    const vDoc = await db.collection("spa_vouchers").doc(resData.bono).get();
+                    if (vDoc.exists) {
+                        const vData = vDoc.data();
+                        const used = vData.sesiones_usadas || 0;
+                        const total = vData.sesiones_totales || 1;
+                        if (used >= total) {
+                            if (!confirm(`El bono está agotado (${used}/${total}). ¿Reactivar de todos modos (excederá límite)?`)) return;
+                        }
+
+                        const newUsed = used + (resData.sesiones_consumidas || 1);
+                        await db.collection("spa_vouchers").doc(resData.bono).update({
+                            sesiones_usadas: newUsed,
+                            last_updated: new Date().toISOString()
+                        });
+                    }
+                }
+
+                // 2. Update Status
+                const targetColl = resData.collection || (resData._moduleCode ? MODULES[resData._moduleCode].collection : currentModule.collection);
+                await db.collection(targetColl).doc(id).update({
+                    status: 'confirmada',
+                    cancelled_at: firebase.firestore.FieldValue.delete(),
+                    updated_at: new Date().toISOString()
+                });
+
+                showToast("Reserva reactivada correctamente", "success");
+                closeModal();
+                loadReservas(document.getElementById("main-date-picker").value);
+            } catch (err) {
+                alert("Error al reactivar: " + err.message);
+            }
+        }
+
         // deleteBooking se mantiene por si fuera necesario borrar físicamente (solo admin manual)
         async function deleteBooking(id) {
             if (!confirm("¿BORRAR PERMANENTEMENTE? Esta acción no se puede deshacer.")) return;
             try {
-                await db.collection(currentModule.collection).doc(id).delete();
+                const res = currentData.find(r => r.id === id);
+                const targetColl = res ? (res.collection || currentModule.collection) : currentModule.collection;
+                await db.collection(targetColl).doc(id).delete();
                 loadReservas(document.getElementById("main-date-picker").value);
             } catch (err) { alert(err.message); }
         }
@@ -4287,6 +4122,18 @@
                 url.searchParams.delete('id');
                 url.searchParams.delete('res_id');
                 window.history.replaceState({}, '', url);
+            }
+
+            // Restore Context if it was switched during edit
+            if (window.previousModule) {
+                console.log("Restoring View Context:", window.previousModule.name);
+                currentModule = window.previousModule;
+                window.currentModule = window.previousModule;
+                window.previousModule = null;
+
+                // IMPORTANT: Reload to ensure view is consistent
+                const date = document.getElementById("main-date-picker").value;
+                loadReservas(date);
             }
         }
 
@@ -4546,7 +4393,10 @@
                 let existingStatus = 'confirmada';
                 if (id && currentData) {
                     const res = currentData.find(r => r.id === id);
-                    if (res) existingStatus = res.status;
+                    if (res) {
+                        existingStatus = res.status;
+                        if (res.collection) targetColl = res.collection;
+                    }
                 }
                 let finalStatus = window._startServiceMode ? 'en_servicio' : existingStatus;
 
@@ -4833,7 +4683,8 @@
                     const nextSlotMin = currentSlotMin + step;
 
                     const bookingsInSlot = data.filter(r => {
-                        if (r.status === 'anulada') return false;
+                        const showCancelled = document.getElementById("show-cancelled")?.checked;
+                        if (r.status === 'anulada' && !showCancelled) return false;
                         const [rh, rm] = r.hora.split(':').map(Number);
                         const rStart = rh * 60 + rm;
                         const rDuration = parseInt(r.duracion) || 60;
@@ -4857,7 +4708,8 @@
                             const bStart = bh * 60 + bm;
                             const bDuration = parseInt(booking.duracion || 60);
                             const bEnd = bStart + bDuration;
-                            const isCleaning = currentSlotMin >= bEnd;
+                            // DISABLED Autocleaning visual by user request
+                            const isCleaning = false; // currentSlotMin >= bEnd;
 
                             if (booking.isBlock || booking.status === 'blocked') {
                                 // Especial para bloqueos
@@ -4876,11 +4728,34 @@
                                 };
                                 contentCol.appendChild(blockCard);
                             } else if (booking.hora === timeLabel) {
-                                contentCol.appendChild(createBookingCardTimeline(booking));
+                                const card = createBookingCardTimeline(booking);
+                                if (booking.status === 'anulada') {
+                                    card.style.opacity = '0.6';
+                                    card.style.background = '#f1f5f9';
+                                    card.style.border = '1px dashed #cbd5e1';
+
+                                    // Visual indicator
+                                    const cancelledLabel = document.createElement("div");
+                                    cancelledLabel.innerHTML = '<i class="fas fa-ban"></i> ANULADA';
+                                    cancelledLabel.style.color = "#ef4444";
+                                    cancelledLabel.style.fontSize = "0.65rem";
+                                    cancelledLabel.style.fontWeight = "800";
+                                    cancelledLabel.style.marginBottom = "4px";
+
+                                    // Prepend or adjust styles
+                                    card.insertBefore(cancelledLabel, card.firstChild);
+                                    card.querySelectorAll("*").forEach(el => el.style.textDecoration = "line-through");
+                                    cancelledLabel.style.textDecoration = "none"; // Exception
+                                }
+                                contentCol.appendChild(card);
                             } else {
                                 const lock = document.createElement("div");
                                 lock.className = "status-lock";
-                                if (isCleaning) {
+                                if (booking.status === 'anulada') {
+                                    lock.style.color = "#cbd5e1";
+                                    lock.style.textDecoration = "line-through";
+                                    lock.innerHTML = `<i class="fas fa-ban"></i> Anulada (${booking.nombre})`;
+                                } else if (isCleaning) {
                                     lock.style.color = "#ed8936";
                                     lock.innerHTML = `<i class="fas fa-broom"></i> Limpieza / Preparación`;
                                 } else {
@@ -4911,12 +4786,19 @@
                         const defaultDur = 60;
                         const hasSpace = moduleConfig.isPrivate ? checkSpaceSync(timeLabel, defaultDur, data) : (bookingsCount < maxCapacity);
 
-                        if (staffFreeCount > 0 && hasSpace) {
+                        if (staffFreeCount > 0 && hasSpace && (!isOccupied || (moduleConfig.capacity && moduleConfig.capacity > 1))) {
                             // Mostrar botón Reservar si hay hueco físico y de personal
+                            // Container for actions
+                            const actionsDiv = document.createElement("div");
+                            actionsDiv.style.display = "flex";
+                            actionsDiv.style.gap = "8px";
+                            actionsDiv.style.alignItems = "center";
+                            actionsDiv.style.marginTop = isOccupied ? "10px" : "0";
+
+                            // Reservar Button
                             const addBtn = document.createElement("button");
                             addBtn.className = "btn btn-outline btn-sm";
                             addBtn.style.width = "fit-content";
-                            addBtn.style.marginTop = isOccupied ? "10px" : "0";
                             addBtn.innerHTML = "<i class='fas fa-plus'></i> Reservar";
                             addBtn.onclick = () => {
                                 window.currentModule = moduleConfig;
@@ -4926,7 +4808,27 @@
                                 selectedTime = timeLabel;
                                 showBookingForm();
                             };
-                            contentCol.appendChild(addBtn);
+
+                            // Bloquear Button (New)
+                            const blockBtn = document.createElement("button");
+                            blockBtn.className = "btn btn-outline btn-sm";
+                            blockBtn.style.width = "fit-content";
+                            blockBtn.style.borderColor = "#ef4444";
+                            blockBtn.style.color = "#ef4444";
+                            blockBtn.title = "Cerrar sala a esta hora";
+                            blockBtn.innerHTML = "<i class='fas fa-lock'></i> Cerrar";
+                            blockBtn.onclick = () => {
+                                window.currentModule = moduleConfig;
+                                currentModule = moduleConfig;
+                                selectedTime = timeLabel;
+                                // Assuming openBlockRoomModal uses globally set currentModule/selectedTime or defaults
+                                // If not, we might need to update it. But showBookingForm relies on globals, so this likely does too.
+                                openBlockRoomModal();
+                            };
+
+                            actionsDiv.appendChild(addBtn);
+                            actionsDiv.appendChild(blockBtn);
+                            contentCol.appendChild(actionsDiv);
                         } else if (!isOccupied) {
                             // Si no hay hueco y no hay reservas, mostrar por qué
                             if (staffFreeCount === 0 && moduleConfig.requiresStaff) {
@@ -4943,24 +4845,30 @@
             }
         }
 
-        // Helper centralizado para detectar colisiones en sala
-        function findCollision(start, duration, bookings, excludeId = null) {
+        // Helper simple para colisiones
+        function findCollision(start, duration, existingBookings, excludeId = null) {
+            // Revert signature to accept start as string "HH:mm" to be compatible with callers
             const [h, m] = start.split(':').map(Number);
             const startMin = h * 60 + m;
-            const endMin = startMin + parseInt(duration);
-            const cleaningTime = parseInt(spaConfig.cleaningTime || 0);
-            const endMinTotal = endMin + cleaningTime;
 
-            return bookings.find(b => {
-                if (b.id === excludeId) return false;
+            const endMin = startMin + parseInt(duration);
+            // Cleaning time removed per user request
+            const cleaning = 0;
+            const endMinTotal = endMin + cleaning;
+
+            return existingBookings.some(b => {
                 if (b.status === 'anulada') return false;
+                if (b.id === excludeId) return false;
 
                 const [bh, bm] = b.hora.split(':').map(Number);
                 const bStart = bh * 60 + bm;
-                const bDuration = parseInt(b.duracion || 60);
-                const bEndTotal = bStart + bDuration + cleaningTime;
+                const bDur = parseInt(b.duracion || 60);
+                const bEnd = bStart + bDur;
+                const bCleaning = 0;
+                const bEndTotal = bEnd + bCleaning;
 
-                // Overlap: [startMin, endMinTotal] vs [bStart, bEndTotal]
+                // Collision:
+                // (NewStart < ExistingEndTotal) AND (NewEndTotal > ExistingStart)
                 return (startMin < bEndTotal && endMinTotal > bStart);
             });
         }
@@ -4977,7 +4885,8 @@
             let bookings;
             const activeDate = document.getElementById("main-date-picker").value;
             if (date === activeDate) {
-                bookings = currentData;
+                // Filter by collection to avoid cross-room collisions in aggregated views
+                bookings = currentData.filter(r => r.collection === currentModule.collection);
             } else {
                 const snap = await db.collection(currentModule.collection).where("fecha", "==", date).get();
                 bookings = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -6201,10 +6110,10 @@
 
             const relevantCodes = ['cabina', 'suite', 'panacea', 'vip', 'peluqueria', 'spa'];
             const isRelevant = currentModule && currentModule.code &&
-                relevantCodes.some(code => currentModule.code.startsWith(code));
+                (relevantCodes.some(code => currentModule.code.startsWith(code))); // Reverted Cabinas check
 
             if (availabilityBtn) availabilityBtn.style.display = isRelevant ? 'flex' : 'none';
-            if (blockRoomBtn) blockRoomBtn.style.display = isRelevant ? 'flex' : 'none';
+            if (blockRoomBtn) blockRoomBtn.style.display = 'none'; // HIDDEN per user request "prefiero en la linea de la hora"
         }
 
         // Hook into loadReservas to update button visibility
