@@ -34,98 +34,98 @@ async function handleStaffFieldsChange() {
     console.log('[STAFF] handleStaffFieldsChange called');
 
     // 1. Obtener elementos del DOM
-    const staffSelect = document.getElementById("res-staff-1"); // CORRECTED ID
-    // Check if it exists, if not try legacy
-    const staffSelectLegacy = document.getElementById("booking-staff");
-    const activeStaffSelect = staffSelect || staffSelectLegacy;
+    const staffSelect1 = document.getElementById("booking-staff") || document.getElementById("res-staff-1");
+    const staffSelect2 = document.getElementById("booking-staff-2") || document.getElementById("res-staff-2");
 
-    const staffSelect2 = document.getElementById("res-staff-2"); // CORRECTED ID
-    const dateField = document.getElementById("form-date");
+    if (!staffSelect1) {
+        console.warn('[STAFF] Elementos necesarios no encontrados en el DOM');
+        return;
+    }
+
+    const dateField = document.getElementById("form-date") || document.getElementById("main-date-picker");
     const timeField = document.getElementById("form-time");
     const durationField = document.getElementById("inputDuration");
     const formIdField = document.getElementById("form-id");
-    const serviceField = document.getElementById("res-servicio");
 
-    if (!activeStaffSelect || !dateField || !timeField) {
-        console.warn('[STAFF] Elementos necesarios no encontrados en el DOM (res-staff-1 or booking-staff)');
-        return;
-    }
-
-    // 2. Obtener valores actuales
-    const date = dateField.value;
-    const time = timeField.value;
+    const date = dateField?.value;
+    const time = timeField?.value;
     const duration = parseInt(durationField?.value || 60);
-    const excludeResId = formIdField?.value;
+    const currentResId = formIdField?.value;
     const roomCode = (window.currentModule && window.currentModule.code) ? window.currentModule.code : 'spa';
-    const serviceName = serviceField?.value;
 
-    if (!date || !time) {
-        console.log('[STAFF] Fecha o hora no definidas, saltando población de staff');
-        return;
-    }
+    if (!date || !time) return;
 
-    // 3. Guardar valores seleccionados actualmente para intentar restaurarlos
-    const currentStaffId = activeStaffSelect.value;
-    const currentStaffId2 = staffSelect2 ? staffSelect2.value : '';
+    // Guardar valores previos
+    const prev1 = staffSelect1.value;
+    const prev2 = staffSelect2 ? staffSelect2.value : null;
 
-    // 4. Mostrar estado de carga
-    activeStaffSelect.innerHTML = '<option value="">Buscando disponibles...</option>';
-    if (staffSelect2) staffSelect2.innerHTML = '<option value="">Buscando disponibles...</option>';
+    staffSelect1.innerHTML = '<option value="">Cargando...</option>';
+    if (staffSelect2) staffSelect2.innerHTML = '<option value="">Cargando...</option>';
 
     try {
-        // 5. Obtener staff disponible llamando a la función core en reservas.html
-        // Esta función filtra por SALA, HORARIO y COLISIONES.
-        let available = await window.getAvailableStaffForRoom(roomCode, date, time, duration, excludeResId);
+        const availableStaff = await window.getAvailableStaffForRoom(roomCode, date, time, duration, currentResId);
 
-        // 6. FILTRO ADICIONAL: Por Skill (Habilidad) si hay un servicio seleccionado
-        if (serviceName && typeof window.getItemConfig === 'function') {
-            const itemConfig = await window.getItemConfig(serviceName);
-            if (itemConfig && itemConfig.required_skill) {
-                const reqSkill = itemConfig.required_skill.toLowerCase().trim();
-                console.log(`[STAFF] Filtrando por habilidad requerida: ${reqSkill}`);
-
-                available = available.filter(s => {
-                    const skills = (s.skills || []).map(x => x.toLowerCase().trim());
-                    // Si el terapeuta no tiene skills definidos, asumimos que puede hacer todo (flotante)
-                    // Si tiene skills, debe tener el requerido.
-                    return skills.length === 0 || skills.includes(reqSkill);
-                });
-            }
-        }
-
-        console.log(`[STAFF] ${available.length} terapeutas aptos encontrados para ${roomCode}`);
-
-        // 7. Generar opciones
-        const generateOptions = (selectedValue) => {
+        const buildOptions = (selectedVal, excludeId) => {
             let html = '<option value="">Seleccionar...</option>';
-            available.forEach(staff => {
-                const name = staff.nombre || staff.name || 'Sin nombre';
-                const isSelected = (staff.id === selectedValue) ? 'selected' : '';
-                html += `<option value="${staff.id}" ${isSelected}>${name}</option>`;
+            const uniqueStaff = [...availableStaff];
+            uniqueStaff.sort((a, b) => {
+                if (a._status === b._status) return (a.alias || a.nombre).localeCompare(b.alias || b.nombre);
+                return a._status === 'free' ? -1 : 1;
+            });
+
+            uniqueStaff.forEach(s => {
+                const isBusy = (s._status === 'busy' && s.id !== selectedVal);
+                const isExcluded = (s.id === excludeId && s.id !== selectedVal);
+
+                let label = s.alias || s.nombre || s.name || 'Sin nombre';
+                if (isBusy) label += " (Ocupado)";
+                if (isExcluded) label += " (Seleccionado)";
+
+                const isSelected = (s.id === selectedVal) ? 'selected' : '';
+                const isDisabled = (isBusy || isExcluded) ? 'disabled' : '';
+
+                html += `<option value="${s.id}" ${isSelected} ${isDisabled} style="${(isBusy || isExcluded) ? 'color:red;' : ''}">${label}</option>`;
             });
             return html;
         };
 
-        // 8. Actualizar selects
-        activeStaffSelect.innerHTML = generateOptions(currentStaffId);
+        // Populate and set values
+        staffSelect1.innerHTML = buildOptions(prev1, prev2);
+        if (prev1) staffSelect1.value = prev1;
+
         if (staffSelect2) {
-            staffSelect2.innerHTML = generateOptions(currentStaffId2);
+            staffSelect2.innerHTML = buildOptions(prev2, prev1);
+            if (prev2) staffSelect2.value = prev2;
         }
 
-        // 9. Auto-selección inteligente
-        // Si no había selección previa (nueva reserva) y tenemos opciones disponibles
-        if (!currentStaffId && available.length > 0) {
-            // Regla: Auto-seleccionar si es Peluquería (prioridad UX) o si solo hay 1 opción globalmente
-            // Esto evita clics innecesarios
-            if (roomCode === 'peluqueria' || available.length === 1) {
-                activeStaffSelect.value = available[0].id;
-                console.log(`[STAFF] Auto-seleccionado ${available[0].nombre} para ${roomCode}`);
+        // Add listeners for mutual exclusion
+        staffSelect1.onchange = () => {
+            if (staffSelect2) {
+                const v1 = staffSelect1.value;
+                const v2 = staffSelect2.value;
+                staffSelect2.innerHTML = buildOptions(v2, v1);
+                staffSelect2.value = v2;
             }
+        };
+
+        if (staffSelect2) {
+            staffSelect2.onchange = () => {
+                const v1 = staffSelect1.value;
+                const v2 = staffSelect2.value;
+                staffSelect1.innerHTML = buildOptions(v1, v2);
+                staffSelect1.value = v1;
+            };
+        }
+
+        const msgSpan = document.getElementById("staff-availability-msg");
+        if (msgSpan) {
+            msgSpan.textContent = `(${availableStaff.length} disp.)`;
+            msgSpan.style.color = availableStaff.length > 0 ? 'green' : 'red';
         }
 
     } catch (err) {
         console.error('[STAFF] Error al poblar select de personal:', err);
-        activeStaffSelect.innerHTML = '<option value="">Error al cargar</option>';
+        staffSelect1.innerHTML = '<option value="">Error al cargar</option>';
     }
 }
 

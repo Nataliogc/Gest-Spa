@@ -1,24 +1,21 @@
 {
-    "name": "Zenith Manager - Spa & Wellness",
-    "short_name": "Zenith Manager",
-    "description": "Sistema de gestión integral para Spa y Bienestar",
-    "start_url": "./index.html",
-    "display": "standalone",
-    "background_color": "#f4f6f9",
-    "theme_color": "#d4af37",
-    "orientation": "any",
-    "icons": [
-        {
-            "src": "zenith-icon.png",
-            "sizes": "192x192",
-            "type": "image/png",
-            "purpose": "any maskable"
-        },
-        {
-            "src": "zenith-icon.png",
-            "sizes": "512x512",
-            "type": "image/png",
-            "purpose": "any maskable"
-        }
-    ]
+  "name": "Disponibilidad Spa",
+  "short_name": "Spa Disp",
+  "description": "Disponibilidad de Terapeutas - Zenith Manager",
+  "start_url": "/disponibilidad.html",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#1e293b",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
 }

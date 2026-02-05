@@ -302,6 +302,80 @@
 
 
 
+
+    <!-- Print Modal -->
+    <div id="print-modal" class="modal" style="display: none;">
+        <div class="modal-content" style="max-width: 500px; padding: 20px;">
+            <div
+                style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #f1f5f9; padding-bottom: 15px; margin-bottom: 20px;">
+                <h2 style="display: flex; align-items: center; gap: 10px; margin: 0; font-size: 1.2rem;">
+                    <i class="fas fa-print" style="color: var(--accent);"></i> Imprimir Agenda
+                </h2>
+                <span class="close-btn" onclick="closePrintModal()"
+                    style="cursor: pointer; font-size: 1.5rem; color: #aaa;">&times;</span>
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 20px;">
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label style="font-weight: 600; margin-bottom: 5px; display: block; color: #4a5568;">Fecha a
+                        imprimir</label>
+                    <input type="date" id="print-fecha" class="form-control"
+                        style="padding: 10px; width: 100%; border: 1px solid #ddd; border-radius: 8px; font-weight: 600; color: #2d3748;">
+                </div>
+
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label style="font-weight: 600; margin-bottom: 10px; display: block; color: #4a5568;">Tipo de
+                        Informe</label>
+                    <div style="display: flex; flex-direction: column; gap: 10px;">
+                        <label class="radio-option"
+                            style="padding: 12px; border: 1px solid #eee; border-radius: 8px; display: flex; align-items: center; cursor: pointer; transition: all 0.2s;">
+                            <input type="radio" name="printOption" value="simple" checked
+                                style="margin-right: 15px; transform: scale(1.2);">
+                            <div>
+                                <span
+                                    style="font-weight: 700; display: block; font-size: 0.9rem; color: #2d3748;">Listado
+                                    Simple</span>
+                                <span style="font-size: 0.75rem; color: #718096;">Hora, Cliente, Servicio y Sala. Ideal
+                                    para recepción rápida.</span>
+                            </div>
+                        </label>
+                        <label class="radio-option"
+                            style="padding: 12px; border: 1px solid #eee; border-radius: 8px; display: flex; align-items: center; cursor: pointer; transition: all 0.2s;">
+                            <input type="radio" name="printOption" value="detailed"
+                                style="margin-right: 15px; transform: scale(1.2);">
+                            <div>
+                                <span
+                                    style="font-weight: 700; display: block; font-size: 0.9rem; color: #2d3748;">Informe
+                                    Detallado de Operaciones</span>
+                                <span style="font-size: 0.75rem; color: #718096;">Incluye teléfonos, notas, estado de
+                                    pago y detalles técnicos.</span>
+                            </div>
+                        </label>
+                        <label class="radio-option"
+                            style="padding: 12px; border: 1px solid #eee; border-radius: 8px; display: flex; align-items: center; cursor: pointer; transition: all 0.2s;">
+                            <input type="radio" name="printOption" value="therapist"
+                                style="margin-right: 15px; transform: scale(1.2);">
+                            <div>
+                                <span style="font-weight: 700; display: block; font-size: 0.9rem; color: #2d3748;">Hoja
+                                    de Terapeutas</span>
+                                <span style="font-size: 0.75rem; color: #718096;">Vista optimizada para el personal (sin
+                                    datos económicos).</span>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                <div
+                    style="margin-top: 10px; display: flex; justify-content: flex-end; gap: 10px; border-top: 1px solid #f1f5f9; padding-top: 20px;">
+                    <button class="btn btn-outline" onclick="closePrintModal()">Cancelar</button>
+                    <button class="btn btn-accent" onclick="ejecutarImpresion()">
+                        <i class="fas fa-print"></i> Imprimir Informe
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Reports Modal -->
     <div id="reports-modal" class="modal" style="display: none;">
         <div class="modal-content" style="max-width: 900px; width: 95%;">

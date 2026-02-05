@@ -660,10 +660,23 @@ function closePrintModal() {
 }
 
 // Ejecutar impresión
+
+// Ejecutar impresión
 async function ejecutarImpresion() {
     const fecha = document.getElementById("print-fecha").value;
+
+    // Obtener opción seleccionada
+    let mode = "simple";
+    const options = document.getElementsByName("printOption");
+    for (const opt of options) {
+        if (opt.checked) {
+            mode = opt.value;
+            break;
+        }
+    }
+
     try {
-        const collections = ["reservas_spa", "reservas_suite", "reservas_panacea", "reservas_vip", "reservas_peluqueria", "reservas_gimnasio", "reservas_complementos", "reservas_cabinas"];
+        const collections = ["reservas_spa", "reservas_suite", "reservas_panacea", "reservas_vip", "reservas_peluqueria", "reservas_gimnasio", "reservas_complementos", "reservas_cabinas", "reservas_cabina1", "reservas_cabina2", "reservas_cabina3"];
         const promises = collections.map(col => db.collection(col).where("fecha", "==", fecha).get());
         const snapshots = await Promise.all(promises);
 
@@ -672,6 +685,10 @@ async function ejecutarImpresion() {
             snap.forEach(doc => {
                 const data = doc.data();
                 if (data.status !== 'anulada') {
+                    // Normalizar nombre de sala si no existe
+                    if (!data.roomCode && !data.espacio) {
+                        // Intentar deducir (aunque es mejor tenerlo)
+                    }
                     reservas.push(data);
                 }
             });
@@ -679,27 +696,150 @@ async function ejecutarImpresion() {
 
         reservas.sort((a, b) => (a.hora || '').localeCompare(b.hora || ''));
 
-        generarInformeHTML(reservas, fecha);
+        generarInformeHTML(reservas, fecha, mode);
     } catch (err) {
-        showToast("Error imprimiendo", "error");
+        console.error(err);
+        showToast("Error imprimiendo: " + err.message, "error");
     }
 }
 
-function generarInformeHTML(reservas, fecha) {
+function generarInformeHTML(reservas, fecha, mode) {
     const w = window.open('', '_blank');
+
+    let tableHeader = "";
+    let tableRows = "";
+    let pageTitle = `Agenda ${fecha}`;
+
+    const formatDate = (d) => {
+        const parts = d.split('-');
+        if (parts.length === 3) return `${parts[2]}/${parts[1]}/${parts[0]}`;
+        return d;
+    };
+
+    const formattedDate = formatDate(fecha);
+
+    if (mode === 'detailed') {
+        pageTitle = `Informe de Operaciones - ${formattedDate}`;
+        tableHeader = `
+            <tr>
+                <th style="width: 60px;">Hora</th>
+                <th style="width: 200px;">Cliente</th>
+                <th style="width: 150px;">Servicio</th>
+                <th style="width: 100px;">Sala</th>
+                <th style="width: 100px;">Teléfono</th>
+                <th>Pax</th>
+                <th style="width: 80px;">Pago</th>
+                <th>Notas / Obs</th>
+            </tr>
+        `;
+
+        tableRows = reservas.map(r => {
+            const paid = r.pagado === true || r.estado_pago === 'pagado';
+            const paymentStatus = paid ? '<span style="color:green; font-weight:bold;">PAGADO</span>' : '<span style="color:red; font-weight:bold;">PENDIENTE</span>';
+            const obs = r.observaciones || "";
+            return `
+                <tr>
+                    <td style="font-weight:bold; text-align:center;">${r.hora}</td>
+                    <td>
+                        <div style="font-weight:600;">${r.nombre}</div>
+                        <div style="font-size:0.8rem; color:#666;">ID: ${r.res_id || '-'}</div>
+                    </td>
+                    <td>${r.servicio || r.service || '-'}</td>
+                    <td>${r.espacio || r.roomCode || r.sala || '-'}</td>
+                    <td>${r.telefono || ''}</td>
+                    <td style="text-align:center;">${r.pax || 1}</td>
+                    <td style="text-align:center;">${paymentStatus}</td>
+                    <td style="font-size:0.8rem; color:#555;">${obs}</td>
+                </tr>
+            `;
+        }).join('');
+
+    } else if (mode === 'therapist') {
+        pageTitle = `Hoja de Terapeutas - ${formattedDate}`;
+        tableHeader = `
+            <tr>
+                <th style="width: 70px;">Hora</th>
+                <th style="width: 100px;">Sala</th>
+                <th style="width: 120px;">Terapeuta</th>
+                <th style="width: 200px;">Cliente</th>
+                <th>Servicio / Tratamiento</th>
+                <th style="width: 50px;">Pax</th>
+                <th>Observaciones Técnicas</th>
+            </tr>
+        `;
+
+        tableRows = reservas.map(r => `
+            <tr>
+                <td style="font-weight:bold; font-size:1.1rem; text-align:center;">${r.hora}</td>
+                <td style="font-weight:600; color:#444;">${r.espacio || r.roomCode || r.sala || '-'}</td>
+                <td style="color:#d4af37; font-weight:700;">${r.terapeuta || '—'}</td>
+                <td>${r.nombre}</td>
+                <td>${r.servicio || r.service || '-'}</td>
+                <td style="text-align:center;">${r.pax || 1}</td>
+                 <td style="font-size:0.8rem; font-style:italic;">${r.observaciones || ''}</td>
+            </tr>
+        `).join('');
+
+    } else {
+        // SIMPLE (Default)
+        pageTitle = `Agenda ${formattedDate}`;
+        tableHeader = `
+            <tr>
+                <th style="width: 80px;">Hora</th>
+                <th>Cliente</th>
+                <th>Servicio</th>
+                <th style="width: 150px;">Sala / Espacio</th>
+                <th style="width: 150px;">Terapeuta</th>
+            </tr>
+        `;
+
+        tableRows = reservas.map(r => `
+            <tr>
+                <td style="font-weight:bold; font-size:1.1rem;">${r.hora}</td>
+                <td style="font-weight:600;">${r.nombre}</td>
+                <td>${r.servicio || r.service || '-'}</td>
+                <td>${r.espacio || r.roomCode || r.sala || '-'}</td>
+                <td>${r.terapeuta || '-'}</td>
+            </tr>
+        `).join('');
+    }
+
     w.document.write(`
-        <html><head><title>Informe ${fecha}</title>
-        <style>
-            body{font-family:sans-serif} table{width:100%;border-collapse:collapse} 
-            th,td{border:1px solid #ddd;padding:8px;text-align:left} th{background:#eee}
-        </style>
-        </head><body>
-        <h2>Reservas ${fecha}</h2>
-        <table><thead><tr><th>Hora</th><th>Cliente</th><th>Servicio</th><th>Sala</th></tr></thead><tbody>
-        ${reservas.map(r => `<tr><td>${r.hora}</td><td>${r.nombre}</td><td>${r.servicio}</td><td>${r.espacio || r.roomCode}</td></tr>`).join('')}
-        </tbody></table>
-        <script>window.print()</script>
-        </body></html>
+        <html>
+        <head>
+            <title>${pageTitle}</title>
+            <style>
+                body { font-family: 'Segoe UI', sans-serif; padding: 20px; color: #333; }
+                h2 { border-bottom: 2px solid #d4af37; padding-bottom: 10px; color: #2c3e50; }
+                table { width: 100%; border-collapse: collapse; margin-top: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+                th, td { border: 1px solid #e2e8f0; padding: 10px; text-align: left; vertical-align: middle; }
+                th { background: #f8fafc; font-weight: 700; text-transform: uppercase; font-size: 0.8rem; color: #64748b; }
+                tr:nth-child(even) { background-color: #fcfcfc; }
+                @media print {
+                    button { display: none; }
+                    body { padding: 0; }
+                    th { -webkit-print-color-adjust: exact; background: #f0f0f0 !important; }
+                }
+            </style>
+        </head>
+        <body>
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <h2>${pageTitle}</h2>
+                <div style="font-size:0.8rem; color:#888;">Generado: ${new Date().toLocaleTimeString()}</div>
+            </div>
+            <table>
+                <thead>${tableHeader}</thead>
+                <tbody>${tableRows}</tbody>
+            </table>
+            
+            <script>
+                setTimeout(() => {
+                    window.print();
+                    // window.close(); // Optional: close automatically
+                }, 500);
+            </script>
+        </body>
+        </html>
     `);
     w.document.close();
     closePrintModal();
