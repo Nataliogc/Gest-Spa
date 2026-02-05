@@ -4,8 +4,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Disponibilidad Terapeutas</title>
-    <link rel="manifest" href="manifest.json">
+    <title>Agenda Terapeutas - Zenith Spa</title>
+    <link rel="manifest" href="manifest.json?v=4">
     <meta name="theme-color" content="#1e293b">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
@@ -24,6 +24,7 @@
             margin: 0;
             padding: 0;
             color: var(--text);
+            -webkit-tap-highlight-color: transparent;
         }
 
         .header {
@@ -36,11 +37,12 @@
             position: sticky;
             top: 0;
             z-index: 100;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
         }
 
         .container {
             padding: 10px;
-            max-width: 800px;
+            max-width: 600px;
             margin: 0 auto;
         }
 
@@ -49,74 +51,179 @@
             align-items: center;
             justify-content: space-between;
             background: #fff;
-            margin-bottom: 15px;
-            padding: 12px;
+            margin-bottom: 12px;
+            padding: 8px;
             border-radius: 12px;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
         }
 
-        .staff-list-container {
+        /* Therapist Selector */
+        .staff-selector {
             display: flex;
-            flex-direction: column;
-            gap: 12px;
+            gap: 10px;
+            overflow-x: auto;
+            padding: 5px 2px 15px 2px;
+            margin-bottom: 5px;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: none;
         }
 
-        .staff-card {
+        .staff-selector::-webkit-scrollbar {
+            display: none;
+        }
+
+        .staff-btn {
             background: #fff;
-            border-radius: 12px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
-            overflow: hidden;
-            border: 1px solid #e2e8f0;
-        }
-
-        .staff-header {
-            padding: 15px;
-            background: #fff;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            border-bottom: 1px solid #f1f5f9;
-            cursor: pointer;
-        }
-
-        .staff-name {
+            border: 2px solid #e2e8f0;
+            padding: 12px 20px;
+            border-radius: 14px;
+            white-space: nowrap;
             font-weight: 800;
-            font-size: 1.1rem;
-            color: #1e293b;
+            color: #64748b;
+            cursor: pointer;
+            transition: all 0.2s;
             display: flex;
             align-items: center;
             gap: 10px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.03);
+            font-size: 0.9rem;
         }
 
-        .staff-name i {
+        .staff-btn.active {
+            background: #1e293b;
+            color: #fff;
+            border-color: #1e293b;
+            box-shadow: 0 4px 12px rgba(30, 41, 59, 0.2);
+            transform: translateY(-2px);
+        }
+
+        .staff-btn i {
+            font-size: 1.2rem;
+            opacity: 0.6;
+        }
+
+        .staff-btn.active i {
             color: var(--accent);
+            opacity: 1;
         }
 
-        .staff-agenda {
-            padding: 10px;
-            background: #fdfdfd;
+        /* Agenda Card */
+        .agenda-card {
+            background: #fff;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+            overflow: hidden;
+            border: 1px solid #e2e8f0;
+            margin-top: 10px;
+        }
+
+        .agenda-header {
+            padding: 20px;
+            background: #f8fafc;
+            border-bottom: 1px solid #e2e8f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .agenda-title {
+            margin: 0;
+            font-size: 1.2rem;
+            font-weight: 800;
+            color: #1e293b;
+        }
+
+        /* TIMELINE (Horizontal Calendar) */
+        .timeline-wrapper {
+            padding: 20px 15px;
+            background: #fff;
+            border-bottom: 1px solid #f1f5f9;
+        }
+
+        .timeline-scroll {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: none;
+        }
+
+        .timeline-scroll::-webkit-scrollbar {
+            display: none;
+        }
+
+        .timeline-grid {
+            display: flex;
+            min-width: 800px;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .slot {
+            flex: 1;
+            height: 35px;
+            border-right: 1px solid rgba(0, 0, 0, 0.05);
+            position: relative;
+        }
+
+        .slot:last-child {
+            border-right: none;
+        }
+
+        .slot-free {
+            background: var(--free);
+        }
+
+        .slot-busy {
+            background: var(--busy);
+        }
+
+        .slot-off {
+            background: var(--off);
+            opacity: 0.3;
+        }
+
+        .time-labels {
+            display: flex;
+            min-width: 800px;
+            margin-top: 5px;
+        }
+
+        .time-label {
+            flex: 1;
+            font-size: 10px;
+            font-weight: 700;
+            color: #94a3b8;
+            text-align: center;
+        }
+
+        /* Booking List */
+        .booking-list {
+            padding: 15px;
+            background: #fff;
         }
 
         .booking-item {
             display: flex;
-            gap: 12px;
-            padding: 12px;
+            gap: 15px;
+            padding: 15px;
             background: #fff;
             border: 1px solid #f1f5f9;
-            border-radius: 8px;
-            margin-bottom: 8px;
+            border-radius: 12px;
+            margin-bottom: 10px;
             align-items: center;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.01);
         }
 
         .booking-time {
             background: #f1f5f9;
-            padding: 6px 10px;
-            border-radius: 6px;
+            padding: 8px 12px;
+            border-radius: 8px;
             font-weight: 800;
             color: #1e3a8a;
-            font-size: 0.85rem;
-            min-width: 50px;
+            font-size: 0.95rem;
+            min-width: 60px;
             text-align: center;
+            border: 1px solid #e2e8f0;
         }
 
         .booking-details {
@@ -124,21 +231,35 @@
         }
 
         .service-name {
-            font-weight: 700;
-            font-size: 0.9rem;
+            font-weight: 800;
+            font-size: 0.95rem;
             color: #1e293b;
+            margin-bottom: 2px;
         }
 
-        .client-name {
-            font-size: 0.75rem;
+        .booking-meta {
+            font-size: 0.8rem;
             color: #64748b;
-            margin-top: 2px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 4px;
         }
 
         .booking-duration {
             font-size: 0.75rem;
-            font-weight: 700;
+            font-weight: 800;
             color: var(--accent);
+            background: #fefce8;
+            padding: 3px 8px;
+            border-radius: 6px;
+        }
+
+        .no-services {
+            padding: 50px 20px;
+            text-align: center;
+            color: #94a3b8;
+            font-size: 0.9rem;
         }
 
         .btn-nav {
@@ -152,7 +273,7 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 1rem;
+            font-size: 1.1rem;
         }
 
         .btn-install {
@@ -164,23 +285,15 @@
             font-weight: 800;
             display: none;
             font-size: 0.8rem;
-            letter-spacing: 0.5px;
-        }
-
-        .no-services {
-            padding: 20px;
-            text-align: center;
-            color: #94a3b8;
-            font-size: 0.85rem;
-            font-style: italic;
         }
 
         .status-badge {
             font-size: 0.65rem;
-            padding: 3px 8px;
+            padding: 4px 10px;
             border-radius: 20px;
             font-weight: 800;
             text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
 
         .status-working {
@@ -192,155 +305,231 @@
             background: #fee2e2;
             color: #991b1b;
         }
+
+        .scroll-hint {
+            font-size: 0.65rem;
+            color: #94a3b8;
+            margin-bottom: 5px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            padding-left: 2px;
+        }
     </style>
 </head>
 
 <body>
     <div class="header">
         <div style="display:flex; align-items:center; gap:10px;">
-            <i class="fas fa-calendar-alt" style="color:var(--accent); font-size: 1.2rem;"></i>
+            <i class="fas fa-calendar-check" style="color:var(--accent); font-size: 1.4rem;"></i>
             <h1 style="margin:0; font-size: 1.1rem; font-weight: 800; letter-spacing: -0.5px;">ZENITH SPA</h1>
         </div>
-        <button id="installApp" class="btn-install">DESCARGAR APP</button>
+        <button id="installApp" class="btn-install">INSTALAR APP</button>
     </div>
 
     <div class="container">
         <div class="date-nav">
             <button class="btn-nav" id="btnPrev"><i class="fas fa-chevron-left"></i></button>
-            <div id="dateDisplay" style="font-weight:800; font-size: 1rem; text-align: center;">...</div>
+            <div id="dateDisplay" style="font-weight:800; font-size: 1rem; color:#1e293b; text-align: center; flex: 1;">
+                ...</div>
             <button class="btn-nav" id="btnNext"><i class="fas fa-chevron-right"></i></button>
         </div>
 
-        <div id="staff-list-container" class="staff-list-container">
+        <div class="scroll-hint">Terapeutas:</div>
+        <div id="staff-selector" class="staff-selector"></div>
+
+        <div id="agenda-card" class="agenda-card">
             <div style="padding:60px; text-align:center; color:#94a3b8;">
-                <i class="fas fa-spinner fa-spin" style="font-size: 2rem; margin-bottom: 10px;"></i>
-                <div>Conectando con el Spa...</div>
+                <i class="fas fa-spinner fa-spin" style="font-size: 2rem; margin-bottom: 12px;"></i>
+                <div style="font-weight:600;">Cargando...</div>
             </div>
         </div>
     </div>
 
-    <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
-    <script src="firebase-config.js"></script>
-    <script src="reservas-staff.js"></script>
+    <script src="firebase-config.js?v=4"></script>
+    <script src="reservas-staff.js?v=4"></script>
     <script>
         let currentDate = new Date().toISOString().split('T')[0];
+        let selectedStaffId = null;
+        let allStaffList = [];
 
         async function init() {
-            if (typeof db === 'undefined' && typeof firebase !== 'undefined') {
-                window.db = firebase.firestore();
+            try {
+                if (typeof db === 'undefined' && typeof firebase !== 'undefined') {
+                    window.db = firebase.firestore();
+                }
+                setupPWA();
+                await loadData();
+            } catch (e) {
+                console.error("Init error:", e);
+                document.getElementById('agenda-card').innerHTML = `<div class="no-services">Error de inicio: ${e.message}</div>`;
             }
-            setupPWA();
-            await refreshData();
         }
 
-        async function refreshData() {
-            const container = document.getElementById('staff-list-container');
-            const dateDisplay = document.getElementById('dateDisplay');
+        async function loadData() {
+            try {
+                // Fallback robusto para loadStaff
+                if (typeof window.loadStaff !== 'function') {
+                    console.warn("loadStaff fallback activated");
+                    window.loadStaff = async function () {
+                        const snap = await db.collection('spa_staff').get();
+                        const s = [];
+                        snap.forEach(doc => {
+                            const data = doc.data();
+                            if (data.activo === true || data.status === 'active') s.push({ id: doc.id, ...data });
+                        });
+                        window.allStaff = s;
+                        return s;
+                    };
+                }
 
+                allStaffList = await window.loadStaff();
+                if (allStaffList.length === 0) allStaffList = await window.getActiveStaff();
+
+                if (allStaffList.length > 0 && !selectedStaffId) {
+                    selectedStaffId = allStaffList[0].id;
+                }
+
+                renderStaffSelector();
+                await refreshAgenda();
+            } catch (e) {
+                console.error("Data load error:", e);
+                document.getElementById('agenda-card').innerHTML = `<div class="no-services">Error al cargar datos. Comprueba tu conexión.</div>`;
+            }
+        }
+
+        function renderStaffSelector() {
+            const container = document.getElementById('staff-selector');
+            if (allStaffList.length === 0) return;
+            container.innerHTML = allStaffList.map(s => {
+                const name = s.nombre || s.name || 'Sin nombre';
+                return `<button class="staff-btn ${s.id === selectedStaffId ? 'active' : ''}" onclick="selectStaff('${s.id}')"><i class="fas fa-user-circle"></i> ${name}</button>`;
+            }).join('');
+        }
+
+        async function selectStaff(id) {
+            selectedStaffId = id;
+            renderStaffSelector();
+            await refreshAgenda();
+        }
+
+        async function refreshAgenda() {
+            const container = document.getElementById('agenda-card');
+            const dateDisplay = document.getElementById('dateDisplay');
             const dobj = new Date(currentDate + 'T12:00:00');
             dateDisplay.textContent = dobj.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' }).toUpperCase();
 
-            try {
-                // Ensure loadStaff is called
-                let staff = await window.getActiveStaff();
-                if (!staff || staff.length === 0) {
-                    staff = await window.loadStaff();
-                }
+            const staff = allStaffList.find(s => s.id === selectedStaffId);
+            if (!staff) return;
 
+            container.innerHTML = `<div style="padding:60px; text-align:center;"><i class="fas fa-spinner fa-spin" style="font-size:1.5rem; color:var(--accent);"></i></div>`;
+
+            try {
                 const bookings = await window.getAllBookingsForDate(currentDate);
                 const exceptions = await window.getDayExceptionsForDate(currentDate);
+                const workingToday = await isWorkingToday(staff, currentDate, exceptions);
 
-                if (!staff || staff.length === 0) {
-                    container.innerHTML = '<div style="padding:40px; text-align:center; color:#64748b;">No hay terapeutas activos configurados.</div>';
-                    return;
+                const name = staff.nombre || staff.name;
+                const myBookings = bookings.filter(b => {
+                    if (b.status === 'anulada') return false;
+                    const assignedId = b.staff_id || b.terapeuta_id || (b.staff ? b.staff.id : null) || b.terapeuta;
+                    return assignedId === staff.id || assignedId === name || b.staff_name === name || b.terapeuta === name;
+                }).sort((a, b) => a.hora.localeCompare(b.hora));
+
+                // 1. HEADER
+                let html = `
+                    <div class="agenda-header">
+                        <h2 class="agenda-title">${name}</h2>
+                        <span class="status-badge ${workingToday ? 'status-working' : 'status-off'}">${workingToday ? 'Trabaja hoy' : 'Día libre'}</span>
+                    </div>
+                `;
+
+                // 2. TIMELINE (Calendar horizontal)
+                html += `<div class="timeline-wrapper">
+                    <div style="font-size:0.7rem; font-weight:800; margin-bottom:8px; color:#64748b;">DISPONIBILIDAD HORARIA:</div>
+                    <div class="timeline-scroll">
+                        <div class="timeline-grid">`;
+
+                // Slots every 15 mins from 10:00 to 21:00
+                const slots = [];
+                for (let h = 10; h < 21; h++) {
+                    for (let m = 0; m < 60; m += 15) slots.push(`${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`);
                 }
 
-                let html = '';
-                for (const s of staff) {
-                    const name = s.nombre || s.name || 'Sin nombre';
+                for (const time of slots) {
+                    const isWorking = await window.checkStaffAvailability(staff, currentDate, time, 15, exceptions);
+                    if (!isWorking) {
+                        html += `<div class="slot slot-off"></div>`;
+                    } else {
+                        const isBusy = myBookings.find(b => {
+                            const [bh, bm] = b.hora.split(':').map(Number);
+                            const start = bh * 60 + bm;
+                            const end = start + (parseInt(b.duracion) || 60);
+                            const [th, tm] = time.split(':').map(Number);
+                            const t = th * 60 + tm;
+                            return t >= start && t < end;
+                        });
+                        html += `<div class="slot ${isBusy ? 'slot-busy' : 'slot-free'}"></div>`;
+                    }
+                }
+                html += `</div><div class="time-labels">`;
+                for (let h = 10; h <= 21; h++) html += `<div class="time-label">${h}h</div>`;
+                html += `</div></div></div>`;
 
-                    // Filter bookings for this therapist
-                    const myBookings = bookings.filter(b => {
-                        if (b.status === 'anulada') return false;
-                        const assignedId = b.staff_id || b.terapeuta_id || (b.staff ? b.staff.id : null) || b.terapeuta;
-                        return assignedId === s.id || assignedId === name || b.staff_name === name || b.terapeuta === name;
-                    }).sort((a, b) => a.hora.localeCompare(b.hora));
-
-                    // Check if working today
-                    const working = await isWorkingToday(s, currentDate);
-
-                    html += `
-                        <div class="staff-card">
-                            <div class="staff-header">
-                                <div class="staff-name">
-                                    <i class="fas fa-user-circle"></i> ${name}
-                                </div>
-                                <span class="status-badge ${working ? 'status-working' : 'status-off'}">
-                                    ${working ? 'Trabajando' : 'No trabaja'}
-                                </span>
-                            </div>
-                            <div class="staff-agenda">
-                                ${myBookings.length > 0 ? myBookings.map(b => `
-                                    <div class="booking-item">
-                                        <div class="booking-time">${b.hora}</div>
-                                        <div class="booking-details">
-                                            <div class="service-name">${b.servicio || b.nombre_servicio || 'Servicio'}</div>
-                                            <div class="client-name">${b.nombre || 'Cliente'} | Sala: ${b.module || b._collection || ''}</div>
-                                        </div>
-                                        <div class="booking-duration">${b.duracion || 60}m</div>
+                // 3. BOOKING LIST
+                html += `<div class="booking-list">`;
+                if (myBookings.length > 0) {
+                    myBookings.forEach(b => {
+                        html += `
+                            <div class="booking-item">
+                                <div class="booking-time">${b.hora}</div>
+                                <div class="booking-details">
+                                    <div class="service-name">${b.servicio || 'Servicio'}</div>
+                                    <div class="booking-meta">
+                                        <span><i class="fas fa-user"></i> ${b.nombre || 'Cliente'}</span>
+                                        <span><i class="fas fa-map-marker-alt"></i> ${getRoom(b._collection)}</span>
                                     </div>
-                                `).join('') : `<div class="no-services">${working ? 'Sin servicios asignados' : 'Día libre'}</div>`}
+                                </div>
+                                <div class="booking-duration">${b.duracion || 60}m</div>
                             </div>
-                        </div>
-                    `;
+                        `;
+                    });
+                } else {
+                    html += `<div class="no-services">${workingToday ? 'Sin servicios asignados hoy' : 'Día de descanso'}</div>`;
                 }
+                html += `</div>`;
+
                 container.innerHTML = html;
             } catch (e) {
-                console.error("Refresh error:", e);
-                container.innerHTML = `<div style="padding:20px; color:red; text-align:center;">Error al cargar datos<br><small>${e.message}</small></div>`;
+                console.error("Agenda error:", e);
+                container.innerHTML = `<div class="no-services">Error al cargar agenda</div>`;
             }
         }
 
-        async function isWorkingToday(staff, date) {
-            if (!staff) return false;
+        function getRoom(col) {
+            const map = { 'reservas_cabina1': 'C1', 'reservas_cabina2': 'C2', 'reservas_cabina3': 'C3', 'reservas_suite': 'SUITE', 'reservas_vip': 'VIP', 'reservas_panacea': 'PANACEA', 'reservas_peluqueria': 'PELU' };
+            return map[col] || (col ? col.replace('reservas_', '').toUpperCase() : 'SPA');
+        }
 
-            // 1. Check Exceptions (Higher priority)
-            const exceptions = await window.getDayExceptionsForDate(date);
+        async function isWorkingToday(staff, date, exceptions) {
             const exc = exceptions[staff.id];
             if (exc) {
                 if (exc.status === 'unavailable' || exc.status === 'off' || exc.status === 'vacation') return false;
                 if (exc.status === 'custom' && exc.custom_schedule) return exc.custom_schedule.enabled;
             }
-
-            // 2. Check Schedule
             const dateObj = new Date(date + 'T12:00:00');
-            const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-            const dayKey = days[dateObj.getDay()];
-
-            let workingSchedule = staff.default_schedule || {};
-            const dayConfig = workingSchedule[dayKey];
-
-            return dayConfig ? dayConfig.enabled : false;
+            const dayKey = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'][dateObj.getDay()];
+            const schedule = staff.default_schedule || {};
+            return schedule[dayKey] ? schedule[dayKey].enabled : false;
         }
 
-        document.getElementById('btnPrev').onclick = () => {
-            let d = new Date(currentDate + 'T12:00:00');
-            d.setDate(d.getDate() - 1);
-            currentDate = d.toISOString().split('T')[0];
-            refreshData();
-        }
-        document.getElementById('btnNext').onclick = () => {
-            let d = new Date(currentDate + 'T12:00:00');
-            d.setDate(d.getDate() + 1);
-            currentDate = d.toISOString().split('T')[0];
-            refreshData();
-        }
+        document.getElementById('btnPrev').onclick = () => { let d = new Date(currentDate + 'T12:00:00'); d.setDate(d.getDate() - 1); currentDate = d.toISOString().split('T')[0]; refreshAgenda(); }
+        document.getElementById('btnNext').onclick = () => { let d = new Date(currentDate + 'T12:00:00'); d.setDate(d.getDate() + 1); currentDate = d.toISOString().split('T')[0]; refreshAgenda(); }
 
         function setupPWA() {
             if ('serviceWorker' in navigator) {
-                // Use relative path for subfolders like /Gest-Spa/
                 const base = window.location.pathname.includes('/Gest-Spa/') ? '/Gest-Spa/' : '/';
                 navigator.serviceWorker.register(base + 'sw.js').catch(err => console.warn("SW error:", err));
             }
@@ -356,7 +545,6 @@
                 };
             });
         }
-
         init();
     </script>
 </body>
