@@ -69,22 +69,36 @@ async function handleStaffFieldsChange() {
             let html = '<option value="">Seleccionar...</option>';
             const uniqueStaff = [...availableStaff];
             uniqueStaff.sort((a, b) => {
-                if (a._status === b._status) return (a.alias || a.nombre).localeCompare(b.alias || b.nombre);
-                return a._status === 'free' ? -1 : 1;
+                // Priority: free (1) > busy (2) > off (3)
+                const getScore = (s) => {
+                    if (s._status === 'free') return 1;
+                    if (s._status === 'busy') return 2;
+                    return 3;
+                };
+                const sa = getScore(a);
+                const sb = getScore(b);
+                if (sa === sb) return (a.alias || a.nombre).localeCompare(b.alias || b.nombre);
+                return sa - sb;
             });
 
             uniqueStaff.forEach(s => {
                 const isBusy = (s._status === 'busy' && s.id !== selectedVal);
+                const isOff = (s._status === 'off' && s.id !== selectedVal);
                 const isExcluded = (s.id === excludeId && s.id !== selectedVal);
 
                 let label = s.alias || s.nombre || s.name || 'Sin nombre';
-                if (isBusy) label += " (Ocupado)";
+                if (isBusy) label += s._collision ? (" (Ocupado: " + s._collision + ")") : " (Ocupado)";
+                if (isOff) label += " (No trabaja)";
                 if (isExcluded) label += " (Seleccionado)";
 
                 const isSelected = (s.id === selectedVal) ? 'selected' : '';
-                const isDisabled = (isBusy || isExcluded) ? 'disabled' : '';
+                const isDisabled = (isBusy || isExcluded || isOff) ? 'disabled' : '';
 
-                html += `<option value="${s.id}" ${isSelected} ${isDisabled} style="${(isBusy || isExcluded) ? 'color:red;' : ''}">${label}</option>`;
+                let style = '';
+                if (isBusy || isExcluded) style = 'color:red;';
+                if (isOff) style = 'color:gray; font-style:italic;';
+
+                html += `<option value="${s.id}" ${isSelected} ${isDisabled} style="${style}">${label}</option>`;
             });
             return html;
         };
@@ -119,8 +133,10 @@ async function handleStaffFieldsChange() {
 
         const msgSpan = document.getElementById("staff-availability-msg");
         if (msgSpan) {
-            msgSpan.textContent = `(${availableStaff.length} disp.)`;
-            msgSpan.style.color = availableStaff.length > 0 ? 'green' : 'red';
+            // Count ONLY free staff
+            const freeCount = availableStaff.filter(s => s._status === 'free').length;
+            msgSpan.textContent = `(${freeCount} disp.)`;
+            msgSpan.style.color = freeCount > 0 ? 'green' : 'red';
         }
 
     } catch (err) {
@@ -192,7 +208,7 @@ window.getAllBookingsForDate = async function (date) {
     const collections = [
         'reservas_cabina1', 'reservas_cabina2', 'reservas_cabina3',
         'reservas_suite', 'reservas_vip', 'reservas_panacea',
-        'reservas_peluqueria'
+        'reservas_peluqueria', 'reservas_spa'
     ];
 
     let allBookings = [];

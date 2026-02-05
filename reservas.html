@@ -420,6 +420,26 @@
             font-size: 0.75rem;
             font-weight: 700;
         }
+
+        /* SERVICIOS DROPDOWN */
+        .service-result-item:hover {
+            background-color: #f8fafc !important;
+            color: #6366f1 !important;
+        }
+
+        #res-servicio-results::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        #res-servicio-results::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 10px;
+        }
+
+        #res-servicio-results {
+            scrollbar-width: thin;
+            scrollbar-color: #cbd5e1 transparent;
+        }
     </style>
 </head>
 
@@ -643,342 +663,367 @@
     <!-- MODAL RESERVA ULTRA-COMPACT -->
     <div id="booking-modal" class="modal">
         <div class="modal-content"
-            style="max-width: 820px; padding: 12px 20px; border-radius: 12px; max-height: 90vh; overflow-y: auto;">
-            <div
-                style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px solid #f1f5f9;">
-                <div style="display: flex; align-items: baseline; gap: 8px;">
-                    <h2 id="modal-title" style="margin: 0; font-size: 1rem; color: #1e293b; font-weight: 700;">Editar
-                        Reserva</h2>
-                    <span id="modal-subtitle" style="font-size: 0.75rem; color: #64748b; font-weight: 500;"></span>
-                </div>
-                <div style="display: flex; align-items: center; gap: 10px;">
-                    <div id="audit-info" style="font-size: 0.6rem; color: #94a3b8; text-align: right;"></div>
-                    <span id="res-id-display"
-                        style="font-size: 0.75rem; font-weight: 700; color: #cbd5e1; background: #f1f5f9; padding: 2px 6px; border-radius: 4px;">ID</span>
-                    <button type="button" onclick="closeModal()"
-                        style="background: #f1f5f9; border: 1px solid #e2e8f0; color: #64748b; font-size: 0.7rem; font-weight: 800; padding: 4px 10px; border-radius: 6px; cursor: pointer; text-transform: uppercase; transition: all 0.2s;">
-                        <i class="fas fa-times" style="margin-right: 4px; font-size: 0.8rem;"></i> Salir
-                    </button>
-                </div>
-            </div>
-            <form id="booking-form" style="display: flex; flex-direction: column; gap: 15px; margin-top: 10px;">
-                <input type="hidden" id="form-id">
-                <input type="hidden" id="res-precio-total" value="0">
-                <!-- Date and Time moved to visible grid below -->
-                <!-- Duration field removed from here to fix duplicate ID conflict. It is now only in the main grid below. -->
-                <div id="duration-group-hidden" style="display:none;"></div>
+            style="max-width: 1050px; width: 95vw; padding: 0; border-radius: 12px; max-height: 90vh; overflow: hidden; display: flex; flex-direction: column;">
 
-                <!-- MAIN FIELDS GRID -->
-                <div id="booking-form-grid"
-                    style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; background: #fff; padding: 15px; border-radius: 10px; border: 1px solid #edf2f7; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
+            <form id="booking-form"
+                style="display: flex; flex-direction: column; flex: 1; overflow: hidden; margin: 0;">
 
-                    <!-- ROW 1: DATE | TIME | PAX | MIN | ORIGEN -->
-                    <div style="display: flex; gap: 8px; align-items: flex-end; grid-column: 1 / -1;">
-                        <!-- FECHA -->
-                        <div class="form-group" style="flex: 0 0 130px; margin-bottom: 0;">
-                            <label
-                                style="font-size: 0.6rem; font-weight: 800; color: #1e40af; text-transform: uppercase;">
-                                <i class="fas fa-calendar-day"></i> Fecha
-                            </label>
-                            <input type="date" id="form-date" required onchange="updatePriceAutomation()"
-                                style="width: 100%; padding: 4px 6px; border-radius: 4px; border: 1px solid #bfdbfe; font-size: 0.85rem; font-weight: 700; color: #1e3a8a; background: #fff;">
-                        </div>
-                        <!-- HORA -->
-                        <div class="form-group" style="flex: 0 0 80px; margin-bottom: 0;">
-                            <label
-                                style="font-size: 0.6rem; font-weight: 800; color: #1e40af; text-transform: uppercase;">
-                                <i class="fas fa-clock"></i> Hora
-                            </label>
-                            <select id="form-time" required
-                                style="width: 100%; padding: 5px 6px; border-radius: 4px; border: 1px solid #bfdbfe; font-size: 0.85rem; font-weight: 700; color: #1e3a8a; background: #fff;">
-                            </select>
-                        </div>
-                        <!-- PAX -->
-                        <div class="form-group" style="flex: 0 0 45px; margin-bottom: 0;">
-                            <label
-                                style="font-size: 0.6rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; text-align: center;">Pax</label>
-                            <input type="number" id="res-pax" value="2" min="1" max="25" required
-                                onchange="updatePriceAutomation(); updateStaffSelectorsVisibility();"
-                                style="width: 100%; padding: 5px 2px; border-radius: 4px; border: 1px solid #e2e8f0; font-size: 0.85rem; text-align: center; background: #f8fafc;">
-                        </div>
-                        <!-- MIN -->
-                        <div class="form-group" style="flex: 0 0 50px; margin-bottom: 0;">
-                            <label
-                                style="font-size: 0.6rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; text-align: center;">Min</label>
-                            <input type="number" id="inputDuration" value="60" min="5" step="5" required
-                                onchange="handleStaffFieldsChange(); updateAvailabilityUI();"
-                                style="width: 100%; padding: 5px 2px; border-radius: 4px; border: 1px solid #e2e8f0; font-size: 0.85rem; text-align: center; background: #fff;">
-                        </div>
-                        <!-- ORIGEN -->
-                        <div class="form-group" style="flex: 1; margin-bottom: 0;">
-                            <label
-                                style="font-size: 0.6rem; font-weight: 800; color: #4a5568; text-transform: uppercase;">Origen</label>
-                            <select id="res-origen" onchange="toggleRoomField(); updatePriceAutomation();"
-                                style="width: 100%; padding: 5px 8px; border-radius: 4px; border: 1px solid #e2e8f0; font-size: 0.85rem; background: #fff; cursor: pointer;">
-                                <option value="particular">Particular (Pago Directo)</option>
-                                <option value="hotel_inc">Hotel - Incluido</option>
-                                <option value="hotel_no_inc">Hotel - NO Incluidos</option>
-                                <option value="bono">Bono Spa (Interno)</option>
-                                <option value="smartbox">Smartbox</option>
-                                <option value="wonderbox">Wonderbox</option>
-                                <option value="ego">Ego Experiencias</option>
-                            </select>
-                        </div>
-                    </div>
+                <!-- HEADER & SCROLLABLE CONTENT -->
+                <div style="flex: 1; overflow-y: auto; padding: 15px 20px; background: #fff;">
 
-                    <!-- ROW 2: NOMBRE | TELÉFONO -->
-                    <div style="display: flex; gap: 8px; grid-column: 1 / -1;">
-                        <div class="form-group" style="flex: 2; margin-bottom: 0;">
-                            <label
-                                style="font-size: 0.65rem; font-weight: 800; color: #4a5568; text-transform: uppercase;">Cliente</label>
-                            <input type="text" id="res-nombre" required placeholder="Nombre Completo"
-                                style="width: 100%; padding: 6px 10px; border-radius: 4px; border: 1px solid #e2e8f0; font-size: 0.95rem; font-weight: 600; outline: none; background: #f8fafc;">
-                        </div>
-                        <div class="form-group" id="tel-group" style="flex: 1; margin-bottom: 0;">
-                            <label
-                                style="font-size: 0.6rem; font-weight: 700; color: #94a3b8; text-transform: uppercase;">Teléfono</label>
-                            <input type="tel" id="res-tel" placeholder="XXX XXX XXX" required
-                                style="width: 100%; padding: 6px 10px; border-radius: 4px; border: 1px solid #e2e8f0; font-size: 0.9rem; background: #f8fafc;">
-                        </div>
-                    </div>
-
-                    <!-- ROW 3: SERVICIO | TERAPEUTA -->
-                    <div style="display: flex; gap: 8px; grid-column: 1 / -1;">
-                        <!-- SERVICIO -->
-                        <div class="form-group" id="service-group" style="flex: 1.5; margin-bottom: 0; display: none;">
-                            <label id="label-service"
-                                style="font-size: 0.65rem; font-weight: 800; color: #4a5568; text-transform: uppercase;">Servicio</label>
-                            <select id="res-servicio"
-                                onchange="updatePackInfo(); updatePriceAutomation(); updateStaffSelectorsVisibility();"
-                                style="width: 100%; padding: 6px 10px; border-radius: 4px; border: 1px solid #e2e8f0; font-size: 0.9rem; background: #fff; cursor: pointer; font-weight: 600; color: var(--accent);">
-                            </select>
-                        </div>
-                        <!-- STAFF SELECTOR (Smaller) -->
-                        <div class="form-group" id="staff-selector-group"
-                            style="flex: 0.8; display: none; margin-bottom: 0;">
-                            <label id="label-staff-1"
-                                style="font-size: 0.65rem; font-weight: 800; color: #4a5568; text-transform: uppercase;">Terapeuta</label>
-                            <div style="display: flex; gap: 5px; align-items: center;">
-                                <select id="booking-staff"
-                                    style="flex: 1; padding: 6px 8px; border-radius: 4px; border: 1px solid #e2e8f0; font-size: 0.9rem; background: #fff; cursor: pointer;">
-                                    <option value="">Seleccionar...</option>
-                                </select>
-                                <span id="staff-availability-msg" style="font-size: 0.7rem; font-weight: 600;"></span>
-                            </div>
-                            <!-- Second Staff Selector -->
-                            <div id="staff-2-container" style="display: none; margin-top: 5px;">
-                                <select id="booking-staff-2"
-                                    style="width: 100%; padding: 5px 8px; border-radius: 4px; border: 1px solid #e2e8f0; font-size: 0.85rem; background: #fff; cursor: pointer;">
-                                    <option value="">2º Terapeuta...</option>
-                                </select>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- ROW 4: EXTRA FIELDS (CONDITIONAL) -->
-                    <div id="extra-fields-row"
-                        style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; grid-column: 1 / -1;">
-                        <!-- Hidden fields maintained here with simplified styling -->
-                        <div class="form-group" id="hotel-group" style="margin-bottom: 0; display: none;">
-                            <label style="font-size: 0.6rem; font-weight: 800; text-transform: uppercase;">Hotel</label>
-                            <select id="res-hotel"
-                                style="width: 100%; padding: 5px; border-radius: 4px; border: 1px solid #e2e8f0; font-size: 0.85rem;">
-                                <option value="Cumbria">Cumbria</option>
-                                <option value="Guadiana">Guadiana</option>
-                            </select>
-                        </div>
-                        <div class="form-group" id="room-group" style="margin-bottom: 0; display: none;">
-                            <label
-                                style="font-size: 0.6rem; font-weight: 800; text-transform: uppercase;">Hab/Rva</label>
-                            <input type="text" id="res-hab"
-                                style="width: 100%; padding: 5px; border-radius: 4px; border: 1px solid #e2e8f0; font-size: 0.85rem;">
-                        </div>
-                        <div class="form-group" id="bono-group" style="margin-bottom: 0; display: none;">
-                            <label
-                                style="font-size: 0.6rem; font-weight: 800; text-transform: uppercase;">Bono/Cupón</label>
-                            <input type="text" id="res-bono"
-                                style="width: 100%; padding: 5px; border-radius: 4px; border: 1px solid #e2e8f0; font-size: 0.85rem;">
-                        </div>
-                        <div class="form-group" id="sessions-group" style="margin-bottom: 0; display: none;">
-                            <label
-                                style="font-size: 0.6rem; font-weight: 800; text-transform: uppercase;">Sesiones</label>
-                            <input type="number" id="res-sesiones" value="1"
-                                style="width: 100%; padding: 5px; border-radius: 4px; border: 1px solid #e2e8f0; font-size: 0.85rem; text-align: center;">
-                        </div>
-                    </div>
-
-                    <!-- ROW 5: COMPLEMENTOS & OBSERVACIONES (SIDE BY SIDE) -->
+                    <!-- HEADER -->
                     <div
-                        style="display: grid; grid-template-columns: 1fr 1.5fr; gap: 10px; height: 100px; min-height: 100px; grid-column: 1 / -1;">
-                        <!-- COMPLEMENTOS -->
-                        <div id="complementos-container"
-                            style="display: none; padding: 5px; background: #f8fafc; border-radius: 6px; border: 1px solid #edf2f7; overflow-y: auto;">
-                            <label
-                                style="font-size: 0.55rem; font-weight: 800; color: #64748b; text-transform: uppercase; margin-bottom: 2px; display: block; position: sticky; top: 0; background: #f8fafc;">Complementos</label>
-                            <div id="complementos-list" style="display: flex; flex-direction: column; gap: 2px;"></div>
+                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px solid #f1f5f9;">
+                        <div style="display: flex; align-items: baseline; gap: 8px;">
+                            <h2 id="modal-title" style="margin: 0; font-size: 1rem; color: #1e293b; font-weight: 700;">
+                                Nueva Reserva</h2>
+                            <span id="modal-subtitle"
+                                style="font-size: 0.75rem; color: #64748b; font-weight: 500;"></span>
                         </div>
-                        <!-- OBSERVACIONES -->
-                        <div class="form-group"
-                            style="margin-bottom: 0; height: 100%; display: flex; flex-direction: column;">
-                            <label
-                                style="font-size: 0.6rem; font-weight: 800; color: #4a5568; text-transform: uppercase; margin-bottom: 2px;">Observaciones</label>
-                            <textarea id="res-obs" placeholder="Notas..."
-                                style="flex: 1; width: 100%; padding: 8px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 0.85rem; resize: none;"></textarea>
-                        </div>
-                    </div>
-
-                    <!-- PACK INFO (Full Width, Compact) -->
-                    <div id="pack-includes-container"
-                        style="display: none; padding: 8px; background: linear-gradient(135deg, #fff7ed 0%, #fef3c7 100%); border-radius: 6px; font-size: 0.75rem; grid-column: 1 / -1; border: 1px dashed #f97316;">
-                        <h4 style="margin: 0 0 5px 0; font-size: 0.75rem; font-weight: 800; color: #c2410c;">PACK
-                            MULTISERVICIO <span id="pack-item-count"></span></h4>
-                        <div id="pack-items-schedule"></div>
-                    </div>
-
-                    <!-- 💳 CONTROL DE PAGO (Particular / Pago Directo) -->
-                    <div id="pago-particular-block"
-                        style="display:none; grid-column: 1 / -1; border-left: 4px solid #f59e0b; padding: 12px; margin-top: 10px; background: #fffcf0; border-radius: 0 8px 8px 0;">
-                        <h4
-                            style="margin: 0 0 10px 0; font-size: 0.7rem; font-weight: 800; color: #92400e; display: flex; align-items: center; gap: 8px;">
-                            <i class="fas fa-credit-card"></i> 💳 CONTROL DE PAGO
-                        </h4>
-                        <div
-                            style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 10px;">
-                            <div
-                                style="background: #fff; padding: 6px; border-radius: 6px; border: 1px solid #fef3c7; text-align: center;">
-                                <small
-                                    style="color: #92400e; font-size: 0.55rem; font-weight: 700; text-transform: uppercase;">Total</small><br>
-                                <strong id="pp-total" style="font-size: 0.9rem; color: #1e293b;">0.00€</strong>
-                            </div>
-                            <div
-                                style="background: #fff; padding: 6px; border-radius: 6px; border: 1px solid #fef3c7; text-align: center;">
-                                <small
-                                    style="color: #22c55e; font-size: 0.55rem; font-weight: 700; text-transform: uppercase;">Pagado</small><br>
-                                <strong id="pp-pagado" style="color: #22c55e; font-size: 0.9rem;">0.00€</strong>
-                            </div>
-                            <div
-                                style="background: #fff; padding: 6px; border-radius: 6px; border: 1px solid #fef3c7; text-align: center;">
-                                <small
-                                    style="color: #ef4444; font-size: 0.55rem; font-weight: 700; text-transform: uppercase;">Pendiente</small><br>
-                                <strong id="pp-pendiente" style="color: #ef4444; font-size: 0.9rem;">0.00€</strong>
-                            </div>
-                        </div>
-                        <div style="display: flex; gap: 8px; align-items: center; justify-content: space-between;">
-                            <div id="pp-status-badge"></div>
-                            <button type="button" class="btn"
-                                style="background: #22c55e; color: white; border: none; padding: 6px 12px; font-size: 0.75rem; font-weight: 700; border-radius: 6px;"
-                                onclick="registrarPagoParticular()">
-                                <i class="fas fa-money-bill-wave"></i> Registrar Pago
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <div id="audit-info" style="font-size: 0.6rem; color: #94a3b8; text-align: right;"></div>
+                            <span id="res-id-display"
+                                style="font-size: 0.75rem; font-weight: 700; color: #cbd5e1; background: #f1f5f9; padding: 2px 6px; border-radius: 4px;"></span>
+                            <button type="button" class="btn btn-sm btn-outline"
+                                style="border-radius: 4px; padding: 2px 8px; font-size: 0.7rem;" onclick="closeModal()">
+                                <i class="fas fa-times"></i> SALIR
                             </button>
                         </div>
-                        <!-- Historial de pagos -->
-                        <div id="pp-history-container"
-                            style="display: none; margin-top: 12px; border-top: 1px dashed #fcd34d; padding-top: 10px;">
-                            <h5
-                                style="margin: 0 0 5px 0; font-size: 0.65rem; color: #92400e; font-weight: 800; text-transform: uppercase;">
-                                Historial de Pagos</h5>
-                            <div id="pp-history-list"></div>
-                        </div>
-                        <div id="pp-audit-log"
-                            style="margin-top: 8px; font-size: 0.65rem; color: #92400e; font-style: italic; display: none;">
-                        </div>
                     </div>
 
-                    <!-- AVISO DE CONFLICTO / ALTERNATIVAS -->
-                    <div id="conflict-warning-container"
-                        style="display: none; grid-column: 1 / -1; margin-top: 10px; background: #fff1f2; border: 2px solid #fda4af; border-radius: 8px; padding: 15px;">
-                        <h4
-                            style="margin: 0 0 10px 0; color: #9f1239; display: flex; align-items: center; gap: 8px; font-size: 0.9rem;">
-                            <i class="fas fa-exclamation-triangle"></i> CONFLICTO DE DISPONIBILIDAD
-                        </h4>
-                        <div id="conflict-message"
-                            style="margin-bottom: 12px; font-size: 0.85rem; color: #881337; line-height: 1.5;"></div>
+                    <input type="hidden" id="form-id">
+                    <input type="hidden" id="res-precio-total" value="0">
+                    <div id="duration-group-hidden" style="display:none;"></div>
 
-                        <div id="alternatives-block"
-                            style="display: none; margin-bottom: 15px; background: #fff; padding: 10px; border-radius: 6px; border: 1px solid #e2e8f0;">
-                            <h5
-                                style="margin: 0 0 8px 0; color: #475569; font-size: 0.75rem; text-transform: uppercase;">
-                                Alternativas Sugeridas:</h5>
-                            <div id="alternatives-list" style="display: flex; flex-direction: column; gap: 6px;"></div>
+                    <!-- MAIN FIELDS GRID -->
+                    <div id="booking-form-grid"
+                        style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; background: #fff; padding: 15px; border-radius: 10px; border: 1px solid #edf2f7; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
+
+                        <!-- ROW 1: DATE | TIME | PAX | MIN | ORIGEN -->
+                        <div style="display: flex; gap: 8px; align-items: flex-end; grid-column: 1 / -1;">
+                            <!-- FECHA -->
+                            <div class="form-group" style="flex: 0 0 130px; margin-bottom: 0;">
+                                <label
+                                    style="font-size: 0.6rem; font-weight: 800; color: #1e40af; text-transform: uppercase;">
+                                    <i class="fas fa-calendar-day"></i> Fecha
+                                </label>
+                                <input type="date" id="form-date" required onchange="updatePriceAutomation()"
+                                    style="width: 100%; padding: 4px 6px; border-radius: 4px; border: 1px solid #bfdbfe; font-size: 0.85rem; font-weight: 700; color: #1e3a8a; background: #fff;">
+                            </div>
+                            <!-- HORA -->
+                            <div class="form-group" style="flex: 0 0 80px; margin-bottom: 0;">
+                                <label
+                                    style="font-size: 0.6rem; font-weight: 800; color: #1e40af; text-transform: uppercase;">
+                                    <i class="fas fa-clock"></i> Hora
+                                </label>
+                                <select id="form-time" required
+                                    style="width: 100%; padding: 5px 6px; border-radius: 4px; border: 1px solid #bfdbfe; font-size: 0.85rem; font-weight: 700; color: #1e3a8a; background: #fff;">
+                                </select>
+                            </div>
+                            <!-- PAX -->
+                            <div class="form-group" style="flex: 0 0 45px; margin-bottom: 0;">
+                                <label
+                                    style="font-size: 0.6rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; text-align: center;">Pax</label>
+                                <input type="number" id="res-pax" value="2" min="1" max="25" required
+                                    onchange="updatePriceAutomation(); updateStaffSelectorsVisibility();"
+                                    style="width: 100%; padding: 5px 2px; border-radius: 4px; border: 1px solid #e2e8f0; font-size: 0.85rem; text-align: center; background: #f8fafc;">
+                            </div>
+                            <!-- MIN -->
+                            <div class="form-group" style="flex: 0 0 50px; margin-bottom: 0;">
+                                <label
+                                    style="font-size: 0.6rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; text-align: center;">Min</label>
+                                <input type="number" id="inputDuration" value="60" min="5" step="5" required
+                                    onchange="handleStaffFieldsChange(); updateAvailabilityUI();"
+                                    style="width: 100%; padding: 5px 2px; border-radius: 4px; border: 1px solid #e2e8f0; font-size: 0.85rem; text-align: center; background: #fff;">
+                            </div>
+                            <!-- ORIGEN -->
+                            <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                                <label
+                                    style="font-size: 0.6rem; font-weight: 800; color: #4a5568; text-transform: uppercase;">Origen</label>
+                                <select id="res-origen" onchange="toggleRoomField(); updatePriceAutomation();"
+                                    style="width: 100%; padding: 5px 8px; border-radius: 4px; border: 1px solid #e2e8f0; font-size: 0.85rem; background: #fff; cursor: pointer;">
+                                    <option value="particular">Particular (Pago Directo)</option>
+                                    <option value="hotel_inc">Hotel - Incluido</option>
+                                    <option value="hotel_no_inc">Hotel - NO Incluidos</option>
+                                    <option value="bono">Bono Spa (Interno)</option>
+                                    <option value="smartbox">Smartbox</option>
+                                    <option value="wonderbox">Wonderbox</option>
+                                    <option value="ego">Ego Experiencias</option>
+                                </select>
+                            </div>
                         </div>
-                    </div>
-                </div>
 
-                <!-- FOOTER: SUMMARY & ACTIONS -->
+                        <!-- ROW 2: NOMBRE | TELÉFONO -->
+                        <div style="display: flex; gap: 8px; grid-column: 1 / -1;">
+                            <div class="form-group" style="flex: 2; margin-bottom: 0;">
+                                <label
+                                    style="font-size: 0.65rem; font-weight: 800; color: #4a5568; text-transform: uppercase;">Cliente</label>
+                                <input type="text" id="res-nombre" required placeholder="Nombre Completo"
+                                    style="width: 100%; padding: 6px 10px; border-radius: 4px; border: 1px solid #e2e8f0; font-size: 0.95rem; font-weight: 600; outline: none; background: #f8fafc;">
+                            </div>
+                            <div class="form-group" id="tel-group" style="flex: 1; margin-bottom: 0;">
+                                <label
+                                    style="font-size: 0.6rem; font-weight: 700; color: #94a3b8; text-transform: uppercase;">Teléfono</label>
+                                <input type="tel" id="res-tel" placeholder="XXX XXX XXX" required
+                                    style="width: 100%; padding: 6px 10px; border-radius: 4px; border: 1px solid #e2e8f0; font-size: 0.9rem; background: #f8fafc;">
+                            </div>
+                        </div>
+
+                        <!-- ROW 3: SERVICIO | TERAPEUTA -->
+                        <div style="display: flex; gap: 8px; grid-column: 1 / -1;">
+                            <!-- SERVICIO -->
+                            <div class="form-group" id="service-group"
+                                style="flex: 1.5; margin-bottom: 0; display: none; position: relative;">
+                                <label id="label-service"
+                                    style="font-size: 0.65rem; font-weight: 800; color: #4a5568; text-transform: uppercase;">Servicio</label>
+                                <div style="position: relative; display: flex; flex-direction: column; gap: 4px;">
+                                    <div style="position: relative;">
+                                        <input type="text" id="res-servicio-search" placeholder="🔍 Buscar servicio..."
+                                            style="width: 100%; padding: 8px 10px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 0.9rem; background: #fff; outline: none; font-weight: 600; color: var(--accent);"
+                                            oninput="filterServiceOptions(this.value)" onfocus="showServiceDropdown()"
+                                            onkeydown="handleServiceSearchKey(event)">
+                                        <i class="fas fa-chevron-down"
+                                            style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); color: #64748b; pointer-events: none;"></i>
+                                    </div>
+                                    <!-- CUSTOM DROPDOWN LIST -->
+                                    <div id="res-servicio-results"
+                                        style="display: none; position: absolute; top: 100%; left: 0; right: 0; background: #fff; border: 1px solid #cbd5e1; border-radius: 8px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); z-index: 1000; max-height: 250px; overflow-y: auto; margin-top: 4px;">
+                                    </div>
+                                    <select id="res-servicio" style="display: none;"
+                                        onchange="updatePackInfo(); updatePriceAutomation(); updateStaffSelectorsVisibility(); syncServiceDuration();">
+                                    </select>
+                                </div>
+                            </div>
+                            <!-- STAFF SELECTOR (Smaller) -->
+                            <div class="form-group" id="staff-selector-group"
+                                style="flex: 0.8; display: none; margin-bottom: 0;">
+                                <label id="label-staff-1"
+                                    style="font-size: 0.65rem; font-weight: 800; color: #4a5568; text-transform: uppercase;">Terapeuta</label>
+                                <div style="display: flex; gap: 5px; align-items: center;">
+                                    <select id="booking-staff"
+                                        style="flex: 1; padding: 6px 8px; border-radius: 4px; border: 1px solid #e2e8f0; font-size: 0.9rem; background: #fff; cursor: pointer;">
+                                        <option value="">Seleccionar...</option>
+                                    </select>
+                                    <span id="staff-availability-msg"
+                                        style="font-size: 0.7rem; font-weight: 600;"></span>
+                                </div>
+                                <!-- Second Staff Selector -->
+                                <div id="staff-2-container" style="display: none; margin-top: 5px;">
+                                    <select id="booking-staff-2"
+                                        style="width: 100%; padding: 5px 8px; border-radius: 4px; border: 1px solid #e2e8f0; font-size: 0.85rem; background: #fff; cursor: pointer;">
+                                        <option value="">2º Terapeuta...</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- ROW 4: EXTRA FIELDS (CONDITIONAL) -->
+                        <div id="extra-fields-row"
+                            style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; grid-column: 1 / -1;">
+                            <!-- Hidden fields maintained here with simplified styling -->
+                            <div class="form-group" id="hotel-group" style="margin-bottom: 0; display: none;">
+                                <label
+                                    style="font-size: 0.6rem; font-weight: 800; text-transform: uppercase;">Hotel</label>
+                                <select id="res-hotel"
+                                    style="width: 100%; padding: 5px; border-radius: 4px; border: 1px solid #e2e8f0; font-size: 0.85rem;">
+                                    <option value="Cumbria">Cumbria</option>
+                                    <option value="Guadiana">Guadiana</option>
+                                </select>
+                            </div>
+                            <div class="form-group" id="room-group" style="margin-bottom: 0; display: none;">
+                                <label
+                                    style="font-size: 0.6rem; font-weight: 800; text-transform: uppercase;">Hab/Rva</label>
+                                <input type="text" id="res-hab"
+                                    style="width: 100%; padding: 5px; border-radius: 4px; border: 1px solid #e2e8f0; font-size: 0.85rem;">
+                            </div>
+                            <div class="form-group" id="bono-group" style="margin-bottom: 0; display: none;">
+                                <label
+                                    style="font-size: 0.6rem; font-weight: 800; text-transform: uppercase;">Bono/Cupón</label>
+                                <input type="text" id="res-bono"
+                                    style="width: 100%; padding: 5px; border-radius: 4px; border: 1px solid #e2e8f0; font-size: 0.85rem;">
+                            </div>
+                            <div class="form-group" id="sessions-group" style="margin-bottom: 0; display: none;">
+                                <label
+                                    style="font-size: 0.6rem; font-weight: 800; text-transform: uppercase;">Sesiones</label>
+                                <input type="number" id="res-sesiones" value="1"
+                                    style="width: 100%; padding: 5px; border-radius: 4px; border: 1px solid #e2e8f0; font-size: 0.85rem; text-align: center;">
+                            </div>
+                        </div>
+
+                        <!-- ROW 5: COMPLEMENTOS (Full Width) -->
+                        <div id="complementos-container"
+                            style="display: none; grid-column: 1 / -1; padding: 10px; background: #f8fafc; border-radius: 6px; border: 1px solid #edf2f7; margin-top: 5px;">
+                            <label
+                                style="font-size: 0.65rem; font-weight: 800; color: #64748b; text-transform: uppercase; margin-bottom: 5px; display: block;">Complementos</label>
+                            <div id="complementos-list" style="display: flex; flex-wrap: wrap; gap: 8px;"></div>
+                        </div>
+
+                        <!-- ROW 6: OBSERVACIONES (Full Width) -->
+                        <div class="form-group" style="grid-column: 1 / -1; margin-bottom: 0;">
+                            <label
+                                style="font-size: 0.65rem; font-weight: 800; color: #4a5568; text-transform: uppercase; margin-bottom: 4px;">Observaciones</label>
+                            <textarea id="res-obs" placeholder="Notas..."
+                                style="width: 100%; min-height: 80px; padding: 8px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 0.85rem; resize: vertical; background: #fff;"></textarea>
+                        </div>
+
+                        <!-- PACK ITEMS PREVIEW -->
+                        <div id="pack-includes-container"
+                            style="display: none; padding: 8px; background: linear-gradient(135deg, #fff7ed 0%, #fef3c7 100%); border-radius: 6px; font-size: 0.75rem; grid-column: 1 / -1; border: 1px dashed #f97316;">
+                            <h4 style="margin: 0 0 5px 0; font-size: 0.75rem; font-weight: 800; color: #c2410c;">
+                                PACK MULTISERVICIO <span id="pack-item-count"></span>
+                            </h4>
+                            <div id="pack-items-schedule"></div>
+                        </div>
+
+                        <!-- 💳 CONTROL DE PAGO (Particular / Pago Directo) -->
+                        <div id="pago-particular-block"
+                            style="display:none; grid-column: 1 / -1; border-left: 4px solid #f59e0b; padding: 12px; margin-top: 10px; background: #fffcf0; border-radius: 0 8px 8px 0;">
+                            <h4
+                                style="margin: 0 0 10px 0; font-size: 0.7rem; font-weight: 800; color: #92400e; display: flex; align-items: center; gap: 8px;">
+                                <i class="fas fa-credit-card"></i> 💳 CONTROL DE PAGO
+                            </h4>
+                            <div
+                                style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 10px;">
+                                <div
+                                    style="background: #fff; padding: 6px; border-radius: 6px; border: 1px solid #fef3c7; text-align: center;">
+                                    <small
+                                        style="color: #92400e; font-size: 0.55rem; font-weight: 700; text-transform: uppercase;">Total</small><br>
+                                    <strong id="pp-total" style="font-size: 0.9rem; color: #1e293b;">0.00€</strong>
+                                </div>
+                                <div
+                                    style="background: #fff; padding: 6px; border-radius: 6px; border: 1px solid #fef3c7; text-align: center;">
+                                    <small
+                                        style="color: #22c55e; font-size: 0.55rem; font-weight: 700; text-transform: uppercase;">Pagado</small><br>
+                                    <strong id="pp-pagado" style="color: #22c55e; font-size: 0.9rem;">0.00€</strong>
+                                </div>
+                                <div
+                                    style="background: #fff; padding: 6px; border-radius: 6px; border: 1px solid #fef3c7; text-align: center;">
+                                    <small
+                                        style="color: #ef4444; font-size: 0.55rem; font-weight: 700; text-transform: uppercase;">Pendiente</small><br>
+                                    <strong id="pp-pendiente" style="color: #ef4444; font-size: 0.9rem;">0.00€</strong>
+                                </div>
+                            </div>
+                            <div style="display: flex; gap: 8px; align-items: center; justify-content: space-between;">
+                                <div id="pp-status-badge"></div>
+                                <button type="button" class="btn"
+                                    style="background: #22c55e; color: white; border: none; padding: 6px 12px; font-size: 0.75rem; font-weight: 700; border-radius: 6px;"
+                                    onclick="registrarPagoParticular()">
+                                    <i class="fas fa-money-bill-wave"></i> Registrar Pago
+                                </button>
+                            </div>
+                            <div id="pp-history-container"
+                                style="display: none; margin-top: 12px; border-top: 1px dashed #fcd34d; padding-top: 10px;">
+                                <h5
+                                    style="margin: 0 0 5px 0; font-size: 0.65rem; color: #92400e; font-weight: 800; text-transform: uppercase;">
+                                    Historial de Pagos</h5>
+                                <div id="pp-history-list"></div>
+                            </div>
+                            <div id="pp-audit-log"
+                                style="margin-top: 8px; font-size: 0.65rem; color: #92400e; font-style: italic; display: none;">
+                            </div>
+                        </div>
+
+                        <!-- AVISO DE CONFLICTO / ALTERNATIVAS -->
+                        <div id="conflict-warning-container"
+                            style="display: none; grid-column: 1 / -1; margin-top: 10px; background: #fff1f2; border: 2px solid #fda4af; border-radius: 8px; padding: 15px;">
+                            <h4
+                                style="margin: 0 0 10px 0; color: #9f1239; display: flex; align-items: center; gap: 8px; font-size: 0.9rem;">
+                                <i class="fas fa-exclamation-triangle"></i> CONFLICTO DE DISPONIBILIDAD
+                            </h4>
+                            <div id="conflict-message"
+                                style="margin-bottom: 12px; font-size: 0.85rem; color: #881337; line-height: 1.5;">
+                            </div>
+                            <div id="alternatives-block"
+                                style="display: none; margin-bottom: 15px; background: #fff; padding: 10px; border-radius: 6px; border: 1px solid #e2e8f0;">
+                                <h5
+                                    style="margin: 0 0 8px 0; color: #475569; font-size: 0.75rem; text-transform: uppercase;">
+                                    Alternativas Sugeridas:</h5>
+                                <div id="alternatives-list" style="display: flex; flex-direction: column; gap: 6px;">
+                                </div>
+                            </div>
+                        </div>
+                    </div> <!-- Close booking-form-grid -->
+                </div> <!-- Close SCROLLABLE CONTENT -->
+
+                <!-- FOOTER BAR (Dark) -->
                 <div
-                    style="display: flex; justify-content: space-between; align-items: stretch; background: #1e293b; padding: 15px; border-radius: 12px; margin-top: 5px;">
-                    <!-- SUMMARY AREA -->
-                    <div style="display: flex; gap: 15px; align-items: center;">
-                        <div id="price-group" style="display: flex; flex-direction: column; gap: 2px;">
+                    style="flex-shrink: 0; background: #1e293b; padding: 15px 20px; color: #fff; display: flex; align-items: center; justify-content: space-between; border-top: 1px solid rgba(255,255,255,0.1);">
+
+                    <!-- Left: Price Info -->
+                    <div style="display: flex; gap: 30px; align-items: center;">
+                        <!-- Price Per Pax -->
+                        <div style="display: flex; flex-direction: column; gap: 2px;">
                             <span
-                                style="font-size: 0.65rem; font-weight: 700; color: #94a3b8; text-transform: uppercase;">Precio/PAX</span>
-                            <div style="display: flex; align-items: baseline; gap: 4px;">
-                                <input type="number" id="res-precio-pax" step="0.01" value="0"
-                                    style="width: 65px; background: transparent; border: none; font-size: 1.1rem; color: #fff; font-weight: 700; padding: 0;">
-                                <span style="color: #94a3b8; font-size: 0.9rem;">€</span>
-                                <button type="button" onclick="updatePriceAutomation()"
-                                    title="Recalcular según configuración"
-                                    style="background: none; border: none; color: var(--accent); cursor: pointer; padding: 2px; font-size: 0.75rem; transition: transform 0.2s;"
-                                    onmouseover="this.style.transform='rotate(180deg)'"
-                                    onmouseout="this.style.transform='rotate(0deg)'">
+                                style="font-size: 0.65rem; font-weight: 700; color: #94a3b8; text-transform: uppercase;">Precio/Pax</span>
+                            <div style="display: flex; align-items: baseline; gap: 8px;">
+                                <div style="position: relative;">
+                                    <input type="number" id="res-precio-pax" step="0.01" value="0"
+                                        style="width: 80px; background: transparent; border: none; font-size: 1.4rem; color: #fff; font-weight: 700; padding: 0; outline: none;">
+                                    <span
+                                        style="position: absolute; right: 0; top:0; color: #94a3b8; font-size: 1rem; font-weight: 600; pointer-events: none;">€</span>
+                                </div>
+                                <button type="button" onclick="updatePriceAutomation()" title="Recalcular"
+                                    style="background: none; border: none; color: var(--accent); cursor: pointer; padding: 2px;">
                                     <i class="fas fa-sync-alt"></i>
                                 </button>
                             </div>
                         </div>
 
-                        <div style="height: 30px; width: 1px; background: #334155;"></div>
+                        <div style="width: 1px; height: 30px; background: rgba(255,255,255,0.1);"></div>
 
+                        <!-- Total Reservation -->
                         <div style="display: flex; flex-direction: column; gap: 2px;">
                             <span
                                 style="font-size: 0.65rem; font-weight: 700; color: #94a3b8; text-transform: uppercase;">Total
                                 Reserva</span>
                             <div id="res-total-display"
-                                style="font-size: 1.5rem; font-weight: 800; color: var(--accent);">
+                                style="font-size: 1.6rem; font-weight: 800; color: var(--accent);">
                                 <span id="res-total-text">0.00 €</span>
                             </div>
-                            <input type="hidden" id="res-precio-total" value="0">
                         </div>
                     </div>
 
-                    <!-- ACTIONS AREA -->
+                    <!-- Right: Actions -->
                     <div style="display: flex; gap: 10px; align-items: center;">
+                        <button type="button" class="btn btn-outline"
+                            style="height: 40px; border-color: rgba(255,255,255,0.2); color: #cbd5e1; border-radius: 6px; font-weight: 600; font-size: 0.8rem; padding: 0 20px;"
+                            onclick="closeModal()">CERRAR</button>
+
+                        <!-- Dynamic Action Buttons (Hidden by default) -->
                         <button type="button" id="btn-cancelar" class="btn btn-outline"
-                            style="height: 44px; padding: 0 20px; border-color: #ef4444; color: #ef4444; border-radius: 8px; font-weight: 700; display: none;"
+                            style="height: 40px; border-color: #ef4444; color: #ef4444; border-radius: 6px; font-weight: 700; font-size: 0.8rem; display: none; padding: 0 20px;"
                             onclick="cancelBookingFromModal()">ANULAR</button>
 
                         <button type="button" id="btn-reactivar" class="btn btn-outline"
-                            style="height: 44px; padding: 0 20px; border-color: #10b981; color: #10b981; border-radius: 8px; font-weight: 700; display: none;"
+                            style="height: 40px; border-color: #10b981; color: #10b981; border-radius: 6px; font-weight: 700; font-size: 0.8rem; display: none; padding: 0 20px;"
                             onclick="reactivateBookingFromModal()">REACTIVAR</button>
 
-                        <button type="button" class="btn btn-outline"
-                            style="height: 44px; padding: 0 20px; border-color: #334155; color: #cbd5e1; border-radius: 8px; font-weight: 600;"
-                            onclick="closeModal()">CERRAR</button>
-
                         <button type="button" id="btn-iniciar-servicio" class="btn"
-                            style="height: 44px; padding: 0 20px; background: #6366f1; color: white; border-radius: 8px; font-weight: 700; display: none;"
+                            style="height: 40px; background: #6366f1; color: white; border-radius: 8px; font-weight: 700; display: none; padding: 0 25px; box-shadow: 0 4px 6px -1px rgba(99, 102, 241, 0.4);"
                             onclick="tryStartService()">
-                            <i class="fas fa-play"></i> INICIAR
-                        </button>
-
-                        <button type="button" id="btn-unlock-past" class="btn"
-                            style="height: 44px; padding: 0 20px; background: #64748b; color: white; border-radius: 8px; font-weight: 700; display: none; margin-right: 8px;"
-                            onclick="unlockPastReservation()">
-                            <i class="fas fa-lock-open"></i> DESBLOQUEAR
+                            <i class="fas fa-play" style="margin-right: 8px;"></i> INICIAR
                         </button>
 
                         <button type="button" id="btn-force-booking" class="btn"
-                            style="height: 44px; padding: 0 20px; background: #f97316; color: white; border-radius: 8px; font-weight: 700; display: none; box-shadow: 0 4px 12px rgba(249, 115, 22, 0.3);"
+                            style="height: 40px; background: #f97316; color: white; border-radius: 8px; font-weight: 700; display: none; padding: 0 25px; box-shadow: 0 4px 6px -1px rgba(249, 115, 22, 0.4);"
                             onclick="handleFormSubmit(true)">
-                            <i class="fas fa-exclamation-circle"></i> FORZAR RESERVA
+                            <i class="fas fa-exclamation-triangle" style="margin-right: 8px;"></i> FORZAR
                         </button>
 
                         <button type="button" id="btn-save-booking" class="btn btn-accent"
-                            style="height: 44px; padding: 0 30px; border-radius: 8px; font-weight: 800; font-size: 1rem; box-shadow: 0 4px 12px rgba(212, 175, 55, 0.3);"
+                            style="height: 45px; border-radius: 8px; font-weight: 800; font-size: 0.95rem; padding: 0 30px; box-shadow: 0 4px 12px rgba(212, 175, 55, 0.3);"
                             onclick="handleFormSubmit()">
-                            GUARDAR RESERVA
+                            <i class="fas fa-save" style="margin-right: 8px;"></i> GUARDAR RESERVA
+                        </button>
+
+                        <button type="button" id="btn-unlock-past" class="btn"
+                            style="height: 40px; background: #64748b; color: white; border-radius: 8px; font-weight: 700; display: none; padding: 0 20px;"
+                            onclick="unlockPastReservation()">
+                            <i class="fas fa-lock-open" style="margin-right: 8px;"></i> DESBLOQUEAR
                         </button>
                     </div>
                 </div>
+
             </form>
         </div>
     </div>
@@ -1049,6 +1094,15 @@
                 <div id="therapist-timeline-grid" style="min-width: 100%;">
                     <!-- Generated by JS -->
                 </div>
+                <div id="therapist-agenda-inline-container"
+                    style="padding: 15px; background: #f8fafc; border-top: 1.5px solid #e2e8f0; display: none;">
+                    <h3
+                        style="margin: 0 0 10px 0; font-size: 0.9rem; color: #1e3a8a; display: flex; align-items: center; gap: 10px;">
+                        <i class="fas fa-calendar-alt"></i> Agenda de <span id="inline-agenda-staff-name"
+                            style="color: var(--accent);"></span>
+                    </h3>
+                    <div id="therapist-agenda-inline-list"></div>
+                </div>
             </div>
         </div>
     </div>
@@ -1112,94 +1166,8 @@
         };
 
 
-        // CORE: Get Available Staff
-        window.getAvailableStaffForRoom = async function (roomCode, date, time, duration, excludeResId = null) {
-            console.log(`[STAFF] Checking availability for Room: ${roomCode}, Date: ${date}, Time: ${time}`);
-
-            // 1. Validate Inputs
-            if (!date || !time) return [];
-
-            // 2. Ensure Data is Loaded
-            if (window.allStaff.length === 0) await window.loadStaff();
-
-            if (!window.lastLoadedDate || window.lastLoadedDate !== date) {
-                await window.loadGlobalReservations(date);
-                window.lastLoadedDate = date;
-            }
-
-            const reqStart = timeToMinutes(time);
-            const reqEnd = reqStart + parseInt(duration || 60);
-
-            // 3. Filter
-            const available = window.allStaff.filter(s => {
-                // A. Room Check (DISABLED by User Request: "Cualquier terapeuta puede trabajar en cualquier sala")
-                /*
-                const rawRooms = s.assigned_rooms || s.salas || [];
-                const sSalas = rawRooms.map(x => x.toLowerCase());
-                const cleanRoom = roomCode.toLowerCase();
-                const genericRoom = cleanRoom.startsWith('cabina') ? 'cabina' : cleanRoom;
-
-                const worksInRoom = sSalas.includes(cleanRoom) || sSalas.includes(genericRoom);
-                if (!worksInRoom) return false;
-                */
-
-                // B. Schedule Check (Prioritize seasonal_schedules > default_schedule)
-                let workingSchedule = s.default_schedule || {};
-
-                // Check seasons
-                if (s.seasonal_schedules && Array.isArray(s.seasonal_schedules)) {
-                    const activePeriod = s.seasonal_schedules.find(p => date >= p.start && date <= p.end);
-                    if (activePeriod) {
-                        workingSchedule = activePeriod.schedule || workingSchedule;
-                    }
-                }
-
-                let dayShifts = [];
-                if (workingSchedule) {
-                    const dayKey = getDayFullKey(date); // monday, tuesday...
-                    const dayConfig = workingSchedule[dayKey];
-                    if (dayConfig && dayConfig.enabled && dayConfig.shifts) {
-                        dayShifts = dayConfig.shifts.map(sh => `${sh.start}-${sh.end}`);
-                    }
-                }
-                // Legacy Format fallback
-                else if (s.horario) {
-                    const dayKey = getDayNameKey(date); // L, M...
-                    dayShifts = s.horario[dayKey];
-                }
-
-                if (!dayShifts || !Array.isArray(dayShifts) || dayShifts.length === 0) return false;
-
-                // Check if requested time fits IN ANY shift
-                const isWithinShift = dayShifts.some(shift => {
-                    const [startStr, endStr] = shift.split('-');
-                    if (!startStr || !endStr) return false;
-                    const shiftStart = timeToMinutes(startStr);
-                    const shiftEnd = timeToMinutes(endStr);
-                    // Standard logic: Shift Start <= Request Start AND Shift End >= Request End
-                    return (reqStart >= shiftStart && reqEnd <= shiftEnd);
-                });
-
-                if (!isWithinShift) return false;
-
-                // C. Collision Check (Global)
-                const hasConflict = window.dailyGlobalReservations.some(res => {
-                    if (res.staff_id !== s.id) return false;
-                    if (excludeResId && res.id === excludeResId) return false;
-
-                    const rStart = timeToMinutes(res.hora);
-                    const rEnd = rStart + res.duracion;
-
-                    return (reqStart < rEnd && reqEnd > rStart);
-                });
-
-                if (hasConflict) return false;
-
-                return true;
-            });
-
-            return available;
-        };
+        // Duplicate getAvailableStaffForRoom removed.
+        // Logic is maintained in the main definition later in this file (approx line 2355)
 
         // Helpers
         function timeToMinutes(t) {
@@ -1262,7 +1230,7 @@
                 slotsWeek: SLOTS_15_MIN,
                 slotsSun: SLOTS_15_MIN,
                 isPrivate: true,
-                requiresStaff: false,
+                requiresStaff: true,
                 viewType: 'timeline' // Suite is now timeline based on user request
             },
             'panacea': {
@@ -1385,7 +1353,7 @@
         let currentComplementos = [];
         let spaConfig = {
             capacity: currentModule.capacity,
-            cleaningTime: 30, // Default 30 min
+            cleaningTime: 0, // Changed to 0 per user request: "si dura 30' termina a las 17:30"
             closedDates: [],
             whatsappTemplate: "Hola {{nombre}}, le confirmamos su reserva en {{espacio}} para el día {{fecha}} a las {{hora}}h ({{servicio}}).\n\nRecordatorio: Si no puede acudir, rogamos nos informe con al menos 12 horas de antelación. Las cancelaciones fuera de este plazo pueden conllevar gastos de gestión. ¡Le esperamos!"
         };
@@ -2075,6 +2043,9 @@
             }
 
 
+            // --- SORT ALPHABETICALLY ---
+            servicesToShow.sort((a, b) => a.nombre.localeCompare(b.nombre));
+
             // --- RENDER ---
             // Special handling: Force placeholder for Particular flow initially
             const placeholder = document.createElement("option");
@@ -2096,6 +2067,15 @@
                 sel.appendChild(opt);
             });
 
+            // Re-store options for filtering
+            window._allServiceOptions = Array.from(sel.options).map(o => ({
+                value: o.value,
+                text: o.textContent,
+                dataset: { ...o.dataset },
+                disabled: o.disabled,
+                selected: o.selected
+            }));
+
             // Restore previous value if valid for this room
             if (currentVal && servicesToShow.some(s => s.nombre === currentVal)) {
                 sel.value = currentVal;
@@ -2106,6 +2086,10 @@
                 // FORCE EMPTY for Panacea, Suite, Cabinas etc. to avoid auto-selecting default
                 sel.value = "";
             }
+
+            // Sync search box
+            const searchInp = document.getElementById("res-servicio-search");
+            if (searchInp) searchInp.value = "";
 
             // SPA-SPECIFIC UI ADJUSTMENTS
             const serviceGroup = document.getElementById("service-group");
@@ -2128,6 +2112,101 @@
                 handleStaffFieldsChange();
             }
         }
+
+        function showServiceDropdown() {
+            const results = document.getElementById("res-servicio-results");
+            if (results) {
+                renderServiceDropdownResults(document.getElementById("res-servicio-search").value);
+            }
+        }
+
+        function renderServiceDropdownResults(query) {
+            const results = document.getElementById("res-servicio-results");
+            if (!results || !window._allServiceOptions) return;
+
+            const q = query.toLowerCase().trim();
+            // Filter non-empty options and apply search query
+            const filtered = window._allServiceOptions.filter(optData =>
+                optData.value !== "" && optData.text.toLowerCase().includes(q)
+            );
+
+            if (filtered.length === 0) {
+                results.innerHTML = '<div style="padding: 10px; color: #64748b; font-size: 0.85rem; font-style: italic;">No se encontraron servicios</div>';
+            } else {
+                results.innerHTML = filtered.map(optData => `
+                    <div class="service-result-item" 
+                        onclick="selectServiceFromDropdown('${optData.value.replace(/'/g, "\\'")}')"
+                        style="padding: 10px 12px; cursor: pointer; border-bottom: 1px solid #f1f5f9; font-size: 0.9rem; font-weight: 500; color: #1e293b; transition: background 0.2s;">
+                        ${optData.text}
+                    </div>
+                `).join('');
+
+                // Add hover style
+                const items = results.querySelectorAll('.service-result-item');
+                items.forEach(item => {
+                    item.onmouseover = () => item.style.background = '#f8fafc';
+                    item.onmouseout = () => item.style.background = 'transparent';
+                });
+            }
+
+            results.style.display = 'block';
+        }
+
+        function selectServiceFromDropdown(val) {
+            const sel = document.getElementById("res-servicio");
+            const searchInp = document.getElementById("res-servicio-search");
+            const results = document.getElementById("res-servicio-results");
+
+            if (!sel || !searchInp) return;
+
+            searchInp.value = val;
+            sel.value = val;
+            results.style.display = 'none';
+
+            // Trigger standard onchange events
+            if (sel.onchange) {
+                sel.onchange();
+            }
+        }
+
+        function filterServiceOptions(query) {
+            renderServiceDropdownResults(query);
+
+            // Also keep the hidden select in sync for any logic that relies on select.options
+            const sel = document.getElementById("res-servicio");
+            if (!sel || !window._allServiceOptions) return;
+            const q = query.toLowerCase().trim();
+            sel.innerHTML = "";
+            window._allServiceOptions.forEach(optData => {
+                if (optData.value === "" || optData.text.toLowerCase().includes(q)) {
+                    const opt = document.createElement("option");
+                    opt.value = optData.value;
+                    opt.textContent = optData.text;
+                    Object.assign(opt.dataset, optData.dataset);
+                    sel.appendChild(opt);
+                }
+            });
+        }
+
+        function handleServiceSearchKey(e) {
+            const results = document.getElementById("res-servicio-results");
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                const firstResult = results.querySelector('.service-result-item');
+                if (firstResult) firstResult.click();
+            } else if (e.key === 'Escape') {
+                results.style.display = 'none';
+            }
+        }
+
+        // Global click listener to close dropdowns
+        document.addEventListener('click', (e) => {
+            const results = document.getElementById("res-servicio-results");
+            const searchGroup = document.getElementById("service-group");
+            if (results && searchGroup && !searchGroup.contains(e.target)) {
+                results.style.display = 'none';
+            }
+        });
 
         /**
          * Controla la visibilidad del segundo selector de terapeuta basado en la configuración del servicio
@@ -2209,52 +2288,66 @@
 
             for (const staff of staffList) {
                 // A. Check Schedule / Shift Availability
-                // We use checkStaffAvailability from reservas-staff.js
-                // If it doesn't exist yet, we must ensure it does or implement basic logic
                 let isWorking = false;
                 if (window.checkStaffAvailability) {
                     isWorking = await window.checkStaffAvailability(staff, date, time, duration, dailyExceptions);
                 } else {
-                    // Fallback: Assume working if no logic provided (Risky but better than empty)
                     isWorking = true;
                 }
 
-                if (!isWorking) continue;
-
                 // B. Check Collisions with other bookings
-                const hasCollision = allBookings.some(booking => {
-                    // Ignore cancelled
-                    if (booking.status === 'anulada' || booking.status === 'cancelled') return false;
+                let collisionInfo = null;
+                const collidingBooking = allBookings.find(booking => {
+                    // Ignore cancelled (Robust check)
+                    const st = (booking.status || '').toLowerCase();
+                    if (st.includes('anulada') || st.includes('cancel')) return false;
 
                     // Ignore self (editing)
                     if (excludeResId && booking.id === excludeResId) return false;
 
-                    // Check if this staff is assigned
-                    // booking.staff, booking.terapeuta, booking.staff_id, etc.
-                    const assignedId = booking.staff_id || booking.terapeuta_id || (booking.staff ? booking.staff.id : null) || booking.terapeuta;
+                    // Match Staff
+                    const sId = (staff.id || staff.nombre || '').trim();
+                    const sName = (staff.nombre || staff.name || '').trim().toLowerCase();
+                    const sAlias = (staff.alias || '').trim().toLowerCase();
 
-                    // If stored as name only (legacy), we try to match name??
-                    // Better to rely on IDs. If booking only has name 'Juan', and staff is 'Juan', match.
-                    let isAssigned = false;
-                    if (assignedId && assignedId === staff.id) isAssigned = true;
-                    else if ((booking.terapeuta === staff.nombre) || (booking.staff_name === staff.nombre)) isAssigned = true;
+                    const bId1 = booking.staff_id || booking.terapeuta_id || (booking.staff ? booking.staff.id : null);
+                    const bName1 = (booking.staff_name || booking.terapeuta || '').trim().toLowerCase();
 
-                    if (!isAssigned) return false;
+                    let isMatch1 = false;
+                    if (bId1) isMatch1 = (sId && bId1 === sId);
+                    else isMatch1 = (sName && (bName1 === sName || (sAlias && bName1 === sAlias)));
 
-                    // Check time overlap
-                    const bStart = toMin(booking.hora);
+                    const bId2 = booking.staff_id2 || booking.terapeuta_id2 || (booking.staff2 ? booking.staff2.id : null);
+                    const bName2 = (booking.staff_name2 || booking.terapeuta2 || '').trim().toLowerCase();
+
+                    let isMatch2 = false;
+                    if (bId2) isMatch2 = (sId && bId2 === sId);
+                    else isMatch2 = (sName && (bName2 === sName || (sAlias && bName2 === sAlias)));
+
+                    if (!isMatch1 && !isMatch2) return false;
+
+                    // Time Overlap
+                    const bStart = toMin(booking.hora || '00:00');
                     const bDuration = parseInt(booking.duracion || 60);
                     const bEnd = bStart + bDuration;
 
                     return (reqStart < bEnd && reqEnd > bStart);
                 });
 
+                if (collidingBooking) {
+                    collisionInfo = `Reserva ${collidingBooking.hora}`;
+                }
+
                 // Add to list with status
-                // If hasCollision -> 'busy', else -> 'free'
-                // User wants to see ALL working staff
+                let finalStatus = 'free';
+                if (!isWorking) finalStatus = 'off';
+                else if (collidingBooking) finalStatus = 'busy';
+
+                // We want to see ALL staff, even if 'off'
                 available.push({
                     ...staff,
-                    _status: hasCollision ? 'busy' : 'free'
+                    _status: finalStatus,
+                    _collision: collisionInfo
                 });
             }
 
@@ -2316,7 +2409,20 @@
             } else {
                 if (dateTimeGroup) dateTimeGroup.style.display = "flex";
                 if (staffGroup) {
-                    staffGroup.style.display = currentModule.requiresStaff ? "block" : "none";
+                    // Logic: Hide staff for "Suite Spa" basic service, keep for others (Massages) if module requires it
+                    let showStaff = currentModule.requiresStaff;
+                    if (currentModule.code === 'suite' && svcName && svcName.toLowerCase().includes('suite spa')) {
+                        showStaff = false;
+                    }
+
+                    staffGroup.style.display = showStaff ? "block" : "none";
+
+                    // Update required attribute to avoid validation errors
+                    const bookingStaff = document.getElementById("booking-staff");
+                    if (bookingStaff) {
+                        bookingStaff.required = showStaff;
+                        if (!showStaff) bookingStaff.value = "";
+                    }
                 }
                 const saveBtn = document.getElementById("btn-save-booking");
                 if (saveBtn) saveBtn.innerHTML = '<i class="fas fa-save"></i> Guardar Reserva';
@@ -2596,7 +2702,12 @@
             // Find service definition
             let service = currentServices.find(s => s.nombre === val);
 
-            // Fallback for placeholders not in currentServices
+            // Fallback for placeholders not in currentServices or from Master Items
+            if (!service) {
+                if (!window.masterItems || window.masterItems.length === 0) await loadMasterItems();
+                service = window.masterItems.find(m => m.name === val);
+            }
+
             if (!service && val === 'Circuito Spa') service = { duration: 90 };
             if (!service && val === 'Suite Spa') service = { duration: 60 };
 
@@ -2616,16 +2727,22 @@
                 }
 
                 // Default fallbacks or name-based override
-                // If the name explicitly contains "30'", "60'", etc., we should trust the name over a potentially generic DB default (often 60).
-                const nameDurationMatch = val.match(/(\d+)\'/);
-                if (nameDurationMatch) {
-                    dur = parseInt(nameDurationMatch[1]);
-                } else {
-                    if (val.toLowerCase().includes('30')) dur = 30;
-                    else if (val.toLowerCase().includes('45')) dur = 45;
-                    else if (val.toLowerCase().includes('60')) dur = 60;
-                    else if (val.toLowerCase().includes('90')) dur = 90;
-                    else if (val.toLowerCase().includes('120')) dur = 120;
+                // If the name explicitly contains "30'", "60'", etc., we should trust the name over a potentially generic DB default.
+                // FIX: "Masaje a 4 manos - 60'" -> The '4' was being picked up. We need to match number BEFORE quote.
+                const explicitDurationMatch = val.match(/(\d+)\s*'/); // Matches 60'
+                const explicitMinMatch = val.match(/(\d+)\s*min/i);   // Matches 60min
+
+                if (explicitDurationMatch) {
+                    dur = parseInt(explicitDurationMatch[1]);
+                } else if (explicitMinMatch) {
+                    dur = parseInt(explicitMinMatch[1]);
+                } else if (!service.duration) {
+                    // Check for simple numbers if no specific format found, but be careful of '4 manos'
+                    if (val.match(/\b30\b/)) dur = 30;
+                    else if (val.match(/\b45\b/)) dur = 45;
+                    else if (val.match(/\b60\b/)) dur = 60;
+                    else if (val.match(/\b90\b/)) dur = 90;
+                    else if (val.match(/\b120\b/)) dur = 120;
                 }
 
                 if (dur === 0) dur = 60; // Final safe default
@@ -4068,7 +4185,13 @@
             populateServices();
             renderComplementos();
 
-            if (document.getElementById("res-servicio")) document.getElementById("res-servicio").value = res.servicio || "Circuito Spa";
+            if (document.getElementById("res-servicio")) {
+                const svc = res.servicio || "Circuito Spa";
+                document.getElementById("res-servicio").value = svc;
+                // Sync the search input text
+                const searchInp = document.getElementById("res-servicio-search");
+                if (searchInp) searchInp.value = svc;
+            }
 
             // FORCE ADD SERVICE IF MISSING (Prevent empty dropdown)
             const serviceDropdown = document.getElementById("res-servicio");
@@ -4240,9 +4363,20 @@
             const id = document.getElementById("form-id").value;
             if (!id) return;
 
-            const resData = currentData.find(r => r.id === id);
+            let resData = currentData.find(r => r.id === id);
+
+            // Fallback: Si no está en memoria, intentar buscarlo en Firestore (por si acaso view filter lo ocultó)
             if (!resData) {
-                alert("No se encontró la reserva en memoria.");
+                try {
+                    const doc = await db.collection(currentModule.collection).doc(id).get();
+                    if (doc.exists) {
+                        resData = { id: doc.id, ...doc.data() };
+                    }
+                } catch (e) { console.error("Error fetching fallback for cancel", e); }
+            }
+
+            if (!resData) {
+                alert("Error crítico: No se puede localizar la reserva para anular.");
                 return;
             }
 
@@ -4514,7 +4648,13 @@
                 btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Guardando...';
 
                 // --- VALIDACIÓN DE PERSONAL (FLEXIBLE) ---
-                if (currentModule.requiresStaff && !isAgendaLess) {
+                // Logic: Hide staff for "Suite Spa" basic service, keep for others (Massages) if module requires it
+                let requiresStaffForThisBooking = currentModule.requiresStaff;
+                if (currentModule.code === 'suite' && svcName && svcName.toLowerCase().includes('suite spa')) {
+                    requiresStaffForThisBooking = false;
+                }
+
+                if (requiresStaffForThisBooking && !isAgendaLess) {
                     const pax = parseInt(document.getElementById("res-pax").value) || 1;
                     const staffId = document.getElementById("booking-staff")?.value;
                     const staffId2 = document.getElementById("booking-staff-2")?.value;
@@ -4566,13 +4706,13 @@
                             if (collision.nombre === "Aforo Máximo Superado") {
                                 conflictMsg = `Aforo Completo (${collision.now}/${collision.max})`;
                             } else {
-                                conflictMsg = `Sala Ocupada por ${collision.nombre} (${collision.hora})`;
+                                conflictMsg = `Sala Ocupada por ${collision.nombre || 'Otro cliente'} (${collision.hora})`;
                             }
                         }
                     }
 
                     // Check Personal
-                    if (!conflictMsg && currentModule.requiresStaff) {
+                    if (!conflictMsg && requiresStaffForThisBooking) {
                         const staffFree = await checkReservationStaffAvailability(date, time, duration, id);
                         if (!staffFree) {
                             conflictMsg = "Terapeuta NO disponible en este horario.";
@@ -4850,8 +4990,14 @@
             const list = document.getElementById("alternatives-list");
             const altBlock = document.getElementById("alternatives-block");
 
-            if (msgEl) msgEl.innerHTML = `<strong>${msg}</strong><br>El recepcionista tiene la potestad de decidir.`;
-            if (container) container.style.display = "block";
+            // IMMEDIATE FEEDBACK: Alert the user so they cannot miss the reason
+            alert("⛔ CONFLICTO DETECTADO:\n\n" + msg + "\n\nPuedes 'Forzar' la reserva si es estrictamente necesario, pero crearás una doble ocupación.");
+
+            if (msgEl) msgEl.innerHTML = `<div style="margin-bottom:5px;"><strong>${msg}</strong></div><div style="color:#b91c1c; font-weight:700; font-size:0.8rem; background:#fee2e2; padding:4px 8px; border-radius:4px;">⚠️ ALERTA: Forzar creará una SOBREOCUPACIÓN (Doble Reserva).</div>`;
+            if (container) {
+                container.style.display = "block";
+                setTimeout(() => container.scrollIntoView({ behavior: 'smooth', block: 'center' }), 100);
+            }
 
             // Swap Buttons
             if (btnSave) btnSave.style.display = "none";
@@ -5165,7 +5311,7 @@
             const cleaning = 0;
             const endMinTotal = endMin + cleaning;
 
-            return existingBookings.some(b => {
+            return existingBookings.find(b => {
                 if (b.status === 'anulada') return false;
                 if (b.id === excludeId) return false;
 
@@ -5186,7 +5332,7 @@
         function checkSpaceSync(start, duration, customData = null, excludeId = null) {
             const bookingsToCheck = customData || currentData;
             const collision = findCollision(start, duration, bookingsToCheck, excludeId);
-            return !collision;
+            return !collision; // If collision (object) found, return false (no space). If undefined, return true.
         }
 
         async function checkRoomAvailability(date, start, duration, excludeId = null) {
@@ -5211,7 +5357,13 @@
                 const maxCapacity = spaConfig.capacity || currentModule.capacity || 20;
 
                 if (paxOccupied + newPax > maxCapacity) {
-                    return { nombre: "Aforo Máximo Superado", hora: start, duracion: 0 }; // Mock collision info
+                    return {
+                        nombre: "Aforo Máximo Superado",
+                        hora: start,
+                        duracion: 0,
+                        now: paxOccupied + newPax,
+                        max: maxCapacity
+                    };
                 }
                 return null;
             }
@@ -5271,7 +5423,12 @@
                         <span><i class="fas fa-spa"></i> ${booking.servicio}</span>
                         <span><i class="fas fa-clock"></i> ${booking.duracion || 60} min</span>
                         ${booking.tel ? `<span><i class="fas fa-phone"></i> ${booking.tel}</span>` : ''}
-                        ${(booking.staff_name || booking.terapeuta) ? `<span style="font-size: 0.75rem; color: #0f766e; display: block; margin-top: 2px;"><i class="fas fa-user-check"></i> ${booking.staff_name || booking.terapeuta}</span>` : ''}
+                        ${(booking.staff_name || booking.terapeuta) ? `
+                            <span style="font-size: 0.75rem; color: #0f766e; display: flex; align-items: center; gap: 5px; margin-top: 2px;">
+                                <i class="fas fa-user-check"></i> 
+                                ${booking.staff_name || booking.terapeuta}
+                                ${booking.staff_name2 ? ` + ${booking.staff_name2}` : ''}
+                            </span>` : ''}
                     </p>
                 </div>
                 <div class="booking-actions">
@@ -6319,9 +6476,39 @@
 
             // Check if staff has a booking at this time
             const booking = dayBookings.find(booking => {
-                if (booking.terapeuta !== staff.name && booking.staff !== staff.name) return false;
+                // EXCLUDE ROOM BLOCKS (Maintenance, etc) from therapist timeline
+                // A room block affects the room, not necessarily the labor of the therapist.
+                if (booking.isBlock || booking.status === 'blocked') return false;
+
+                // Robust Check: ID (Primary/Secondary) OR Name (Fallback)
+                const sId = (staff.id || staff.nombre || '').trim();
+                const sName = (staff.nombre || staff.name || '').toLowerCase().trim();
+                const sAlias = (staff.alias || '').toLowerCase().trim();
+
+                // Check Primary Staff
+                const bId1 = booking.staff_id || booking.terapeuta_id || (booking.staff ? booking.staff.id : null);
+                const bName1 = (booking.staff_name || booking.terapeuta || '').toLowerCase().trim();
+                let isMatch1 = false;
+                if (bId1) {
+                    isMatch1 = (sId && bId1 === sId);
+                } else if (bName1) {
+                    isMatch1 = (sName && (bName1 === sName || (sAlias && bName1 === sAlias)));
+                }
+
+                // Check Secondary Staff
+                const bId2 = booking.staff_id2 || booking.terapeuta_id2 || (booking.staff2 ? booking.staff2.id : null);
+                const bName2 = (booking.staff_name2 || booking.terapeuta2 || '').toLowerCase().trim();
+                let isMatch2 = false;
+                if (bId2) {
+                    isMatch2 = (sId && bId2 === sId);
+                } else if (bName2) {
+                    isMatch2 = (sName && (bName2 === sName || (sAlias && bName2 === sAlias)));
+                }
+
+                if (!isMatch1 && !isMatch2) return false;
                 if (booking.status === 'anulada') return false;
 
+                // Check time overlap
                 const bookingTime = booking.hora;
                 const bookingDuration = parseInt(booking.duracion) || 60;
 
@@ -6334,11 +6521,18 @@
                 const bookEndMinutes = bookStartMinutes + bookingDuration;
 
                 // Check if slot overlaps with booking
-                return slotMinutes >= bookStartMinutes && slotMinutes < bookEndMinutes;
+                const overlaps = slotMinutes >= bookStartMinutes && slotMinutes < bookEndMinutes;
+
+                if (overlaps) {
+                    // STORE MATCH REASON FOR DEBUGGING
+                    booking._debugMatch = `M1:${isMatch1} M2:${isMatch2}`;
+                    return true;
+                }
+                return false;
             });
 
             if (booking) {
-                return { status: 'busy', booking }; // Orange - has booking
+                return { status: 'busy', booking, debugMatch: booking._debugMatch }; // Orange - has booking
             }
 
             return { status: 'available' }; // Green - available
@@ -6470,24 +6664,41 @@
         }
 
         async function showTherapistDayAgenda(staffId, staffName, dateStr) {
-            const modal = document.getElementById('therapist-agenda-modal');
-            const list = document.getElementById('therapist-agenda-list');
-            const nameEl = document.getElementById('agenda-staff-name');
-            const dateEl = document.getElementById('agenda-date-info');
-            if (!modal || !list) return;
+            const list = document.getElementById('therapist-agenda-inline-list');
+            const nameEl = document.getElementById('inline-agenda-staff-name');
+            const container = document.getElementById('therapist-agenda-inline-container');
+            if (!list || !container) return;
 
+            // Show container
+            container.style.display = 'block';
             nameEl.textContent = staffName;
-            dateEl.textContent = new Date(dateStr + 'T12:00:00').toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
             list.innerHTML = '<div style="padding:20px; text-align:center;"><i class="fas fa-spinner fa-spin"></i> Cargando agenda...</div>';
-            modal.style.display = 'flex';
+
+            // Scroll to it
+            container.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
             try {
                 const bookings = await window.getAllBookingsForDate(dateStr);
                 // Filter for this therapist
                 const myBookings = bookings.filter(b => {
                     if (b.status === 'anulada') return false;
-                    const assignedId = b.staff_id || b.terapeuta_id || (b.staff ? b.staff.id : null) || b.terapeuta;
-                    return assignedId === staffId || assignedId === staffName || b.staff_name === staffName || b.terapeuta === staffName;
+                    // Exclude room blocks from therapist specific agenda
+                    if (b.isBlock || b.status === 'blocked') return false;
+
+                    const sId = (staffId || '').trim();
+                    const sName = (staffName || '').trim().toLowerCase();
+
+                    // Check Primary Staff
+                    const bId1 = b.staff_id || b.terapeuta_id || (b.staff ? b.staff.id : null);
+                    const bName1 = (b.staff_name || b.terapeuta || '').trim().toLowerCase();
+                    const isMatch1 = (sId && bId1 === sId) || (sName && (bName1 === sName));
+
+                    // Check Secondary Staff
+                    const bId2 = b.staff_id2 || b.terapeuta_id2 || (b.staff2 ? b.staff2.id : null);
+                    const bName2 = (b.staff_name2 || b.terapeuta2 || '').trim().toLowerCase();
+                    const isMatch2 = (sId && bId2 === sId) || (sName && (bName2 === sName));
+
+                    return isMatch1 || isMatch2;
                 }).sort((a, b) => a.hora.localeCompare(b.hora));
 
                 if (myBookings.length === 0) {
