@@ -1,20 +1,15 @@
 {
-  "name": "Disponibilidad Spa",
+  "name": "Zenith Spa Disp",
   "short_name": "Spa Disp",
-  "description": "Disponibilidad de Terapeutas - Zenith Manager",
-  "start_url": "/disponibilidad.html",
+  "description": "Agenda de Terapeutas - Zenith Spa",
+  "start_url": "disponibilidad.html",
   "display": "standalone",
-  "background_color": "#ffffff",
+  "background_color": "#f8fafc",
   "theme_color": "#1e293b",
   "icons": [
     {
-      "src": "icon-192.png",
+      "src": "zenith-icon.png",
       "sizes": "192x192",
-      "type": "image/png"
-    },
-    {
-      "src": "icon-512.png",
-      "sizes": "512x512",
       "type": "image/png"
     }
   ]

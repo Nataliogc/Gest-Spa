@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Spa Disponibilidad</title>
+    <title>Disponibilidad Terapeutas</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#1e293b">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
@@ -40,7 +40,7 @@
 
         .container {
             padding: 10px;
-            max-width: 1200px;
+            max-width: 800px;
             margin: 0 auto;
         }
 
@@ -49,158 +49,148 @@
             align-items: center;
             justify-content: space-between;
             background: #fff;
-            margin-bottom: 10px;
+            margin-bottom: 15px;
             padding: 12px;
             border-radius: 12px;
             box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
         }
 
-        .timeline-card {
+        .staff-list-container {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .staff-card {
             background: #fff;
             border-radius: 12px;
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
             overflow: hidden;
-        }
-
-        .grid-scroll {
-            overflow-x: auto;
-            -webkit-overflow-scrolling: touch;
-        }
-
-        table {
-            border-collapse: collapse;
-            width: 100%;
-            font-size: 0.75rem;
-            table-layout: fixed;
-        }
-
-        th,
-        td {
             border: 1px solid #e2e8f0;
-            text-align: center;
-            height: 40px;
-            min-width: 45px;
         }
 
-        .th-staff {
-            width: 100px;
-            min-width: 100px;
-            position: sticky;
-            left: 0;
-            background: #f8fafc;
-            z-index: 10;
+        .staff-header {
+            padding: 15px;
+            background: #fff;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #f1f5f9;
+            cursor: pointer;
+        }
+
+        .staff-name {
             font-weight: 800;
-            text-align: left;
-            padding-left: 10px;
+            font-size: 1.1rem;
+            color: #1e293b;
+            display: flex;
+            align-items: center;
+            gap: 10px;
         }
 
-        .th-time {
+        .staff-name i {
+            color: var(--accent);
+        }
+
+        .staff-agenda {
+            padding: 10px;
+            background: #fdfdfd;
+        }
+
+        .booking-item {
+            display: flex;
+            gap: 12px;
+            padding: 12px;
+            background: #fff;
+            border: 1px solid #f1f5f9;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            align-items: center;
+        }
+
+        .booking-time {
             background: #f1f5f9;
+            padding: 6px 10px;
+            border-radius: 6px;
+            font-weight: 800;
+            color: #1e3a8a;
+            font-size: 0.85rem;
+            min-width: 50px;
+            text-align: center;
+        }
+
+        .booking-details {
+            flex: 1;
+        }
+
+        .service-name {
             font-weight: 700;
-            width: 45px;
+            font-size: 0.9rem;
+            color: #1e293b;
         }
 
-        .slot-free {
-            background: var(--free);
+        .client-name {
+            font-size: 0.75rem;
+            color: #64748b;
+            margin-top: 2px;
         }
 
-        .slot-busy {
-            background: var(--busy);
-        }
-
-        .slot-off {
-            background: var(--off);
-            opacity: 0.3;
-        }
-
-        .slot-none {
-            background: #cbd5e1;
+        .booking-duration {
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: var(--accent);
         }
 
         .btn-nav {
             background: #f1f5f9;
             border: none;
-            width: 40px;
-            height: 40px;
-            border-radius: 10px;
+            width: 44px;
+            height: 44px;
+            border-radius: 12px;
             cursor: pointer;
             color: #1e293b;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1rem;
         }
 
         .btn-install {
             background: var(--accent);
             color: white;
             border: none;
-            padding: 8px 15px;
-            border-radius: 8px;
-            font-weight: 700;
+            padding: 8px 16px;
+            border-radius: 10px;
+            font-weight: 800;
             display: none;
+            font-size: 0.8rem;
+            letter-spacing: 0.5px;
         }
 
-        .modal {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.5);
-            display: none;
-            align-items: center;
-            justify-content: center;
-            z-index: 1000;
+        .no-services {
             padding: 20px;
-            box-sizing: border-box;
+            text-align: center;
+            color: #94a3b8;
+            font-size: 0.85rem;
+            font-style: italic;
         }
 
-        .modal-content {
-            background: #fff;
-            border-radius: 15px;
-            width: 100%;
-            max-width: 400px;
-            padding: 0;
-            overflow: hidden;
+        .status-badge {
+            font-size: 0.65rem;
+            padding: 3px 8px;
+            border-radius: 20px;
+            font-weight: 800;
+            text-transform: uppercase;
         }
 
-        .modal-header {
-            background: #1e293b;
-            color: #fff;
-            padding: 15px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
+        .status-working {
+            background: #dcfce7;
+            color: #166534;
         }
 
-        .modal-body {
-            padding: 15px;
-            max-height: 60vh;
-            overflow-y: auto;
-        }
-
-        .booking-item {
-            display: flex;
-            gap: 10px;
-            padding: 10px;
-            border-bottom: 1px solid #eee;
-        }
-
-        .legend {
-            display: flex;
-            gap: 10px;
-            font-size: 0.7rem;
-            padding: 10px;
-            justify-content: center;
-        }
-
-        .legend-item {
-            display: flex;
-            align-items: center;
-            gap: 4px;
-        }
-
-        .dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
+        .status-off {
+            background: #fee2e2;
+            color: #991b1b;
         }
     </style>
 </head>
@@ -208,45 +198,24 @@
 <body>
     <div class="header">
         <div style="display:flex; align-items:center; gap:10px;">
-            <i class="fas fa-spa" style="color:var(--accent);"></i>
-            <h1 style="margin:0; font-size: 1rem; font-weight: 800;">DISPONIBILIDAD</h1>
+            <i class="fas fa-calendar-alt" style="color:var(--accent); font-size: 1.2rem;"></i>
+            <h1 style="margin:0; font-size: 1.1rem; font-weight: 800; letter-spacing: -0.5px;">ZENITH SPA</h1>
         </div>
-        <button id="installApp" class="btn-install">INSTALAR</button>
+        <button id="installApp" class="btn-install">DESCARGAR APP</button>
     </div>
 
     <div class="container">
         <div class="date-nav">
             <button class="btn-nav" id="btnPrev"><i class="fas fa-chevron-left"></i></button>
-            <div id="dateDisplay" style="font-weight:800; font-size: 0.9rem;">Cargando...</div>
+            <div id="dateDisplay" style="font-weight:800; font-size: 1rem; text-align: center;">...</div>
             <button class="btn-nav" id="btnNext"><i class="fas fa-chevron-right"></i></button>
         </div>
 
-        <div class="timeline-card" id="timelineCard">
-            <div class="grid-scroll" id="gridWrapper">
-                <div style="padding:40px; text-align:center;"><i class="fas fa-spinner fa-spin"></i></div>
+        <div id="staff-list-container" class="staff-list-container">
+            <div style="padding:60px; text-align:center; color:#94a3b8;">
+                <i class="fas fa-spinner fa-spin" style="font-size: 2rem; margin-bottom: 10px;"></i>
+                <div>Conectando con el Spa...</div>
             </div>
-            <div class="legend">
-                <div class="legend-item">
-                    <div class="dot" style="background:var(--free)"></div> Libre
-                </div>
-                <div class="legend-item">
-                    <div class="dot" style="background:var(--busy)"></div> Ocupado
-                </div>
-                <div class="legend-item">
-                    <div class="dot" style="background:var(--off)"></div> No trabaja
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div id="agendaModal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3 id="modalTitle" style="margin:0; font-size:0.95rem;">Agenda</h3>
-                <button onclick="document.getElementById('agendaModal').style.display='none'"
-                    style="background:transparent; border:1px solid #fff; color:#fff; border-radius:4px; padding:2px 8px; font-size:0.7rem;">SALIR</button>
-            </div>
-            <div class="modal-body" id="modalBody"></div>
         </div>
     </div>
 
@@ -259,110 +228,121 @@
         let currentDate = new Date().toISOString().split('T')[0];
 
         async function init() {
-            render();
+            if (typeof db === 'undefined' && typeof firebase !== 'undefined') {
+                window.db = firebase.firestore();
+            }
             setupPWA();
+            await refreshData();
         }
 
-        async function render() {
-            const container = document.getElementById('gridWrapper');
+        async function refreshData() {
+            const container = document.getElementById('staff-list-container');
             const dateDisplay = document.getElementById('dateDisplay');
 
             const dobj = new Date(currentDate + 'T12:00:00');
-            dateDisplay.textContent = dobj.toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short' }).toUpperCase();
+            dateDisplay.textContent = dobj.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' }).toUpperCase();
 
             try {
-                const staff = await window.getActiveStaff();
+                // Ensure loadStaff is called
+                let staff = await window.getActiveStaff();
+                if (!staff || staff.length === 0) {
+                    staff = await window.loadStaff();
+                }
+
                 const bookings = await window.getAllBookingsForDate(currentDate);
                 const exceptions = await window.getDayExceptionsForDate(currentDate);
 
-                // Define time slots 10:00 to 21:00 (every 30min)
-                const slots = [];
-                for (let h = 10; h <= 21; h++) {
-                    slots.push(`${h.toString().padStart(2, '0')}:00`);
-                    slots.push(`${h.toString().padStart(2, '0')}:30`);
+                if (!staff || staff.length === 0) {
+                    container.innerHTML = '<div style="padding:40px; text-align:center; color:#64748b;">No hay terapeutas activos configurados.</div>';
+                    return;
                 }
 
-                let html = '<table><thead><tr><th class="th-staff">TERAPEUTA</th>';
-                slots.forEach(s => html += `<th class="th-time">${s}</th>`);
-                html += '</tr></thead><tbody>';
-
+                let html = '';
                 for (const s of staff) {
-                    html += `<tr><td class="th-staff" onclick="showAgenda('${s.id}', '${s.name || s.alias}')"><i class="fas fa-user-circle"></i> ${s.name || s.nombre}</td>`;
+                    const name = s.nombre || s.name || 'Sin nombre';
 
-                    for (const time of slots) {
-                        const isWorking = await window.checkStaffAvailability(s, currentDate, time, 30, exceptions);
-                        if (!isWorking) {
-                            html += '<td class="slot-off"></td>';
-                        } else {
-                            const isBusy = bookings.find(b => {
-                                if (b.status === 'anulada') return false;
-                                const assignedId = b.staff_id || b.terapeuta_id || (b.staff ? b.staff.id : null) || b.terapeuta;
-                                if (assignedId !== s.id && assignedId !== s.name && b.staff_name !== s.name && b.terapeuta !== s.name) return false;
+                    // Filter bookings for this therapist
+                    const myBookings = bookings.filter(b => {
+                        if (b.status === 'anulada') return false;
+                        const assignedId = b.staff_id || b.terapeuta_id || (b.staff ? b.staff.id : null) || b.terapeuta;
+                        return assignedId === s.id || assignedId === name || b.staff_name === name || b.terapeuta === name;
+                    }).sort((a, b) => a.hora.localeCompare(b.hora));
 
-                                const [sh, sm] = b.hora.split(':').map(Number);
-                                const start = sh * 60 + sm;
-                                const end = start + (parseInt(b.duracion) || 60);
-                                const [th, tm] = time.split(':').map(Number);
-                                const t = th * 60 + tm;
-                                return t >= start && t < end;
-                            });
-                            html += `<td class="${isBusy ? 'slot-busy' : 'slot-free'}"></td>`;
-                        }
-                    }
-                    html += '</tr>';
+                    // Check if working today
+                    const working = await isWorkingToday(s, currentDate);
+
+                    html += `
+                        <div class="staff-card">
+                            <div class="staff-header">
+                                <div class="staff-name">
+                                    <i class="fas fa-user-circle"></i> ${name}
+                                </div>
+                                <span class="status-badge ${working ? 'status-working' : 'status-off'}">
+                                    ${working ? 'Trabajando' : 'No trabaja'}
+                                </span>
+                            </div>
+                            <div class="staff-agenda">
+                                ${myBookings.length > 0 ? myBookings.map(b => `
+                                    <div class="booking-item">
+                                        <div class="booking-time">${b.hora}</div>
+                                        <div class="booking-details">
+                                            <div class="service-name">${b.servicio || b.nombre_servicio || 'Servicio'}</div>
+                                            <div class="client-name">${b.nombre || 'Cliente'} | Sala: ${b.module || b._collection || ''}</div>
+                                        </div>
+                                        <div class="booking-duration">${b.duracion || 60}m</div>
+                                    </div>
+                                `).join('') : `<div class="no-services">${working ? 'Sin servicios asignados' : 'Día libre'}</div>`}
+                            </div>
+                        </div>
+                    `;
                 }
-                html += '</tbody></table>';
                 container.innerHTML = html;
             } catch (e) {
-                container.innerHTML = '<div style="padding:20px; color:red;">Error al cargar datos</div>';
+                console.error("Refresh error:", e);
+                container.innerHTML = `<div style="padding:20px; color:red; text-align:center;">Error al cargar datos<br><small>${e.message}</small></div>`;
             }
         }
 
-        async function showAgenda(sid, sname) {
-            const modal = document.getElementById('agendaModal');
-            const body = document.getElementById('modalBody');
-            document.getElementById('modalTitle').textContent = `Agenda: ${sname}`;
-            modal.style.display = 'flex';
-            body.innerHTML = 'Cargando...';
+        async function isWorkingToday(staff, date) {
+            if (!staff) return false;
 
-            const bookings = await window.getAllBookingsForDate(currentDate);
-            const my = bookings.filter(b => {
-                if (b.status === 'anulada') return false;
-                const assignedId = b.staff_id || b.terapeuta_id || (b.staff ? b.staff.id : null) || b.terapeuta;
-                return assignedId === sid || assignedId === sname || b.staff_name === sname || b.terapeuta === sname;
-            }).sort((a, b) => a.hora.localeCompare(b.hora));
-
-            if (my.length === 0) {
-                body.innerHTML = 'Sin servicios hoy';
-            } else {
-                body.innerHTML = my.map(b => `
-                    <div class="booking-item">
-                        <div style="font-weight:800; color:var(--accent); min-width:45px;">${b.hora}</div>
-                        <div>
-                            <div style="font-weight:700;">${b.servicio || b.nombre_servicio || 'Servicio'}</div>
-                            <div style="font-size:0.65rem; color:#666;">${b.nombre} | ${b.duracion}min</div>
-                        </div>
-                    </div>
-                `).join('');
+            // 1. Check Exceptions (Higher priority)
+            const exceptions = await window.getDayExceptionsForDate(date);
+            const exc = exceptions[staff.id];
+            if (exc) {
+                if (exc.status === 'unavailable' || exc.status === 'off' || exc.status === 'vacation') return false;
+                if (exc.status === 'custom' && exc.custom_schedule) return exc.custom_schedule.enabled;
             }
+
+            // 2. Check Schedule
+            const dateObj = new Date(date + 'T12:00:00');
+            const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+            const dayKey = days[dateObj.getDay()];
+
+            let workingSchedule = staff.default_schedule || {};
+            const dayConfig = workingSchedule[dayKey];
+
+            return dayConfig ? dayConfig.enabled : false;
         }
 
         document.getElementById('btnPrev').onclick = () => {
             let d = new Date(currentDate + 'T12:00:00');
             d.setDate(d.getDate() - 1);
             currentDate = d.toISOString().split('T')[0];
-            render();
+            refreshData();
         }
         document.getElementById('btnNext').onclick = () => {
             let d = new Date(currentDate + 'T12:00:00');
             d.setDate(d.getDate() + 1);
             currentDate = d.toISOString().split('T')[0];
-            render();
+            refreshData();
         }
 
         function setupPWA() {
             if ('serviceWorker' in navigator) {
-                navigator.serviceWorker.register('/sw.js');
+                // Use relative path for subfolders like /Gest-Spa/
+                const base = window.location.pathname.includes('/Gest-Spa/') ? '/Gest-Spa/' : '/';
+                navigator.serviceWorker.register(base + 'sw.js').catch(err => console.warn("SW error:", err));
             }
             let deferredPrompt;
             window.addEventListener('beforeinstallprompt', (e) => {

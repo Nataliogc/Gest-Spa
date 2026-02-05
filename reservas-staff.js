@@ -131,18 +131,35 @@ async function handleStaffFieldsChange() {
 
 /**
  * Helper: Obtener todos los terapeutas activos
- * Utilizado por el modal de disponibilidad (Therapist Availability Dashboard)
+ * Utilizado por el modal de disponibilidad (Therapist Availability Dashboard) y la app externa.
  */
+window.allStaff = []; // Cache global
+
+async function loadStaff() {
+    try {
+        console.log('[STAFF] Cargando personal desde Firestore...');
+        const snapshot = await db.collection('spa_staff').get();
+        const staff = [];
+        snapshot.forEach(doc => {
+            const data = doc.data();
+            // Filtrar solo activos para la disponibilidad general
+            if (data.activo === true || data.status === 'active') {
+                staff.push({ id: doc.id, ...data });
+            }
+        });
+        window.allStaff = staff;
+        console.log(`[STAFF] ${window.allStaff.length} terapeutas activos cargados.`);
+        return window.allStaff;
+    } catch (e) {
+        console.error("[STAFF] Error en loadStaff:", e);
+        return [];
+    }
+}
+window.loadStaff = loadStaff;
+
 window.getActiveStaff = async function () {
     if (window.allStaff && window.allStaff.length > 0) return window.allStaff;
-
-    // Si no están cargados, forzar carga
-    if (typeof window.loadStaff === 'function') {
-        await window.loadStaff();
-        return window.allStaff;
-    }
-
-    return [];
+    return await loadStaff();
 };
 
 /**
