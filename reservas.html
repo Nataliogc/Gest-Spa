@@ -663,110 +663,56 @@
                 <input type="hidden" id="form-id">
                 <input type="hidden" id="res-precio-total" value="0">
                 <!-- Date and Time moved to visible grid below -->
-                <div id="duration-group" style="display:none;">
-                    <input type="hidden" id="inputDuration" value="60">
-                </div>
+                <!-- Duration field removed from here to fix duplicate ID conflict. It is now only in the main grid below. -->
+                <div id="duration-group-hidden" style="display:none;"></div>
 
                 <!-- MAIN FIELDS GRID -->
                 <div id="booking-form-grid"
                     style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; background: #fff; padding: 15px; border-radius: 10px; border: 1px solid #edf2f7; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
 
-                    <!-- DATE / TIME (VISIBLE FOR RESCHEDULING) -->
-                    <div id="date-time-container"
-                        style="display: flex; gap: 10px; grid-column: 1 / -1; background: #eff6ff; padding: 10px 15px; border-radius: 8px; border: 1px solid #dbeafe; margin-bottom: 10px;">
-                        <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                    <!-- ROW 1: DATE | TIME | PAX | MIN | ORIGEN -->
+                    <div style="display: flex; gap: 8px; align-items: flex-end; grid-column: 1 / -1;">
+                        <!-- FECHA -->
+                        <div class="form-group" style="flex: 0 0 130px; margin-bottom: 0;">
                             <label
-                                style="font-size: 0.65rem; font-weight: 800; color: #1e40af; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; display: block;">
+                                style="font-size: 0.6rem; font-weight: 800; color: #1e40af; text-transform: uppercase;">
                                 <i class="fas fa-calendar-day"></i> Fecha
                             </label>
                             <input type="date" id="form-date" required onchange="updatePriceAutomation()"
-                                style="width: 100%; padding: 6px 10px; border-radius: 6px; border: 1px solid #bfdbfe; font-size: 0.95rem; font-weight: 700; color: #1e3a8a; background: #fff;">
+                                style="width: 100%; padding: 4px 6px; border-radius: 4px; border: 1px solid #bfdbfe; font-size: 0.85rem; font-weight: 700; color: #1e3a8a; background: #fff;">
                         </div>
-                        <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                        <!-- HORA -->
+                        <div class="form-group" style="flex: 0 0 80px; margin-bottom: 0;">
                             <label
-                                style="font-size: 0.65rem; font-weight: 800; color: #1e40af; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; display: block;">
+                                style="font-size: 0.6rem; font-weight: 800; color: #1e40af; text-transform: uppercase;">
                                 <i class="fas fa-clock"></i> Hora
                             </label>
                             <select id="form-time" required
-                                style="width: 100%; padding: 6px 10px; border-radius: 6px; border: 1px solid #bfdbfe; font-size: 0.95rem; font-weight: 700; color: #1e3a8a; background: #fff;">
+                                style="width: 100%; padding: 5px 6px; border-radius: 4px; border: 1px solid #bfdbfe; font-size: 0.85rem; font-weight: 700; color: #1e3a8a; background: #fff;">
                             </select>
                         </div>
-                    </div>
-
-                    <!-- ROW 1: NOMBRE + PAX + DURACION -->
-                    <div style="display: grid; grid-template-columns: 2fr 0.5fr 0.5fr; gap: 10px; align-items: start;">
-                        <div class="form-group" style="margin-bottom: 0;">
+                        <!-- PAX -->
+                        <div class="form-group" style="flex: 0 0 45px; margin-bottom: 0;">
                             <label
-                                style="font-size: 0.7rem; font-weight: 800; color: #4a5568; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; display: block;">Datos
-                                del Cliente</label>
-                            <input type="text" id="res-nombre" required placeholder="Nombre Completo"
-                                style="width: 100%; padding: 8px 12px; border-radius: 6px; border: 1px solid #e2e8f0; font-size: 0.9rem; transition: border-color 0.2s; outline: none; background: #f8fafc;">
-                        </div>
-                        <div class="form-group" style="margin-bottom: 0;">
-                            <label
-                                style="font-size: 0.65rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; display: block; margin-bottom: 4px;">Pax</label>
+                                style="font-size: 0.6rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; text-align: center;">Pax</label>
                             <input type="number" id="res-pax" value="2" min="1" max="25" required
                                 onchange="updatePriceAutomation(); updateStaffSelectorsVisibility();"
-                                style="width: 100%; padding: 8px 6px; border-radius: 6px; border: 1px solid #e2e8f0; font-size: 0.9rem; text-align: center; background: #f8fafc;">
+                                style="width: 100%; padding: 5px 2px; border-radius: 4px; border: 1px solid #e2e8f0; font-size: 0.85rem; text-align: center; background: #f8fafc;">
                         </div>
-                        <div class="form-group" style="margin-bottom: 0;">
+                        <!-- MIN -->
+                        <div class="form-group" style="flex: 0 0 50px; margin-bottom: 0;">
                             <label
-                                style="font-size: 0.65rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; display: block; margin-bottom: 4px;">Min</label>
+                                style="font-size: 0.6rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; text-align: center;">Min</label>
                             <input type="number" id="inputDuration" value="60" min="5" step="5" required
                                 onchange="handleStaffFieldsChange(); updateAvailabilityUI();"
-                                style="width: 100%; padding: 8px 6px; border-radius: 6px; border: 1px solid #e2e8f0; font-size: 0.9rem; text-align: center; background: #fff;">
+                                style="width: 100%; padding: 5px 2px; border-radius: 4px; border: 1px solid #e2e8f0; font-size: 0.85rem; text-align: center; background: #fff;">
                         </div>
-                    </div>
-
-                    <!-- SERVICIO (Hidden for SPA) -->
-                    <div class="form-group" id="service-group" style="margin-bottom: 0; display: none;">
-                        <label id="label-service"
-                            style="font-size: 0.7rem; font-weight: 800; color: #4a5568; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; display: block;">Servicio</label>
-                        <select id="res-servicio"
-                            onchange="updatePackInfo(); updatePriceAutomation(); updateStaffSelectorsVisibility();"
-                            style="width: 100%; padding: 8px 10px; border-radius: 6px; border: 1px solid #e2e8f0; font-size: 0.9rem; background: #fff; cursor: pointer; font-weight: 600; color: var(--accent);">
-                        </select>
-                    </div>
-
-                    <!-- STAFF SELECTOR (Injected) -->
-                    <div class="form-group" id="staff-selector-group"
-                        style="display: none; margin-bottom: 0; grid-column: 1 / -1;">
-                        <label id="label-staff-1"
-                            style="font-size: 0.7rem; font-weight: 800; color: #4a5568; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; display: block;">Terapeuta
-                            1</label>
-                        <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 8px;">
-                            <select id="booking-staff"
-                                style="flex: 1; padding: 8px 10px; border-radius: 6px; border: 1px solid #e2e8f0; font-size: 0.9rem; background: #fff; cursor: pointer;">
-                                <option value="">Seleccionar...</option>
-                            </select>
-                            <span id="staff-availability-msg" style="font-size: 0.8rem; font-weight: 600;"></span>
-                        </div>
-
-                        <!-- Second Staff Selector -->
-                        <div id="staff-2-container" style="display: none;">
+                        <!-- ORIGEN -->
+                        <div class="form-group" style="flex: 1; margin-bottom: 0;">
                             <label
-                                style="font-size: 0.7rem; font-weight: 800; color: #4a5568; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; display: block;">Terapeuta
-                                2</label>
-                            <select id="booking-staff-2"
-                                style="width: 100%; padding: 8px 10px; border-radius: 6px; border: 1px solid #e2e8f0; font-size: 0.9rem; background: #fff; cursor: pointer;">
-                                <option value="">Seleccionar...</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <!-- ROW 2: TELÉFONO + ORIGEN -->
-                    <div id="tel-origen-container" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-                        <div class="form-group" id="tel-group" style="margin-bottom: 0;">
-                            <label
-                                style="font-size: 0.65rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; display: block; margin-bottom: 4px;">Teléfono</label>
-                            <input type="tel" id="res-tel" placeholder="XXX XXX XXX" required
-                                style="width: 100%; padding: 6px 10px; border-radius: 6px; border: 1px solid #e2e8f0; font-size: 0.85rem; background: #f8fafc;">
-                        </div>
-                        <div class="form-group" style="margin-bottom: 0;">
-                            <label
-                                style="font-size: 0.65rem; font-weight: 800; color: #4a5568; text-transform: uppercase; display: block; margin-bottom: 4px;">Origen</label>
+                                style="font-size: 0.6rem; font-weight: 800; color: #4a5568; text-transform: uppercase;">Origen</label>
                             <select id="res-origen" onchange="toggleRoomField(); updatePriceAutomation();"
-                                style="width: 100%; padding: 6px 10px; border-radius: 6px; border: 1px solid #e2e8f0; font-size: 0.85rem; background: #fff; cursor: pointer;">
+                                style="width: 100%; padding: 5px 8px; border-radius: 4px; border: 1px solid #e2e8f0; font-size: 0.85rem; background: #fff; cursor: pointer;">
                                 <option value="particular">Particular (Pago Directo)</option>
                                 <option value="hotel_inc">Hotel - Incluido</option>
                                 <option value="hotel_no_inc">Hotel - NO Incluidos</option>
@@ -778,86 +724,113 @@
                         </div>
                     </div>
 
-
-
-                    <!-- CONDITIONAL FIELDS ROW (Hidden by default, shown via toggleRoomField) -->
-                    <div id="extra-fields-row"
-                        style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; grid-column: 1 / -1;">
-
-                        <!-- HOTEL (Hidden by default) -->
-                        <div class="form-group" id="hotel-group" style="margin-bottom: 0; display: none;">
+                    <!-- ROW 2: NOMBRE | TELÉFONO -->
+                    <div style="display: flex; gap: 8px; grid-column: 1 / -1;">
+                        <div class="form-group" style="flex: 2; margin-bottom: 0;">
                             <label
-                                style="font-size: 0.65rem; font-weight: 800; color: #4a5568; text-transform: uppercase;">Hotel</label>
+                                style="font-size: 0.65rem; font-weight: 800; color: #4a5568; text-transform: uppercase;">Cliente</label>
+                            <input type="text" id="res-nombre" required placeholder="Nombre Completo"
+                                style="width: 100%; padding: 6px 10px; border-radius: 4px; border: 1px solid #e2e8f0; font-size: 0.95rem; font-weight: 600; outline: none; background: #f8fafc;">
+                        </div>
+                        <div class="form-group" id="tel-group" style="flex: 1; margin-bottom: 0;">
+                            <label
+                                style="font-size: 0.6rem; font-weight: 700; color: #94a3b8; text-transform: uppercase;">Teléfono</label>
+                            <input type="tel" id="res-tel" placeholder="XXX XXX XXX" required
+                                style="width: 100%; padding: 6px 10px; border-radius: 4px; border: 1px solid #e2e8f0; font-size: 0.9rem; background: #f8fafc;">
+                        </div>
+                    </div>
+
+                    <!-- ROW 3: SERVICIO | TERAPEUTA -->
+                    <div style="display: flex; gap: 8px; grid-column: 1 / -1;">
+                        <!-- SERVICIO -->
+                        <div class="form-group" id="service-group" style="flex: 1.5; margin-bottom: 0; display: none;">
+                            <label id="label-service"
+                                style="font-size: 0.65rem; font-weight: 800; color: #4a5568; text-transform: uppercase;">Servicio</label>
+                            <select id="res-servicio"
+                                onchange="updatePackInfo(); updatePriceAutomation(); updateStaffSelectorsVisibility();"
+                                style="width: 100%; padding: 6px 10px; border-radius: 4px; border: 1px solid #e2e8f0; font-size: 0.9rem; background: #fff; cursor: pointer; font-weight: 600; color: var(--accent);">
+                            </select>
+                        </div>
+                        <!-- STAFF SELECTOR (Smaller) -->
+                        <div class="form-group" id="staff-selector-group"
+                            style="flex: 0.8; display: none; margin-bottom: 0;">
+                            <label id="label-staff-1"
+                                style="font-size: 0.65rem; font-weight: 800; color: #4a5568; text-transform: uppercase;">Terapeuta</label>
+                            <div style="display: flex; gap: 5px; align-items: center;">
+                                <select id="booking-staff"
+                                    style="flex: 1; padding: 6px 8px; border-radius: 4px; border: 1px solid #e2e8f0; font-size: 0.9rem; background: #fff; cursor: pointer;">
+                                    <option value="">Seleccionar...</option>
+                                </select>
+                                <span id="staff-availability-msg" style="font-size: 0.7rem; font-weight: 600;"></span>
+                            </div>
+                            <!-- Second Staff Selector -->
+                            <div id="staff-2-container" style="display: none; margin-top: 5px;">
+                                <select id="booking-staff-2"
+                                    style="width: 100%; padding: 5px 8px; border-radius: 4px; border: 1px solid #e2e8f0; font-size: 0.85rem; background: #fff; cursor: pointer;">
+                                    <option value="">2º Terapeuta...</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ROW 4: EXTRA FIELDS (CONDITIONAL) -->
+                    <div id="extra-fields-row"
+                        style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; grid-column: 1 / -1;">
+                        <!-- Hidden fields maintained here with simplified styling -->
+                        <div class="form-group" id="hotel-group" style="margin-bottom: 0; display: none;">
+                            <label style="font-size: 0.6rem; font-weight: 800; text-transform: uppercase;">Hotel</label>
                             <select id="res-hotel"
-                                style="width: 100%; padding: 6px 10px; border-radius: 6px; border: 1px solid #e2e8f0; font-size: 0.85rem; background: #fff; cursor: pointer;">
+                                style="width: 100%; padding: 5px; border-radius: 4px; border: 1px solid #e2e8f0; font-size: 0.85rem;">
                                 <option value="Cumbria">Cumbria</option>
                                 <option value="Guadiana">Guadiana</option>
                             </select>
                         </div>
-
-                        <!-- HABITACIÓN (Hidden by default) -->
                         <div class="form-group" id="room-group" style="margin-bottom: 0; display: none;">
                             <label
-                                style="font-size: 0.65rem; font-weight: 800; color: #4a5568; text-transform: uppercase;">Habitación
-                                / Reserva</label>
-                            <input type="text" id="res-hab" placeholder="Nº Hab o Reserva"
-                                style="width: 100%; padding: 6px 10px; border-radius: 6px; border: 1px solid #e2e8f0; font-size: 0.85rem; background: #f8fafc;">
+                                style="font-size: 0.6rem; font-weight: 800; text-transform: uppercase;">Hab/Rva</label>
+                            <input type="text" id="res-hab"
+                                style="width: 100%; padding: 5px; border-radius: 4px; border: 1px solid #e2e8f0; font-size: 0.85rem;">
                         </div>
-
-                        <!-- ID BONO / CUPÓN (Hidden by default) -->
                         <div class="form-group" id="bono-group" style="margin-bottom: 0; display: none;">
                             <label
-                                style="font-size: 0.65rem; font-weight: 800; color: #4a5568; text-transform: uppercase;">ID
-                                Bono / Cupón</label>
-                            <input type="text" id="res-bono" placeholder="Código del bono"
-                                style="width: 100%; padding: 6px 10px; border-radius: 6px; border: 1px solid #e2e8f0; font-size: 0.85rem; background: #f8fafc;">
+                                style="font-size: 0.6rem; font-weight: 800; text-transform: uppercase;">Bono/Cupón</label>
+                            <input type="text" id="res-bono"
+                                style="width: 100%; padding: 5px; border-radius: 4px; border: 1px solid #e2e8f0; font-size: 0.85rem;">
                         </div>
-
-                        <!-- SESIONES (Hidden by default, only for internal bonos) -->
                         <div class="form-group" id="sessions-group" style="margin-bottom: 0; display: none;">
                             <label
-                                style="font-size: 0.65rem; font-weight: 800; color: #4a5568; text-transform: uppercase;">Sesiones
-                                a usar</label>
-                            <input type="number" id="res-sesiones" value="1" min="1" max="10"
-                                style="width: 100%; padding: 6px 10px; border-radius: 6px; border: 1px solid #e2e8f0; font-size: 0.85rem; text-align: center; background: #f8fafc;">
+                                style="font-size: 0.6rem; font-weight: 800; text-transform: uppercase;">Sesiones</label>
+                            <input type="number" id="res-sesiones" value="1"
+                                style="width: 100%; padding: 5px; border-radius: 4px; border: 1px solid #e2e8f0; font-size: 0.85rem; text-align: center;">
                         </div>
                     </div>
 
-                    <!-- COMPLEMENTOS (NEW LOCATION) -->
-                    <div id="complementos-container"
-                        style="display: none; padding: 4px 6px; background: #f8fafc; border-radius: 6px; border: 1px solid #edf2f7; overflow-y: auto; max-height: 90px;">
-                        <label
-                            style="font-size: 0.55rem; font-weight: 800; color: #64748b; text-transform: uppercase; margin-bottom: 3px; display: block;">Complementos</label>
-                        <div id="complementos-list" style="display: flex; flex-wrap: wrap; gap: 3px;"></div>
+                    <!-- ROW 5: COMPLEMENTOS & OBSERVACIONES (SIDE BY SIDE) -->
+                    <div
+                        style="display: grid; grid-template-columns: 1fr 1.5fr; gap: 10px; height: 100px; min-height: 100px; grid-column: 1 / -1;">
+                        <!-- COMPLEMENTOS -->
+                        <div id="complementos-container"
+                            style="display: none; padding: 5px; background: #f8fafc; border-radius: 6px; border: 1px solid #edf2f7; overflow-y: auto;">
+                            <label
+                                style="font-size: 0.55rem; font-weight: 800; color: #64748b; text-transform: uppercase; margin-bottom: 2px; display: block; position: sticky; top: 0; background: #f8fafc;">Complementos</label>
+                            <div id="complementos-list" style="display: flex; flex-direction: column; gap: 2px;"></div>
+                        </div>
+                        <!-- OBSERVACIONES -->
+                        <div class="form-group"
+                            style="margin-bottom: 0; height: 100%; display: flex; flex-direction: column;">
+                            <label
+                                style="font-size: 0.6rem; font-weight: 800; color: #4a5568; text-transform: uppercase; margin-bottom: 2px;">Observaciones</label>
+                            <textarea id="res-obs" placeholder="Notas..."
+                                style="flex: 1; width: 100%; padding: 8px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 0.85rem; resize: none;"></textarea>
+                        </div>
                     </div>
 
-                    <!-- PACK INFO (Multi-Location Scheduling) -->
+                    <!-- PACK INFO (Full Width, Compact) -->
                     <div id="pack-includes-container"
-                        style="display: none; padding: 12px; background: linear-gradient(135deg, #fff7ed 0%, #fef3c7 100%); border-radius: 10px; font-size: 0.75rem; grid-column: 1 / -1; border: 2px dashed #f97316;">
-                        <h4
-                            style="margin: 0 0 10px 0; font-size: 0.75rem; font-weight: 800; color: #c2410c; display: flex; align-items: center; gap: 8px;">
-                            <i class="fas fa-cubes"></i> PACK MULTISERVICIO
-                            <span id="pack-item-count"
-                                style="background: #f97316; color: white; padding: 2px 8px; border-radius: 10px; font-size: 0.65rem;">2
-                                elementos</span>
-                        </h4>
-                        <div id="pack-items-schedule" style="display: flex; flex-direction: column; gap: 10px;">
-                            <!-- Dynamically populated by updatePackInfo() -->
-                        </div>
-                        <div id="pack-reminder"
-                            style="display: none; color: #c2410c; font-weight: 700; margin-top: 10px; padding: 8px; background: #fff; border-radius: 6px; border-left: 3px solid #f97316;">
-                            <i class="fas fa-utensils"></i> Recuerda reservar mesa en el restaurante si el servicio
-                            incluye comida.
-                        </div>
-                    </div>
-
-                    <!-- OBSERVACIONES -->
-                    <div class="form-group" style="grid-column: 1 / -1; margin-top: 5px;">
-                        <label
-                            style="font-size: 0.65rem; font-weight: 800; color: #4a5568; text-transform: uppercase;">Observaciones</label>
-                        <textarea id="res-obs" placeholder="Notas sobre alergias, preferencias o incidencias..."
-                            oninput="this.style.height = 'auto'; this.style.height = (this.scrollHeight) + 'px';"
-                            style="width: 100%; padding: 8px 12px; border-radius: 6px; border: 1px solid #e2e8f0; font-size: 0.85rem; background: #fdfdfd; resize: none; min-height: 40px; height: 40px; display: block; line-height: 1.4;"></textarea>
+                        style="display: none; padding: 8px; background: linear-gradient(135deg, #fff7ed 0%, #fef3c7 100%); border-radius: 6px; font-size: 0.75rem; grid-column: 1 / -1; border: 1px dashed #f97316;">
+                        <h4 style="margin: 0 0 5px 0; font-size: 0.75rem; font-weight: 800; color: #c2410c;">PACK
+                            MULTISERVICIO <span id="pack-item-count"></span></h4>
+                        <div id="pack-items-schedule"></div>
                     </div>
 
                     <!-- 💳 CONTROL DE PAGO (Particular / Pago Directo) -->
@@ -983,6 +956,12 @@
                             style="height: 44px; padding: 0 20px; background: #6366f1; color: white; border-radius: 8px; font-weight: 700; display: none;"
                             onclick="tryStartService()">
                             <i class="fas fa-play"></i> INICIAR
+                        </button>
+
+                        <button type="button" id="btn-unlock-past" class="btn"
+                            style="height: 44px; padding: 0 20px; background: #64748b; color: white; border-radius: 8px; font-weight: 700; display: none; margin-right: 8px;"
+                            onclick="unlockPastReservation()">
+                            <i class="fas fa-lock-open"></i> DESBLOQUEAR
                         </button>
 
                         <button type="button" id="btn-force-booking" class="btn"
@@ -3708,20 +3687,40 @@
             }
 
             // Context Switch for Split Views
-            // Context Switch for Split Views
-            // Save current state to restore on close (Fix for "Cabinas" view switching to "Cabina 1")
+            // Save current state to restore on close
             window.previousModule = window.currentModule;
 
+            // 1. Try _moduleCode (saved in newer reservations)
             if (res._moduleCode && MODULES[res._moduleCode]) {
                 currentModule = MODULES[res._moduleCode];
-                window.currentModule = currentModule; // Ensure global ref is updated
-            } else if (res.collection) {
-                // Infer module from proper collection (fix for Cabinas view where _moduleCode is missing)
+                window.currentModule = currentModule;
+            }
+            // 2. Try matching collection (Reliable for older reservations)
+            else if (res.collection || res._collection) {
+                const targetColl = res.collection || res._collection;
                 for (const key in MODULES) {
-                    if (MODULES[key].collection === res.collection) {
+                    if (MODULES[key].collection === targetColl) {
                         currentModule = MODULES[key];
                         window.currentModule = currentModule;
                         break;
+                    }
+                }
+            }
+            // 3. Fallback: If currentModule is 'cabinas' (wrapper) but res is in a specific cabina collection
+            // (Handled by loop above, but double check if we are still in wrapper)
+            if (window.currentModule.code === 'cabinas') {
+                // Heuristic: If we are editing, we probably want a specific cabina if possible, 
+                // but if we can't determine it, we might be in trouble.
+                // Usually 'res' comes from 'currentData' which is loaded from the active module.
+                // If active module is 'cabinas', 'currentData' has mixed reservations.
+                // We MUST find the matching module.
+                if (res.sala) { // 'sala' might hold 'reservas_cabina1' or similar
+                    for (const key in MODULES) {
+                        if (MODULES[key].collection === res.sala) {
+                            currentModule = MODULES[key];
+                            window.currentModule = currentModule;
+                            break;
+                        }
                     }
                 }
             }
@@ -3781,16 +3780,24 @@
             // Bloquear si es pasada
             const formInputs = document.getElementById("booking-form").querySelectorAll("input, select, textarea");
             const btnSave = document.getElementById("btn-save-booking");
+            const btnUnlock = document.getElementById("btn-unlock-past"); // New button
 
             if (isPast) {
                 document.getElementById("modal-title").innerHTML = '<i class="fas fa-lock" style="color:#ff5252"></i> Reserva Pasada (Solo Lectura)';
                 formInputs.forEach(input => input.disabled = true);
-                btnSave.style.display = "none";
-                btnCancel.style.display = "none";
+                if (btnSave) btnSave.style.display = "none";
+                if (btnCancel) btnCancel.style.display = "none";
+
+                // Show Unlock Button
+                if (btnUnlock) {
+                    btnUnlock.style.display = "inline-flex";
+                    btnUnlock.onclick = () => unlockPastReservation();
+                }
             } else {
                 document.getElementById("modal-title").textContent = "Editar Reserva";
                 formInputs.forEach(input => input.disabled = false);
                 if (btnSave) btnSave.style.display = "block";
+                if (btnUnlock) btnUnlock.style.display = "none";
                 // btnCancel ya se maneja por su status
             }
 
@@ -3887,18 +3894,13 @@
             }
 
             if (document.getElementById("inputDuration")) {
-                let dur = res.duracion || 60;
-                // Heuristic: If duration is 60 but name says 30', and it's a forced service, maybe suggest 30?
-                // Only if likely wrong. But better to trust the DB record if it exists.
-                // If the user says "pone sesenta", it means the DB PROBABLY has 60. 
-                // We should check if the service definition has a different default.
-                const sObj = currentServices.find(s => s.nombre === res.servicio);
-                if (sObj && sObj.duracion) dur = sObj.duracion;
+                let dur = parseInt(res.duracion) || 0;
 
-                // Heuristic: Auto-correct 60 to 30 IF service name contains "30" (e.g. 30', 30min)
-                // Regex checks for "30" followed by non-digit or end of string.
-                if (dur === 60 && res.servicio && /30\D|30$/.test(res.servicio)) {
-                    dur = 30;
+                // Only if no duration in DB, try to find default from service
+                if (dur === 0) {
+                    const sObj = currentServices.find(s => s.nombre === res.servicio);
+                    if (sObj && sObj.duracion) dur = parseInt(sObj.duracion);
+                    else dur = 60; // Default fallback
                 }
 
                 document.getElementById("inputDuration").value = dur;
@@ -3908,6 +3910,20 @@
             if (typeof window.handleStaffFieldsChange === 'function') {
                 await window.handleStaffFieldsChange();
             }
+
+            // FIX: Explicitly show/hide staff group in Edit Booking
+            // This ensures it appears even if it was hidden by default or by previous module context
+            const staffGroup = document.getElementById("staff-selector-group");
+            if (staffGroup) {
+                // Force show if module requires staff OR if we have staff data (fallback)
+                // This covers cases where we might be in 'Cabinas' wrapper but the specific reservation needs staff
+                const shouldShow = currentModule.requiresStaff || (res.staff_id || res.terapeuta);
+                staffGroup.style.display = shouldShow ? "block" : "none";
+
+                const bookingStaff = document.getElementById("booking-staff");
+                if (bookingStaff) bookingStaff.required = shouldShow;
+            }
+
             // Ensure 2nd selector is visible/populated if needed before setting value
             updateStaffSelectorsVisibility();
 
@@ -4235,14 +4251,19 @@
                     const [resH, resM] = formTime.split(':').map(Number);
                     const resMinutes = resH * 60 + resM;
 
-                    if (formDate < todayStr) {
-                        alert(`⚠️ No se puede reservar en una fecha pasada (${formDate}).`);
-                        return;
-                    }
+                    // Allow bypass if explicitly unlocked
+                    if (!window._pastReservationUnlocked) {
+                        if (formDate < todayStr) {
+                            alert(`⚠️ No se puede reservar en una fecha pasada (${formDate}).`);
+                            return;
+                        }
 
-                    if (formDate === todayStr && resMinutes < currentMinutes) {
-                        alert(`⚠️ No se puede reservar a las ${formTime} (Hora pasada).`);
-                        return;
+                        if (formDate === todayStr && resMinutes < currentMinutes) {
+                            alert(`⚠️ No se puede reservar a las ${formTime} (Hora pasada).`);
+                            return;
+                        }
+                    } else {
+                        console.log("⚠️ GUARDANDO RESERVA PASADA (Desbloqueo activo)");
                     }
                 }
                 // ========================================================
@@ -4821,7 +4842,9 @@
                         const defaultDur = 60;
                         const hasSpace = moduleConfig.isPrivate ? checkSpaceSync(timeLabel, defaultDur, data) : (bookingsCount < maxCapacity);
 
-                        if (staffFreeCount > 0 && hasSpace && (!isOccupied || (moduleConfig.capacity && moduleConfig.capacity > 1))) {
+                        // MODIFIED: Remove 'hasSpace' constraint to allow booking attempt even if 60min doesn't fit
+                        // The user can force it or change duration in the form.
+                        if (staffFreeCount > 0 && (!isOccupied || (moduleConfig.capacity && moduleConfig.capacity > 1))) {
                             // Mostrar botón Reservar si hay hueco físico y de personal
                             // Container for actions
                             const actionsDiv = document.createElement("div");
@@ -4869,7 +4892,8 @@
                             if (staffFreeCount === 0 && moduleConfig.requiresStaff) {
                                 contentCol.innerHTML = '<span style="color:#ef4444; font-size:0.75rem;"><i class="fas fa-user-slash"></i> Sin terapeuta</span>';
                             } else if (!hasSpace) {
-                                contentCol.innerHTML = '<span style="color:#666; font-size:0.75rem;"><i class="fas fa-ban"></i> Sin espacio</span>';
+                                // Content explicitly left empty as per user request
+                                // contentCol.innerHTML = '<span style="color:#666; font-size:0.75rem;"><i class="fas fa-ban"></i> Sin espacio</span>';
                             }
                         }
                     }
@@ -6247,6 +6271,26 @@
         }
 
 
+        // Función para desbloquear reservas pasadas
+        window.unlockPastReservation = function () {
+            if (!confirm("ADVERTENCIA: Vas a modificar una reserva pasada.\n\nAsegúrate de que los cambios sean correctos para mantener la integridad de los datos históricos.\n\n¿Deseas continuar?")) {
+                return;
+            }
+
+            const formInputs = document.getElementById("booking-form").querySelectorAll("input, select, textarea");
+            formInputs.forEach(input => input.disabled = false);
+
+            const btnSave = document.getElementById("btn-save-booking");
+            const btnUnlock = document.getElementById("btn-unlock-past");
+
+            if (btnSave) btnSave.style.display = "inline-flex";
+            if (btnUnlock) btnUnlock.style.display = "none";
+
+            document.getElementById("modal-title").innerHTML = '<i class="fas fa-lock-open" style="color:#f59e0b"></i> Modificar Reserva Pasada';
+
+            // Set flag to bypass date checks
+            window._pastReservationUnlocked = true;
+        };
     </script>
 
     <!-- Staff Management Integration -->
