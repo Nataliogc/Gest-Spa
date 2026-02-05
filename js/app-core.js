@@ -985,7 +985,10 @@ window.dbCoreUpdateAttendance = async function (resId, moduleType, isAttended) {
         'vip': 'reservas_vip',
         'peluqueria': 'reservas_peluqueria',
         'gym': 'reservas_gimnasio',
-        'complementos': 'reservas_complementos'
+        'complementos': 'reservas_complementos',
+        'cabina1': 'reservas_cabina1',
+        'cabina2': 'reservas_cabina2',
+        'cabina3': 'reservas_cabina3'
     };
     const col = colMap[moduleType] || 'reservas_spa';
     return db.collection(col).doc(resId).update({
@@ -1003,7 +1006,10 @@ window.dbCoreUpdateNoShow = async function (resId, moduleType, isNoShow) {
         'vip': 'reservas_vip',
         'peluqueria': 'reservas_peluqueria',
         'gym': 'reservas_gimnasio',
-        'complementos': 'reservas_complementos'
+        'complementos': 'reservas_complementos',
+        'cabina1': 'reservas_cabina1',
+        'cabina2': 'reservas_cabina2',
+        'cabina3': 'reservas_cabina3'
     };
     const col = colMap[moduleType] || 'reservas_spa';
     return db.collection(col).doc(resId).update({
