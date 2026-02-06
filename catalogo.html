@@ -310,8 +310,8 @@
             <div class="tab" onclick="switchCatalogTab('packs', this)"><i class="fas fa-box-open"></i> Packs (2+ Items)
             </div>
             <div class="tab" onclick="switchCatalogTab('bonos', this)"><i class="fas fa-ticket-alt"></i> Bonos</div>
-            <div class="tab" onclick="switchCatalogTab('estetica', this)"><i class="fas fa-magic"></i> Estética/Pelu
-            </div>
+            <div class="tab" onclick="switchCatalogTab('estetica', this)"><i class="fas fa-magic"></i> Estética</div>
+            <div class="tab" onclick="switchCatalogTab('peluqueria', this)"><i class="fas fa-cut"></i> Peluquería</div>
             <div class="tab" onclick="switchCatalogTab('complementos', this)"><i class="fas fa-plus-circle"></i>
                 Complementos</div>
             <div class="tab" onclick="switchCatalogTab('papelera', this)"
@@ -750,7 +750,9 @@
                         return s.items_incluidos && Array.isArray(s.items_incluidos) && s.items_incluidos.length > 1;
                     }
 
-                    if (state.currentTab === 'estetica') return ['manicura', 'peluqueria', 'depilacion', 'maquillaje', 'uva'].includes(cat);
+                    if (state.currentTab === 'estetica') return ['depilacion', 'maquillaje', 'uva'].includes(cat);
+
+                    if (state.currentTab === 'peluqueria') return ['peluqueria', 'manicura', 'pedicura'].includes(cat);
 
                     if (state.currentTab === 'complementos') return cat === 'complemento';
 

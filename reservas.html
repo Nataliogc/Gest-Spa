@@ -2002,6 +2002,15 @@
                     const hasAgenda = item.agenda_required !== false;
                     const hasDuration = (parseInt(item.duration) || 0) > 0;
 
+                    // SPECIAL STRICT FILTER FOR PELUQUERIA: Only visualizes hair/nails
+                    if (roomCode === 'peluqueria') {
+                        const cat = (item.category || item.categoria || "").toLowerCase();
+                        const name = (item.name || "").toLowerCase();
+                        const allowedKeys = ['peluqueria', 'manicura', 'pedicura', 'corte', 'peinado', 'tinte', 'mechas'];
+                        const isAllowed = allowedKeys.some(k => cat.includes(k) || name.includes(k));
+                        if (!isAllowed) return false;
+                    }
+
                     return matchesSpace && (hasAgenda || hasDuration);
                 }).map(item => ({
                     nombre: item.name,
@@ -2015,8 +2024,18 @@
                 // 2. Filter Catalog Items (Fallback for non-sync items)
                 const catalogFiltered = catalogItems.filter(s => {
                     const cat = (s.categoria || "").toLowerCase();
-                    const EXCLUDED_CATEGORIES = ['peluqueria', 'restaurante', 'hotel'];
+                    const name = (s.nombre || "").toLowerCase();
+
+                    // Logic fix: Don't exclude peluqueria if we are IN peluqueria
+                    const EXCLUDED_CATEGORIES = (roomCode === 'peluqueria') ? ['restaurante', 'hotel'] : ['peluqueria', 'restaurante', 'hotel'];
                     if (EXCLUDED_CATEGORIES.includes(cat)) return false;
+
+                    // STRICT FILTER FOR PELUQUERIA
+                    if (roomCode === 'peluqueria') {
+                        const allowed = ['peluqueria', 'manicura', 'pedicura', 'corte', 'peinado', 'tinte', 'mechas'];
+                        const isMatch = allowed.some(k => cat.includes(k) || name.includes(k));
+                        if (!isMatch) return false;
+                    }
 
                     const rawSpaces = s.allowedSpaces || (s.espacio ? [s.espacio] : []);
                     const spaces = rawSpaces.map(x => x.toLowerCase().trim());
