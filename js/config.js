@@ -187,6 +187,11 @@ async function saveSpaSettings() {
     const cleaning = parseInt(document.getElementById("cfg-spa-cleaning").value) || 0;
     const template = document.getElementById("cfg-whatsapp-template").value;
 
+    // Update state object so it's included in the payload
+    spaConfigState.spaConfig.capacity = capacity;
+    spaConfigState.spaConfig.cleaningTime = cleaning;
+    spaConfigState.spaConfig.whatsappTemplate = template;
+
     // WooCommerce Config - SAFETY: only update if input has value OR the tab is active
     // This prevents clearing keys if the user saves from another tab and the browser didn't populate hidden password fields
     const wcUrl = document.getElementById("cfg-wc-url").value.trim();

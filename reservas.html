@@ -10,7 +10,24 @@
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&display=swap"
         rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <style>
+        /* SweetAlert Custom Styles */
+        .swal2-container {
+            z-index: 999999 !important;
+            /* Ensure it's on top of everything */
+        }
+
+        .conflict-alert-popup {
+            border-radius: 12px !important;
+            font-family: 'Montserrat', sans-serif !important;
+            padding: 20px !important;
+        }
+
+        .conflict-alert-content {
+            font-size: 1rem !important;
+        }
+
         /* Specific rules for Spa Turns Grid */
         /* Specific rules for Spa Turns Grid */
         .grid-7 {
@@ -1700,10 +1717,10 @@
                         if (availCount === 0) continue;
                     }
 
-                    // Check Closing Time (Duplicate check for safety)
+                    // Check Closing Time (includes cleaning time)
                     const [sh, sm] = time.split(':').map(Number);
-                    // DISABLED Autocleaning time by user request
-                    const sEndTotal = (sh * 60 + sm) + duration; // + (parseInt(spaConfig.cleaningTime) || 0);
+                    const cleaningMinutes = parseInt(spaConfig.cleaningTime) || 0;
+                    const sEndTotal = (sh * 60 + sm) + duration + cleaningMinutes;
                     const dayLimit = (isSun ? 15 : 22) * 60;
                     if (sEndTotal > dayLimit) continue;
 
@@ -2876,7 +2893,9 @@
 
             // Show restaurant reminder if any item includes "menu" or "comida"
             const hasFood = items.some(i => i.toLowerCase().includes('menu') || i.toLowerCase().includes('comida') || i.toLowerCase().includes('restaurante'));
-            packReminder.style.display = hasFood ? "block" : "none";
+            if (packReminder) {
+                packReminder.style.display = hasFood ? "block" : "none";
+            }
         }
 
         /**
@@ -4383,13 +4402,61 @@
             // ========== PACK CANCELLATION RULES ==========
             // 1. Block cancellation of pack CHILDREN
             if (resData.parent_id || resData.is_pack_element) {
-                alert("⚠️ Este elemento pertenece a un pack.\n\nPara anular, debe cancelar el pack completo desde la reserva principal.");
+                let hint = "Busca la reserva principal (ej: Suite, Hotel, o la primera del grupo) y anúlala.";
+
+                // Try to find parent details for a better hint
+                if (resData.parent_id) {
+                    let parent = currentData.find(r => r.id === resData.parent_id);
+
+                    // If not in memory but we have async context, try to fetch it quickly from probable collections
+                    if (!parent) {
+                        try {
+                            // Checked common collections for the parent
+                            const colls = ['reservas_suite', 'reservas_vip', 'reservas_panacea', 'reservas_hotel'];
+                            for (const col of colls) {
+                                const snap = await db.collection(col).doc(resData.parent_id).get();
+                                if (snap.exists) {
+                                    parent = { ...snap.data(), _moduleCode: col.replace('reservas_', '') };
+                                    break;
+                                }
+                            }
+                        } catch (e) { console.log("Parent fetch error", e); }
+                    }
+
+                    if (parent) {
+                        const donde = (parent._moduleCode || parent.collection || "otro módulo").toUpperCase().replace('RESERVAS_', '');
+                        const hora = parent.hora || "??:??";
+                        hint = `\n📍 Debes ir a la agenda de **${donde}** a las **${hora}** y anular la reserva de **${parent.nombre || 'Cliente'}**.`;
+                    }
+                }
+
+                Swal.fire({
+                    icon: 'info',
+                    title: 'Servicio Vinculado',
+                    html: `Este servicio es parte de un Pack.<br><br>
+                           ❌ <b>No puedes borrarlo individualmente</b> porque rompería el paquete.<br><br>
+                           ✅ Solución: ${hint}<br><br>
+                           <i>Al borrar la principal, este servicio se eliminará automáticamente.</i>`,
+                    confirmButtonColor: '#3b82f6',
+                    confirmButtonText: 'Entendido'
+                });
                 return;
             }
 
             // 2. If this is a pack PARENT, use cascade cancellation
             if (resData.is_pack_parent && resData.childs && resData.childs.length > 0) {
-                if (!confirm(`¿Seguro que deseas ANULAR este pack y sus ${resData.childs.length} elementos?\n\nEsta acción cancelará todas las reservas vinculadas.`)) return;
+                const result = await Swal.fire({
+                    title: `Anular Pack Completo?`,
+                    text: `Esta acción cancelará este pack y sus ${resData.childs.length} elementos vinculados.`,
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonColor: '#d33',
+                    cancelButtonColor: '#3085d6',
+                    confirmButtonText: 'Sí, anular todo',
+                    cancelButtonText: 'Cancelar'
+                });
+
+                if (!result.isConfirmed) return;
 
                 try {
                     await window.cancelPackReservation(id);
@@ -4413,14 +4480,25 @@
                     loadReservas(document.getElementById("main-date-picker").value);
                     return;
                 } catch (err) {
-                    alert("Error al anular pack: " + err.message);
+                    Swal.fire('Error', "Error al anular pack: " + err.message, 'error');
                     return;
                 }
             }
             // =============================================
 
             // Standard single reservation cancellation
-            if (!confirm("¿Seguro que deseas ANULAR esta reserva? No se borrará de la base de datos.")) return;
+            const result = await Swal.fire({
+                title: '¿Anular Reserva?',
+                text: "La reserva pasará a estado Anulada pero no se borrará del historial.",
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#ef4444',
+                cancelButtonColor: '#64748b',
+                confirmButtonText: 'Sí, anular reserva',
+                cancelButtonText: 'No, mantener'
+            });
+
+            if (!result.isConfirmed) return;
 
             try {
                 const targetColl = resData.collection || (resData._moduleCode ? MODULES[resData._moduleCode].collection : currentModule.collection);
@@ -4455,7 +4533,9 @@
 
                 closeModal();
                 loadReservas(document.getElementById("main-date-picker").value);
-            } catch (err) { alert("Error al anular: " + err.message); }
+            } catch (err) {
+                Swal.fire('Error', "Error al anular: " + err.message, 'error');
+            }
         }
 
         async function reactivateBookingFromModal() {
@@ -4722,8 +4802,9 @@
                     // If Conflict Found
                     if (conflictMsg) {
                         if (isLocalSaleFlow) {
-                            // SOFT BLOCK
-                            revealConflictWarning(conflictMsg, date, time, duration, currentModule.code);
+                            // SOFT BLOCK - Get actual service configuration
+                            const serviceInfo = getSelectedServiceInfo();
+                            revealConflictWarning(conflictMsg, date, time, duration, currentModule.code, serviceInfo);
                             isSavingReservation = false;
                             btn.disabled = false;
                             btn.innerHTML = originalText;
@@ -4982,87 +5063,10 @@
         document.getElementById("booking-form").addEventListener("submit", (e) => e.preventDefault());
 
         // --- HELPER: Conflict UI & Alternatives ---
-        function revealConflictWarning(msg, date, time, duration, roomCode) {
-            const container = document.getElementById("conflict-warning-container");
-            const msgEl = document.getElementById("conflict-message");
-            const btnSave = document.getElementById("btn-save-booking");
-            const btnForce = document.getElementById("btn-force-booking");
-            const list = document.getElementById("alternatives-list");
-            const altBlock = document.getElementById("alternatives-block");
 
-            // IMMEDIATE FEEDBACK: Alert the user so they cannot miss the reason
-            alert("⛔ CONFLICTO DETECTADO:\n\n" + msg + "\n\nPuedes 'Forzar' la reserva si es estrictamente necesario, pero crearás una doble ocupación.");
+        // --- HELPER: Conflict UI & Alternatives ---
+        // (Old implementation removed to use the new SweetAlert2 version below)
 
-            if (msgEl) msgEl.innerHTML = `<div style="margin-bottom:5px;"><strong>${msg}</strong></div><div style="color:#b91c1c; font-weight:700; font-size:0.8rem; background:#fee2e2; padding:4px 8px; border-radius:4px;">⚠️ ALERTA: Forzar creará una SOBREOCUPACIÓN (Doble Reserva).</div>`;
-            if (container) {
-                container.style.display = "block";
-                setTimeout(() => container.scrollIntoView({ behavior: 'smooth', block: 'center' }), 100);
-            }
-
-            // Swap Buttons
-            if (btnSave) btnSave.style.display = "none";
-            if (btnForce) btnForce.style.display = "inline-flex";
-
-            // CALC ALTERNATIVES
-            const alternatives = findAlternatives(date, time, duration, roomCode);
-            if (alternatives.length > 0 && list) {
-                altBlock.style.display = 'block';
-                list.innerHTML = alternatives.map(alt => `
-                    <div style="font-size: 0.75rem; padding: 6px 10px; background: #f1f5f9; border-radius: 6px; border: 1px solid #cbd5e1; display:flex; justify-content:space-between; align-items:center;">
-                        <span style="display:flex; align-items:center; gap:6px;">${alt.icon} <span><b>${alt.title}</b> <span style="color:#64748b; font-size:0.7rem;">(${alt.desc})</span></span></span>
-                        <button type="button" class="btn btn-sm btn-outline" style="padding: 2px 8px; font-size:0.7rem; color:#2563eb; border-color:#2563eb;"
-                         onclick="applyAlternative('${alt.time}', '${alt.staffId}', '${alt.staffName}')">Usar</button>
-                    </div>
-                `).join('');
-            } else {
-                if (altBlock) altBlock.style.display = 'none';
-            }
-        }
-
-        function findAlternatives(date, time, duration, roomCode) {
-            const alts = [];
-            // 1. Time Alternatives (Next slots)
-            const [h, m] = time.split(':').map(Number);
-            // Check +15, +30, +60
-            const steps = [15, 30, 60, 90, 120];
-
-            steps.forEach(addM => {
-                const totalM = h * 60 + m + addM;
-                const hh = Math.floor(totalM / 60);
-                const mm = totalM % 60;
-
-                if (hh < 21) {
-                    const tStr = `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
-                    // Ideally check if this slot is free, but for prototype we suggest it
-                    alts.push({
-                        time: tStr,
-                        staffId: '',
-                        staffName: '',
-                        title: tStr,
-                        desc: `+${addM} min`,
-                        icon: '<i class="fas fa-clock"></i>'
-                    });
-                }
-            });
-
-            return alts.slice(0, 3);
-        }
-
-        window.applyAlternative = function (newTime, staffId, staffName) {
-            if (newTime) {
-                document.getElementById("form-time").value = newTime;
-                // Force triggering change events
-                const event = new Event('change');
-                document.getElementById("form-time").dispatchEvent(event);
-            }
-            const container = document.getElementById("conflict-warning-container");
-            if (container) container.style.display = 'none';
-            document.getElementById("btn-force-booking").style.display = 'none';
-            document.getElementById("btn-save-booking").style.display = 'inline-flex';
-
-            // Trigger updates
-            if (window.handleStaffFieldsChange) window.handleStaffFieldsChange();
-        };
 
 
         // ------------------- TIMELINE & LOGICA NOVEDOSA -------------------
@@ -5136,8 +5140,8 @@
                             const bStart = bh * 60 + bm;
                             const bDuration = parseInt(booking.duracion || 60);
                             const bEnd = bStart + bDuration;
-                            // DISABLED Autocleaning visual by user request
-                            const isCleaning = false; // currentSlotMin >= bEnd;
+                            // Check if this slot is in the cleaning period
+                            const isCleaning = currentSlotMin >= bEnd;
 
                             if (booking.isBlock || booking.status === 'blocked') {
                                 // Especial para bloqueos
@@ -5368,6 +5372,358 @@
                 return null;
             }
         }
+
+        // Helper: Extract service information from pack breakdown
+        function getSelectedServiceInfo() {
+            // Read directly from the form fields
+            const duration = parseInt(document.getElementById('inputDuration')?.value || 60);
+            const pax = parseInt(document.getElementById('res-pax')?.value || 1);
+            const serviceName = document.getElementById('form-service-name')?.value ||
+                document.getElementById('res-servicio')?.value || '';
+
+            // Determine required therapists based on pax
+            // For most services: 1 therapist per person
+            const requiredTherapists = pax;
+
+            return {
+                services: [{
+                    name: serviceName,
+                    duration: duration,
+                    space: currentModule.code,
+                    requiredTherapists: requiredTherapists
+                }],
+                totalDuration: duration,
+                requiredTherapists: requiredTherapists
+            };
+        }
+
+
+
+        // Helper function to find time collisions
+        function findCollision(start, duration, bookings, excludeId = null) {
+            const cleaningMinutes = parseInt(spaConfig.cleaningTime) || 0;
+            const [sh, sm] = start.split(':').map(Number);
+            const startMin = sh * 60 + sm;
+            const endMin = startMin + duration + cleaningMinutes; // Include cleaning time
+
+            for (const booking of bookings) {
+                if (booking.id === excludeId) continue;
+                if (booking.status === 'anulada' || booking.status === 'cancelled') continue;
+
+                const [bh, bm] = booking.hora.split(':').map(Number);
+                const bStartMin = bh * 60 + bm;
+                const bDuration = parseInt(booking.duracion || 60);
+                const bCleaningTime = booking.isBlock ? 0 : cleaningMinutes;
+                const bEndMin = bStartMin + bDuration + bCleaningTime;
+
+                // Check for overlap (strict inequality to allow back-to-back)
+                if (startMin < bEndMin && endMin > bStartMin) {
+                    return booking; // Collision detected
+                }
+            }
+            return null; // No collision
+        }
+
+        // Display conflict warning with smart alternatives in a SweetAlert popup
+        async function revealConflictWarning(message, date, time, duration, spaceCode, serviceInfo = null) {
+            // Use actual service duration if available
+            const actualDuration = serviceInfo ? serviceInfo.totalDuration : duration;
+            const requiredTherapists = serviceInfo ? serviceInfo.requiredTherapists : 1;
+
+            // Find alternative time slots with actual duration and therapist requirements
+            const alternatives = await findAlternativeSlots(date, time, actualDuration, spaceCode, requiredTherapists);
+
+            // Build HTML for alternatives
+            let alternativesHTML = '';
+            if (alternatives.length > 0) {
+                const requiredTime = actualDuration + (parseInt(spaConfig.cleaningTime) || 0);
+
+                alternativesHTML = '<div style="margin-top: 20px;"><h4 style="color: #0f766e; font-size: 0.9rem; font-weight: 600; margin-bottom: 12px;">ALTERNATIVAS SUGERIDAS:</h4>';
+                alternativesHTML += '<div style="display: flex; flex-direction: column; gap: 8px;">';
+
+                alternativesHTML += alternatives.map(alt => {
+                    const availableTime = alt.availableMinutes;
+                    const isViable = availableTime >= requiredTime && alt.hasEnoughTherapists;
+
+                    const statusIcon = isViable ? '✓' : '⚠️';
+                    let statusText = '';
+
+                    if (!alt.hasEnoughTherapists) {
+                        statusText = `Sin terapeutas (necesitas ${requiredTherapists})`;
+                    } else if (availableTime < requiredTime) {
+                        statusText = `Solo ${availableTime} min (necesitas ${requiredTime})`;
+                    } else {
+                        statusText = `${availableTime} min disponibles`;
+                    }
+
+                    return `
+                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; background: ${isViable ? '#f0fdf4' : '#fef3c7'}; border: 1px solid ${isViable ? '#86efac' : '#fde68a'}; border-radius: 6px;">
+                            <div style="display: flex; align-items: center; gap: 10px;">
+                                <span style="font-size: 1.2rem;">${statusIcon}</span>
+                                <div>
+                                    <div style="font-weight: 700; font-size: 0.9rem; color: #1e293b;">${alt.time}</div>
+                                    <div style="font-size: 0.75rem; color: #64748b;">${statusText}</div>
+                                </div>
+                            </div>
+                            ${isViable ? `
+                                <button type="button" onclick="Swal.close(); useAlternativeSlot('${alt.time}');" 
+                                    class="btn btn-sm" 
+                                    style="background: #10b981; color: white; padding: 6px 16px; font-size: 0.75rem; font-weight: 700; border-radius: 6px; border: none; cursor: pointer;">
+                                    Usar
+                                </button>
+                            ` : `
+                                <span style="font-size: 0.7rem; color: #92400e; font-weight: 600;">INSUFICIENTE</span>
+                            `}
+                        </div>
+                    `;
+                }).join('');
+
+                alternativesHTML += '</div></div>';
+            }
+
+            // Show SweetAlert popup
+            Swal.fire({
+                icon: 'warning',
+                title: '⚠️ CONFLICTO DE DISPONIBILIDAD',
+                html: `
+                    <div style="text-align: left;">
+                        <p style="font-size: 0.95rem; color: #475569; margin-bottom: 10px;">${message}</p>
+                        ${alternativesHTML}
+                    </div>
+                `,
+                width: '600px',
+                showConfirmButton: true,
+                confirmButtonText: 'Cerrar',
+                confirmButtonColor: '#64748b',
+                customClass: {
+                    popup: 'conflict-alert-popup',
+                    htmlContainer: 'conflict-alert-content'
+                }
+            });
+        }
+
+        // Find alternative available slots
+        // Find alternative available slots (OPTIMIZED)
+        async function findAlternativeSlots(date, requestedTime, duration, spaceCode, requiredTherapists = 1) {
+            const activeDate = document.getElementById("main-date-picker").value;
+            let bookings; // Module bookings (for room collision)
+
+            if (date === activeDate) {
+                bookings = currentData.filter(r => r.collection === currentModule.collection);
+            } else {
+                const snap = await db.collection(currentModule.collection).where("fecha", "==", date).get();
+                bookings = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            }
+
+            // PRE-FETCH DATA FOR THERAPIST CHECK (Optimization)
+            const [staffList, allBookings, dailyExceptions] = await Promise.all([
+                window.getActiveStaff(),
+                window.getAllBookingsForDate(date),
+                window.getDayExceptionsForDate(date)
+            ]);
+
+            const cleaningTime = parseInt(spaConfig.cleaningTime) || 0;
+            const requiredTime = duration + cleaningTime;
+            const alternatives = [];
+
+            // Get all possible time slots for the day
+            const schedules = spaConfig.schedules || {};
+            const dateObj = new Date(date + 'T00:00:00');
+            const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+            const dayName = dayNames[dateObj.getDay()];
+            const daySchedule = schedules[dayName] || [];
+
+            // Helper: Convert time string to minutes
+            const toMin = (t) => {
+                const [h, m] = t.split(':').map(Number);
+                return h * 60 + m;
+            };
+
+            // Check each time slot
+            for (const time of daySchedule) {
+                if (time === requestedTime) continue; // Skip the conflicting slot
+
+                const slotStart = toMin(time);
+
+                // 1. ROOM AVAILABILITY CHECK
+                // Find how much continuous time is available from this slot
+                let availableMinutes = 0;
+                let currentCheck = slotStart;
+                const isSunday = dateObj.getDay() === 0;
+                const dayLimit = (isSunday ? 15 : 22) * 60;
+
+                while (currentCheck < dayLimit) {
+                    const checkHour = String(Math.floor(currentCheck / 60)).padStart(2, '0');
+                    const checkMin = String(currentCheck % 60).padStart(2, '0');
+                    const checkTime = `${checkHour}:${checkMin}`;
+
+                    // Check if this 15-min block is free
+                    const collision = findCollision(checkTime, 15, bookings);
+                    if (collision) break;
+
+                    availableMinutes += 15;
+                    currentCheck += 15;
+
+                    // Stop if we've found enough time
+                    if (availableMinutes >= requiredTime + 30) break; // +30 buffer
+                }
+
+                if (availableMinutes < requiredTime) continue; // Skip if room not free
+
+                // 2. THERAPIST AVAILABILITY CHECK (In-Memory)
+                let availableTherapistsCount = 0;
+
+                // Calculate request range in minutes
+                const reqStart = slotStart;
+                const reqEnd = reqStart + duration;
+
+                if (staffList && staffList.length > 0) {
+                    for (const staff of staffList) {
+                        // A. Check Schedule / Shift (using pre-fetched exceptions)
+                        let isWorking = false;
+                        if (window.checkStaffAvailability) {
+                            // Note: checkStaffAvailability is async, but with preFetchedExceptions it should be fast (no DB)
+                            // However, we must await it.
+                            isWorking = await window.checkStaffAvailability(staff, date, time, duration, dailyExceptions);
+                        } else {
+                            isWorking = true;
+                        }
+
+                        if (!isWorking) continue;
+
+                        // B. Check Collisions with other bookings (using pre-fetched allBookings)
+                        const collidingBooking = allBookings.find(booking => {
+                            const st = (booking.status || '').toLowerCase();
+                            if (st.includes('anulada') || st.includes('cancel')) return false;
+
+                            // Match Staff
+                            const sId = (staff.id || staff.nombre || '').trim();
+                            const sName = (staff.nombre || staff.name || '').trim().toLowerCase();
+                            const sAlias = (staff.alias || '').trim().toLowerCase();
+
+                            const bId1 = booking.staff_id || booking.terapeuta_id || (booking.staff ? booking.staff.id : null);
+                            const bName1 = (booking.staff_name || booking.terapeuta || '').trim().toLowerCase();
+
+                            let isMatch1 = false;
+                            if (bId1) isMatch1 = (sId && bId1 === sId);
+                            else isMatch1 = (sName && (bName1 === sName || (sAlias && bName1 === sAlias)));
+
+                            const bId2 = booking.staff_id2 || booking.terapeuta_id2 || (booking.staff2 ? booking.staff2.id : null);
+                            const bName2 = (booking.staff_name2 || booking.terapeuta2 || '').trim().toLowerCase();
+
+                            let isMatch2 = false;
+                            if (bId2) isMatch2 = (sId && bId2 === sId);
+                            else isMatch2 = (sName && (bName2 === sName || (sAlias && bName2 === sAlias)));
+
+                            if (!isMatch1 && !isMatch2) return false;
+
+                            // Time Overlap
+                            const bStart = toMin(booking.hora || '00:00');
+                            const bDuration = parseInt(booking.duracion || 60);
+                            const bEnd = bStart + bDuration;
+
+                            return (reqStart < bEnd && reqEnd > bStart);
+                        });
+
+                        if (!collidingBooking) {
+                            availableTherapistsCount++;
+                        }
+                    }
+                } else {
+                    // No staff config or error loading, assume available
+                    availableTherapistsCount = 99;
+                }
+
+                const hasEnoughTherapists = availableTherapistsCount >= requiredTherapists;
+
+                alternatives.push({
+                    time: time,
+                    availableMinutes: availableMinutes,
+                    hasEnoughTherapists: hasEnoughTherapists
+                });
+            }
+
+            // Sort by viability (time + therapists), then by available time
+            alternatives.sort((a, b) => {
+                const aViable = a.availableMinutes >= requiredTime && a.hasEnoughTherapists;
+                const bViable = b.availableMinutes >= requiredTime && b.hasEnoughTherapists;
+
+                if (aViable && !bViable) return -1;
+                if (!aViable && bViable) return 1;
+
+                return b.availableMinutes - a.availableMinutes;
+            });
+
+            // Return top 3 alternatives
+            return alternatives.slice(0, 3);
+        }
+
+        // Use an alternative slot
+        window.useAlternativeSlot = function (time) {
+            console.log('[ALTERNATIVE] Changing time to:', time);
+
+            const timeField = document.getElementById('form-time');
+            if (!timeField) {
+                console.error('[ALTERNATIVE] Time field not found!');
+                return;
+            }
+
+            // Check if the time option exists in the dropdown
+            const existingOption = Array.from(timeField.options).find(opt => opt.value === time);
+
+            if (!existingOption) {
+                // Add the new time as an option to the dropdown
+                const newOption = document.createElement('option');
+                newOption.value = time;
+                newOption.text = time + 'h';
+                timeField.add(newOption);
+                console.log('[ALTERNATIVE] Added new option:', time);
+            }
+
+            // Update the main value
+            timeField.value = time;
+
+            // CRITICAL FIX: Update Pack Items to match the new time
+            // Loops through all inputs with id starting with "pack-time-"
+            const packInputs = document.querySelectorAll('input[id^="pack-time-"]');
+            if (packInputs.length > 0) {
+                console.log(`[ALTERNATIVE] Updating ${packInputs.length} pack items to ${time}`);
+                packInputs.forEach(input => {
+                    // Update input value
+                    input.value = time;
+                    input.dispatchEvent(new Event('change', { bubbles: true }));
+
+                    // Try to update visual text "Hora: HH:MM" in the container
+                    const itemDiv = input.closest('.pack-item, .service-item, .list-group-item, li, div');
+                    if (itemDiv) {
+                        const walker = document.createTreeWalker(itemDiv, NodeFilter.SHOW_TEXT);
+                        let node;
+                        while (node = walker.nextNode()) {
+                            if (node.nodeValue && node.nodeValue.includes('Hora:')) {
+                                node.nodeValue = node.nodeValue.replace(/Hora:\s*\d{2}:\d{2}/, `Hora: ${time}`);
+                            }
+                        }
+                    }
+                });
+            }
+
+            // Trigger change event to update dependent fields (therapists, etc.)
+            const changeEvent = new Event('change', { bubbles: true });
+            timeField.dispatchEvent(changeEvent);
+
+            // Hide conflict warning
+            const conflictContainer = document.getElementById('conflict-warning-container');
+            if (conflictContainer) {
+                conflictContainer.style.display = 'none';
+            }
+
+            // Show success message
+            showToast(`✓ Hora cambiada a ${time}`, 'success');
+
+            console.log('[ALTERNATIVE] Time field updated to:', timeField.value);
+        };
+
+
 
         async function checkReservationStaffAvailability(date, time, duration, id) {
             if (typeof window.getAvailableStaffForRoom === 'function') {
@@ -6389,7 +6745,7 @@
                         const [endH, endM] = shift.end.split(':').map(Number);
 
                         for (let hour = startH; hour <= endH; hour++) {
-                            for (let minute of [0, 30]) {
+                            for (let minute of [0, 15, 30, 45]) {
                                 if (hour === startH && minute < startM) continue;
                                 if (hour === endH && minute > endM) continue;
                                 if (hour === endH && minute === endM) {
@@ -6407,7 +6763,7 @@
                     const isSunday = new Date(dateStr + 'T12:00:00').getDay() === 0;
                     const end = isSunday ? 15 : 21;
                     for (let hour = 10; hour < end; hour++) {
-                        for (let minute of [0, 30]) {
+                        for (let minute of [0, 15, 30, 45]) {
                             const timeStr = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
                             timeSlots.push(timeStr);
                         }
