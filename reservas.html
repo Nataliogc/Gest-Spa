@@ -457,6 +457,17 @@
             scrollbar-width: thin;
             scrollbar-color: #cbd5e1 transparent;
         }
+
+        .badge-waitlist {
+            background: #f59e0b;
+            color: #fff;
+            border: 1px solid #d97706;
+        }
+
+        .row-waitlist {
+            background: #fffbeb !important;
+            border-left: 4px solid #f59e0b !important;
+        }
     </style>
 </head>
 
@@ -1441,6 +1452,98 @@
             }
         }
 
+        async function handleSpaOverbooking(paxActual) {
+            // Check if Swal is available
+            if (typeof Swal === 'undefined') {
+                if (confirm(`Aforo completo (${paxActual}). ¿Forzar entrada?`)) {
+                    window._spaOverbookingModeBase = true;
+                    window._spaOverbookingMode = 'force';
+                    window._spaReceptionist = 'Admin (Fallback)';
+                    showBookingForm();
+                }
+                return;
+            }
+
+            const ABSOLUTE_LIMIT = 16; // 14 + 2 extra
+            const canForce = paxActual < ABSOLUTE_LIMIT;
+
+            let forceBtnStyle = "background-color: #ef4444; flex: 1; font-weight: 700;";
+            let forceBtnText = "FORZAR (+14)";
+            let forceBtnDisabled = "";
+            let message = `El aforo actual es de <strong>${paxActual} pax</strong> confirmados.<br>
+                           El límite estándar es <strong>14 pax</strong>.<br>
+                           Se permiten máximo <strong>2 plazas extra</strong> (Total 16).`;
+
+            if (!canForce) {
+                forceBtnStyle = "background-color: #cbd5e1; color: #94a3b8; flex: 1; font-weight: 700; cursor: not-allowed; opacity: 0.7;";
+                forceBtnText = "LÍMITE ALCANZADO (16)";
+                forceBtnDisabled = "disabled";
+                message = `El aforo actual ha llegado al <strong>LÍMITE ABSOLUTO (${paxActual} pax)</strong>.<br>
+                           No se puede forzar más entrada. Solo <strong>Lista de Espera</strong>.`;
+            }
+
+            await Swal.fire({
+                title: 'AVISO DE AFORO (SPA)',
+                html: `
+                    <div style="text-align: left; font-size: 0.95rem; line-height: 1.5;">
+                        <p style="margin-bottom: 10px; color: #334155;">
+                            ${message}
+                        </p>
+                        <p style="margin-bottom: 5px; font-weight: 600; color: #475569;">
+                            Para continuar, selecciona una acción y firma:
+                        </p>
+                        <input id="swal-audit-name" class="swal2-input" placeholder="Nombre Recepcionista (Obligatorio)" style="margin-top: 5px;">
+                    </div>
+                    <div style="display: flex; gap: 10px; justify-content: center; margin-top: 20px;">
+                        <button type="button" id="btn-swal-waitlist" class="swal2-confirm swal2-styled" 
+                            style="background-color: #f59e0b; flex: 1; font-weight: 700;">
+                            Lista de Espera
+                        </button>
+                        <button type="button" id="btn-swal-force" class="swal2-confirm swal2-styled" 
+                            style="${forceBtnStyle}" ${forceBtnDisabled}>
+                            ${forceBtnText}
+                        </button>
+                    </div>
+                    <div style="margin-top: 10px;">
+                         <button type="button" id="btn-swal-cancel" class="swal2-cancel swal2-styled" 
+                            style="background-color: #64748b; color: white;">
+                            Cancelar
+                        </button>
+                    </div>
+                `,
+                showConfirmButton: false,
+                showCancelButton: false,
+                allowOutsideClick: false,
+                didOpen: () => {
+                    const popup = Swal.getPopup();
+                    const input = popup.querySelector('#swal-audit-name');
+                    const btnWait = popup.querySelector('#btn-swal-waitlist');
+                    const btnForce = popup.querySelector('#btn-swal-force');
+                    const btnCancel = popup.querySelector('#btn-swal-cancel');
+
+                    const submit = (mode) => {
+                        const name = input.value.trim();
+                        if (!name) {
+                            Swal.showValidationMessage('⚠️ El nombre del recepcionista es obligatorio.');
+                            return;
+                        }
+                        Swal.close();
+                        window._spaOverbookingModeBase = true;
+                        window._spaOverbookingMode = mode;
+                        window._spaReceptionist = name;
+                        showBookingForm();
+                    };
+
+                    btnWait.onclick = () => submit('waitlist');
+                    if (canForce) {
+                        btnForce.onclick = () => submit('force');
+                    }
+                    btnCancel.onclick = () => Swal.close();
+                    setTimeout(() => input.focus(), 100);
+                }
+            });
+        }
+
         document.addEventListener("DOMContentLoaded", async () => {
             const picker = document.getElementById("main-date-picker");
             const urlDate = urlParams.get('date');
@@ -1689,7 +1792,7 @@
                 for (let time of slots) {
                     // Siempre permitimos la hora original de la reserva que estamos editando SI no hemos cambiado de fecha
                     if (time === originalTime && date === originalDate) {
-                        validSlots.push(time);
+                        validSlots.push({ time, isFull: false });
                         continue;
                     }
 
@@ -1705,10 +1808,31 @@
                         if (!roomFree) continue;
                     } else {
                         // Check Capacity (Slots)
-                        const dayReservations = bookingsToProcess.filter(r => r.hora === time && r.status !== 'anulada' && r.id !== currentResId);
+                        // EXCLUDE waitlist from capacity count
+                        const dayReservations = bookingsToProcess.filter(r => r.hora === time && r.status !== 'anulada' && r.status !== 'lista_espera' && r.id !== currentResId);
                         const paxOccupied = dayReservations.reduce((sum, r) => sum + (r.pax || 0), 0);
-                        const maxCapacity = currentModule.capacity || spaConfig.capacity || 20;
-                        if (paxOccupied + resPax > maxCapacity) continue;
+
+                        let maxCap = currentModule.capacity || spaConfig.capacity || 20;
+                        let isSoftFull = false;
+
+                        if (currentModule.code === 'spa') {
+                            const spaLimit = 14;
+                            if (paxOccupied >= spaLimit) isSoftFull = true;
+
+                            // If NOT in override mode, block at 14
+                            if (!window._spaOverbookingModeBase) {
+                                maxCap = spaLimit;
+                            } else {
+                                // In override mode, allow up to physical limit (e.g. 14 -> 19)
+                                maxCap = (spaConfig.capacity || 20) + 5;
+                            }
+                        }
+
+                        if (paxOccupied + resPax > maxCap) continue;
+
+                        // Push with metadata
+                        validSlots.push({ time, isFull: isSoftFull });
+                        continue; // Skip the push(time) below since we pushed object
                     }
 
                     // Check Staff Availability (si aplica)
@@ -1724,16 +1848,21 @@
                     const dayLimit = (isSun ? 15 : 22) * 60;
                     if (sEndTotal > dayLimit) continue;
 
-                    validSlots.push(time);
+                    validSlots.push({ time, isFull: false });
                 }
 
                 // 5. Poblar el select
-                timeSel.innerHTML = validSlots.map(t => `<option value="${t}">${t}h</option>`).join('');
+                timeSel.innerHTML = validSlots.map(obj => {
+                    const t = obj.time;
+                    const label = t + 'h' + (obj.isFull ? ' (COMPLETO)' : '');
+                    return `<option value="${t}">${label}</option>`;
+                }).join('');
 
                 // Restaurar valor si es posible, o el original
-                if (originalTime && validSlots.includes(originalTime)) {
+                const justTimes = validSlots.map(v => v.time);
+                if (originalTime && justTimes.includes(originalTime)) {
                     timeSel.value = originalTime;
-                } else if (validSlots.includes(previousVal)) {
+                } else if (justTimes.includes(previousVal)) {
                     timeSel.value = previousVal;
                 }
 
@@ -2500,7 +2629,7 @@
                     if (origen === 'hotel_no_inc') {
                         dynamicPrice = isWeekend ? hotelPriceWeekend : hotelPriceWeekday;
                     } else {
-                        dynamicPrice = isWeekend ? roomPriceWeekend : roomPriceWeekday;
+                        dynamicPrice = isWeekend ? roomPriceWeekend : roomPriceWeekend;
                     }
                     pricePaxInput.value = parseFloat(dynamicPrice).toFixed(2);
                 } else {
@@ -2608,7 +2737,7 @@
                             if (origen === 'hotel_no_inc') {
                                 dynamicPrice = isWeekend ? hotelPriceWeekend : hotelPriceWeekday;
                             } else {
-                                dynamicPrice = isWeekend ? roomPriceWeekend : roomPriceWeekday;
+                                dynamicPrice = isWeekend ? roomPriceWeekend : roomPriceWeekend;
                             }
 
                             pricePaxInput.value = parseFloat(dynamicPrice).toFixed(2);
@@ -3400,7 +3529,10 @@
             const dateBlockedSlots = (spaConfig.blockedSlots && spaConfig.blockedSlots[dateString]) || [];
 
             container.innerHTML = slots.map(time => {
-                const dayReservations = currentData.filter(r => r.hora === time && r.status !== 'anulada');
+                const dayReservations = currentData.filter(r => r.hora === time && r.status !== 'anulada' && r.status !== 'lista_espera');
+                // Count Pax on Waitlist instead of just Reservation Count
+                const waitlistPax = currentData.filter(r => r.hora === time && r.status === 'lista_espera').reduce((sum, r) => sum + (r.pax || 0), 0);
+
                 const paxTotal = dayReservations.reduce((sum, r) => sum + (r.pax || 0), 0);
                 const maxCapacity = spaConfig.capacity || currentModule.capacity || 20;
                 const isFull = paxTotal >= maxCapacity;
@@ -3430,6 +3562,11 @@
                         <div style="font-size: 0.6rem; color: var(--text-muted); font-weight: 500;">
                             ${isBlocked ? 'Turno no disponible' : (isPast ? 'FUERA DE HORA' : (isFull ? 'COMPLETO' : (maxCapacity - paxTotal) + ' disponibles'))}
                         </div>
+                        ${waitlistPax > 0 ? `
+                            <div style="font-size: 0.65rem; color: #d97706; font-weight: 700; margin-top: 4px; background: #fffbeb; padding: 2px 4px; border-radius: 4px; border: 1px solid #fcd34d;">
+                                <i class="fas fa-clipboard-list"></i> Espera: ${waitlistPax} pax
+                            </div>
+                        ` : ''}
                         <div class="progress-mini">
                             <div class="progress-bar" style="width: ${isBlocked ? 100 : Math.min(percent, 100)}%; background: ${isBlocked ? '#ccc' : color}"></div>
                         </div>
@@ -3527,10 +3664,13 @@
                 else if (res.origen === 'ego') { badgeClass = "badge-ego"; badgeText = "Ego Exp"; }
 
                 const isAnulada = res.status === 'anulada';
+                const isWaitlist = res.status === 'lista_espera';
+                if (isWaitlist) { badgeClass = "badge-waitlist"; badgeText = "LISTA ESPERA"; }
+
                 const isNoShow = res.no_show === true || res.status === 'no_show';
 
                 return `
-                <tr id="res-${res.id}" class="${isAnulada ? 'cancelled-row' : ''}" style="${isNoShow ? 'background: #fef2f2; border-left: 4px solid #ef4444;' : ''}">
+                <tr id="res-${res.id}" class="${isAnulada ? 'cancelled-row' : ''} ${isWaitlist ? 'row-waitlist' : ''}" style="${isNoShow ? 'background: #fef2f2; border-left: 4px solid #ef4444;' : ''}">
                     <td style="font-size: 0.65rem; color: #666; font-weight: 700;">${res.res_id || '-'}</td>
                     <td>
                         <div style="font-weight: 600; ${isNoShow ? 'text-decoration: line-through; color: #991b1b;' : ''}">
@@ -3800,12 +3940,26 @@
                 btnSave.innerHTML = '<i class="fas fa-save"></i> GUARDAR RESERVA';
             }
 
-            const paxActual = currentData.filter(r => r.hora === selectedTime && r.status !== 'anulada').reduce((s, r) => s + (currentModule.isPrivate ? 1 : r.pax), 0);
+            // CALCULATE PAX (Excluding anulada AND lista_espera)
+            const paxActual = currentData.filter(r => r.hora === selectedTime && r.status !== 'anulada' && r.status !== 'lista_espera').reduce((s, r) => s + (currentModule.isPrivate ? 1 : r.pax), 0);
+
+            // Standard config capacity
             const maxCapacity = (currentModule.code === 'spa') ? (spaConfig.capacity || 20) : (currentModule.capacity || 1);
 
-            if (paxActual >= maxCapacity) {
-                alert("Este turno está completo.");
-                return;
+            // SPECIAL LOGIC FOR SPA (USER REQUEST: Limit 14 Confirmed)
+            if (currentModule.code === 'spa') {
+                const SPA_SOFT_LIMIT = 14;
+                // If over 14 (or equal) AND not explicitly allowing overbooking mode
+                if (paxActual >= SPA_SOFT_LIMIT && !window._spaOverbookingModeBase) {
+                    handleSpaOverbooking(paxActual);
+                    return;
+                }
+            } else {
+                // Standard block for other modules
+                if (paxActual >= maxCapacity) {
+                    alert("Este turno está completo.");
+                    return;
+                }
             }
 
             let titleText = "Nueva Reserva";
@@ -4616,6 +4770,11 @@
             document.getElementById("booking-modal").style.display = "none";
             window.currentEditingId = null; // Clear global ID
 
+            // Clear Overbooking Globals
+            window._spaOverbookingModeBase = null;
+            window._spaOverbookingMode = null;
+            window._spaReceptionist = null;
+
             // Clean URL params (id, res_id) to prevent reload-reopen
             const url = new URL(window.location);
             if (url.searchParams.has('id') || url.searchParams.has('res_id')) {
@@ -4910,7 +5069,15 @@
                         if (res.collection) targetColl = res.collection;
                     }
                 }
+
+                // Determine Final Status
                 let finalStatus = window._startServiceMode ? 'en_servicio' : existingStatus;
+
+                // SPA Overbooking injection
+                if (window._spaOverbookingMode === 'waitlist') {
+                    finalStatus = 'lista_espera';
+                }
+                // If it was force-confirmed, we keep 'confirmada' (default) or existingStatus
 
                 if (isGym) { targetColl = "reservas_gimnasio"; finalOrigin = "gimnasio"; finalStatus = 'finalizada'; }
                 else if (isComplement) { targetColl = "reservas_complementos"; finalStatus = 'finalizada'; }
@@ -4982,6 +5149,17 @@
                     // Reset courtesy flag after use
                     window._spaCourtesyActive = false;
                     window._spaCourtesyMinutes = 0;
+                }
+
+                // LOG SPA OVERBOOKING AUDIT
+                if (window._spaReceptionist) {
+                    const timestamp = new Date().toLocaleTimeString();
+                    const modeLabel = (window._spaOverbookingMode === 'waitlist') ? 'LISTA DE ESPERA' : 'FORZADO';
+                    payload.obs = (payload.obs ? payload.obs + "\n" : "") + `[${timestamp}] ⚠️ ${modeLabel} autorizado por: ${window._spaReceptionist}`;
+                    // Clear globals
+                    window._spaReceptionist = null;
+                    window._spaOverbookingMode = null;
+                    window._spaOverbookingModeBase = null;
                 }
 
                 // If this is a pack
