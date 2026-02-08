@@ -120,6 +120,9 @@ function normalizePaymentFields(voucher) {
         bonoCode.startsWith('TARJ-')
     ) {
         v.estado_pago = PAYMENT_STATUS.PAGADO;
+        // FORCE: Ensure amount paid matches total
+        v.importe_pagado = totalPrice;
+        v.importe_pendiente = 0;
     }
 
     // FIX GLOBAL: Los bonos con precio 0 (invitaciones) SIEMPRE están pagados si es invitación explícita
