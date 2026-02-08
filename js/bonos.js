@@ -358,6 +358,8 @@ function setupBonoListeners() {
     if (searchInput) {
         searchInput.addEventListener("input", (e) => {
             const searchTerm = e.target.value.trim();
+            // TRACKING: Prevent race conditions
+            state.lastSearchTerm = searchTerm;
             const clearBtn = document.getElementById("clear-search-btn");
 
             // Mostrar/ocultar botón de limpiar
@@ -966,6 +968,10 @@ async function searchVoucherByNumericInput(numStr) {
 
     // 1. Buscar BONO...
     const bonoMatch = await searchVoucherByCodeInternal(candidateBono);
+
+    // RACE CONDITION CHECK
+    if (state.lastSearchTerm !== numStr) return;
+
     if (bonoMatch) {
         finishSearch([bonoMatch]);
         return;
@@ -973,15 +979,18 @@ async function searchVoucherByNumericInput(numStr) {
 
     // 2. Buscar LOC actual...
     const locMatch = await searchVoucherByCodeInternal(candidateLoc);
+    if (state.lastSearchTerm !== numStr) return; // CHECK AGAIN
     if (locMatch) { finishSearch([locMatch]); return; }
 
     // 2b. Buscar LOC año anterior...
     const locMatchLast = await searchVoucherByCodeInternal(candidateLocLastYear);
+    if (state.lastSearchTerm !== numStr) return; // CHECK AGAIN
     if (locMatchLast) { finishSearch([locMatchLast]); return; }
 
     // 1b. INTENTO EXTRA: Buscar "bono7683" (minúscula) por si acaso
     const candidateBonoLower = `bono${numStr}`;
     const bonoMatchLower = await searchVoucherByCodeInternal(candidateBonoLower);
+    if (state.lastSearchTerm !== numStr) return; // CHECK AGAIN
     if (bonoMatchLower) { finishSearch([bonoMatchLower]); return; }
 
     // 3. Fallback: Búsqueda textual por el número exacto
@@ -1050,6 +1059,8 @@ async function searchVoucherByCode(code) {
     </td></tr>`;
 
     try {
+        if (state.lastSearchTerm && state.lastSearchTerm !== code) return;
+
         // 1. CARGA LOCAL PRIMERO
         if (window.apiLocal) {
             const localBono = await apiLocal.getBonoByCode(code);
@@ -1092,6 +1103,8 @@ async function searchVoucherByCode(code) {
         }
 
         const voucher = await tryFetch(candidates);
+
+        if (state.lastSearchTerm && state.lastSearchTerm !== code) return;
 
         if (voucher) {
             state.bonos = [voucher];
@@ -1154,6 +1167,9 @@ async function searchVouchersByText(searchTerm) {
                 .toArray();
         }
 
+        // RACE CONDITION CHECK (Post-Local)
+        if (state.lastSearchTerm && state.lastSearchTerm !== searchTerm) return;
+
         if (localResults.length > 0) {
             state.bonos = localResults;
             state.isActiveSearch = true;
@@ -1172,6 +1188,12 @@ async function searchVouchersByText(searchTerm) {
             .where("searchTokens", "array-contains", normalizedTerm)
             .limit(50)
             .get();
+
+        // RACE CONDITION CHECK (Post-Cloud)
+        if (state.lastSearchTerm && state.lastSearchTerm !== searchTerm) {
+            console.log(`[SEARCH] Ignoring stale result for ${searchTerm}`);
+            return;
+        }
 
         if (!snapshot.empty) {
             const vouchers = [];
@@ -2777,6 +2799,7 @@ function updateCount() {
 
 function resetFilters() {
     document.getElementById("voucher-search").value = "";
+    state.lastSearchTerm = "";
     document.getElementById("voucher-date").value = "";
     document.getElementById("voucher-filter").value = "pending"; // Default now is pending
     renderBonosFromState();
@@ -2794,6 +2817,7 @@ function clearSearch() {
 
     // Resetear flag de búsqueda activa
     state.isActiveSearch = false;
+    state.lastSearchTerm = ""; // Clear tracking
 
     // Recargar bonos según el filtro de fecha seleccionado
     cargarBonos();
