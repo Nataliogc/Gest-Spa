@@ -764,6 +764,14 @@
                                     onchange="handleStaffFieldsChange(); updateAvailabilityUI();"
                                     style="width: 100%; padding: 5px 2px; border-radius: 4px; border: 1px solid #e2e8f0; font-size: 0.85rem; text-align: center; background: #fff;">
                             </div>
+                            <!-- SALA -->
+                            <div class="form-group" id="room-selector-group" style="flex: 1; margin-bottom: 0;">
+                                <label
+                                    style="font-size: 0.6rem; font-weight: 800; color: #4a5568; text-transform: uppercase;">Sala</label>
+                                <select id="res-sala" onchange="populateServices(); updatePriceAutomation();"
+                                    style="width: 100%; padding: 5px 8px; border-radius: 4px; border: 1px solid #e2e8f0; font-size: 0.85rem; background: #fff; cursor: pointer;">
+                                </select>
+                            </div>
                             <!-- ORIGEN -->
                             <div class="form-group" style="flex: 1; margin-bottom: 0;">
                                 <label
@@ -1327,6 +1335,8 @@
                 viewType: 'timeline'
             }
         };
+        window.MODULES = MODULES;
+
 
         // Detectar módulo actual
         const urlParams = new URLSearchParams(window.location.search);
@@ -2007,6 +2017,65 @@
             }
         }
 
+        function populateRoomOptions(preselectCode = null, contextCodeStr = null) {
+            const sel = document.getElementById("res-sala");
+            if (!sel) return;
+            sel.innerHTML = "";
+
+            const contextCode = contextCodeStr || currentModule.code;
+
+            // Filter modules to show compatible rooms based on type (Private vs Open)
+            const keys = Object.keys(window.MODULES || {}).filter(k => {
+                const m = window.MODULES[k];
+                if (!m) return false;
+                if (k === 'cabinas' || k === 'staff') return false;
+
+                // Fixed Modules: Can only stay in themselves
+                if (contextCode === 'spa') return k === 'spa';
+                if (contextCode === 'panacea') return k === 'panacea';
+                if (contextCode === 'peluqueria') return k === 'peluqueria';
+
+                // Movable Context (Cabinas, Suite, VIP):
+                // Exclude Spa, Panacea, Peluqueria from these selectors
+                if (['spa', 'panacea', 'peluqueria'].includes(k)) return false;
+
+                return true;
+            });
+
+            // Sort keys to ensure cabina order
+            keys.sort();
+
+            keys.forEach(k => {
+                const opt = document.createElement("option");
+                opt.value = k;
+                opt.textContent = window.MODULES[k].name;
+                sel.appendChild(opt);
+            });
+
+            // Set Value
+            if (preselectCode && keys.includes(preselectCode)) {
+                sel.value = preselectCode;
+            } else if (keys.includes(contextCode)) {
+                sel.value = contextCode;
+            } else if (contextCode === 'cabinas' && keys.includes('cabina1')) {
+                sel.value = 'cabina1';
+            }
+
+            // NEW VISIBILITY LOGIC (USER REQUEST: Spa, Salas/Panacea, Peluqueria are FIXED)
+            const roomGroup = document.getElementById("room-selector-group");
+            if (roomGroup) {
+                // HIDE for fixed rooms
+                if (contextCode === 'spa' || contextCode === 'panacea' || contextCode === 'peluqueria') {
+                    roomGroup.style.display = 'none';
+                } else {
+                    // SHOW for movable rooms (Cabinas 1-3, Suite, Vip)
+                    roomGroup.style.display = 'block';
+                    sel.disabled = false;
+                    sel.style.backgroundColor = "#fff";
+                }
+            }
+        }
+
         function populateServices() {
             const sel = document.getElementById("res-servicio");
             if (!sel) return;
@@ -2016,7 +2085,10 @@
 
             // --- 0. PREPARATION ---
             // Determine Room Code & Normalization
-            const roomCode = currentModule.code.toLowerCase();
+            const roomSel = document.getElementById("res-sala");
+            // Use selected room code OR current module code as fallback
+            const roomCodeRaw = (roomSel && roomSel.value) ? roomSel.value : currentModule.code;
+            const roomCode = roomCodeRaw.toLowerCase();
             const salaActual = roomCode.startsWith('cabina') ? 'cabina' : roomCode;
 
             // Determine Origin / Flow
@@ -2131,13 +2203,20 @@
                     const hasAgenda = item.agenda_required !== false;
                     const hasDuration = (parseInt(item.duration) || 0) > 0;
 
-                    // SPECIAL STRICT FILTER FOR PELUQUERIA: Only visualizes hair/nails
+                    // SPECIAL STRICT FILTER FOR PELUQUERIA: Only visualizes hair/nails/beauty
                     if (roomCode === 'peluqueria') {
                         const cat = (item.category || item.categoria || "").toLowerCase();
                         const name = (item.name || "").toLowerCase();
-                        const allowedKeys = ['peluqueria', 'manicura', 'pedicura', 'corte', 'peinado', 'tinte', 'mechas'];
-                        const isAllowed = allowedKeys.some(k => cat.includes(k) || name.includes(k));
-                        if (!isAllowed) return false;
+
+                        const isAllowedCat = ['peluqueria', 'peluquería', 'estetica', 'estética', 'manicura', 'pedicura', 'depilacion', 'depilación', 'maquillaje', 'uñas', 'unas', 'pestañas', 'cejas'].some(k => cat.includes(k));
+                        const isAllowedName = ['corte', 'peinado', 'tinte', 'mechas', 'mecha', 'tussore', 'alisado', 'moldeado', 'reflector', 'maquillaje', 'uñas', 'unas', 'manicura', 'pedicura', 'cejas', 'pestañas', 'depilacion', 'depilación'].some(k => name.includes(k));
+
+                        // Basic bypass: if it's explicitly allowed, it stays. Otherwise, if it's a known non-pelu category, exclude.
+                        const isExcludedCat = ['masaje', 'ritual', 'spa', 'restaurante', 'hotel'].some(k => cat.includes(k));
+                        const isExcludedName = ['masaje', 'ritual', 'circuito'].some(k => name.includes(k));
+
+                        if (!isAllowedCat && !isAllowedName) return false;
+                        if (isExcludedName && !isAllowedCat) return false; // Avoid 'Masaje Cráneo-Facial' if not in Estética cat
                     }
 
                     return matchesSpace && (hasAgenda || hasDuration);
@@ -2161,9 +2240,16 @@
 
                     // STRICT FILTER FOR PELUQUERIA
                     if (roomCode === 'peluqueria') {
-                        const allowed = ['peluqueria', 'manicura', 'pedicura', 'corte', 'peinado', 'tinte', 'mechas'];
-                        const isMatch = allowed.some(k => cat.includes(k) || name.includes(k));
-                        if (!isMatch) return false;
+                        const cat = (s.categoria || "").toLowerCase();
+                        const name = (s.nombre || "").toLowerCase();
+
+                        const isAllowedCat = ['peluqueria', 'peluquería', 'estetica', 'estética', 'manicura', 'pedicura', 'depilacion', 'depilación', 'maquillaje', 'uñas', 'unas', 'pestañas', 'cejas'].some(k => cat.includes(k));
+                        const isAllowedName = ['corte', 'peinado', 'tinte', 'mechas', 'mecha', 'alisado', 'moldeado', 'maquillaje', 'uñas', 'unas', 'manicura', 'pedicura', 'cejas', 'pestañas', 'depilacion', 'depilación'].some(k => name.includes(k));
+
+                        const isExcludedName = ['masaje', 'ritual', 'circuito'].some(k => name.includes(k));
+
+                        if (!isAllowedCat && !isAllowedName) return false;
+                        if (isExcludedName && !isAllowedCat) return false;
                     }
 
                     const rawSpaces = s.allowedSpaces || (s.espacio ? [s.espacio] : []);
@@ -2188,11 +2274,25 @@
 
             } else {
                 // --- LEGACY FLOW (NON-CABINA: BONOS, HOTEL, SMARTBOX...) ---
-                const EXCLUDED_CATEGORIES = ['peluqueria', 'restaurante', 'hotel'];
-
                 servicesToShow = (currentServices || []).filter(s => {
                     const cat = (s.categoria || "").toLowerCase();
-                    if (EXCLUDED_CATEGORIES.includes(cat)) return false;
+                    const name = (s.nombre || "").toLowerCase();
+
+                    if (roomCode === 'peluqueria') {
+                        // In Peluquería, ONLY allow Pelu/Estética
+                        const isAllowedCat = ['peluqueria', 'peluquería', 'estetica', 'estética', 'manicura', 'pedicura', 'depilacion', 'depilación', 'maquillaje', 'uñas', 'unas', 'pestañas', 'cejas'].some(k => cat.includes(k));
+                        const isAllowedName = ['corte', 'peinado', 'tinte', 'mechas', 'mecha', 'alisado', 'moldeado', 'maquillaje', 'uñas', 'unas', 'manicura', 'pedicura', 'cejas', 'pestañas', 'depilacion', 'depilación'].some(k => name.includes(k));
+
+                        const isExcludedName = ['masaje', 'ritual', 'circuito'].some(k => name.includes(k));
+
+                        if (!isAllowedCat && !isAllowedName) return false;
+                        if (isExcludedName && !isAllowedCat) return false;
+                        return true;
+                    } else {
+                        // Standard legacy: Exclude non-spa
+                        const EXCLUDED_CATEGORIES = ['peluqueria', 'restaurante', 'hotel'];
+                        if (EXCLUDED_CATEGORIES.includes(cat)) return false;
+                    }
 
                     const sAllowed = (Array.isArray(s.allowedSpaces) ? s.allowedSpaces : []).map(x => x.toLowerCase());
                     const isExplicitlyAllowed = sAllowed.includes(salaActual) || sAllowed.includes(roomCode);
@@ -2432,12 +2532,27 @@
             if (!staffList || staffList.length === 0) return [];
 
             // 2. Get all bookings for the day (to check collisions)
-            const allBookings = await window.getAllBookingsForDate(date); // Defined in reservas-staff.js
-
+            const allBookings = await window.getAllBookingsForDate(date);
             // 3. Get Exception/Availability Data for the day (Shifts, etc)
-            const dailyExceptions = await window.getDayExceptionsForDate(date); // Defined in reservas-staff.js
+            const dailyExceptions = await window.getDayExceptionsForDate(date);
 
             const available = [];
+
+            // FILTER STAFF BY ROOM/MODULE
+            let relevantStaff = staffList;
+            if (roomCode === 'peluqueria') {
+                relevantStaff = staffList.filter(s => {
+                    const name = (s.nombre || s.name || s.alias || '').toLowerCase();
+                    return name.includes('chon');
+                });
+            } else if (roomCode === 'panacea' || roomCode === 'vip' || roomCode.startsWith('cabina')) {
+                relevantStaff = staffList.filter(s => {
+                    const rooms = s.assigned_rooms || s.salas || [];
+                    if (rooms.length === 0) return true;
+                    return rooms.some(r => r.toLowerCase() === roomCode.toLowerCase() ||
+                        (roomCode.startsWith('cabina') && r.toLowerCase() === 'cabina'));
+                });
+            }
 
             // HELPER: timeToMinutes fallback if not available
             const toMin = (t) => {
@@ -2451,10 +2566,36 @@
             const reqStart = toMin(time);
             const reqEnd = reqStart + parseInt(duration);
 
-            for (const staff of staffList) {
+            for (const staff of relevantStaff) {
                 // A. Check Schedule / Shift Availability
                 let isWorking = false;
-                if (window.checkStaffAvailability) {
+                let scheduleString = "";
+
+                if (window.getStaffScheduleForDate) {
+                    try {
+                        const sched = await window.getStaffScheduleForDate(staff, date, dailyExceptions);
+                        if (sched.status === 'ok' && sched.shifts && sched.shifts.length > 0) {
+                            scheduleString = sched.shifts.map(s => `${s.start}-${s.end}`).join(', ');
+
+                            // Check if request fits in ANY shift
+                            const reqStart = toMin(time);
+                            const reqEnd = reqStart + parseInt(duration);
+
+                            isWorking = sched.shifts.some(sh => {
+                                const sStart = toMin(sh.start);
+                                const sEnd = toMin(sh.end);
+                                return (reqStart >= sStart && reqEnd <= sEnd);
+                            });
+                        } else {
+                            // User is OFF or Unavailable for the whole day
+                            isWorking = false;
+                        }
+                    } catch (err) {
+                        console.warn("Scheduler error:", err);
+                        isWorking = true; // Fallback
+                    }
+                } else if (window.checkStaffAvailability) {
+                    // Fallback to old boolean check
                     isWorking = await window.checkStaffAvailability(staff, date, time, duration, dailyExceptions);
                 } else {
                     isWorking = true;
@@ -2512,7 +2653,8 @@
                 available.push({
                     ...staff,
                     _status: finalStatus,
-                    _collision: collisionInfo
+                    _collision: collisionInfo,
+                    _shift: scheduleString
                 });
             }
 
@@ -2954,8 +3096,8 @@
 
             if (!packContainer || !packSchedule) return;
 
-            // SKIP PACK LOGIC FOR SIMPLE SPA MODULE (uses direct slot reservations)
-            if (currentModule.code === 'spa') {
+            // SKIP PACK LOGIC FOR SPA AND PELUQUERIA (use simple single-service bookings)
+            if (currentModule.code === 'spa' || currentModule.code === 'peluqueria') {
                 packContainer.style.display = "none";
                 window._packItems = null;
                 return;
@@ -2967,7 +3109,8 @@
             // Check if it has breakdown items
             const items = serviceData?.items_incluidos || serviceData?.desglosados || [];
 
-            if (!serviceData || items.length === 0) {
+            // Prevent single-item "packs" where the item IS the service itself (Self-Reference Loop)
+            if (!serviceData || items.length === 0 || (items.length === 1 && items[0].trim().toLowerCase() === svcName.trim().toLowerCase())) {
                 packContainer.style.display = "none";
                 window._packItems = null;
                 return;
@@ -3293,6 +3436,12 @@
 
                         currentData = combinedData;
 
+                        // Fetch availability for Cabinas (shared staff pool)
+                        const cabAvailability = (typeof window.getDailyStaffAvailability === 'function')
+                            ? await window.getDailyStaffAvailability('cabina1', date) // Use generic cabina1 to get the pool
+                            : {};
+                        currentStaffAvailability = cabAvailability;
+
                         // Save Local
                         if (window.apiLocal) {
                             for (const res of currentData) {
@@ -3300,9 +3449,9 @@
                             }
                         }
 
-                        renderTimeline(date, 'timeline-container-cabina1', cab1, d1, {});
-                        renderTimeline(date, 'timeline-container-cabina2', cab2, d2, {});
-                        renderTimeline(date, 'timeline-container-cabina3', cab3, d3, {});
+                        renderTimeline(date, 'timeline-container-cabina1', cab1, d1, cabAvailability);
+                        renderTimeline(date, 'timeline-container-cabina2', cab2, d2, cabAvailability);
+                        renderTimeline(date, 'timeline-container-cabina3', cab3, d3, cabAvailability);
 
                         if (window.updateGlobalSyncStatus) updateGlobalSyncStatus('synced');
 
@@ -3389,6 +3538,13 @@
                 }
 
                 currentData = remoteData;
+
+                // Load Staff Availability if required
+                if (currentModule.requiresStaff) {
+                    currentStaffAvailability = (typeof window.getDailyStaffAvailability === 'function')
+                        ? await window.getDailyStaffAvailability(currentModule.code, date)
+                        : {};
+                }
 
                 // Auto-NoShow check ONLY if today
                 const today = new Date().toISOString().split('T')[0];
@@ -3760,6 +3916,7 @@
 
                         const isAttended = res.attended === true;
                         const isNoShow = res.no_show === true || res.status === 'no_show';
+                        const isConfirmed = res.status === 'confirmada'; // New status for confirmed but not yet attended
 
                         // Check if past 45 min deadline
                         const resDateTime = new Date(`${res.fecha}T${res.hora}`);
@@ -3767,13 +3924,24 @@
                         const now = new Date();
                         const isPastDeadline = now > deadlineTime;
 
-                        if (isAttended) {
-                            // Already attended - show green check
+                        const modCode = (res.moduleCode || (res.collection ? res.collection.replace('reservas_', '') : currentModule.code));
+                        if (isConfirmed && !isNoShow && !isAttended) {
+                            // Confirm attendance
                             return `
                                     <button class="btn btn-outline btn-sm" 
-                                            onclick="unmarkAttendance('${res.id}', '${currentModule.code}')" 
-                                            title="Asistió - Click para desmarcar"
-                                            style="padding: 4px 8px; color: #10b981; border-color: #10b981; background: #d1fae5;">
+                                            onclick="markAttendance('${res.id}', '${modCode}')" 
+                                            title="Confirmar Asistencia"
+                                            style="padding: 4px 8px; color: #10b981; border-color: #10b981;">
+                                        <i class="fas fa-check"></i>
+                                    </button>
+                                `;
+                        } else if (isAttended) {
+                            // Attended - allow undo
+                            return `
+                                    <button class="btn btn-outline btn-sm" 
+                                            onclick="unmarkAttendance('${res.id}', '${modCode}')" 
+                                            title="Asistencia Confirmada - Click para desmarcar"
+                                            style="padding: 4px 8px; color: #10b981; border-color: #10b981; background: #ecfdf5;">
                                         <i class="fas fa-check"></i>
                                     </button>
                                 `;
@@ -3781,7 +3949,7 @@
                             // No show - allow undo
                             return `
                                     <button class="btn btn-outline btn-sm" 
-                                            onclick="unmarkNoShow('${res.id}', '${currentModule.code}')" 
+                                            onclick="unmarkNoShow('${res.id}', '${modCode}')" 
                                             title="No Show - Click para desmarcar"
                                             style="padding: 4px 8px; color: #dc2626; border-color: #dc2626; background: #fee2e2;">
                                         <i class="fas fa-user-times"></i>
@@ -3791,7 +3959,7 @@
                             // Past deadline, not marked - show warning, allow manual mark
                             return `
                                     <button class="btn btn-outline btn-sm" 
-                                            onclick="markAttendance('${res.id}', '${currentModule.code}')" 
+                                            onclick="markAttendance('${res.id}', '${modCode}')" 
                                             title="¡Pasó el tiempo! Click para marcar asistencia tardía"
                                             style="padding: 4px 8px; color: #f59e0b; border-color: #f59e0b; background: #fef3c7;">
                                         <i class="fas fa-exclamation-triangle"></i>
@@ -3801,7 +3969,7 @@
                             // Pending - show button to mark attendance
                             return `
                                     <button class="btn btn-outline btn-sm" 
-                                            onclick="markAttendance('${res.id}', '${currentModule.code}')" 
+                                            onclick="markAttendance('${res.id}', '${modCode}')" 
                                             title="Marcar Asistencia"
                                             style="padding: 4px 8px; color: #f59e0b; border-color: #f59e0b;">
                                         <i class="fas fa-user-check"></i>
@@ -4009,6 +4177,7 @@
             if (sesionesField) sesionesField.value = 1;
 
             // Cargar Servicios y Complementos
+            populateRoomOptions(); // Default to current
             populateServices();
             renderComplementos();
 
@@ -4081,11 +4250,20 @@
                 pricePaxGroup.style.display = (moduleType === 'suite') ? "none" : "block";
             }
 
+            // --- MODAL TITLE LOGIC (Generic) ---
+            const modalTitle = document.getElementById("modal-title");
+            if (modalTitle) {
+                const moduleName = (currentModule && currentModule.name) ? currentModule.name.toUpperCase() : "";
+                if (moduleType === 'peluqueria' || currentModule.code === 'peluqueria') {
+                    modalTitle.innerHTML = `<i class="fas fa-cut"></i> Nueva Reserva · ${moduleName}`;
+                } else {
+                    modalTitle.innerHTML = `Nueva Reserva · ${moduleName}`;
+                }
+            }
+
             // --- PELUQUERIA SPECIFIC UI ---
             if (moduleType === 'peluqueria' || currentModule.code === 'peluqueria') {
-                // 1. Title with Room Name
-                const modalTitle = document.getElementById("modal-title");
-                if (modalTitle) modalTitle.innerHTML = `<i class="fas fa-cut"></i> Nueva Reserva · Peluquería`;
+                // 1. Title is set above
 
                 // 2. Hide Complementos
                 const compContainer = document.getElementById("complementos-container");
@@ -4237,23 +4415,13 @@
                     }
                 }
             }
-            // 3. Fallback: If currentModule is 'cabinas' (wrapper) but res is in a specific cabina collection
-            // (Handled by loop above, but double check if we are still in wrapper)
-            if (window.currentModule.code === 'cabinas') {
-                // Heuristic: If we are editing, we probably want a specific cabina if possible, 
-                // but if we can't determine it, we might be in trouble.
-                // Usually 'res' comes from 'currentData' which is loaded from the active module.
-                // If active module is 'cabinas', 'currentData' has mixed reservations.
-                // We MUST find the matching module.
-                if (res.sala) { // 'sala' might hold 'reservas_cabina1' or similar
-                    for (const key in MODULES) {
-                        if (MODULES[key].collection === res.sala) {
-                            currentModule = MODULES[key];
-                            window.currentModule = currentModule;
-                            break;
-                        }
-                    }
-                }
+            // 3. General Fallback: If res.sala matches a known module code (e.g. 'cabina1', 'suite')
+            // This handles cases where collection might be missing but 'sala' field is correct.
+            if (res.sala && MODULES[res.sala] && res.sala !== 'spa') {
+                // Optimization: Only switch if we are currently in 'cabinas' wrapper or 'spa' generic view
+                // or if we definitely want to switch context to the specific room.
+                currentModule = MODULES[res.sala];
+                window.currentModule = currentModule;
             }
 
             // Reset Conflict UI
@@ -4325,7 +4493,8 @@
                     btnUnlock.onclick = () => unlockPastReservation();
                 }
             } else {
-                document.getElementById("modal-title").textContent = "Editar Reserva";
+                const moduleName = (currentModule && currentModule.name) ? currentModule.name.toUpperCase() : "";
+                document.getElementById("modal-title").innerHTML = `Editar Reserva · ${moduleName}`;
                 formInputs.forEach(input => input.disabled = false);
                 if (btnSave) btnSave.style.display = "block";
                 if (btnUnlock) btnUnlock.style.display = "none";
@@ -4373,6 +4542,18 @@
             // Auto-resize
             obsField.style.height = 'auto';
             obsField.style.height = obsField.scrollHeight + 'px';
+
+            // Cargar datos de Sala y Servicios
+            // Populate Rooms Options (Dynamic)
+            let resModule = currentModule.code;
+            // Try to match collection to a module
+            if (res.collection) {
+                const matchedKey = Object.keys(window.MODULES || {}).find(k => window.MODULES[k].collection === res.collection);
+                // If found, use that module code. Special handling for Cabinas (they share collection but have distinct codes in UI if split, 
+                // but here we just need a valid room code for the dropdown)
+                if (matchedKey) resModule = matchedKey;
+            }
+            populateRoomOptions(resModule);
 
             populateServices();
             renderComplementos();
@@ -4573,45 +4754,44 @@
             }
 
             // ========== PACK CANCELLATION RULES ==========
-            // 1. Block cancellation of pack CHILDREN
+            // 1. Handle Pack CHILDREN deletion (Offer to delete Parent)
             if (resData.parent_id || resData.is_pack_element) {
-                let hint = "Busca la reserva principal (ej: Suite, Hotel, o la primera del grupo) y anúlala.";
-
-                // Try to find parent details for a better hint
-                if (resData.parent_id) {
-                    let parent = currentData.find(r => r.id === resData.parent_id);
-
-                    // If not in memory but we have async context, try to fetch it quickly from probable collections
-                    if (!parent) {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Servicio de Pack',
+                    html: `Este servicio pertenece a un Pack.<br>¿Deseas <b>anular todo el pack</b> (incluyendo todos los servicios vinculados)?`,
+                    showCancelButton: true,
+                    confirmButtonColor: '#d33',
+                    cancelButtonColor: '#3085d6',
+                    confirmButtonText: 'Sí, anular el Pack completo',
+                    cancelButtonText: 'Cancelar'
+                }).then(async (result) => {
+                    if (result.isConfirmed) {
                         try {
-                            // Checked common collections for the parent
-                            const colls = ['reservas_suite', 'reservas_vip', 'reservas_panacea', 'reservas_hotel'];
-                            for (const col of colls) {
-                                const snap = await db.collection(col).doc(resData.parent_id).get();
-                                if (snap.exists) {
-                                    parent = { ...snap.data(), _moduleCode: col.replace('reservas_', '') };
-                                    break;
+                            // If we have parent_id, use it. If not, we can't do much (orphan).
+                            const date = document.getElementById("main-date-picker").value;
+                            if (resData.parent_id) {
+                                await window.cancelPackReservation(resData.parent_id);
+                                showToast("Pack anulado correctamente", "success");
+                                closeModal();
+                                loadReservas(date);
+                            } else {
+                                // Orphan child - allow force delete
+                                if (confirm("Error: No se encuentra el ID del pack padre. ¿Borrar solo esta reserva (puede dejar inconsistencias)?")) {
+                                    /* Fix: Use correct collection if available */
+                                    const targetColl = resData.collection || (resData._moduleCode ? MODULES[resData._moduleCode].collection : currentModule.collection);
+
+                                    await db.collection(targetColl).doc(id).delete();
+                                    showToast("Reserva huérfana eliminada", "success");
+                                    closeModal();
+                                    loadReservas(date);
                                 }
                             }
-                        } catch (e) { console.log("Parent fetch error", e); }
+                        } catch (e) {
+                            console.error("Error cancelling pack:", e);
+                            Swal.fire('Error', 'No se pudo anular el pack: ' + e.message, 'error');
+                        }
                     }
-
-                    if (parent) {
-                        const donde = (parent._moduleCode || parent.collection || "otro módulo").toUpperCase().replace('RESERVAS_', '');
-                        const hora = parent.hora || "??:??";
-                        hint = `\n📍 Debes ir a la agenda de **${donde}** a las **${hora}** y anular la reserva de **${parent.nombre || 'Cliente'}**.`;
-                    }
-                }
-
-                Swal.fire({
-                    icon: 'info',
-                    title: 'Servicio Vinculado',
-                    html: `Este servicio es parte de un Pack.<br><br>
-                           ❌ <b>No puedes borrarlo individualmente</b> porque rompería el paquete.<br><br>
-                           ✅ Solución: ${hint}<br><br>
-                           <i>Al borrar la principal, este servicio se eliminará automáticamente.</i>`,
-                    confirmButtonColor: '#3b82f6',
-                    confirmButtonText: 'Entendido'
                 });
                 return;
             }
@@ -5058,15 +5238,35 @@
                     isSavingReservation = false; btn.disabled = false; btn.innerHTML = originalText; return;
                 }
 
+                // Determine Target Collection logic
                 let targetColl = currentModule.collection;
                 let finalOrigin = origenVal;
-
                 let existingStatus = 'confirmada';
+                let originalColl = null;
+
+                // 1. Try to get collection from selected Sala
+                const roomSel = document.getElementById("res-sala");
+                if (roomSel && roomSel.value && window.MODULES && window.MODULES[roomSel.value]) {
+                    targetColl = window.MODULES[roomSel.value].collection;
+                }
+
                 if (id && currentData) {
                     const res = currentData.find(r => r.id === id);
                     if (res) {
                         existingStatus = res.status;
-                        if (res.collection) targetColl = res.collection;
+                        originalColl = res.collection || currentModule.collection;
+
+                        // Actually, if roomSel is visible and has a value, we trust it. 
+                        // If not, we fall back to existing collection ONLY if roomSel is really empty.
+                        // But if we just populated room options, roomSel should have a valid value (defaulting to current module).
+                        if (roomSel && roomSel.value) {
+                            // User Interface selection takes precedence if valid
+                            if (window.MODULES[roomSel.value]) {
+                                targetColl = window.MODULES[roomSel.value].collection;
+                            }
+                        } else {
+                            if (res.collection) targetColl = res.collection;
+                        }
                     }
                 }
 
@@ -5192,7 +5392,17 @@
                 // Remote DB
                 try {
                     if (id.length > 10) {
-                        await db.collection(targetColl).doc(id).update(payload);
+                        // Check for Collection Move (Room Change)
+                        if (originalColl && originalColl !== targetColl) {
+                            console.log(`[MOVE] Moving reservation ${id} from ${originalColl} to ${targetColl}`);
+                            // 1. Create in new collection (SET to keep ID)
+                            await db.collection(targetColl).doc(id).set(payload);
+                            // 2. Delete from old collection
+                            await db.collection(originalColl).doc(id).delete();
+                        } else {
+                            // Standard Update
+                            await db.collection(targetColl).doc(id).update(payload);
+                        }
                     } else {
                         const docRef = await db.collection(targetColl).add(payload);
                         if (window.apiLocal) await apiLocal.markSynced('reservas', payload.res_id, docRef.id);
@@ -5279,6 +5489,11 @@
             const dateObj = new Date(dateString + 'T00:00:00');
             const isSunday = dateObj.getDay() === 0;
             const closingHour = isSunday ? 15 : 22;
+
+            var now = new Date();
+            var isToday = (dateString === now.toISOString().split('T')[0]);
+            var currH = now.getHours();
+            var currM = now.getMinutes();
 
             for (let h = 10; h < closingHour; h++) {
                 const intervals = (step === 15) ? [0, 15, 30, 45] : [0, 30];
@@ -5396,9 +5611,6 @@
                     }
 
                     // 2. Lógica de botón "Reservar" o Avisos
-                    const now = new Date();
-                    const isToday = (dateString === now.toISOString().split('T')[0]);
-                    const [currH, currM] = [now.getHours(), now.getMinutes()];
                     const isPast = isToday && (h < currH || (h === currH && m < currM));
 
                     if (isPast) {
@@ -5487,7 +5699,7 @@
                         } else if (!isOccupied) {
                             // Si no hay hueco y no hay reservas, mostrar por qué
                             if (staffFreeCount === 0 && moduleConfig.requiresStaff) {
-                                contentCol.innerHTML = '<span style="color:#ef4444; font-size:0.75rem;"><i class="fas fa-user-slash"></i> Sin terapeuta</span>';
+                                contentCol.innerHTML = '<span style="color:#ef4444; font-size:0.75rem;"><i class="fas fa-user-slash"></i> Therapist unavailable</span>';
                             } else if (!hasSpace) {
                                 // Content explicitly left empty as per user request
                                 // contentCol.innerHTML = '<span style="color:#666; font-size:0.75rem;"><i class="fas fa-ban"></i> Sin espacio</span>';
@@ -5497,7 +5709,22 @@
 
                     row.appendChild(contentCol);
                     container.appendChild(row);
+
+                    // Mark anchor for auto-scroll (First slot of current hour)
+                    if (isToday && h === currH && m === intervals[0]) {
+                        row.id = `timeline-anchor-${containerId}`;
+                    }
                 }
+            }
+
+            // Scroll to current time
+            if (isToday) {
+                setTimeout(() => {
+                    const anchor = document.getElementById(`timeline-anchor-${containerId}`);
+                    if (anchor) {
+                        anchor.scrollIntoView({ behavior: "smooth", block: "start", inline: "nearest" });
+                    }
+                }, 300);
             }
         }
 
@@ -5646,7 +5873,7 @@
                     let statusText = '';
 
                     if (!alt.hasEnoughTherapists) {
-                        statusText = `Sin terapeutas (necesitas ${requiredTherapists})`;
+                        statusText = `Therapists unavailable (needs ${requiredTherapists})`;
                     } else if (availableTime < requiredTime) {
                         statusText = `Solo ${availableTime} min (necesitas ${requiredTime})`;
                     } else {

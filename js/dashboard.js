@@ -117,11 +117,10 @@ async function cargarCitasHoy(date) {
                 else if (col === 'reservas_gimnasio') moduleType = 'gym';
                 else if (col === 'reservas_complementos') moduleType = 'complementos';
                 else if (col.startsWith('reservas_cabina')) {
-                    moduleType = 'cabinas';
-                    if (col === 'reservas_cabina1') derivedRoomName = 'Cabina 1';
-                    else if (col === 'reservas_cabina2') derivedRoomName = 'Cabina 2';
-                    else if (col === 'reservas_cabina3') derivedRoomName = 'Cabina 3';
-                    else derivedRoomName = 'Cabinas';
+                    if (col === 'reservas_cabina1') { moduleType = 'cabina1'; derivedRoomName = 'Cabina 1'; }
+                    else if (col === 'reservas_cabina2') { moduleType = 'cabina2'; derivedRoomName = 'Cabina 2'; }
+                    else if (col === 'reservas_cabina3') { moduleType = 'cabina3'; derivedRoomName = 'Cabina 3'; }
+                    else { moduleType = 'cabinas'; derivedRoomName = 'Cabinas'; }
                 }
 
                 state.citas.push({
@@ -482,7 +481,7 @@ async function buscarReservasGlobal(term) {
     if (tbody) tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding: 40px;"><i class="fas fa-spinner fa-spin"></i> Buscando en todo el historial...</td></tr>`;
 
     try {
-        const collections = ["reservas_spa", "reservas_suite", "reservas_panacea", "reservas_vip", "reservas_peluqueria", "reservas_cabinas"];
+        const collections = ["reservas_spa", "reservas_suite", "reservas_panacea", "reservas_vip", "reservas_peluqueria", "reservas_cabina1", "reservas_cabina2", "reservas_cabina3"];
         const searchPromises = [];
 
         // Firestore range search (Case sensitive start-match is limited)
@@ -507,6 +506,9 @@ async function buscarReservasGlobal(term) {
                 if (col === 'reservas_suite') moduleType = 'suite';
                 else if (col === 'reservas_panacea' || col === 'reservas_vip') moduleType = 'panacea';
                 else if (col === 'reservas_peluqueria') moduleType = 'peluqueria';
+                else if (col === 'reservas_cabina1') moduleType = 'cabina1';
+                else if (col === 'reservas_cabina2') moduleType = 'cabina2';
+                else if (col === 'reservas_cabina3') moduleType = 'cabina3';
 
                 results.push({ id: doc.id, moduleType, ...data });
             });

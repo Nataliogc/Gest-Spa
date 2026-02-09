@@ -98,6 +98,8 @@ async function handleStaffFieldsChange() {
                 if (isBusy || isExcluded) style = 'color:red;';
                 if (isOff) style = 'color:gray; font-style:italic;';
 
+                if (s._shift) label += ` [${s._shift}]`;
+
                 html += `<option value="${s.id}" ${isSelected} ${isDisabled} style="${style}">${label}</option>`;
             });
             return html;
@@ -242,12 +244,7 @@ window.getAllBookingsForDate = async function (date) {
  * @param {number} duration Duración en minutos
  * @param {Object} preFetchedExceptions Opcional: Diccionario de excepciones {staff_id: data}
  */
-window.checkStaffAvailability = async function (staff, date, time, duration, preFetchedExceptions = null) {
-    if (!staff) return false;
-
-    const reqStart = timeToMinutes(time);
-    const reqEnd = reqStart + parseInt(duration);
-
+window.getStaffScheduleForDate = async function (staff, date, preFetchedExceptions = null) {
     // 1. Horario Base / Temporada
     let workingSchedule = staff.default_schedule || {};
     if (staff.seasonal_schedules && Array.isArray(staff.seasonal_schedules)) {
@@ -263,30 +260,18 @@ window.checkStaffAvailability = async function (staff, date, time, duration, pre
 
     let dayConfig = workingSchedule ? workingSchedule[dayKey] : null;
 
-    // Fallback al horario base global si el individual NO tiene configurado este día
-    // Si el individual tiene el día pero está desactivado (enabled: false), NO debe haber fallback, se respeta que no trabaja.
+    // Fallback al horario base global
     if (!dayConfig) {
         const globalSchedule = await getGlobalStaffBaseSchedule();
         const globalDayConfig = globalSchedule[dayKey];
         if (globalDayConfig && globalDayConfig.enabled) {
             dayConfig = globalDayConfig;
-            console.log(`[STAFF] Usando horario GLOBAL para ${staff.nombre || staff.name} el día ${dayKey}`);
         }
     }
 
-    if (!dayConfig || !dayConfig.enabled || !dayConfig.shifts) return false;
-
-    const isWithinShift = dayConfig.shifts.some(sh => {
-        const sStart = timeToMinutes(sh.start);
-        const sEnd = timeToMinutes(sh.end);
-        return (reqStart >= sStart && reqEnd <= sEnd);
-    });
-
-    if (!isWithinShift) return false;
-
     // 2. Excepciones
+    let exc = null;
     try {
-        let exc = null;
         if (preFetchedExceptions) {
             exc = preFetchedExceptions[staff.id];
         } else {
@@ -296,22 +281,52 @@ window.checkStaffAvailability = async function (staff, date, time, duration, pre
                 .get();
             if (!snap.empty) exc = snap.docs[0].data();
         }
-
-        if (exc) {
-            if (exc.status === 'unavailable' || exc.status === 'off' || exc.status === 'vacation') return false;
-            if (exc.status === 'custom' && exc.custom_schedule) {
-                return (exc.custom_schedule.shifts || []).some(sh => {
-                    const sStart = timeToMinutes(sh.start);
-                    const sEnd = timeToMinutes(sh.end);
-                    return (reqStart >= sStart && reqEnd <= sEnd);
-                });
-            }
-        }
     } catch (e) {
-        console.warn("Error checkStaffAvailability:", e);
+        console.warn("Error checkStaffAvailability exception:", e);
     }
 
-    return true;
+    // Determine Final Status & Shifts
+    let status = 'ok';
+    let shifts = [];
+
+    // Apply Base Schedule
+    if (dayConfig && dayConfig.enabled && dayConfig.shifts) {
+        shifts = dayConfig.shifts;
+    } else {
+        status = 'off'; // No base schedule
+    }
+
+    // Apply Exception Override
+    if (exc) {
+        if (exc.status === 'unavailable' || exc.status === 'off' || exc.status === 'vacation') {
+            status = 'off';
+            shifts = [];
+        } else if (exc.status === 'custom' && exc.custom_schedule) {
+            status = 'ok';
+            shifts = exc.custom_schedule.shifts || [];
+        }
+    }
+
+    return { status, shifts };
+};
+
+
+window.checkStaffAvailability = async function (staff, date, time, duration, preFetchedExceptions = null) {
+    if (!staff) return false;
+
+    const reqStart = timeToMinutes(time);
+    const reqEnd = reqStart + parseInt(duration);
+
+    const schedule = await window.getStaffScheduleForDate(staff, date, preFetchedExceptions);
+
+    if (schedule.status !== 'ok') return false;
+    if (!schedule.shifts || schedule.shifts.length === 0) return false;
+
+    return schedule.shifts.some(sh => {
+        const sStart = timeToMinutes(sh.start);
+        const sEnd = timeToMinutes(sh.end);
+        return (reqStart >= sStart && reqEnd <= sEnd);
+    });
 };
 
 // Helper interno para conversión de tiempo
@@ -320,6 +335,98 @@ function timeToMinutes(t) {
     const [h, m] = t.split(':').map(Number);
     return h * 60 + m;
 }
+
+/**
+ * Calcula la disponibilidad diaria de terapeutas para un módulo específico
+ * @param {string} moduleCode Código del módulo (p.ej. 'peluqueria', 'panacea')
+ * @param {string} date Fecha YYYY-MM-DD
+ * @returns {Object} Mapa de { "HH:mm": count }
+ */
+window.getDailyStaffAvailability = async function (moduleCode, date) {
+    console.log(`[STAFF] Calculando disponibilidad diaria para ${moduleCode} el ${date}`);
+
+    try {
+        const [activeStaff, dayBookings, dayExceptions] = await Promise.all([
+            window.getActiveStaff(),
+            window.getAllBookingsForDate(date),
+            window.getDayExceptionsForDate(date)
+        ]);
+
+        // Filtrar staff por módulo
+        let relevantStaff = activeStaff;
+        if (moduleCode === 'peluqueria') {
+            // Regla específica: Solo Chon para Peluquería
+            relevantStaff = activeStaff.filter(s => {
+                const name = (s.nombre || s.name || s.alias || '').toLowerCase();
+                return name.includes('chon');
+            });
+        } else if (moduleCode === 'panacea' || moduleCode === 'vip' || moduleCode.startsWith('cabina')) {
+            // Filtrar por salas asignadas si existe el campo
+            relevantStaff = activeStaff.filter(s => {
+                const rooms = s.assigned_rooms || s.salas || [];
+                if (rooms.length === 0) return true; // Si no tiene salas, asumimos todas (fallback)
+                return rooms.some(r => r.toLowerCase() === moduleCode.toLowerCase() ||
+                    (moduleCode.startsWith('cabina') && r.toLowerCase() === 'cabina'));
+            });
+        }
+
+        const availability = {};
+        // Intervalos de 15 min para mayor precisión, aunque el timeline use 30
+        const slots = [];
+        for (let h = 10; h < 22; h++) {
+            for (let m of [0, 15, 30, 45]) {
+                slots.push(`${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`);
+            }
+        }
+
+        for (const time of slots) {
+            let freeCount = 0;
+            const slotMin = timeToMinutes(time);
+
+            for (const staff of relevantStaff) {
+                // 1. ¿Trabaja a esta hora? (Check 15 min duration)
+                const isWorking = await window.checkStaffAvailability(staff, date, time, 15, dayExceptions);
+                if (!isWorking) continue;
+
+                // 2. ¿Tiene reserva que solape?
+                const hasBooking = dayBookings.some(b => {
+                    if (b.status === 'anulada') return false;
+                    if (b.isBlock || b.status === 'blocked') return false;
+
+                    // Match staff
+                    const sId = staff.id;
+                    const sName = (staff.nombre || staff.name || '').toLowerCase().trim();
+                    const sAlias = (staff.alias || '').toLowerCase().trim();
+
+                    const bId1 = b.staff_id || b.terapeuta_id || (b.staff ? b.staff.id : null);
+                    const bName1 = (b.staff_name || b.terapeuta || '').toLowerCase().trim();
+                    const bId2 = b.staff_id2 || b.terapeuta_id2 || (b.staff2 ? b.staff2.id : null);
+                    const bName2 = (b.staff_name2 || b.terapeuta2 || '').toLowerCase().trim();
+
+                    const match1 = (bId1 && bId1 === sId) || (bName1 && (bName1 === sName || (sAlias && bName1 === sAlias)));
+                    const match2 = (bId2 && bId2 === sId) || (bName2 && (bName2 === sName || (sAlias && bName2 === sAlias)));
+
+                    if (!match1 && !match2) return false;
+
+                    // Overlap check
+                    const bStart = timeToMinutes(b.hora);
+                    const bDur = parseInt(b.duracion || 60);
+                    const bEnd = bStart + bDur;
+
+                    return (slotMin >= bStart && slotMin < bEnd);
+                });
+
+                if (!hasBooking) freeCount++;
+            }
+            availability[time] = freeCount;
+        }
+
+        return availability;
+    } catch (err) {
+        console.error("[STAFF] Error en getDailyStaffAvailability:", err);
+        return {};
+    }
+};
 
 // Exportar para uso global
 window.handleStaffFieldsChange = handleStaffFieldsChange;

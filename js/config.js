@@ -1192,21 +1192,45 @@ async function cargarSpaces() {
         spaConfigState.spaces = [];
         snapshot.forEach(doc => spaConfigState.spaces.push({ id: doc.id, ...doc.data() }));
 
+        const DEFAULT_SPACES = [
+            { code: 'spa', name: 'Spa', capacity: 20, type: 'circuit' },
+            { code: 'panacea', name: 'Panacea (Cabinas)', capacity: 5, type: 'service' },
+            { code: 'suite', name: 'Suite Spa', capacity: 2, type: 'private' },
+            { code: 'vip', name: 'Sala VIP', capacity: 4, type: 'private' },
+            { code: 'peluqueria', name: 'Peluquería', capacity: 2, type: 'service' },
+            { code: 'cabina1', name: 'Cabina 1', capacity: 1, type: 'service' },
+            { code: 'cabina2', name: 'Cabina 2', capacity: 1, type: 'service' },
+            { code: 'cabina3', name: 'Cabina 3', capacity: 1, type: 'service' },
+            { code: 'gimnasio', name: 'Gimnasio', capacity: 10, type: 'other' },
+            { code: 'restaurante', name: 'Restaurante', capacity: 50, type: 'other' },
+            { code: 'terraza', name: 'Terraza', capacity: 30, type: 'other' },
+            { code: 'jardin', name: 'Jardín', capacity: 20, type: 'other' }
+        ];
+
         // FALLBACK DEFAULT SPACES IF DB EMPTY
         if (spaConfigState.spaces.length === 0) {
             console.warn("No spaces in DB, using defaults.");
-            const DEFAULT_SPACES = [
-                { code: 'spa', name: 'Spa', capacity: 20, type: 'circuit' },
-                { code: 'panacea', name: 'Panacea (Cabinas)', capacity: 5, type: 'service' },
-                { code: 'suite', name: 'Suite Spa', capacity: 2, type: 'private' },
-                { code: 'vip', name: 'Sala VIP', capacity: 4, type: 'private' },
-                { code: 'peluqueria', name: 'Peluquería', capacity: 2, type: 'service' },
-                { code: 'gimnasio', name: 'Gimnasio', capacity: 10, type: 'other' },
-                { code: 'restaurante', name: 'Restaurante', capacity: 50, type: 'other' },
-                { code: 'terraza', name: 'Terraza', capacity: 30, type: 'other' },
-                { code: 'jardin', name: 'Jardín', capacity: 20, type: 'other' }
-            ];
             spaConfigState.spaces = DEFAULT_SPACES;
+        } else {
+            // AUTO-FIX: Ensure Cabinas exist if they are missing (Common issue since they were added later)
+            const existingCodes = spaConfigState.spaces.map(s => s.code);
+            const missingCabins = DEFAULT_SPACES.filter(d => d.code.startsWith('cabina') && !existingCodes.includes(d.code));
+
+            if (missingCabins.length > 0) {
+                console.log("Auto-injecting missing cabins:", missingCabins);
+                const batch = db.batch();
+                missingCabins.forEach(c => {
+                    const ref = db.collection("spa_spaces").doc();
+                    batch.set(ref, { ...c, created_at: new Date().toISOString() });
+                });
+                await batch.commit();
+
+                // Reload to get IDs
+                const snap2 = await db.collection("spa_spaces").orderBy("name", "asc").get();
+                spaConfigState.spaces = [];
+                snap2.forEach(doc => spaConfigState.spaces.push({ id: doc.id, ...doc.data() }));
+                showToast("Se han añadido las Cabinas 1, 2 y 3 a la configuración", "success");
+            }
         }
 
         renderSpaces();
