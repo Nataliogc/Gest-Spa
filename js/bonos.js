@@ -145,7 +145,7 @@ async function continueWithoutPaymentFromBlock() {
     if (typeof SpaPaymentControl !== 'undefined') {
         const voucherObj = state.bonos.find(b => b.bono === pending.code || b.codigo === pending.code);
         const voucherId = voucherObj?.id || pending.code;
-        const collection = (voucherObj?.origen || '').toLowerCase().includes('woo') ? 'woo_sales' : 'local_sales';
+        const collection = 'spa_vouchers';
 
         await SpaPaymentControl.continueWithoutPayment(voucherId, { collection, usuario: 'recepcion' });
     }

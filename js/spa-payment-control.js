@@ -208,7 +208,7 @@ async function registerPayment(voucherId, paymentData, options = {}) {
             throw new Error('Firestore no disponible');
         }
 
-        const collection = options.collection || 'local_sales';
+        const collection = options.collection || 'spa_vouchers';
         const docRef = db.collection(collection).doc(voucherId);
         const doc = await docRef.get();
 
@@ -376,7 +376,7 @@ async function continueWithoutPayment(voucherId, options = {}) {
             throw new Error('Firestore no disponible');
         }
 
-        const collection = options.collection || 'local_sales';
+        const collection = options.collection || 'spa_vouchers';
         const docRef = db.collection(collection).doc(voucherId);
 
         await docRef.update({
@@ -409,7 +409,7 @@ async function markPaymentCleared(voucherId, options = {}) {
             throw new Error('Firestore no disponible');
         }
 
-        const collection = options.collection || 'local_sales';
+        const collection = options.collection || 'spa_vouchers';
         const docRef = db.collection(collection).doc(voucherId);
 
         await docRef.update({
@@ -510,7 +510,7 @@ function renderPaymentBadge(voucher) {
 function renderPaymentBlock(voucher) {
     const status = getPaymentStatus(voucher);
     const voucherId = voucher.id || voucher.bono || voucher.codigo;
-    const collection = (voucher.origen || '').toLowerCase().includes('woo') ? 'woo_sales' : 'spa_vouchers';
+    const collection = 'spa_vouchers';
 
     return `
         <div class="payment-block" style="border-left: 4px solid ${status.color}; padding: 12px; margin: 12px 0; background: ${status.color}10;">
