@@ -365,6 +365,49 @@
             overflow-y: auto;
         }
 
+        /* Fullscreen modal mode for general day summary */
+        .vg-detail-panel.fullscreen {
+            right: auto;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            width: 96vw;
+            max-width: 1200px;
+            height: 94vh;
+            border-radius: 16px;
+            border-left: none;
+            border: 2px solid var(--accent);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+            transition: opacity 0.3s, transform 0.3s;
+        }
+
+        .vg-detail-panel.fullscreen .vg-detail-header {
+            border-radius: 14px 14px 0 0;
+            padding: 18px 30px;
+        }
+
+        .vg-detail-panel.fullscreen .vg-detail-header h3 {
+            font-size: 1.3rem;
+        }
+
+        .vg-detail-panel.fullscreen .vg-detail-body {
+            max-height: calc(94vh - 70px);
+            overflow-y: auto;
+            padding: 25px 30px;
+        }
+
+        .vg-detail-panel.fullscreen .detail-booking-item {
+            padding: 14px 18px;
+        }
+
+        .vg-detail-panel.fullscreen .detail-booking-time {
+            font-size: 1rem;
+        }
+
+        .vg-detail-panel.fullscreen .detail-booking-service {
+            font-size: 0.9rem;
+        }
+
         .vg-detail-header {
             padding: 20px 25px;
             background: #1e293b;
@@ -1058,8 +1101,10 @@
             const thead = document.getElementById('vg-thead');
             let headerHTML = '<tr><th>TERAPEUTA</th>';
             dates.forEach(d => {
+                const ds = fmt(d);
+                const dateLabel = `${dayName(d)} ${d.getDate()}`;
                 const todayClass = isToday(d) ? 'is-today' : (isWeekend(d) ? 'is-weekend' : '');
-                headerHTML += `<th class="${todayClass}">
+                headerHTML += `<th class="${todayClass}" onclick="openGeneralDayDetail('${ds}', '${dateLabel}')" style="cursor:pointer; transition:background 0.2s;" title="Ver resumen del día">
                     <span class="day-name">${dayName(d)}</span>
                     <span class="day-num">${d.getDate()}</span>
                 </th>`;
@@ -1226,8 +1271,21 @@
         // DETAIL PANEL
         // ============================================
         function openDetail(staffId, dateStr) {
-            const staff = staffList.find(s => s.id === staffId);
+            const staffIndex = staffList.findIndex(s => s.id === staffId);
+            const staff = staffList[staffIndex];
             if (!staff) return;
+
+            // Apply therapist color to header
+            const color = STAFF_COLORS[staffIndex % STAFF_COLORS.length];
+            const header = document.querySelector('.vg-detail-header');
+            if (header) {
+                header.style.background = color;
+                header.style.color = '#fff';
+                const closeBtn = header.querySelector('.close-btn');
+                if (closeBtn) closeBtn.style.color = '#fff';
+            }
+            const subTitle = document.getElementById('detail-subtitle');
+            if (subTitle) subTitle.style.color = 'rgba(255,255,255,0.9)';
 
             const data = globalGridData[staffId]?.[dateStr];
             if (!data) return;
@@ -1318,15 +1376,22 @@
             document.getElementById('detail-body').innerHTML = html;
 
             // Show panel (side panel mode for detail)
-            document.getElementById('vg-detail-panel').classList.remove('centered');
+            const panelEl = document.getElementById('vg-detail-panel');
+            panelEl.classList.remove('centered');
+            panelEl.classList.remove('fullscreen');
             document.getElementById('vg-overlay').classList.add('visible');
-            document.getElementById('vg-detail-panel').classList.add('open');
+            panelEl.classList.add('open');
         }
 
         function closeDetailPanel() {
+            const p = document.getElementById('vg-detail-panel');
             document.getElementById('vg-overlay').classList.remove('visible');
-            document.getElementById('vg-detail-panel').classList.remove('open');
-            document.getElementById('vg-detail-panel').classList.remove('centered');
+            p.classList.remove('open');
+            p.classList.remove('centered');
+            p.classList.remove('fullscreen');
+            // Reset header inline styles
+            const hdr = p.querySelector('.vg-detail-header');
+            if (hdr) { hdr.style.background = ''; hdr.style.color = ''; }
             currentEditingId = null;
             currentEditingCollection = null;
         }
@@ -1347,6 +1412,150 @@
             }
             blocks.push(currentBlock);
             return blocks;
+        }
+
+        // ============================================
+        // GENERAL DAY DETAIL (ALL STAFF - COLUMN LAYOUT)
+        // ============================================
+        function openGeneralDayDetail(dateStr, label) {
+            const panel = document.getElementById('vg-detail-panel');
+            panel.classList.remove('centered');
+            panel.classList.add('fullscreen');
+
+            // Dark header
+            const header = document.querySelector('.vg-detail-header');
+            if (header) {
+                header.style.background = 'linear-gradient(135deg, #1e293b, #0f172a)';
+                header.style.color = '#fff';
+                const closeBtn = header.querySelector('.close-btn');
+                if (closeBtn) closeBtn.style.color = '#fff';
+            }
+            const subTitle = document.getElementById('detail-subtitle');
+            if (subTitle) subTitle.style.color = '#94a3b8';
+
+            const dateObj = new Date(dateStr + 'T12:00:00');
+            const fullDateLabel = dateObj.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+
+            document.getElementById('detail-title').textContent = '\uD83D\uDCCB Resumen del D\u00eda';
+            document.getElementById('detail-subtitle').textContent = fullDateLabel;
+
+            // --- Build Column Layout: one per therapist ---
+            let totalBookings = 0;
+            let html = '';
+
+            // Summary stats row
+            let staffCards = '';
+            staffList.forEach((staff, idx) => {
+                const data = globalGridData[staff.id]?.[dateStr];
+                const color = STAFF_COLORS[idx % STAFF_COLORS.length];
+                const name = staff.alias || staff.nombre || staff.name || 'N/A';
+                const initials = (staff.nombre || staff.name || 'X').substring(0, 2).toUpperCase();
+                const bookings = (data && data.bookings) ? data.bookings : [];
+                const freeSlots = (data && data.freeSlots) ? data.freeSlots : [];
+                const schedule = data ? data.schedule : null;
+                const isWorking = schedule && schedule.status === 'ok' && schedule.shifts && schedule.shifts.length > 0;
+                totalBookings += bookings.length;
+
+                staffCards += `<div style="flex:1; min-width:280px; max-width:400px; background:#fff; border-radius:14px; border:2px solid ${color}30; box-shadow:0 4px 15px rgba(0,0,0,0.06); display:flex; flex-direction:column; overflow:hidden;">`;
+
+                // Column Header with therapist color
+                staffCards += `<div style="background:${color}; padding:12px 16px; display:flex; align-items:center; gap:10px;">
+                    <div style="width:36px; height:36px; border-radius:50%; background:rgba(255,255,255,0.25); display:flex; align-items:center; justify-content:center; font-weight:900; font-size:0.8rem; color:#fff;">${initials}</div>
+                    <div>
+                        <div style="font-weight:800; color:#fff; font-size:1rem;">${name}</div>
+                        <div style="font-size:0.7rem; color:rgba(255,255,255,0.8);">${bookings.length} citas${isWorking ? '' : ' · Libre'}</div>
+                    </div>
+                </div>`;
+
+                // Column Body
+                staffCards += `<div style="flex:1; overflow-y:auto; padding:12px;">`;
+
+                if (!isWorking) {
+                    staffCards += `<div style="text-align:center; padding:30px 10px; color:#94a3b8;">
+                        <i class="fas fa-bed" style="font-size:1.5rem; margin-bottom:8px;"></i>
+                        <div style="font-weight:700; font-size:0.85rem;">D\u00eda libre</div>
+                    </div>`;
+                } else {
+                    // Shifts info
+                    if (schedule.shifts) {
+                        staffCards += `<div style="margin-bottom:10px;">`;
+                        schedule.shifts.forEach(sh => {
+                            staffCards += `<div style="display:inline-block; background:${color}12; color:${color}; padding:3px 10px; border-radius:6px; font-size:0.7rem; font-weight:700; margin-right:4px; margin-bottom:4px;"><i class="fas fa-clock" style="font-size:0.55rem; margin-right:3px;"></i>${sh.start}-${sh.end}</div>`;
+                        });
+                        staffCards += `</div>`;
+                    }
+
+                    // Bookings
+                    if (bookings.length > 0) {
+                        bookings.forEach(b => {
+                            const endMin = timeToMinutes(b.hora) + (parseInt(b.duracion) || 60);
+                            const roomLabel = collectionToRoomLabel(b._collection);
+                            staffCards += `<div onclick="openEditReservation('${b.id}', '${b._collection}', '${staff.id}', '${dateStr}')" style="padding:8px 10px; background:#fffbeb; border:1px solid #fde68a; border-left:4px solid ${color}; border-radius:0 8px 8px 0; margin-bottom:6px; cursor:pointer; transition:all 0.15s;" onmouseover="this.style.transform='translateX(3px)';this.style.boxShadow='0 2px 8px rgba(0,0,0,0.08)'" onmouseout="this.style.transform='';this.style.boxShadow=''">
+                                <div style="font-weight:800; font-size:0.85rem; color:#92400e;">${b.hora} \u2014 ${minutesToTime(endMin)}</div>
+                                <div style="font-size:0.78rem; color:#78350f; margin-top:2px; font-weight:600;">${b.servicio || 'Servicio'}</div>
+                                <div style="display:flex; justify-content:space-between; margin-top:4px; font-size:0.72rem; color:#a16207;">
+                                    <span><i class="fas fa-user" style="font-size:0.55rem; margin-right:3px;"></i>${b.nombre || 'Cliente'}</span>
+                                    <span style="opacity:0.7;"><i class="fas fa-door-open" style="font-size:0.5rem; margin-right:2px;"></i>${roomLabel}</span>
+                                </div>
+                            </div>`;
+                        });
+                    }
+
+                    // Free slots
+                    if (freeSlots.length > 0) {
+                        const blocks = groupFreeSlots(freeSlots);
+                        staffCards += `<div style="margin-top:8px; padding-top:8px; border-top:1px dashed #e2e8f0;">
+                            <div style="font-size:0.65rem; font-weight:800; color:#16a34a; text-transform:uppercase; margin-bottom:6px;"><i class="fas fa-plus-circle" style="margin-right:4px;"></i>Huecos libres</div>`;
+                        blocks.forEach(block => {
+                            const blockEnd = minutesToTime(timeToMinutes(block[block.length - 1]) + 15);
+                            const durMins = block.length * 15;
+                            staffCards += `<div style="display:flex; flex-wrap:wrap; gap:4px; margin-bottom:6px;">`;
+                            staffCards += `<div style="width:100%; font-size:0.7rem; font-weight:700; color:#166534; margin-bottom:2px;"><i class="fas fa-clock" style="font-size:0.55rem; margin-right:3px;"></i>${block[0]} - ${blockEnd} <span style="color:#22c55e; font-weight:600;">(${durMins}min)</span></div>`;
+                            for (let i = 0; i < block.length; i += 2) {
+                                staffCards += `<div onclick="startBooking('${staff.id}', '${dateStr}', '${block[i]}')" style="padding:3px 8px; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:6px; font-size:0.68rem; font-weight:700; color:#166534; cursor:pointer; transition:all 0.15s;" onmouseover="this.style.background='#dcfce7'" onmouseout="this.style.background='#f0fdf4'">${block[i]}</div>`;
+                            }
+                            staffCards += `</div>`;
+                        });
+                        staffCards += `</div>`;
+                    } else if (bookings.length > 0) {
+                        staffCards += `<div style="text-align:center; padding:10px; color:#ef4444; font-size:0.75rem; margin-top:8px;"><i class="fas fa-ban" style="margin-right:4px;"></i>Sin huecos</div>`;
+                    }
+                }
+
+                staffCards += `</div>`; // end body
+                staffCards += `</div>`; // end column
+            });
+
+            // Summary bar
+            const uniqueClients = [...new Set(staffList.flatMap((s) => {
+                const d = globalGridData[s.id]?.[dateStr];
+                return d && d.bookings ? d.bookings.map(b => (b.nombre || b.cliente || '').toLowerCase()) : [];
+            }).filter(n => n))].length;
+
+            html += `<div style="display:flex; gap:12px; margin-bottom:18px; flex-wrap:wrap;">
+                <div style="flex:1; min-width:140px; background:linear-gradient(135deg,#eff6ff,#dbeafe); padding:16px; border-radius:15px; border:1px solid #93c5fd; text-align:center; box-shadow:0 4px 6px -1px rgba(0,0,0,0.05);">
+                    <div style="font-size:1.8rem; font-weight:900; color:#1e40af; line-height:1;">${totalBookings}</div>
+                    <div style="font-size:0.7rem; font-weight:800; color:#3b82f6; text-transform:uppercase; margin-top:4px;">Citas Hoy</div>
+                </div>
+                <div style="flex:1; min-width:140px; background:linear-gradient(135deg,#f0fdf4,#dcfce7); padding:16px; border-radius:15px; border:1px solid #86efac; text-align:center; box-shadow:0 4px 6px -1px rgba(0,0,0,0.05);">
+                    <div style="font-size:1.8rem; font-weight:900; color:#166534; line-height:1;">${staffList.length}</div>
+                    <div style="font-size:0.7rem; font-weight:800; color:#22c55e; text-transform:uppercase; margin-top:4px;">Terapeutas</div>
+                </div>
+                <div style="flex:1; min-width:140px; background:linear-gradient(135deg,#fefce8,#fef9c3); padding:16px; border-radius:15px; border:1px solid #fde047; text-align:center; box-shadow:0 4px 6px -1px rgba(0,0,0,0.05);">
+                    <div style="font-size:1.8rem; font-weight:900; color:#854d0e; line-height:1;">${uniqueClients}</div>
+                    <div style="font-size:0.7rem; font-weight:800; color:#ca8a04; text-transform:uppercase; margin-top:4px;">Clientes Únicos</div>
+                </div>
+            </div>`;
+
+            // Columns container (Flex 3 columns)
+            html += `<div style="display:flex; gap:16px; overflow-x:auto; align-items:flex-start; padding:10px 5px 20px 5px; min-height:60vh;">`;
+            html += staffCards;
+            html += `</div>`;
+
+            document.getElementById('detail-body').innerHTML = html;
+
+            document.getElementById('vg-overlay').classList.add('visible');
+            panel.classList.add('open');
         }
 
         // ============================================
@@ -1417,6 +1626,7 @@
             });
 
             console.log(`[VG] Servicios filtrados para ${displayName}: ${filteredServices.length} de ${allCatalogItems.length}`);
+            window.currentFilteredServices = filteredServices; // Export for search UI
 
             let serviceOptions = '<option value="">Seleccionar servicio...</option>';
             filteredServices.forEach(item => {
@@ -1442,6 +1652,7 @@
                 roomOptions += `<option value="${r.code}">${r.label}</option>`;
             });
 
+            // --- BUILD NEW FORM (MATCHING RESERVAS.HTML LAYOUT) ---
             const html = `
                 <div class="vg-detail-section">
                     <div style="background: #ecfdf5; border: 1px solid #86efac; padding: 10px 14px; border-radius: 10px; margin-bottom: 15px; display: flex; align-items: center; gap: 10px;">
@@ -1452,84 +1663,258 @@
                         </div>
                     </div>
                 </div>
-                <div class="vg-quick-form">
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label>Hora inicio</label>
-                            <input type="time" id="qf-time" value="${time}">
+
+                <div id="booking-form-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; background: #fff; padding: 20px; border-radius: 10px; border: 1px solid #edf2f7; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+                    
+                    <!-- ROW 1: Date, Time, Pax, Duration, Room, Origin -->
+                    <div style="display: flex; gap: 10px; align-items: flex-end; grid-column: 1 / -1;">
+                        <div class="form-group" style="flex: 0 0 130px; margin-bottom: 0;">
+                            <label style="font-size: 0.65rem; font-weight: 800; color: #1e40af; text-transform: uppercase;">Fecha</label>
+                            <input type="date" id="res-date" value="${dateStr}" class="vg-input" style="font-weight:700; color:#1e3a8a;">
                         </div>
-                        <div class="form-group">
-                            <label>Duración (min)</label>
-                            <input type="number" id="qf-duration" value="60" min="15" step="15">
+                        <div class="form-group" style="flex: 0 0 90px; margin-bottom: 0;">
+                             <label style="font-size: 0.65rem; font-weight: 800; color: #1e40af; text-transform: uppercase;">Hora</label>
+                             <input type="time" id="res-time" value="${time}" class="vg-input" style="font-weight:700; color:#1e3a8a;">
                         </div>
-                    </div>
-
-                    <div class="form-group">
-                        <label>Servicio</label>
-                        <select id="qf-service" onchange="onServiceChange()">
-                            ${serviceOptions}
-                        </select>
-                    </div>
-
-                    <div class="form-group">
-                        <label>Sala / Espacio</label>
-                        <select id="qf-room">
-                            ${roomOptions}
-                        </select>
-                    </div>
-
-                    <div class="form-group">
-                        <label>Cliente</label>
-                        <input type="text" id="qf-client" placeholder="Nombre completo" required>
-                    </div>
-
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label>Teléfono</label>
-                            <input type="tel" id="qf-phone" placeholder="XXX XXX XXX">
-                        </div>
-                        <div class="form-group">
-                            <label>Pax</label>
-                            <input type="number" id="qf-pax" value="1" min="1" max="10">
-                        </div>
-                    </div>
-
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label>Origen</label>
-                            <select id="qf-origin">
-                                <option value="particular">Particular</option>
-                                <option value="hotel_inc">Hotel Incluido</option>
-                                <option value="hotel_no_inc">Hotel No Incluido</option>
+                         <div class="form-group" style="flex: 0 0 60px; margin-bottom: 0;">
+                             <label style="font-size: 0.6rem; font-weight: 700; color: #64748b; text-transform: uppercase; text-align: center;">Pax</label>
+                             <input type="number" id="res-pax" class="vg-input" value="1" min="1" style="text-align: center;">
+                         </div>
+                         <div class="form-group" style="flex: 0 0 70px; margin-bottom: 0;">
+                             <label style="font-size: 0.6rem; font-weight: 700; color: #64748b; text-transform: uppercase; text-align: center;">Min</label>
+                             <input type="number" id="res-duration" class="vg-input" value="60" step="5" style="text-align: center;">
+                         </div>
+                         <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                             <label style="font-size: 0.65rem; font-weight: 800; color: #4a5568; text-transform: uppercase;">Sala</label>
+                             <select id="res-room" class="vg-input">
+                                ${roomOptions}
+                             </select>
+                         </div>
+                         <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                             <label style="font-size: 0.65rem; font-weight: 800; color: #4a5568; text-transform: uppercase;">Origen</label>
+                             <select id="res-origin" class="vg-input" onchange="togglePaymentBlock()">
+                                <option value="particular">Particular (Pago Directo)</option>
+                                <option value="hotel_inc">Hotel - Incluido</option>
+                                <option value="hotel_no_inc">Hotel - NO Incluidos</option>
                                 <option value="bono">Bono Spa</option>
                                 <option value="smartbox">Smartbox</option>
                                 <option value="wonderbox">Wonderbox</option>
+                             </select>
+                         </div>
+                    </div>
+                    
+                    <!-- ROW 2: Client, Phone -->
+                    <div style="display: flex; gap: 10px; grid-column: 1 / -1; margin-top:5px;">
+                        <div class="form-group" style="flex: 2; margin-bottom: 0;">
+                            <label style="font-size: 0.65rem; font-weight: 800; color: #4a5568; text-transform: uppercase;">Cliente</label>
+                            <input type="text" id="res-client" class="vg-input" placeholder="Nombre Completo" style="background: #f8fafc; font-weight:600;">
+                        </div>
+                        <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                            <label style="font-size: 0.6rem; font-weight: 700; color: #64748b; text-transform: uppercase;">Teléfono</label>
+                            <input type="tel" id="res-phone" class="vg-input" placeholder="XXX XXX XXX" style="background: #f8fafc;">
+                        </div>
+                    </div>
+                    
+                    <!-- ROW 3: Service, Therapist -->
+                    <div style="display: flex; gap: 10px; grid-column: 1 / -1; margin-top:5px;">
+                        <div class="form-group" style="flex: 1.5; margin-bottom: 0; position: relative;">
+                            <label style="font-size: 0.65rem; font-weight: 800; color: #4a5568; text-transform: uppercase;">Servicio</label>
+                            <div style="position: relative;">
+                                <input type="text" id="res-servicio-search" placeholder="🔍 Buscar servicio..." 
+                                    class="vg-input"
+                                    style="width: 100%; font-weight: 600; color: var(--accent);"
+                                    oninput="filterServiceOptions(this.value)" 
+                                    onfocus="showServiceDropdown()"
+                                    onblur="setTimeout(() => hideServiceDropdown(), 200)">
+                                <i class="fas fa-chevron-down" style="position: absolute; right: 25px; top: 50%; transform: translateY(-50%); color: #64748b; pointer-events: none;"></i>
+                                <div id="res-servicio-results" style="display: none; position: absolute; top: 100%; left: 0; right: 0; background: #fff; border: 1px solid #cbd5e1; border-radius: 8px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); z-index: 1000; max-height: 250px; overflow-y: auto; margin-top: 4px;"></div>
+                            </div>
+                            <!-- Hidden Select for Logic Compatibility -->
+                            <select id="res-service" style="display:none;" onchange="onServiceChange()">
+                                ${serviceOptions}
                             </select>
                         </div>
-                        <div class="form-group">
-                            <label>Precio Total</label>
-                            <input type="number" id="qf-price" value="0" min="0" step="0.5">
+                        <div class="form-group" style="flex: 0.8; margin-bottom: 0;">
+                             <label style="font-size: 0.65rem; font-weight: 800; color: #4a5568; text-transform: uppercase;">Terapeuta</label>
+                             <select id="res-staff" class="vg-input">
+                                <!-- Reusing staff options logic if needed or just listing all -->
+                                ${staffList.map(s => `<option value="${s.id}" ${s.id === staffId ? 'selected' : ''}>${s.alias || s.nombre || s.name}</option>`).join('')}
+                             </select>
+                        </div>
+                    </div>
+                    
+                    <!-- Obs -->
+                    <div class="form-group" style="grid-column: 1 / -1; margin-bottom: 0; margin-top:5px;">
+                        <label style="font-size: 0.65rem; font-weight: 800; color: #4a5568; text-transform: uppercase;">Observaciones</label>
+                        <textarea id="res-obs" class="vg-input" style="min-height: 80px; resize:vertical;" placeholder="Notas..."></textarea>
+                    </div>
+                    
+                    <!-- Payment Block -->
+                    <div id="pago-particular-block" style="grid-column: 1 / -1; border-left: 4px solid #f59e0b; padding: 15px; margin-top: 15px; background: #fffcf0; border-radius: 0 8px 8px 0; display:block;">
+                        <h4 style="margin: 0 0 10px 0; font-size: 0.75rem; font-weight: 800; color: #92400e; display: flex; align-items: center; gap: 8px;">
+                            <i class="fas fa-credit-card"></i> 💳 CONTROL DE PAGO
+                        </h4>
+                        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;">
+                             <!-- Total -->
+                             <div style="background: #fff; padding: 8px; border-radius: 6px; border: 1px solid #fef3c7; text-align: center;">
+                                 <small style="color: #92400e; font-size: 0.6rem; font-weight: 700; text-transform: uppercase;">Total</small><br>
+                                 <input type="number" id="res-price-total" value="0" onchange="updatePendingCalc()" style="width: 100%; border: none; text-align: center; font-weight: bold; color: #1e293b; font-size: 1rem; outline:none;" placeholder="0.00">
+                             </div>
+                             <!-- Pagado -->
+                             <div style="background: #fff; padding: 8px; border-radius: 6px; border: 1px solid #fef3c7; text-align: center;">
+                                 <small style="color: #22c55e; font-size: 0.6rem; font-weight: 700; text-transform: uppercase;">Pagado</small><br>
+                                 <input type="number" id="res-price-paid" value="0" onchange="updatePendingCalc()" style="width: 100%; border: none; text-align: center; font-weight: bold; color: #22c55e; font-size: 1rem; outline:none;" placeholder="0.00">
+                             </div>
+                             <!-- Pendiente -->
+                             <div style="background: #fff; padding: 8px; border-radius: 6px; border: 1px solid #fef3c7; text-align: center;">
+                                 <small style="color: #ef4444; font-size: 0.6rem; font-weight: 700; text-transform: uppercase;">Pendiente</small><br>
+                                 <input type="number" id="res-price-pending" value="0" readonly style="width: 100%; border: none; text-align: center; font-weight: bold; color: #ef4444; font-size: 1rem; outline:none; background:transparent;">
+                             </div>
                         </div>
                     </div>
 
-                    <div class="form-group">
-                        <label>Observaciones</label>
-                        <textarea id="qf-obs" rows="2" placeholder="Notas..."></textarea>
+                    <!-- Footer Buttons -->
+                    <div style="grid-column: 1 / -1; display:flex; gap:10px; margin-top:10px; flex-wrap:wrap;">
+                        <button type="button" class="vg-submit-btn" onclick="submitQuickBooking('${staffId}', '${dateStr}')" style="flex:2;">
+                            <i class="fas fa-save"></i> GUARDAR RESERVA
+                        </button>
+                        <div id="delete-btn-container" style="flex:1;"></div>
                     </div>
 
-                    <button type="button" class="vg-submit-btn" onclick="submitQuickBooking('${staffId}', '${dateStr}')">
-                        <i class="fas fa-save"></i> GUARDAR RESERVA
-                    </button>
-                    <div id="delete-btn-container" style="margin-top:10px;"></div>
                 </div>
             `;
+
 
             document.getElementById('detail-body').innerHTML = html;
         }
 
+        // === HELPER FUNCTIONS FOR NEW FORM ===
+        function updatePendingCalc() {
+            const total = parseFloat(document.getElementById('res-price-total').value) || 0;
+            const paid = parseFloat(document.getElementById('res-price-paid').value) || 0;
+            const pending = Math.max(0, total - paid);
+            document.getElementById('res-price-pending').value = pending.toFixed(2);
+        }
+
+        function togglePaymentBlock() {
+            // Always visible as requested
+        }
+
+        // === HELPER FUNCTIONS FOR NEW FORM ===
+        // --- NEW SEARCHABLE DROPDOWN HELPERS ---
+        function filterServiceOptions(query) {
+            const resultsDiv = document.getElementById('res-servicio-results');
+            const services = window.currentFilteredServices || [];
+
+            if (!query) {
+                renderServiceResults(services);
+                return;
+            }
+
+            const lowerQ = query.toLowerCase();
+            const filtered = services.filter(s => {
+                const name = (s.name || s.nombre || '').toLowerCase();
+                return name.includes(lowerQ);
+            });
+            renderServiceResults(filtered);
+        }
+
+        function renderServiceResults(list) {
+            const resultsDiv = document.getElementById('res-servicio-results');
+            if (!list || list.length === 0) {
+                resultsDiv.innerHTML = '<div style="padding:10px; color:#64748b; font-size:0.8rem;">No se encontraron servicios</div>';
+                resultsDiv.style.display = 'block';
+                return;
+            }
+
+            let html = '';
+            list.forEach(item => {
+                const name = item.name || item.nombre;
+                const dur = item.duration || item.duracion || 60;
+                const price = item.price_pax || item.price || item.precio || 0;
+                html += `
+                    <div class="service-result-item" 
+                        style="padding: 8px 12px; cursor: pointer; border-bottom: 1px solid #f1f5f9; display: flex; justify-content: space-between; align-items: center;"
+                        onclick="selectService('${name.replace(/'/g, "\\'")}')">
+                        <span style="font-weight: 600; color: #334155; font-size: 0.9rem;">${name}</span>
+                        <span style="font-size: 0.75rem; color: #64748b; background: #f1f5f9; padding: 2px 6px; border-radius: 4px;">${dur} min · ${price}€</span>
+                    </div>
+                `;
+            });
+            resultsDiv.innerHTML = html;
+            resultsDiv.style.display = 'block';
+        }
+
+        function showServiceDropdown() {
+            filterServiceOptions(''); // Show all
+        }
+
+        function hideServiceDropdown() {
+            const resDiv = document.getElementById('res-servicio-results');
+            if (resDiv) resDiv.style.display = 'none';
+        }
+
+        function selectService(name) {
+            const input = document.getElementById('res-servicio-search');
+            const select = document.getElementById('res-service');
+
+            if (input) input.value = name;
+            if (select) {
+                select.value = name;
+
+                // If not in select, add it (strict logic helper)
+                if (select.value !== name) {
+                    const newOpt = document.createElement('option');
+                    newOpt.value = name;
+                    newOpt.text = name;
+                    newOpt.selected = true;
+                    select.add(newOpt, 0);
+                    select.selectedIndex = 0;
+                }
+                // Trigger change manually
+                onServiceChange();
+            }
+            hideServiceDropdown();
+        }
+
+        function onServiceChange() {
+            const sel = document.getElementById('res-service');
+            const opt = sel.options[sel.selectedIndex];
+            if (opt && opt.dataset.duration) {
+                document.getElementById('res-duration').value = opt.dataset.duration;
+            }
+            if (opt && opt.dataset.price) {
+                document.getElementById('res-price-total').value = opt.dataset.price;
+                updatePendingCalc();
+            }
+            // Auto-select room based on space
+            if (opt && opt.dataset.space) {
+                const space = opt.dataset.space.toLowerCase();
+                const roomSel = document.getElementById('res-room');
+                // Normalize catalog space names to room codes
+                let roomCode = '';
+                if (space.includes('cabina') || space === 'cabinauno') roomCode = 'reservas_cabina1';
+                else if (space === 'cabinados' || space === 'cabina2') roomCode = 'reservas_cabina2';
+                else if (space === 'cabinatres' || space === 'cabina3') roomCode = 'reservas_cabina3';
+                else if (space === 'sala_vip' || space === 'sala vip' || space === 'vip') roomCode = 'reservas_vip';
+                else if (space === 'suite') roomCode = 'reservas_suite';
+                else if (space === 'panacea') roomCode = 'reservas_panacea';
+                else if (space === 'peluq' || space === 'peluqueria' || space === 'peluquería') roomCode = 'reservas_peluqueria';
+
+                if (roomCode) {
+                    for (let i = 0; i < roomSel.options.length; i++) {
+                        if (roomSel.options[i].value === roomCode) {
+                            roomSel.selectedIndex = i;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
         async function openEditReservation(bookingId, collection, staffId, dateStr) {
             try {
-                // Show loading indicator in panel if needed, but for now we assume fast fetch
+                // Show loading...
                 const doc = await db.collection(collection).doc(bookingId).get();
                 if (!doc.exists) {
                     Swal.fire('Error', 'La reserva no existe', 'error');
@@ -1537,51 +1922,115 @@
                 }
                 const data = doc.data();
 
-                // Initialize form using startBooking to set up structure and options
+                // Initialize form
                 startBooking(staffId, dateStr, data.hora);
 
-                // Update Global State for Editing
+                // Update Global State
                 currentEditingId = bookingId;
                 currentEditingCollection = collection;
+                currentBookingData = data; // Store full data
 
-                // Update UI for Edit Mode
+                // ID Resolution (Priority: res_id for "RS-xxxx" style)
+                const displayId = data.res_id || data.localizador || data.id_visual || data.id_corto || data.short_id || data.reservation_number || data.displayId || bookingId;
+
+                // Update UI: Title and ID
                 document.getElementById('detail-title').textContent = 'Editar Reserva';
-                document.getElementById('detail-subtitle').textContent += ' (Editando)';
+                const clientName = data.nombre || data.cliente || 'Cliente';
 
-                // Populate Fields
-                document.getElementById('qf-time').value = data.hora || '';
-                document.getElementById('qf-duration').value = data.duracion || 60;
-                document.getElementById('qf-client').value = data.nombre || data.cliente || '';
-                document.getElementById('qf-phone').value = data.telefono || '';
-                document.getElementById('qf-pax').value = data.pax || 1;
-                document.getElementById('qf-origin').value = data.origen || 'particular';
-                document.getElementById('qf-price').value = data.precio || 0;
-                document.getElementById('qf-obs').value = data.observaciones || '';
+                document.getElementById('detail-subtitle').innerHTML = `
+                    <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-top:5px; width:100%;">
+                        <div>
+                            <span style="font-weight:800; font-size:1.2em; color:#fff; text-transform:uppercase;">${clientName}</span><br>
+                            <span style="font-size:0.85em; opacity:0.8; color:#94a3b8; font-weight:600;">${dateStr} (Edición en curso)</span>
+                        </div>
+                        <div style="text-align:right;">
+                            <span style="background:rgba(212,175,55,0.1); color:#d4af37; padding:4px 12px; border-radius:8px; font-weight:800; font-family:monospace; font-size:0.95em; border:1px solid #d4af37; border-style:dashed;"># ${displayId}</span>
+                        </div>
+                    </div>
+                `;
 
-                // Set Service
-                const serviceSel = document.getElementById('qf-service');
-                const serviceName = data.servicio || '';
-                // Try to find matching option by text
-                for (let i = 0; i < serviceSel.options.length; i++) {
-                    if (serviceSel.options[i].text === serviceName) {
-                        serviceSel.selectedIndex = i;
-                        break;
+                // 5. Fields STRICT POPULATION (No Defaults)
+                if (data.fecha) document.getElementById('res-date').value = data.fecha;
+                if (data.hora) document.getElementById('res-time').value = data.hora;
+
+                // Duration: prefer 'minutos' (user request), then 'duracion'
+                const durVal = data.minutos || data.duracion;
+                if (durVal) document.getElementById('res-duration').value = durVal;
+                else document.getElementById('res-duration').value = '';
+
+                if (data.nombre || data.cliente) document.getElementById('res-client').value = data.nombre || data.cliente;
+
+                // Phone: More fallbacks for different collection schemas (Priority: data.tel matching reservas.html)
+                const phoneVal = data.tel || data.telefono || data.phone || data.mobile || data.num_tel || data.cliente_telefono || '';
+                document.getElementById('res-phone').value = phoneVal;
+
+                if (data.pax) document.getElementById('res-pax').value = data.pax;
+                if (data.origen) document.getElementById('res-origin').value = data.origen;
+                if (data.obs || data.observaciones) document.getElementById('res-obs').value = data.obs || data.observaciones;
+
+                // 6. Payment (Strict DB Read with robust fallbacks matching reservas.html)
+                const total = parseFloat(data.precio_total || data.precio || data.total_reserva || data.total || data.precioTotal || data.importe || data.snapshot_price || data.sale_price || 0);
+
+                // Robust Paid calculation
+                let paid = 0;
+                if (data.pagado === true || data.estado_pago === 'pagado') {
+                    paid = total;
+                } else {
+                    paid = parseFloat(data.importe_pagado || data.pagado || (data.payment && data.payment.paid) || data.paid || data.paid_amount || 0);
+                }
+
+                const pending = parseFloat(data.pendiente || data.importe_pendiente || (total - paid));
+
+                document.getElementById('res-price-total').value = total.toFixed(2);
+                document.getElementById('res-price-paid').value = paid.toFixed(2);
+                document.getElementById('res-price-pending').value = Math.max(0, pending).toFixed(2);
+
+                // 7. Service (Exact Match Only)
+                const serviceSel = document.getElementById('res-service');
+                const serviceName = data.servicio;
+                if (serviceName) {
+                    // Update Search Input
+                    const searchInput = document.getElementById('res-servicio-search');
+                    if (searchInput) searchInput.value = serviceName;
+
+                    serviceSel.value = serviceName;
+                    let found = false;
+                    if (serviceSel.selectedIndex !== -1 && serviceSel.options[serviceSel.selectedIndex].value === serviceName) {
+                        found = true;
+                    } else {
+                        if (serviceSel.value === serviceName) found = true;
+                    }
+
+                    if (!found) {
+                        // Force Add Option (Strict Display)
+                        const newOpt = document.createElement('option');
+                        newOpt.value = serviceName;
+                        newOpt.text = serviceName;
+                        newOpt.selected = true;
+                        serviceSel.add(newOpt, 0);
+                        serviceSel.selectedIndex = 0;
                     }
                 }
 
-                // Set Room (Collection)
-                const roomSel = document.getElementById('qf-room');
+                // Set Room
+                const roomSel = document.getElementById('res-room');
                 roomSel.value = collection;
 
-                // Update Submit Button Text
+                // Set Staff (if form has staff selector)
+                const staffSel = document.getElementById('res-staff');
+                if (staffSel && data.terapeuta_id) {
+                    staffSel.value = data.terapeuta_id;
+                }
+
+                // Update Button
                 const btn = document.querySelector('.vg-submit-btn');
                 btn.innerHTML = '<i class="fas fa-sync-alt"></i> ACTUALIZAR RESERVA';
 
-                // Add Delete Button using inline HTML
+                // Add Delete Button
                 const delContainer = document.getElementById('delete-btn-container');
                 if (delContainer) {
                     delContainer.innerHTML = `
-                        <button type="button" onclick="deleteCurrentBooking()" style="width:100%; padding:10px; background:#fee2e2; color:#b91c1c; border:1px solid #fecaca; border-radius:10px; font-weight:600; cursor:pointer;">
+                        <button type="button" onclick="deleteCurrentBooking()" style="width:100%; padding:15px; background:#fee2e2; color:#b91c1c; border:1px solid #fecaca; border-radius:10px; font-weight:700; cursor:pointer;">
                             <i class="fas fa-trash"></i> ELIMINAR RESERVA
                         </button>
                     `;
@@ -1620,54 +2069,26 @@
         }
 
 
-        function onServiceChange() {
-            const sel = document.getElementById('qf-service');
-            const opt = sel.options[sel.selectedIndex];
-            if (opt && opt.dataset.duration) {
-                document.getElementById('qf-duration').value = opt.dataset.duration;
-            }
-            if (opt && opt.dataset.price) {
-                document.getElementById('qf-price').value = opt.dataset.price;
-            }
-            // Auto-select room based on space
-            if (opt && opt.dataset.space) {
-                const space = opt.dataset.space.toLowerCase();
-                const roomSel = document.getElementById('qf-room');
-                // Normalize catalog space names to room codes
-                let roomCode = '';
-                if (space.includes('cabina') || space === 'cabinauno') roomCode = 'reservas_cabina1';
-                else if (space === 'cabinados' || space === 'cabina2') roomCode = 'reservas_cabina2';
-                else if (space === 'cabinatres' || space === 'cabina3') roomCode = 'reservas_cabina3';
-                else if (space === 'sala_vip' || space === 'sala vip' || space === 'vip') roomCode = 'reservas_vip';
-                else if (space === 'suite') roomCode = 'reservas_suite';
-                else if (space === 'panacea') roomCode = 'reservas_panacea';
-                else if (space === 'peluq' || space === 'peluqueria' || space === 'peluquería') roomCode = 'reservas_peluqueria';
-
-                if (roomCode) {
-                    for (let i = 0; i < roomSel.options.length; i++) {
-                        if (roomSel.options[i].value === roomCode) {
-                            roomSel.selectedIndex = i;
-                            break;
-                        }
-                    }
-                }
-            }
-        }
+        // onServiceChange replaced by helper above
 
         async function submitQuickBooking(staffId, dateStr) {
-            const staff = staffList.find(s => s.id === staffId);
+            // Re-read staff from form
+            const formStaffId = document.getElementById('res-staff').value || staffId;
+            const staff = staffList.find(s => s.id === formStaffId);
             if (!staff) return;
 
-            const time = document.getElementById('qf-time').value;
-            const duration = document.getElementById('qf-duration').value;
-            const service = document.getElementById('qf-service').value;
-            const room = document.getElementById('qf-room').value;
-            const client = document.getElementById('qf-client').value;
-            const phone = document.getElementById('qf-phone').value;
-            const pax = document.getElementById('qf-pax').value;
-            const origin = document.getElementById('qf-origin').value;
-            const price = document.getElementById('qf-price').value;
-            const obs = document.getElementById('qf-obs').value;
+            const dateVal = document.getElementById('res-date').value;
+            const time = document.getElementById('res-time').value;
+            const duration = document.getElementById('res-duration').value;
+            const service = document.getElementById('res-service').value; // value is name in our option builder
+            const room = document.getElementById('res-room').value;
+            const client = document.getElementById('res-client').value;
+            const phone = document.getElementById('res-phone').value;
+            const pax = document.getElementById('res-pax').value;
+            const origin = document.getElementById('res-origin').value;
+            const price = document.getElementById('res-price-total').value;
+            const paid = document.getElementById('res-price-paid').value;
+            const obs = document.getElementById('res-obs').value;
 
             if (!client) {
                 Swal.fire('Error', 'El nombre del cliente es obligatorio', 'error');
@@ -1689,7 +2110,7 @@
                 html: `
                     <div style="text-align:left; font-size:0.9rem; line-height:1.6;">
                         <b>Cliente:</b> ${client}<br>
-                        <b>Fecha:</b> ${dateStr}<br>
+                        <b>Fecha:</b> ${dateVal}<br>
                         <b>Hora:</b> ${time}<br>
                         <b>Servicio:</b> ${service || 'Sin especificar'}<br>
                         <b>Terapeuta:</b> ${staff.alias || staff.nombre || staff.name}<br>
@@ -1708,23 +2129,27 @@
 
             // Combine fields to payload
             // Combine fields to payload
-            const serviceName = document.getElementById('qf-service').options[document.getElementById('qf-service').selectedIndex].text;
+            const serviceName = document.getElementById('res-service').options[document.getElementById('res-service').selectedIndex]?.text || service;
 
             let payload = {
-                fecha: dateStr,
+                fecha: dateVal,
                 hora: time,
                 duracion: parseInt(duration),
-                servicio: serviceName, // Save service name as text
+                servicio: serviceName,
                 terapeuta: staff.nombre || staff.name,
-                terapeuta_id: staffId,
-                staff_name: staff.nombre || staff.name, // Ensure compatibility
-                staff_id: staffId, // Ensure compatibility
+                terapeuta_id: formStaffId,
+                staff_name: staff.nombre || staff.name,
+                staff_id: formStaffId,
                 nombre: client,
-                cliente: client, // Save both for compatibility
+                cliente: client,
                 telefono: phone,
                 pax: parseInt(pax),
                 origen: origin,
                 precio: parseFloat(price),
+                precioTotal: parseFloat(price),
+                importe_pagado: parseFloat(paid),
+                // Infer status
+                estado_pago: parseFloat(paid) >= parseFloat(price) ? 'pagado' : (parseFloat(paid) > 0 ? 'parcial' : 'pendiente'),
                 observaciones: obs,
                 updated_at: new Date()
             };
