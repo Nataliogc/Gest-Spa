@@ -2766,7 +2766,21 @@ function renderBonosFromState() {
         <tr>
             <td style="padding: 10px 5px;"><img src="${thumbUrl}" referrerpolicy="no-referrer" style="width: 35px; height: 35px; object-fit: cover; border-radius: 4px; border: 1px solid #e2e8f0;"></td>
             <td style="font-weight:600">${b.bono || '-'}</td>
-            <td>${b.producto || '-'}</td>
+            <td>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    ${(() => {
+                const prot = window.getServiceProtocol ? window.getServiceProtocol(b.producto) : { color: '#cbd5e1' };
+                return `<span style="width: 10px; height: 10px; border-radius: 50%; background: ${prot.color}; flex-shrink: 0;" title="${prot.tratamiento}"></span>`;
+            })()}
+                    ${b.producto || '-'}
+                </div>
+                <div style="font-size: 0.65rem; color: #94a3b8; margin-left: 18px; text-transform: uppercase; font-weight: 700;">
+                    ${(() => {
+                const prot = window.getServiceProtocol ? window.getServiceProtocol(b.producto) : { tratamiento: 'Normal' };
+                return prot.tratamiento;
+            })()}
+                </div>
+            </td>
             <td>${b.cliente || '-'}</td>
             <td>${formatDate(b.fecha || b.fecha_compra || b.date_created)}${expiryText}</td>
             <td style="font-weight:bold">${displayedPrice}€</td>

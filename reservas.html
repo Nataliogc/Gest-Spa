@@ -880,12 +880,19 @@
                                 <input type="text" id="res-bono"
                                     style="width: 100%; padding: 5px; border-radius: 4px; border: 1px solid #e2e8f0; font-size: 0.85rem;">
                             </div>
-                            <div class="form-group" id="sessions-group" style="margin-bottom: 0; display: none;">
+                            <!-- SESSIONS -->
+                            <div class="form-group" id="sessions-group"
+                                style="margin-bottom: 0; display: none; flex: 0.5;">
                                 <label
                                     style="font-size: 0.6rem; font-weight: 800; text-transform: uppercase;">Sesiones</label>
                                 <input type="number" id="res-sesiones" value="1"
                                     style="width: 100%; padding: 5px; border-radius: 4px; border: 1px solid #e2e8f0; font-size: 0.85rem; text-align: center;">
                             </div>
+                        </div>
+
+                        <!-- 💡 AVISO SALDO BONO (New detailed version) -->
+                        <div id="bono-saldo-notice"
+                            style="display: none; grid-column: 1 / -1; padding: 10px 15px; background: #fffcf0; border: 1px solid #fef3c7; border-left: 4px solid #f59e0b; border-radius: 8px; font-size: 0.82rem; color: #92400e; margin-bottom: 5px;">
                         </div>
 
                         <!-- ROW 5: COMPLEMENTOS (Full Width) -->
@@ -2009,6 +2016,7 @@
                 const all = [];
                 allServicesSnapshot.forEach(doc => all.push(doc.data()));
                 currentServices = all;
+                window.currentServices = currentServices; // Expose for app-core.js
 
                 currentComplementos = all.filter(s => (s.categoria || "").toLowerCase() === 'complemento');
 
@@ -2064,16 +2072,19 @@
             }
 
             // NEW VISIBILITY LOGIC (USER REQUEST: Spa, Salas/Panacea, Peluqueria are FIXED)
+            // NEW VISIBILITY LOGIC (USER REQUEST: Show room/sala even if fixed, to confirm where we are)
             const roomGroup = document.getElementById("room-selector-group");
             if (roomGroup) {
-                // HIDE for fixed rooms
-                if (contextCode === 'spa' || contextCode === 'panacea' || contextCode === 'peluqueria') {
-                    roomGroup.style.display = 'none';
+                roomGroup.style.display = 'block'; // Always show per user request
+                // Disable if it's a fixed room module
+                const isFixed = (contextCode === 'spa' || contextCode === 'panacea' || contextCode === 'peluqueria');
+                sel.disabled = isFixed;
+                if (isFixed) {
+                    sel.style.backgroundColor = "#f1f5f9";
+                    sel.style.color = "#475569";
                 } else {
-                    // SHOW for movable rooms (Cabinas 1-3, Suite, Vip)
-                    roomGroup.style.display = 'block';
-                    sel.disabled = false;
                     sel.style.backgroundColor = "#fff";
+                    sel.style.color = "#1e3a8a";
                 }
             }
         }
@@ -2272,11 +2283,52 @@
                     source: 'catalog'
                 }));
 
-                servicesToShow = [...masterFiltered, ...catalogFiltered];
+                // 3. Filter Packs (Globally visible multiservices)
+                const packsFiltered = catalogItems.filter(s => {
+                    const isPack = (s.items_incluidos && s.items_incluidos.length > 1) || (s.categoria && s.categoria.includes('pack')) || (s.nombre || '').toLowerCase().includes('pack');
+                    if (!isPack) return false;
+
+                    // Specific exclusions even for packs
+                    const cat = (s.categoria || "").toLowerCase();
+                    const EXCLUDED_CATEGORIES = (roomCode === 'peluqueria') ? ['restaurante', 'hotel'] : ['restaurante', 'hotel'];
+                    if (EXCLUDED_CATEGORIES.includes(cat)) return false;
+
+                    // Avoid duplicates with master/catalog
+                    const isAlreadyInMaster = masterFiltered.some(m => m.nombre === s.nombre);
+                    const isAlreadyInCatalog = catalogFiltered.some(c => c.nombre === s.nombre);
+
+                    return !isAlreadyInMaster && !isAlreadyInCatalog;
+                }).map(s => {
+                    // Auto-detect PAX for packs if not specified
+                    const name = (s.nombre || '').toLowerCase();
+                    let pax = s.pax || 2;
+                    if (name.includes('pareja') || name.includes('duo') || name.includes('dos personas') || name.includes('para dos') || name.includes('cuento para dos')) {
+                        pax = 2;
+                    }
+
+                    return {
+                        nombre: s.nombre,
+                        precio: s.precio || 0,
+                        pax_max: pax,
+                        espacio: 'PACK',
+                        categoria: 'pack',
+                        source: 'catalog_pack'
+                    };
+                });
+
+                // RE-SCAN SINGLE SERVICES for 2 pax detection (e.g. "Cuento para dos" as single item)
+                catalogFiltered.forEach(s => {
+                    const name = (s.nombre || '').toLowerCase();
+                    if (s.pax_max === 1 && (name.includes('pareja') || name.includes('duo') || name.includes('dos personas') || name.includes('para dos') || name.includes('cuento para dos'))) {
+                        s.pax_max = 2;
+                    }
+                });
+
+                servicesToShow = [...masterFiltered, ...catalogFiltered, ...packsFiltered];
 
             } else {
                 // --- LEGACY FLOW (NON-CABINA: BONOS, HOTEL, SMARTBOX...) ---
-                servicesToShow = (currentServices || []).filter(s => {
+                const legacyCatalog = (currentServices || []).filter(s => {
                     const cat = (s.categoria || "").toLowerCase();
                     const name = (s.nombre || "").toLowerCase();
 
@@ -2298,7 +2350,11 @@
 
                     const sAllowed = (Array.isArray(s.allowedSpaces) ? s.allowedSpaces : []).map(x => x.toLowerCase());
                     const isExplicitlyAllowed = sAllowed.includes(salaActual) || sAllowed.includes(roomCode);
-                    return isExplicitlyAllowed;
+
+                    // INCLUDE PACKS even if not explicitly allowed in this room
+                    const isPack = (s.items_incluidos && s.items_incluidos.length > 1) || (s.categoria && s.categoria.includes('pack'));
+
+                    return isExplicitlyAllowed || isPack;
                 }).map(s => ({
                     nombre: s.nombre,
                     precio: s.precio || 0,
@@ -2307,6 +2363,8 @@
                     categoria: s.categoria || '',
                     source: 'catalog_legacy'
                 }));
+
+                servicesToShow = legacyCatalog;
             }
 
 
@@ -2348,15 +2406,17 @@
                 sel.value = currentVal;
             } else if (roomCode === 'spa' && servicesToShow.length > 0) {
                 const defaultSpa = servicesToShow.find(s => s.nombre.toLowerCase().includes('circuito')) || servicesToShow[0];
-                sel.value = defaultSpa ? defaultSpa.nombre : "";
+                if (defaultSpa) sel.value = defaultSpa.nombre;
             } else {
                 // FORCE EMPTY for Panacea, Suite, Cabinas etc. to avoid auto-selecting default
                 sel.value = "";
             }
 
-            // Sync search box
             const searchInp = document.getElementById("res-servicio-search");
-            if (searchInp) searchInp.value = "";
+            if (searchInp) {
+                // Keep the search box in sync with the hidden select
+                searchInp.value = sel.value || "";
+            }
 
             // SPA-SPECIFIC UI ADJUSTMENTS
             const serviceGroup = document.getElementById("service-group");
@@ -2393,20 +2453,72 @@
 
             const q = query.toLowerCase().trim();
             // Filter non-empty options and apply search query
-            const filtered = window._allServiceOptions.filter(optData =>
-                optData.value !== "" && optData.text.toLowerCase().includes(q)
-            );
+            const filtered = window._allServiceOptions.filter(optData => {
+                if (optData.value === "") return false;
+                const text = optData.text.toLowerCase();
+
+                // 1. Direct match (includes)
+                if (text.includes(q)) return true;
+
+                // 2. Word-based match (all words in q must be in text)
+                const queryWords = q.split(/\s+/).filter(w => w.length > 2);
+                if (queryWords.length > 0 && queryWords.every(word => text.includes(word))) return true;
+
+                // 3. Simple fuzzy/typo handling per word
+                if (q.length > 3) {
+                    const textWords = text.split(/[\s\-\/]+/);
+                    for (const tWord of textWords) {
+                        if (tWord.length < 3) continue;
+                        if (Math.abs(tWord.length - q.length) < 3) {
+                            let common = 0;
+                            // Check characters present
+                            for (let i = 0; i < q.length; i++) {
+                                if (tWord.includes(q[i])) common++;
+                            }
+                            if (common / q.length >= 0.75) return true;
+                        }
+                    }
+                }
+
+                return false;
+            });
 
             if (filtered.length === 0) {
                 results.innerHTML = '<div style="padding: 10px; color: #64748b; font-size: 0.85rem; font-style: italic;">No se encontraron servicios</div>';
             } else {
-                results.innerHTML = filtered.map(optData => `
-                    <div class="service-result-item" 
-                        onclick="selectServiceFromDropdown('${optData.value.replace(/'/g, "\\'")}')"
-                        style="padding: 10px 12px; cursor: pointer; border-bottom: 1px solid #f1f5f9; font-size: 0.9rem; font-weight: 500; color: #1e293b; transition: background 0.2s;">
-                        ${optData.text}
-                    </div>
-                `).join('');
+                // Separar en Servicios y Packs
+                const services = filtered.filter(opt => opt.dataset.source !== 'catalog_pack');
+                const packs = filtered.filter(opt => opt.dataset.source === 'catalog_pack');
+
+                let html = "";
+
+                if (services.length > 0) {
+                    html += `<div style="padding: 8px 12px; background: #f8fafc; color: #64748b; font-size: 0.65rem; font-weight: 800; border-bottom: 1px solid #e2e8f0; text-transform: uppercase; letter-spacing: 0.05em;">Servicios Individuales</div>`;
+                    html += services.map(optData => renderItem(optData)).join('');
+                }
+
+                if (packs.length > 0) {
+                    html += `<div style="padding: 8px 12px; background: #fff7ed; color: #c2410c; font-size: 0.65rem; font-weight: 800; border-bottom: 1px solid #ffedd5; text-transform: uppercase; letter-spacing: 0.05em; margin-top: 4px;">Multi-Packs / Experiencias</div>`;
+                    html += packs.map(optData => renderItem(optData)).join('');
+                }
+
+                results.innerHTML = html;
+
+                function renderItem(optData) {
+                    const isPack = optData.dataset.source === 'catalog_pack';
+                    const badge = isPack ? '<span style="background: #fff7ed; color: #c2410c; font-size: 0.6rem; padding: 1px 5px; border-radius: 4px; margin-left: 8px; font-weight: 800; border: 1px solid #fcd34d;">PACK (+1)</span>' : '';
+                    const pax = parseInt(optData.dataset.paxMax) || 1;
+                    const paxIcon = pax > 1 ? ` <i class="fas fa-users" style="color: #94a3b8; font-size: 0.75rem;"></i><small style="color:#94a3b8; font-size:0.7rem;">${pax}</small>` : '';
+
+                    return `
+                        <div class="service-result-item" 
+                            onclick="selectServiceFromDropdown('${optData.value.replace(/'/g, "\\'")}')"
+                            style="padding: 8px 12px; cursor: pointer; border-bottom: 1px solid #f1f5f9; font-size: 0.85rem; font-weight: 600; color: #1e293b; transition: background 0.2s; display: flex; align-items: center; justify-content: space-between;">
+                            <span>${optData.text}${paxIcon}</span>
+                            ${badge}
+                        </div>
+                    `;
+                }
 
                 // Add hover style
                 const items = results.querySelectorAll('.service-result-item');
@@ -3573,7 +3685,7 @@
                     // Duración
                     const durationInput = document.getElementById("inputDuration");
                     if (durationInput) {
-                        durationInput.value = res.duracion || 60;
+                        durationInput.value = 60; // Default to 60 for new reservations
                     }
 
                     // Staff Selectors (Pre-fill logic) for new reservation from Voucher
@@ -3831,12 +3943,21 @@
                 <tr id="res-${res.id}" class="${isAnulada ? 'cancelled-row' : ''} ${isWaitlist ? 'row-waitlist' : ''}" style="${isNoShow ? 'background: #fef2f2; border-left: 4px solid #ef4444;' : ''}">
                     <td style="font-size: 0.65rem; color: #666; font-weight: 700;">${res.res_id || '-'}</td>
                     <td>
-                        <div style="font-weight: 600; ${isNoShow ? 'text-decoration: line-through; color: #991b1b;' : ''}">
+                        <div style="font-weight: 600; ${isNoShow ? 'text-decoration: line-through; color: #991b1b;' : ''}; display: flex; align-items: center; gap: 8px;">
                             ${res.nombre}
-                            ${res.is_pack_element || res.parent_id ? '<span style="background: #f97316; color: white; font-size: 0.55rem; padding: 1px 5px; border-radius: 4px; margin-left: 6px; font-weight: 800;">PACK</span>' : ''}
+                            ${(() => {
+                        const prot = window.getServiceProtocol ? window.getServiceProtocol(res.servicio) : null;
+                        if (!prot) return '';
+                        return `<span style="width: 10px; height: 10px; border-radius: 50%; background: ${prot.color}; display: inline-block;" title="${prot.tratamiento}"></span>`;
+                    })()}
+                            ${res.is_pack_element || res.parent_id ? '<span style="background: #f97316; color: white; font-size: 0.55rem; padding: 1px 5px; border-radius: 4px; font-weight: 800;">PACK</span>' : ''}
                         </div>
                         <div style="font-size: 0.7rem; color: #999;">
                             ${res.tel || '-'} ${res.bono ? ' | <i class="fas fa-ticket-alt"></i> ' + res.bono : ''}
+                            ${res.servicio ? (() => {
+                        const prot = window.getServiceProtocol ? window.getServiceProtocol(res.servicio) : null;
+                        return `<br><span style="color: ${prot ? prot.color : '#999'}; font-weight: 600;"><i class="fas fa-spa"></i> ${res.servicio}</span>`;
+                    })() : ''}
                             ${res.service_item ? '<br><i class="fas fa-cube"></i> ' + res.service_item : ''}
                             ${(res.staff_name || res.terapeuta) ? `<br><span style="font-size: 0.65rem; color: #0f766e; font-weight: 600;"><i class="fas fa-user-check"></i> ${res.staff_name || res.terapeuta}</span>` : ''}
                         </div>
@@ -4133,8 +4254,10 @@
             }
 
             let titleText = "Nueva Reserva";
-            if (currentModule.code.startsWith('cabina')) {
-                titleText += ` - ${currentModule.name || currentModule.code.toUpperCase()}`;
+            if (currentModule) {
+                // Use Name or Code
+                const modName = currentModule.name || currentModule.code.toUpperCase();
+                titleText = `Nueva Reserva · ${modName}`;
             }
             document.getElementById("modal-title").textContent = titleText;
             const disponibles = maxCapacity - paxActual;
@@ -4313,12 +4436,29 @@
                     }
 
                     svcSelect.value = targetVal;
+
+                    // Update search input as well
+                    const searchInp = document.getElementById("res-servicio-search");
+                    if (searchInp) searchInp.value = targetVal;
+
                     // Trigger change events
                     if (typeof updatePackInfo === 'function') updatePackInfo();
                     if (typeof updatePriceAutomation === 'function') updatePriceAutomation();
                 }
 
                 document.getElementById("res-obs").value = `Reserva de bono: ${data.producto}`;
+
+                // --- INFO EXTRA DEL BONO ---
+                const bonoNotice = document.getElementById("bono-saldo-notice");
+                if (bonoNotice) {
+                    let infoHtml = `<i class="fas fa-info-circle"></i> <b>Bono:</b> ${data.bono} | <b>Producto:</b> ${data.producto}`;
+                    if (data.cliente) infoHtml += ` | <b>Cliente:</b> ${data.cliente}`;
+                    if (data.saldo_html) infoHtml += ` | <b>Saldo:</b> ${data.saldo_html}`;
+                    else if (data.sesiones_restantes) infoHtml += ` | <b>Saldo:</b> ${data.sesiones_restantes} sesiones`;
+
+                    bonoNotice.innerHTML = infoHtml;
+                    bonoNotice.style.display = "block";
+                }
 
                 // Calcular sesiones por defecto según pax/sesión del bono (mínimo 1)
                 const pax = parseInt(document.getElementById("res-pax").value) || 1;
@@ -6177,13 +6317,17 @@
             div.className = "booking-card";
             div.dataset.id = booking.id; // Add ID for direct access
 
-            // Color según estado
-            const color = booking.status === 'confirmada' ? '#4caf50' : '#f44336';
-            const bgColor = booking.status === 'confirmada' ? 'rgba(76, 175, 80, 0.05)' : 'rgba(244, 67, 54, 0.05)';
+            // Color según PROTOCOLO (User request)
+            const protocol = window.getServiceProtocol ? window.getServiceProtocol(booking.servicio) : { color: '#64748b' };
+            const borderColor = protocol.color;
+            const bgColor = `${protocol.color}10`; // 6% or 10% opacity
 
-            div.style.borderColor = "#e2e8f0";
-            div.style.borderLeftColor = color;
-            div.style.background = bgColor;
+            // Override if cancelled
+            const isCancelled = booking.status === 'anulada';
+
+            div.style.borderColor = isCancelled ? "#cbd5e1" : "#e2e8f0";
+            div.style.borderLeft = `5px solid ${isCancelled ? '#94a3b8' : borderColor}`;
+            div.style.background = isCancelled ? "#f8fafc" : bgColor;
 
             // Payment Status Check
             let paid = parseFloat(booking.pagado || booking.payment?.paid || 0);
@@ -7224,7 +7368,7 @@
                         const status = typeof result === 'string' ? result : result.status;
                         const booking = typeof result === 'object' ? result.booking : null;
 
-                        const cellStyle = getStatusCellStyle(status);
+                        const cellStyle = getStatusCellStyle(status, booking);
                         const tooltip = getStatusTooltip(result, staff.name, time);
 
                         const clickHandler = (status === 'busy' && booking) ?
@@ -7320,13 +7464,17 @@
             return { status: 'available' }; // Green - available
         }
 
-        function getStatusCellStyle(status) {
+        function getStatusCellStyle(status, booking = null) {
             const baseStyle = 'width: 100%; height: 40px; display: flex; align-items: center; justify-content: center;';
 
             switch (status) {
                 case 'available':
                     return baseStyle + ' background: #22c55e; cursor: pointer;';
                 case 'busy':
+                    if (booking && window.getServiceProtocol) {
+                        const prot = window.getServiceProtocol(booking.servicio);
+                        return baseStyle + ` background: ${prot.color}; cursor: pointer; border: 1px solid rgba(0,0,0,0.1);`;
+                    }
                     return baseStyle + ' background: #f59e0b; cursor: pointer;';
                 case 'not-working':
                     return baseStyle + ' background: #ef4444;';
@@ -7489,14 +7637,24 @@
                     let html = '';
                     myBookings.forEach(b => {
                         const roomName = (MODULES[b._collection || b.module] || { name: b._collection }).name || b._collection;
+
+                        // --- PROTOCOLO DE COLOR ---
+                        const protocol = window.getServiceProtocol ? window.getServiceProtocol(b.servicio || b.nombre_servicio) : { color: '#64748b' };
+                        const borderColor = protocol.color;
+                        const bgColor = `${protocol.color}10`; // Low opacity background
+
                         html += `
-                            <div style="background:#fff; border:1px solid #e2e8f0; border-radius:8px; padding:12px; margin-bottom:8px; display:flex; gap:12px; align-items:center;">
-                                <div style="background:#f1f5f9; padding:5px 8px; border-radius:6px; font-weight:800; color:#1e3a8a; font-size:0.85rem;">${b.hora}</div>
+                            <div style="background:#fff; border:1px solid #e2e8f0; border-left: 5px solid ${borderColor}; background-color: ${bgColor}; border-radius:8px; padding:12px; margin-bottom:8px; display:flex; gap:12px; align-items:center; transition: transform 0.2s;">
+                                <div style="background:#fff; border: 1px solid #e2e8f0; padding:5px 8px; border-radius:6px; font-weight:800; color:#1e3a8a; font-size:0.85rem; min-width: 60px; text-align:center;">${b.hora}</div>
                                 <div style="flex:1;">
-                                    <div style="font-weight:700; font-size:0.85rem; color:#1e293b;">${b.servicio || b.nombre_servicio || 'Servicio'}</div>
-                                    <div style="font-size:0.75rem; color:#64748b;"><i class="fas fa-map-marker-alt"></i> ${roomName} | <i class="fas fa-user"></i> ${b.nombre || 'Cliente'}</div>
+                                    <div style="font-weight:700; font-size:0.85rem; color:#1e293b;">${(b.servicio || b.nombre_servicio || 'Servicio').toUpperCase()}</div>
+                                    <div style="font-size:0.75rem; color:#64748b; display: flex; align-items: center; gap: 8px; margin-top: 2px;">
+                                        <span><i class="fas fa-map-marker-alt" style="color: #94a3b8;"></i> ${roomName}</span>
+                                        <span style="opacity: 0.5;">|</span>
+                                        <span><i class="fas fa-user" style="color: #94a3b8;"></i> ${b.nombre || 'Cliente'}</span>
+                                    </div>
                                 </div>
-                                <div style="font-size:0.75rem; font-weight:700; color:var(--accent);">${b.duracion || 60} min</div>
+                                <div style="font-size:0.75rem; font-weight:800; color:${borderColor};">${b.duracion || 60} min</div>
                             </div>
                         `;
                     });

@@ -376,6 +376,13 @@
                                 <input type="number" id="sm-duracion" placeholder="60" class="param-input form-control"
                                     style="font-size: 0.9rem; padding: 4px 8px; height: 32px; width: 100%;">
                             </div>
+                            <div style="flex: 0.5;">
+                                <label
+                                    style="font-size: 0.65rem; font-weight: 700; text-transform: uppercase; color: #a0aec0; display: block; margin-bottom: 2px;">Color</label>
+                                <input type="color" id="sm-color" class="param-input form-control"
+                                    style="padding: 2px; height: 32px; width: 100%; border: 1px solid #cbd5e1; cursor: pointer;"
+                                    title="Color personalizado del servicio">
+                            </div>
                         </div>
 
                         <!-- Row 2: Categoria, Espacio, Pax -->
@@ -647,6 +654,9 @@
                 state.services = [];
                 snapshot.forEach(doc => state.services.push({ id: doc.id, ...doc.data() }));
 
+                // Expose for app-core.js getServiceProtocol
+                window.catalogServices = state.services;
+
                 renderServices();
                 console.log("Catálogo cargado:", state.services.length);
             } catch (err) {
@@ -812,8 +822,20 @@
                     
                     <div style="display:flex; justify-content:space-between; align-items:start; margin-bottom: 12px; gap: 10px;">
                         <h4 style="margin: 0; color: var(--text); font-weight: 700; font-size: 1rem; line-height: 1.2;">
-                            ${item.nombre}
-                            <span style="font-size:0.65rem; color:#94a3b8; font-weight:400; display:block; margin-top:4px;">ID: ${item.wc_id || item.id}</span>
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                ${(() => {
+                        const prot = window.getServiceProtocol ? window.getServiceProtocol(item.nombre) : { color: '#cbd5e1' };
+                        return `<span style="width: 12px; height: 12px; border-radius: 50%; background: ${prot.color}; flex-shrink: 0;" title="${prot.tratamiento}"></span>`;
+                    })()}
+                                ${item.nombre}
+                            </div>
+                            <div style="font-size: 0.65rem; color: #94a3b8; margin-left: 20px; text-transform: uppercase; font-weight: 700; margin-top: 4px;">
+                                ${(() => {
+                        const prot = window.getServiceProtocol ? window.getServiceProtocol(item.nombre) : { tratamiento: 'Tratamiento' };
+                        return prot.tratamiento;
+                    })()}
+                                <span style="font-weight:400; margin-left:8px; opacity:0.6;">ID: ${item.wc_id || item.id}</span>
+                            </div>
                         </h4>
                         <span style="color: var(--accent); font-weight: 800; font-size: 1.1rem; white-space: nowrap;">${item.precio}€</span>
                     </div>
@@ -832,11 +854,14 @@
                     ${item.items_incluidos && item.items_incluidos.length > 0 ? `
                         <div style="background: #f8fafc; border: 1px solid #f1f5f9; border-radius: 8px; padding: 10px; margin-bottom: 15px;">
                             <ul style="list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 4px;">
-                                ${item.items_incluidos.map(inc => `
-                                    <li style="font-size: 0.7rem; color: #475569; display: flex; align-items: center; gap: 8px;">
-                                        <i class="fas fa-check-circle" style="color: #10b981; font-size: 0.7rem;"></i> ${inc}
-                                    </li>
-                                `).join('')}
+                                ${item.items_incluidos.map(inc => {
+                        const prot = window.getServiceProtocol ? window.getServiceProtocol(inc) : { color: '#10b981' };
+                        return `
+                                        <li style="font-size: 0.7rem; color: #475569; display: flex; align-items: center; gap: 8px;">
+                                            <i class="fas fa-check-circle" style="color: ${prot.color}; font-size: 0.7rem;"></i> ${inc}
+                                        </li>
+                                    `;
+                    }).join('')}
                             </ul>
                         </div>
                     ` : ''}
@@ -912,6 +937,10 @@
                 document.getElementById("sm-required-therapists").value = service.required_therapists || "1";
                 document.getElementById("sm-categoria").value = service.categoria;
                 document.getElementById("sm-descripcion").value = service.descripcion || "";
+
+                // COLOR SYNC
+                const customColor = service.color || (window.getServiceProtocol ? window.getServiceProtocol(service.nombre).color : "#64748b");
+                document.getElementById("sm-color").value = customColor;
 
                 // MULTI-SPACE POPULATION
                 initCatalogSpaces(service.allowedSpaces, service.espacio);
@@ -1084,6 +1113,7 @@
                 allowedSpaces: allowedSpaces, // New Multi-Selection
                 descripcion: document.getElementById("sm-descripcion").value,
                 items_incluidos: items,
+                color: document.getElementById("sm-color").value,
 
                 // Nuevos campos WooCommerce (locales)
                 wc_categories: Array.from(document.getElementById("sm-wc-categories").selectedOptions).map(opt => ({ id: parseInt(opt.value), name: opt.text })),

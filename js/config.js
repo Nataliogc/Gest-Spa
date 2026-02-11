@@ -544,8 +544,20 @@ function renderMasterItems() {
                     class="param-input" style="width:100%; font-size: 0.75rem;">
             </td>
             <td style="padding: 6px 2px;">
-                <input type="text" value="${item.name}" onchange="updateMasterItemField('${item.id}', 'name', this.value)" 
-                    class="param-input" style="width:100%;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    ${(() => {
+                const prot = window.getServiceProtocol ? window.getServiceProtocol(item.name) : { color: '#cbd5e1' };
+                return `<span style="width: 12px; height: 12px; border-radius: 50%; background: ${prot.color}; flex-shrink: 0;" title="${prot.tratamiento}"></span>`;
+            })()}
+                    <input type="text" value="${item.name}" onchange="updateMasterItemField('${item.id}', 'name', this.value)" 
+                        class="param-input" style="width:100%; font-weight: 500;">
+                </div>
+                <div style="font-size: 0.6rem; color: #94a3b8; margin-left: 20px; text-transform: uppercase; font-weight: 700;">
+                    ${(() => {
+                const prot = window.getServiceProtocol ? window.getServiceProtocol(item.name) : { tratamiento: 'Varios' };
+                return prot.tratamiento;
+            })()}
+                </div>
             </td>
             <td style="padding: 6px 2px; text-align: center;">
                 <input type="number" value="${item.duration || 0}" onchange="updateMasterItemField('${item.id}', 'duration', parseInt(this.value))" 
@@ -559,14 +571,14 @@ function renderMasterItems() {
                     </div>
                     <div class="ms-options">
                         ${spaConfigState.spaces.map(s => {
-            const checked = selectedCodes.includes(s.code) ? 'checked' : '';
-            return `
+                const checked = selectedCodes.includes(s.code) ? 'checked' : '';
+                return `
                                 <label class="ms-option">
                                     <input type="checkbox" ${checked} onchange="updateMasterItemSpaces('${item.id}', '${s.code}', this.checked)">
                                     ${s.name}
                                 </label>
                             `;
-        }).join('')}
+            }).join('')}
                     </div>
                 </div>
             </td>

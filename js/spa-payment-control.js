@@ -117,11 +117,13 @@ function normalizePaymentFields(voucher) {
         origenNorm.includes('woo') ||
         origenNorm.includes('web') ||
         metodoNorm === 'online' ||
-        bonoCode.startsWith('TARJ-')
+        bonoCode.startsWith('TARJ-') ||
+        bonoCode.startsWith('BONO') ||
+        bonoCode.startsWith('WEB-')
     ) {
         v.estado_pago = PAYMENT_STATUS.PAGADO;
-        // FORCE: Ensure amount paid matches total
-        v.importe_pagado = totalPrice;
+        // FORCE: Ensure amount paid matches total if it was explicitly 0 or missing
+        if (v.importe_pagado === 0) v.importe_pagado = totalPrice;
         v.importe_pendiente = 0;
     }
 

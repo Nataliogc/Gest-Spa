@@ -129,15 +129,19 @@ function renderSkillsCheckboxes() {
     const container = document.getElementById('staff-skills-container');
     if (!container) return;
 
-    container.innerHTML = AVAILABLE_SKILLS.map(skill => `
-        <label style="display: flex; align-items: center; gap: 8px; padding: 10px 12px; 
-            background: #f8fafc; border: 2px solid #e2e8f0; border-radius: 8px; cursor: pointer;
-            transition: all 0.2s; font-size: 0.85rem;">
-            <input type="checkbox" name="skills" value="${skill.code}" 
-                style="width: 16px; height: 16px; accent-color: #6366f1;">
-            <span>${skill.label}</span>
-        </label>
-    `).join('');
+    container.innerHTML = AVAILABLE_SKILLS.map(skill => {
+        const prot = window.getServiceProtocol ? window.getServiceProtocol(skill.label) : { color: '#6366f1' };
+        return `
+            <label style="display: flex; align-items: center; gap: 8px; padding: 10px 12px; 
+                background: #f8fafc; border: 2px solid #e2e8f0; border-radius: 8px; cursor: pointer;
+                transition: all 0.2s; font-size: 0.85rem;">
+                <input type="checkbox" name="skills" value="${skill.code}" 
+                    style="width: 16px; height: 16px; accent-color: ${prot.color};">
+                <span style="width: 8px; height: 8px; border-radius: 50%; background: ${prot.color};"></span>
+                <span>${skill.label}</span>
+            </label>
+        `;
+    }).join('');
 }
 
 function setupFilterListeners() {
@@ -297,14 +301,20 @@ function renderStaffCard(staff) {
                         </div>
                     ` : ''}
                     
-                    ${skillLabels.length > 0 ? `
+                    ${skills.length > 0 ? `
                         <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px;">
-                            ${skillLabels.map(s => `
-                                <span style="background: #f3e8ff; color: #7c3aed; padding: 3px 10px; 
-                                    border-radius: 15px; font-size: 0.75rem; font-weight: 600;">
-                                    ${s}
-                                </span>
-                            `).join('')}
+                            ${skills.map(s => {
+        const skill = AVAILABLE_SKILLS.find(as => as.code === s.toLowerCase());
+        const label = skill ? skill.label : s;
+        const prot = window.getServiceProtocol ? window.getServiceProtocol(label) : { color: '#7c3aed' };
+        return `
+                                    <span style="background: ${prot.color}20; color: ${prot.color}; padding: 3px 10px; 
+                                        border-radius: 15px; font-size: 0.75rem; font-weight: 700; border: 1px solid ${prot.color}40; display: inline-flex; align-items: center; gap: 5px;">
+                                        <span style="width: 6px; height: 6px; border-radius: 50%; background: ${prot.color};"></span>
+                                        ${label}
+                                    </span>
+                                `;
+    }).join('')}
                         </div>
                     ` : ''}
                     

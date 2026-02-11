@@ -1019,3 +1019,90 @@ window.dbCoreUpdateNoShow = async function (resId, moduleType, isNoShow) {
         attended: false // Reset attendance if marking as no-show
     });
 };
+
+/**
+ * PROTOCOLO DE TRATAMIENTO POR SERVICIO
+ * Devuelve color y categoría según el nombre del servicio
+ * @param {string} serviceName - Nombre del servicio
+ * @returns {Object} - { color, tratamiento, category }
+ */
+window.getServiceProtocol = function (serviceName) {
+    if (!serviceName) return { color: '#64748b', tratamiento: 'General', category: 'general' };
+
+    const name = serviceName.toLowerCase().trim();
+
+    // 1. Check for custom color in global catalog cache if available
+    const catalog = window.catalogServices || window.currentServices || [];
+    const customItem = catalog.find(s => s.nombre && s.nombre.toLowerCase().trim() === name);
+    if (customItem && customItem.color) {
+        return {
+            color: customItem.color,
+            tratamiento: (customItem.categoria || 'Servicio personalizado').toUpperCase(),
+            category: customItem.categoria || 'custom'
+        };
+    }
+
+    // 2. Priority Overrides (Specific services with fixed colors from image)
+    // These act as defaults if no custom color is set in the catalog.
+
+    // PELUQUERIA (#BFBFBF - Grey)
+    if (name.includes('peluqueria') || name.includes('manicura') || name.includes('pedicura') || name.includes('uñas') || name.includes('maquillaje') || name.includes('corte') || name.includes('peinado') || name.includes('tinte') || name.includes('mechas'))
+        return { color: '#BFBFBF', tratamiento: 'PELUQUERIA Y ESTÉTICA', category: 'peluqueria' };
+
+    // ENCUENTRO ROMANTICO (#FFFF00 - Yellow)
+    if (name.includes('encuentro romantico'))
+        return { color: '#FFFF00', tratamiento: 'ENCUENTRO ROMÁNTICO', category: 'especiales' };
+
+    // ESPECIAL PAREJA (#00FF00 - Bright Green)
+    if (name.includes('especial pareja'))
+        return { color: '#00FF00', tratamiento: 'ESPECIAL PAREJA', category: 'pareja' };
+
+    // CUENTO PARA DOS (#44B3E1 - Light Blue)
+    if (name.includes('cuento para dos'))
+        return { color: '#44B3E1', tratamiento: 'CUENTO PARA DOS', category: 'tematicas' };
+
+    // SUITE SPA (#FFFF00 - Yellow)
+    if (name.includes('suite spa') || name.includes('suite'))
+        return { color: '#FFFF00', tratamiento: 'SUITE SPA', category: 'suite' };
+
+    // PRESOTERAPIA (#FF0066 - Hot Pink)
+    if (name.includes('presoterapia'))
+        return { color: '#FF0066', tratamiento: 'PRESOTERAPIA', category: 'aparatologia' };
+
+    // RADIOFRECUENCIA FACIAL (#00B050 - Dark Green)
+    if ((name.includes('radiofrecuencia') && name.includes('facial')) || name.includes('facial tecnologico'))
+        return { color: '#00B050', tratamiento: 'RADIOFRECUENCIA FACIAL', category: 'faciales_tech' };
+
+    // HIGIENES Y TRAT. FACIALES (#47D359 - Light Green)
+    if (name.includes('higiene') || name.includes('facial') || name.includes('facial basico'))
+        return { color: '#47D359', tratamiento: 'HIGIENES Y TRAT. FACIALES', category: 'faciales' };
+
+    // MASAJES (#8B4307 - Brown)
+    if (name.includes('masaje') || name.includes('corporal manual') || name.includes('quiromasaje') || name.includes('relax'))
+        return { color: '#8B4307', tratamiento: 'MASAJES', category: 'masajes' };
+
+    // ENVOLTURAS (#996600 - Gold/Brown)
+    if (name.includes('envoltura') || name.includes('peeling') || name.includes('ritual'))
+        return { color: '#996600', tratamiento: 'ENVOLTURAS', category: 'envolventes' };
+
+    // CERAS (#FF99FF - Pink)
+    if (name.includes('cera') || name.includes('depilacion'))
+        return { color: '#FF99FF', tratamiento: 'CERAS', category: 'depilacion' };
+
+    // 3. Generic Fallbacks
+
+    // PACKS GENERIC (Purple/Gold) - Only if not caught by specific packs above
+    if (name.includes('pack') || name.includes('experiencia') || name.includes('para dos') || name.includes('pareja') || name.includes('romantico') || name.includes('fantasia') || name.includes('aventura') || name.includes('sueño'))
+        return { color: '#9b59b6', tratamiento: 'PACKS Y EXPERIENCIAS', category: 'premium' };
+
+    if (name.includes('aparatologia') || name.includes('radiofrecuencia corporal'))
+        return { color: '#FF0066', tratamiento: 'TRATAMIENTOS CORPORALES APARATOLOGÍA', category: 'aparatologia' };
+
+    if (name.includes('spa') || name.includes('circuito'))
+        return { color: '#3b82f6', tratamiento: 'CIRCUITO SPA', category: 'spa' };
+
+    if (name.includes('gym') || name.includes('gimnasio'))
+        return { color: '#6366f1', tratamiento: 'GIMNASIO', category: 'gym' };
+
+    return { color: '#64748b', tratamiento: 'SERVICIOS VARIOS', category: 'otros' };
+};
