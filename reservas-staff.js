@@ -98,7 +98,7 @@ async function handleStaffFieldsChange() {
                 if (isBusy || isExcluded) style = 'color:red;';
                 if (isOff) style = 'color:gray; font-style:italic;';
 
-                if (s._shift) label += ` [${s._shift}]`;
+                // if (s._shift) label += ` [${s._shift}]`;
 
                 html += `<option value="${s.id}" ${isSelected} ${isDisabled} style="${style}">${label}</option>`;
             });

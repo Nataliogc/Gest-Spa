@@ -340,6 +340,31 @@
             right: 0;
         }
 
+        /* Centered modal mode for booking form */
+        .vg-detail-panel.centered {
+            right: auto;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            height: auto;
+            max-height: 92vh;
+            width: 900px;
+            border-radius: 16px;
+            border-left: none;
+            border: 2px solid var(--accent);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            transition: opacity 0.3s, transform 0.3s;
+        }
+
+        .vg-detail-panel.centered .vg-detail-header {
+            border-radius: 14px 14px 0 0;
+        }
+
+        .vg-detail-panel.centered .vg-detail-body {
+            max-height: calc(92vh - 70px);
+            overflow-y: auto;
+        }
+
         .vg-detail-header {
             padding: 20px 25px;
             background: #1e293b;
@@ -578,8 +603,42 @@
         .vg-quick-form .form-row {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 10px;
+            gap: 12px;
+            margin-bottom: 12px;
         }
+
+        /* Centered Mode Grid Layout */
+        .vg-detail-panel.centered .vg-quick-form {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        .vg-detail-panel.centered .vg-quick-form .form-row {
+            margin-bottom: 0;
+            /* Ensure inner rows take full width of their cell */
+        }
+
+        .vg-detail-panel.centered .vg-quick-form .form-group {
+            margin-bottom: 0;
+        }
+
+        /* Make Observations spread full width */
+        .vg-detail-panel.centered .vg-quick-form textarea {
+            height: 80px;
+        }
+
+        /* Select the last form-group (Observations) to span full width */
+        .vg-detail-panel.centered .vg-quick-form .form-group:last-of-type {
+            grid-column: 1 / -1;
+        }
+
+        /* Submit button spans full width */
+        .vg-detail-panel.centered .vg-submit-btn {
+            grid-column: 1 / -1;
+        }
+
+
 
         .vg-submit-btn {
             width: 100%;
@@ -900,6 +959,9 @@
         let staffList = [];
         let allCatalogItems = [];
         let globalGridData = {}; // { staffId: { dateStr: { bookings, schedule, freeSlots }  } }
+        let currentDetailDayData = null; // Store data for detailed panel
+        let currentEditingId = null;
+        let currentEditingCollection = null;
 
         const STAFF_COLORS = ['#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#ef4444', '#6366f1', '#14b8a6'];
 
@@ -942,7 +1004,12 @@
             return dates;
         }
 
-        function fmt(d) { return d.toISOString().split('T')[0]; }
+        function fmt(d) {
+            const y = d.getFullYear();
+            const m = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            return `${y}-${m}-${day}`;
+        }
 
         function fmtShort(d) {
             return d.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
@@ -1204,12 +1271,13 @@
                         const moduleType = collectionToModuleType(b._collection);
                         const roomLabel = collectionToRoomLabel(b._collection);
                         const bookingUrl = `reservas.html?type=${moduleType}&fecha=${dateStr}`;
-                        html += `<div class="detail-booking-item" onclick="window.location.href='${bookingUrl}'" title="Abrir en ${roomLabel}">
+                        // CHANGED: Open edit modal instead of navigating
+                        html += `<div class="detail-booking-item" onclick="openEditReservation('${b.id}', '${b._collection}', '${staffId}', '${dateStr}')" title="Editar en ${roomLabel}">
                             <div class="detail-booking-time">${b.hora} — ${minutesToTime(endMin)}</div>
                             <div class="detail-booking-service">${b.servicio || 'Servicio'}</div>
                             <div class="detail-booking-client"><i class="fas fa-user" style="font-size:0.6rem;"></i> ${b.nombre || 'Cliente'} ${b.telefono ? '· ' + b.telefono : ''}</div>
                             <div class="detail-booking-room"><i class="fas fa-door-open" style="font-size:0.5rem;"></i> ${roomLabel}</div>
-                            <i class="fas fa-external-link-alt booking-link-icon"></i>
+                            <i class="fas fa-pencil-alt booking-link-icon"></i>
                         </div>`;
                     });
                     html += `</div>`;
@@ -1249,7 +1317,8 @@
 
             document.getElementById('detail-body').innerHTML = html;
 
-            // Show panel
+            // Show panel (side panel mode for detail)
+            document.getElementById('vg-detail-panel').classList.remove('centered');
             document.getElementById('vg-overlay').classList.add('visible');
             document.getElementById('vg-detail-panel').classList.add('open');
         }
@@ -1257,6 +1326,9 @@
         function closeDetailPanel() {
             document.getElementById('vg-overlay').classList.remove('visible');
             document.getElementById('vg-detail-panel').classList.remove('open');
+            document.getElementById('vg-detail-panel').classList.remove('centered');
+            currentEditingId = null;
+            currentEditingCollection = null;
         }
 
         function groupFreeSlots(slots) {
@@ -1281,6 +1353,9 @@
         // QUICK BOOKING
         // ============================================
         function startBooking(staffId, dateStr, time) {
+            currentEditingId = null;
+            currentEditingCollection = null;
+
             const staff = staffList.find(s => s.id === staffId);
             if (!staff) return;
 
@@ -1290,6 +1365,9 @@
 
             document.getElementById('detail-title').textContent = 'Nueva Reserva';
             document.getElementById('detail-subtitle').textContent = `${displayName} · ${dateLabel}`;
+
+            // Switch panel to centered modal mode
+            document.getElementById('vg-detail-panel').classList.add('centered');
 
             // Build service options filtered by therapist skills & rooms
             const staffSkills = (staff.skills || []).map(s => s.toLowerCase());
@@ -1303,7 +1381,7 @@
                 if (s === 'cabinados' || s === 'cabina2') return 'cabina';
                 if (s === 'cabinatres' || s === 'cabina3') return 'cabina';
                 if (s === 'panacea (cabinas)') return 'cabina';
-                if (s === 'peluq' || s === 'peluquería') return 'peluqueria';
+                if (s === 'peluq' || s === 'peluqueria') return 'peluqueria';
                 if (s === 'gym' || s === 'gimnasio') return 'spa';
                 return s;
             }
@@ -1442,11 +1520,105 @@
                     <button type="button" class="vg-submit-btn" onclick="submitQuickBooking('${staffId}', '${dateStr}')">
                         <i class="fas fa-save"></i> GUARDAR RESERVA
                     </button>
+                    <div id="delete-btn-container" style="margin-top:10px;"></div>
                 </div>
             `;
 
             document.getElementById('detail-body').innerHTML = html;
         }
+
+        async function openEditReservation(bookingId, collection, staffId, dateStr) {
+            try {
+                // Show loading indicator in panel if needed, but for now we assume fast fetch
+                const doc = await db.collection(collection).doc(bookingId).get();
+                if (!doc.exists) {
+                    Swal.fire('Error', 'La reserva no existe', 'error');
+                    return;
+                }
+                const data = doc.data();
+
+                // Initialize form using startBooking to set up structure and options
+                startBooking(staffId, dateStr, data.hora);
+
+                // Update Global State for Editing
+                currentEditingId = bookingId;
+                currentEditingCollection = collection;
+
+                // Update UI for Edit Mode
+                document.getElementById('detail-title').textContent = 'Editar Reserva';
+                document.getElementById('detail-subtitle').textContent += ' (Editando)';
+
+                // Populate Fields
+                document.getElementById('qf-time').value = data.hora || '';
+                document.getElementById('qf-duration').value = data.duracion || 60;
+                document.getElementById('qf-client').value = data.nombre || data.cliente || '';
+                document.getElementById('qf-phone').value = data.telefono || '';
+                document.getElementById('qf-pax').value = data.pax || 1;
+                document.getElementById('qf-origin').value = data.origen || 'particular';
+                document.getElementById('qf-price').value = data.precio || 0;
+                document.getElementById('qf-obs').value = data.observaciones || '';
+
+                // Set Service
+                const serviceSel = document.getElementById('qf-service');
+                const serviceName = data.servicio || '';
+                // Try to find matching option by text
+                for (let i = 0; i < serviceSel.options.length; i++) {
+                    if (serviceSel.options[i].text === serviceName) {
+                        serviceSel.selectedIndex = i;
+                        break;
+                    }
+                }
+
+                // Set Room (Collection)
+                const roomSel = document.getElementById('qf-room');
+                roomSel.value = collection;
+
+                // Update Submit Button Text
+                const btn = document.querySelector('.vg-submit-btn');
+                btn.innerHTML = '<i class="fas fa-sync-alt"></i> ACTUALIZAR RESERVA';
+
+                // Add Delete Button using inline HTML
+                const delContainer = document.getElementById('delete-btn-container');
+                if (delContainer) {
+                    delContainer.innerHTML = `
+                        <button type="button" onclick="deleteCurrentBooking()" style="width:100%; padding:10px; background:#fee2e2; color:#b91c1c; border:1px solid #fecaca; border-radius:10px; font-weight:600; cursor:pointer;">
+                            <i class="fas fa-trash"></i> ELIMINAR RESERVA
+                        </button>
+                    `;
+                }
+
+            } catch (error) {
+                console.error("Error fetching booking details:", error);
+                Swal.fire('Error', 'No se pudieron cargar los detalles de la reserva', 'error');
+            }
+        }
+
+        function deleteCurrentBooking() {
+            if (!currentEditingId || !currentEditingCollection) return;
+
+            Swal.fire({
+                title: '¿Eliminar reserva?',
+                text: "Esta acción no se puede deshacer",
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#d33',
+                cancelButtonColor: '#3085d6',
+                confirmButtonText: 'Sí, borrar',
+                cancelButtonText: 'Cancelar'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    db.collection(currentEditingCollection).doc(currentEditingId).delete().then(() => {
+                        closeDetailPanel();
+                        renderGrid(); // Refresh grid
+                        Swal.fire('Borrado', 'La reserva ha sido eliminada.', 'success');
+                    }).catch(error => {
+                        console.error("Error deleting booking:", error);
+                        Swal.fire('Error', 'No se pudo eliminar la reserva', 'error');
+                    });
+                }
+            })
+        }
+
 
         function onServiceChange() {
             const sel = document.getElementById('qf-service');
@@ -1534,46 +1706,72 @@
 
             if (!confirm.isConfirmed) return;
 
+            // Combine fields to payload
+            // Combine fields to payload
+            const serviceName = document.getElementById('qf-service').options[document.getElementById('qf-service').selectedIndex].text;
+
+            let payload = {
+                fecha: dateStr,
+                hora: time,
+                duracion: parseInt(duration),
+                servicio: serviceName, // Save service name as text
+                terapeuta: staff.nombre || staff.name,
+                terapeuta_id: staffId,
+                staff_name: staff.nombre || staff.name, // Ensure compatibility
+                staff_id: staffId, // Ensure compatibility
+                nombre: client,
+                cliente: client, // Save both for compatibility
+                telefono: phone,
+                pax: parseInt(pax),
+                origen: origin,
+                precio: parseFloat(price),
+                observaciones: obs,
+                updated_at: new Date()
+            };
+
             try {
-                const staffName = staff.alias || staff.nombre || staff.name;
-                const booking = {
-                    fecha: dateStr,
-                    hora: time,
-                    duracion: parseInt(duration) || 60,
-                    servicio: service || 'Servicio',
-                    nombre: client,
-                    telefono: phone || '',
-                    pax: parseInt(pax) || 1,
-                    origen: origin,
-                    precioTotal: parseFloat(price) || 0,
-                    precioUnitario: (parseInt(pax) || 1) > 0 ? (parseFloat(price) || 0) / (parseInt(pax) || 1) : 0,
-                    observaciones: obs || '',
-                    staff_id: staffId,
-                    staff_name: staffName,
-                    terapeuta: staffName,
-                    terapeuta_id: staffId,
-                    status: 'confirmada',
-                    created_at: new Date().toISOString(),
-                    created_from: 'vision_general',
-                };
+                if (currentEditingId && currentEditingCollection) {
+                    // === UPDATE MODE ===
+                    const targetCollection = room;
 
-                await db.collection(room).add(booking);
+                    if (targetCollection === currentEditingCollection) {
+                        // Same collection update
+                        await db.collection(targetCollection).doc(currentEditingId).update(payload);
+                    } else {
+                        // Move collection (delete old, create new)
+                        // Merge with old data to preserve hidden fields (e.g. payments, status)
+                        if (typeof currentBookingData !== 'undefined' && currentBookingData) {
+                            // Merge but form values take precedence
+                            payload = { ...currentBookingData, ...payload };
+                            delete payload._id;
+                            delete payload._collection;
+                        }
 
-                Swal.fire({
-                    title: '¡Reserva creada!',
-                    text: `Reserva para ${client} guardada correctamente.`,
-                    icon: 'success',
-                    timer: 2000,
-                    showConfirmButton: false,
-                });
+                        await db.collection(currentEditingCollection).doc(currentEditingId).delete();
+                        // Ensure created_at exists
+                        if (!payload.created_at) payload.created_at = new Date();
+
+                        await db.collection(targetCollection).add(payload);
+                    }
+
+                    Swal.fire('Actualizado', 'La reserva ha sido actualizada correctamente', 'success');
+                } else {
+                    // === CREATE MODE ===
+                    payload.created_at = new Date();
+                    payload.status = 'confirmada';
+                    payload.created_from = 'vision_general';
+                    payload.precioTotal = payload.precio; // Compatibility
+
+                    await db.collection(room).add(payload);
+                    Swal.fire('Guardado', 'La reserva se ha guardado correctamente', 'success');
+                }
 
                 closeDetailPanel();
-                // Refresh grid
-                await renderGrid();
+                renderGrid(); // Refresh grid to show new booking
 
-            } catch (e) {
-                console.error("Error saving booking:", e);
-                Swal.fire('Error', 'No se pudo guardar la reserva: ' + e.message, 'error');
+            } catch (error) {
+                console.error("Error saving booking:", error);
+                Swal.fire('Error', 'Hubo un error al guardar la reserva', 'error');
             }
         }
 
