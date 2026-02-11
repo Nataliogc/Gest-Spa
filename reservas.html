@@ -488,7 +488,7 @@
 
             <li><a href="reservas.html?type=spa" class="nav-link"><i class="fas fa-water"></i> Spa</a></li>
             <li><a href="reservas.html?type=cabinas" class="nav-link"><i class="fas fa-cubes"></i> Cabinas</a></li>
-            <li id="nav-occupancy-li"><a href="reservas.html?view=staff" class="nav-link"><i
+            <li id="nav-occupancy-li"><a href="reservas.html?type=terapeutas" class="nav-link"><i
                         class="fas fa-calendar-alt"></i> Ocup Terap</a></li>
 
             <li class="dropdown">
@@ -647,6 +647,22 @@
             <div id="split-col-c3" style="display: flex; flex-direction: column; height: 100%;">
                 <h3 style="text-align: center; margin-bottom: 10px; color: var(--accent);">CABINA 3</h3>
                 <div id="timeline-container-cabina3" class="timeline-mode" style="flex:1;"></div>
+            </div>
+        </div>
+
+        <!-- Therapist View Container -->
+        <div id="therapist-view-container" style="display: none; height: calc(100vh - 160px); overflow-y: auto;">
+            <div id="therapist-timeline-grid-main" style="min-width: 100%;"></div>
+            <div id="therapist-agenda-inline-container-main"
+                style="padding: 20px; background: #fff; margin-top: 20px; border-radius: 12px; box-shadow: 0 -2px 10px rgba(0,0,0,0.05); display: none;">
+                <h3
+                    style="margin: 0 0 15px 0; font-size: 1rem; color: #1e3a8a; display: flex; align-items: center; gap: 10px; border-bottom: 2px solid var(--accent); padding-bottom: 10px;">
+                    <i class="fas fa-calendar-alt"></i> Agenda de <span id="inline-agenda-staff-name-main"
+                        style="color: var(--accent); font-weight: 800;"></span>
+                </h3>
+                <div id="therapist-agenda-inline-list-main"
+                    style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 15px;">
+                </div>
             </div>
         </div>
 
@@ -1342,6 +1358,15 @@
                 isPrivate: false,
                 requiresStaff: false,
                 viewType: 'timeline'
+            },
+            'terapeutas': {
+                code: 'terapeutas',
+                name: 'AGENDA TERAPEUTAS',
+                collection: 'reservas_spa',
+                capacity: 0,
+                isPrivate: false,
+                requiresStaff: false,
+                viewType: 'staff_occupancy'
             }
         };
         window.MODULES = MODULES;
@@ -2307,12 +2332,13 @@
                     }
 
                     return {
-                        nombre: s.nombre,
+                        nombre: "PACK - " + s.nombre, // Prefix per user request
                         precio: s.precio || 0,
                         pax_max: pax,
                         espacio: 'PACK',
                         categoria: 'pack',
-                        source: 'catalog_pack'
+                        source: 'catalog_pack',
+                        items_incluidos: s.items_incluidos // Store for display
                     };
                 });
 
@@ -2389,6 +2415,9 @@
                 opt.dataset.espacio = s.espacio;
                 opt.dataset.categoria = s.categoria;
                 opt.dataset.precio = s.precio; // Use mapped price
+                if (s.items_incluidos) {
+                    opt.dataset.items = JSON.stringify(s.items_incluidos);
+                }
                 sel.appendChild(opt);
             });
 
@@ -2506,16 +2535,29 @@
 
                 function renderItem(optData) {
                     const isPack = optData.dataset.source === 'catalog_pack';
-                    const badge = isPack ? '<span style="background: #fff7ed; color: #c2410c; font-size: 0.6rem; padding: 1px 5px; border-radius: 4px; margin-left: 8px; font-weight: 800; border: 1px solid #fcd34d;">PACK (+1)</span>' : '';
                     const pax = parseInt(optData.dataset.paxMax) || 1;
                     const paxIcon = pax > 1 ? ` <i class="fas fa-users" style="color: #94a3b8; font-size: 0.75rem;"></i><small style="color:#94a3b8; font-size:0.7rem;">${pax}</small>` : '';
+
+                    let itemsHtml = '';
+                    if (isPack && optData.dataset.items) {
+                        try {
+                            const items = JSON.parse(optData.dataset.items);
+                            if (Array.isArray(items) && items.length > 0) {
+                                itemsHtml = `<div style="font-size: 0.7rem; color: #64748b; margin-top: 2px; padding-left: 10px; border-left: 2px solid #fed7aa;">
+                                    ${items.map(i => `• ${i}`).join('<br>')}
+                                </div>`;
+                            }
+                        } catch (e) { }
+                    }
 
                     return `
                         <div class="service-result-item" 
                             onclick="selectServiceFromDropdown('${optData.value.replace(/'/g, "\\'")}')"
-                            style="padding: 8px 12px; cursor: pointer; border-bottom: 1px solid #f1f5f9; font-size: 0.85rem; font-weight: 600; color: #1e293b; transition: background 0.2s; display: flex; align-items: center; justify-content: space-between;">
-                            <span>${optData.text}${paxIcon}</span>
-                            ${badge}
+                            style="padding: 8px 12px; cursor: pointer; border-bottom: 1px solid #f1f5f9; font-size: 0.85rem; font-weight: 600; color: #1e293b; transition: background 0.2s; display: block;">
+                            <div style="display: flex; align-items: center; justify-content: space-between;">
+                                <span>${optData.text}${paxIcon}</span>
+                            </div>
+                            ${itemsHtml}
                         </div>
                     `;
                 }
@@ -3362,11 +3404,13 @@
             const slotsCont = document.getElementById("slots-container");
             const splitCont = document.getElementById("split-view-container");
             const cabinasCont = document.getElementById("cabinas-view-container");
+            const staffCont = document.getElementById("therapist-view-container");
             const detailsCont = document.getElementById("details-section");
 
             if (slotsCont) slotsCont.style.setProperty('display', 'none', 'important');
             if (splitCont) splitCont.style.setProperty('display', 'none', 'important');
             if (cabinasCont) cabinasCont.style.setProperty('display', 'none', 'important');
+            if (staffCont) staffCont.style.setProperty('display', 'none', 'important');
             if (detailsCont) detailsCont.style.setProperty('display', 'none', 'important');
 
             // Use currentModule.code as source of truth
@@ -3485,6 +3529,15 @@
                         }
                     }
                     return; // Stop standard flow
+                }
+
+                if (activeCode === 'terapeutas') {
+                    if (staffCont) {
+                        staffCont.style.removeProperty('display');
+                        staffCont.style.display = 'block';
+                        await renderTherapistTimeline(date, 'therapist-timeline-grid-main');
+                    }
+                    return;
                 }
 
                 if (activeCode === 'cabinas') {
@@ -7262,8 +7315,8 @@
         }
         window.closeTherapistAvailability = closeTherapistAvailability;
 
-        async function renderTherapistTimeline(dateStr) {
-            const container = document.getElementById('therapist-timeline-grid');
+        async function renderTherapistTimeline(dateStr, containerId = 'therapist-timeline-grid') {
+            const container = document.getElementById(containerId);
             if (!container) return;
 
             // Update date display
@@ -7528,7 +7581,7 @@
                 if (bookingData._moduleCode === 'panacea') bookingData._moduleCode = 'panacea';
 
                 // Cerrar modal de disponibilidad
-                closeTherapistAvailability();
+                // closeTherapistAvailability(); // KEEP OPEN per user request
 
                 // Abrir en el modal de edición principal
                 // editBooking(id, explicitRes) se encarga de todo
@@ -7558,6 +7611,18 @@
         loadReservas = async function (...args) {
             await originalLoadReservas.apply(this, args);
             updateTimelineButtons();
+
+            // Refresh Therapist Agenda if modal is open
+            const tModal = document.getElementById('therapist-availability-modal');
+            if (tModal && tModal.style.display !== 'none' && window.currentTherapistAgendaParams) {
+                // Refresh grid (optional, but good for sync)
+                if (typeof renderTherapistAvailabilityGrid === 'function') {
+                    // We might need to fetch availability again? 
+                    // For now, let's just refresh the list which is critical for the user feedback
+                }
+                const { staffId, staffName, dateStr } = window.currentTherapistAgendaParams;
+                showTherapistDayAgenda(staffId, staffName, dateStr);
+            }
         };
 
         // --- BLOCK ROOM LOGIC ---
@@ -7594,9 +7659,16 @@
         }
 
         async function showTherapistDayAgenda(staffId, staffName, dateStr) {
-            const list = document.getElementById('therapist-agenda-inline-list');
-            const nameEl = document.getElementById('inline-agenda-staff-name');
-            const container = document.getElementById('therapist-agenda-inline-container');
+            window.currentTherapistAgendaParams = { staffId, staffName, dateStr };
+
+            // Dynamic ID Selection
+            const isMainView = (currentModule && currentModule.code === 'terapeutas');
+            const suffix = isMainView ? '-main' : '';
+
+            const list = document.getElementById(`therapist-agenda-inline-list${suffix}`);
+            const nameEl = document.getElementById(`inline-agenda-staff-name${suffix}`);
+            const container = document.getElementById(`therapist-agenda-inline-container${suffix}`);
+
             if (!list || !container) return;
 
             // Show container
@@ -7636,15 +7708,23 @@
                 } else {
                     let html = '';
                     myBookings.forEach(b => {
-                        const roomName = (MODULES[b._collection || b.module] || { name: b._collection }).name || b._collection;
+                        const roomName = (MODULES[b._collection || b.module] || { name: b._collection || 'Servicio' }).name || b._collection || 'General';
+                        const collection = b._collection || (MODULES[b.module] ? MODULES[b.module].collection : 'reservas_cabina_no_collection');
 
                         // --- PROTOCOLO DE COLOR ---
+                        // Search for custom color in Master Items if available
+                        let customColor = null;
+                        if (window.masterItems) {
+                            const mItem = window.masterItems.find(i => i.name && i.name.toLowerCase().trim() === (b.servicio || b.nombre_servicio || '').toLowerCase().trim());
+                            if (mItem && mItem.color) customColor = mItem.color;
+                        }
+
                         const protocol = window.getServiceProtocol ? window.getServiceProtocol(b.servicio || b.nombre_servicio) : { color: '#64748b' };
-                        const borderColor = protocol.color;
-                        const bgColor = `${protocol.color}10`; // Low opacity background
+                        const borderColor = customColor || protocol.color;
+                        const bgColor = `${borderColor}40`; // Increased opacity (40 = 25%)
 
                         html += `
-                            <div style="background:#fff; border:1px solid #e2e8f0; border-left: 5px solid ${borderColor}; background-color: ${bgColor}; border-radius:8px; padding:12px; margin-bottom:8px; display:flex; gap:12px; align-items:center; transition: transform 0.2s;">
+                            <div onclick="showTimelineBookingDetail('${b.id}', '${collection}')" style="cursor:pointer; background-color:${bgColor}; border:1px solid #e2e8f0; border-left: 5px solid ${borderColor}; border-radius:8px; padding:12px; margin-bottom:8px; display:flex; gap:12px; align-items:center; transition: transform 0.2s;" onmouseover="this.style.transform='translateX(5px)'" onmouseout="this.style.transform='translateX(0)'">
                                 <div style="background:#fff; border: 1px solid #e2e8f0; padding:5px 8px; border-radius:6px; font-weight:800; color:#1e3a8a; font-size:0.85rem; min-width: 60px; text-align:center;">${b.hora}</div>
                                 <div style="flex:1;">
                                     <div style="font-weight:700; font-size:0.85rem; color:#1e293b;">${(b.servicio || b.nombre_servicio || 'Servicio').toUpperCase()}</div>

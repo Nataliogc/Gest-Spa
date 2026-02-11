@@ -1031,7 +1031,7 @@ window.getServiceProtocol = function (serviceName) {
 
     const name = serviceName.toLowerCase().trim();
 
-    // 1. Check for custom color in global catalog cache if available
+    // 1. Check for custom color in global catalog cache (Services)
     const catalog = window.catalogServices || window.currentServices || [];
     const customItem = catalog.find(s => s.nombre && s.nombre.toLowerCase().trim() === name);
     if (customItem && customItem.color) {
@@ -1040,6 +1040,18 @@ window.getServiceProtocol = function (serviceName) {
             tratamiento: (customItem.categoria || 'Servicio personalizado').toUpperCase(),
             category: customItem.categoria || 'custom'
         };
+    }
+
+    // 1b. Check for custom color in Master Items (Configuration)
+    if (window.masterItems) {
+        const mItem = window.masterItems.find(i => i.name && i.name.toLowerCase().trim() === name);
+        if (mItem && mItem.color) {
+            return {
+                color: mItem.color,
+                tratamiento: 'PERSONALIZADO',
+                category: 'custom_master'
+            };
+        }
     }
 
     // 2. Priority Overrides (Specific services with fixed colors from image)

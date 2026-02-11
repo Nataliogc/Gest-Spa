@@ -546,13 +546,16 @@ function renderMasterItems() {
             <td style="padding: 6px 2px;">
                 <div style="display: flex; align-items: center; gap: 8px;">
                     ${(() => {
+                // Use saved color or fallback to protocol
                 const prot = window.getServiceProtocol ? window.getServiceProtocol(item.name) : { color: '#cbd5e1' };
-                return `<span style="width: 12px; height: 12px; border-radius: 50%; background: ${prot.color}; flex-shrink: 0;" title="${prot.tratamiento}"></span>`;
+                const currentColor = item.color || prot.color;
+                return `<input type="color" value="${currentColor}" onchange="updateMasterItemField('${item.id}', 'color', this.value)" 
+                                style="width: 24px; height: 24px; border: none; background: none; cursor: pointer; padding: 0;" title="Color del servicio">`;
             })()}
                     <input type="text" value="${item.name}" onchange="updateMasterItemField('${item.id}', 'name', this.value)" 
                         class="param-input" style="width:100%; font-weight: 500;">
                 </div>
-                <div style="font-size: 0.6rem; color: #94a3b8; margin-left: 20px; text-transform: uppercase; font-weight: 700;">
+                <div style="font-size: 0.6rem; color: #94a3b8; margin-left: 32px; text-transform: uppercase; font-weight: 700;">
                     ${(() => {
                 const prot = window.getServiceProtocol ? window.getServiceProtocol(item.name) : { tratamiento: 'Varios' };
                 return prot.tratamiento;
