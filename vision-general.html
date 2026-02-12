@@ -1104,7 +1104,7 @@
                 const ds = fmt(d);
                 const dateLabel = `${dayName(d)} ${d.getDate()}`;
                 const todayClass = isToday(d) ? 'is-today' : (isWeekend(d) ? 'is-weekend' : '');
-                headerHTML += `<th class="${todayClass}" onclick="openGeneralDayDetail('${ds}', '${dateLabel}')" style="cursor:pointer; transition:background 0.2s;" title="Ver resumen del día">
+                headerHTML += `<th class="${todayClass}" onclick="window.location.href='disponibilidad-terapeutas.html?fecha=${ds}'" style="cursor:pointer; transition:background 0.2s;" title="Ver resumen del día">
                     <span class="day-name">${dayName(d)}</span>
                     <span class="day-num">${d.getDate()}</span>
                 </th>`;

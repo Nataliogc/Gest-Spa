@@ -1,0 +1,1415 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Disponibilidad de Terapeutas - Zenith Manager</title>
+    <link rel="icon" type="image/png" href="zenith-icon.png">
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <style>
+        /* Reusing and adapting styles from vision-general.html */
+        .vg-container {
+            padding: 20px 30px;
+            background: var(--bg);
+            min-height: 100vh;
+        }
+
+        /* HEADER */
+        .vg-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 25px;
+            background: #fff;
+            padding: 15px 25px;
+            border-radius: 16px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
+            border: 1px solid var(--border);
+        }
+
+        .vg-header-left {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .vg-header-icon {
+            width: 48px;
+            height: 48px;
+            background: linear-gradient(135deg, #10b981, #34d399);
+            /* Greenish for Availability */
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 1.4rem;
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+        }
+
+        .vg-title {
+            margin: 0;
+            font-size: 1.4rem;
+            font-weight: 800;
+            color: var(--text);
+        }
+
+        .vg-subtitle {
+            margin: 0;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+
+        /* DATE CONTROLS */
+        .date-controls {
+            display: flex;
+            align-items: center;
+            background: #f1f5f9;
+            padding: 5px;
+            border-radius: 12px;
+            border: 1px solid #e2e8f0;
+        }
+
+        .date-btn {
+            background: #fff;
+            border: 1px solid #cbd5e1;
+            color: #64748b;
+            width: 36px;
+            height: 36px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .date-btn:hover {
+            background: #fff;
+            color: var(--accent);
+            border-color: var(--accent);
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+        }
+
+        .date-input-wrapper {
+            position: relative;
+            margin: 0 10px;
+        }
+
+        .date-input-display {
+            font-family: 'Montserrat', sans-serif;
+            font-weight: 700;
+            color: #334155;
+            font-size: 0.95rem;
+            padding: 8px 15px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: transparent;
+            border: none;
+            outline: none;
+        }
+
+        /* Hiding actual date input but using it for picker */
+        #date-picker {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            cursor: pointer;
+        }
+
+        /* MAIN CONTENT - COLUMN LAYOUT */
+        #staff-columns-container {
+            display: flex;
+            gap: 20px;
+            overflow-x: auto;
+            align-items: flex-start;
+            padding-bottom: 30px;
+            /* Scrollbar space */
+            min-height: 60vh;
+        }
+
+        /* STAFF COLUMN CARD */
+        .staff-col-card {
+            flex: 1;
+            min-width: 300px;
+            max-width: 360px;
+            background: #fff;
+            border-radius: 16px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            border: 1px solid #e2e8f0;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .staff-col-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08);
+        }
+
+        .staff-col-header {
+            padding: 15px 20px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            color: white;
+        }
+
+        .staff-avatar-initials {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.25);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 900;
+            font-size: 0.9rem;
+            color: #fff;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+
+        .staff-col-body {
+            flex: 1;
+            padding: 15px;
+            max-height: 70vh;
+            /* Scroll inside card if very long */
+            overflow-y: auto;
+        }
+
+        /* SHIFTS TAGS */
+        .shift-tag {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            margin-right: 5px;
+            margin-bottom: 5px;
+        }
+
+        /* BOOKING ITEM */
+        .booking-item {
+            padding: 10px 14px;
+            border-radius: 10px;
+            margin-bottom: 8px;
+            cursor: pointer;
+            transition: all 0.15s;
+            background: #fff;
+            border-left-width: 4px;
+            border-left-style: solid;
+        }
+
+        /* FREE SLOT BLOCK */
+        .free-slots-section {
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 2px dashed #f1f5f9;
+        }
+
+        .free-slots-title {
+            font-size: 0.75rem;
+            font-weight: 800;
+            color: #10b981;
+            text-transform: uppercase;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .time-chips-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .time-chip {
+            padding: 5px 10px;
+            background: #f0fdf4;
+            border: 1px solid #bbf7d0;
+            border-radius: 8px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: #166534;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+
+        .time-chip:hover {
+            background: #16a34a;
+            color: white;
+            border-color: #16a34a;
+            transform: scale(1.05);
+        }
+
+        /* VG DETAIL PANEL STYLES (Ported from vision-general.html) */
+        .vg-detail-panel {
+            position: fixed;
+            top: 0;
+            right: -500px;
+            width: 460px;
+            height: 100vh;
+            background: #fff;
+            box-shadow: -10px 0 40px rgba(0, 0, 0, 0.15);
+            z-index: 2000;
+            transition: right 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            flex-direction: column;
+            border-left: 3px solid var(--accent);
+        }
+
+        .vg-detail-panel.open {
+            right: 0;
+        }
+
+        .vg-detail-panel.centered {
+            right: auto;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            height: auto;
+            max-height: 92vh;
+            width: 900px;
+            border-radius: 16px;
+            border-left: none;
+            border: 2px solid var(--accent);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            transition: opacity 0.3s, transform 0.3s;
+        }
+
+        .vg-detail-panel.centered .vg-detail-header {
+            border-radius: 14px 14px 0 0;
+        }
+
+        .vg-detail-panel.centered .vg-detail-body {
+            max-height: calc(92vh - 70px);
+            overflow-y: auto;
+        }
+
+        .vg-detail-header {
+            padding: 20px 25px;
+            background: #1e293b;
+            color: #fff;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .vg-detail-header h3 {
+            margin: 0;
+            font-size: 1rem;
+            font-weight: 700;
+            color: #fff;
+        }
+
+        .vg-detail-header .close-btn {
+            background: transparent;
+            border: none;
+            color: #94a3b8;
+            font-size: 1.2rem;
+            cursor: pointer;
+            padding: 5px;
+            transition: color 0.2s;
+        }
+
+        .vg-detail-header .close-btn:hover {
+            color: #fff;
+        }
+
+        .vg-detail-body {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px 25px;
+        }
+
+        .vg-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.4);
+            z-index: 1999;
+            display: none;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .vg-overlay.visible {
+            display: block;
+            opacity: 1;
+        }
+
+        .vg-input {
+            width: 100%;
+            padding: 8px 12px;
+            border-radius: 8px;
+            border: 1px solid #cbd5e1;
+            font-size: 0.85rem;
+            font-family: 'Montserrat', sans-serif;
+            background: #fff;
+            color: var(--text);
+            transition: border-color 0.2s;
+        }
+
+        .vg-input:focus {
+            border-color: var(--accent);
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.15);
+        }
+
+        .vg-submit-btn {
+            width: 100%;
+            padding: 12px;
+            background: linear-gradient(135deg, #d4af37, #f0d060);
+            color: #1e293b;
+            border: none;
+            border-radius: 10px;
+            font-weight: 800;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-top: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .vg-submit-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(212, 175, 55, 0.4);
+        }
+
+        .service-result-item:hover {
+            background: #f8fafc;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="sidebar">
+        <div style="display: flex; align-items: center; gap: 15px;">
+            <img src="logo-spa.jpg" alt="Cumbria Bienestar" style="height: 65px; width: auto; object-fit: contain;">
+        </div>
+
+        <ul class="nav-links" style="flex:1;">
+            <li><a href="index.html" class="nav-link" title="Inicio"><i class="fas fa-home"
+                        style="color: #3b82f6;"></i></a>
+            </li>
+            <li><a href="bonos.html" class="nav-link"><i class="fas fa-ticket-alt"></i> Bonos</a></li>
+            <li><a href="reservas.html?type=spa" class="nav-link"><i class="fas fa-water"></i> Spa</a></li>
+            <li><a href="reservas.html?type=cabinas" class="nav-link"><i class="fas fa-cubes"></i> Cabinas</a></li>
+            <li><a href="reservas.html?view=staff" class="nav-link active"
+                    style="color:var(--accent); font-weight:bold;"><i class="fas fa-calendar-alt"></i> Ocup Terap</a>
+            </li>
+
+            <li class="dropdown">
+                <a href="#" class="nav-link dropdown-toggle">
+                    <i class="fas fa-door-open"></i> Salas <i class="fas fa-caret-down"
+                        style="font-size: 0.7em; margin-left: 5px;"></i>
+                </a>
+                <ul class="dropdown-menu">
+                    <li><a href="reservas.html?type=suite"><i class="fas fa-gem"></i> Suite</a></li>
+                    <li><a href="reservas.html?type=panacea"><i class="fas fa-columns"></i> Panacea & VIP</a></li>
+                    <li><a href="reservas.html?type=peluqueria"><i class="fas fa-cut"></i> Peluquería</a></li>
+                </ul>
+            </li>
+
+            <li><a href="vision-general.html" class="nav-link"><i class="fas fa-binoculars"></i> Visión 15d</a></li>
+
+            <li class="dropdown">
+                <a href="#" class="nav-link dropdown-toggle">
+                    <i class="fas fa-users-cog"></i> GESTIÓN <i class="fas fa-caret-down"
+                        style="font-size: 0.7em; margin-left: 2px;"></i>
+                </a>
+                <ul class="dropdown-menu">
+                    <li><a href="personal.html"><i class="fas fa-user-tie"></i> Personal</a></li>
+                    <li><a href="catalogo.html"><i class="fas fa-book-open"></i> Catálogo</a></li>
+                    <li><a href="configuracion.html"><i class="fas fa-cogs"></i> Ajustes</a></li>
+                </ul>
+            </li>
+        </ul>
+
+        <div style="display: flex; align-items: center; gap: 10px;">
+            <div style="text-align: right; line-height: 1.2;">
+                <span style="font-size: 0.9rem; font-weight: 600; display: block; color: var(--text);">ZENITH</span>
+                <span style="font-size: 0.75rem; letter-spacing: 1px; color: var(--text-muted);">MANAGER</span>
+            </div>
+            <img src="zenith-logo.png" alt="Zenith" style="height: 35px; width: auto;">
+        </div>
+    </div>
+
+    <!-- MAIN CONTENT -->
+    <main class="main-content">
+        <div class="vg-container">
+
+            <!-- HEADER WITH CONTROLS -->
+            <div class="vg-header">
+                <div class="vg-header-left">
+                    <div class="vg-header-icon">
+                        <i class="fas fa-user-clock"></i>
+                    </div>
+                    <div>
+                        <h1 class="vg-title">Disponibilidad de Terapeutas</h1>
+                        <div class="vg-subtitle">Gestiona la agenda diaria y huecos libres</div>
+                    </div>
+                </div>
+
+                <!-- CENTRAL DATE NAVIGATION -->
+                <div class="date-controls">
+                    <button class="date-btn" onclick="previousDay()">
+                        <i class="fas fa-chevron-left"></i>
+                    </button>
+
+                    <div class="date-input-wrapper">
+                        <!-- The input is hidden but covers the area to trigger picker -->
+                        <input type="date" id="date-picker" onchange="onDateChange(this.value)">
+                        <div class="date-input-display" id="date-label">
+                            <i class="fas fa-calendar-alt text-muted"></i>
+                            <span>Cargando...</span>
+                        </div>
+                    </div>
+
+                    <button class="date-btn" onclick="nextDay()">
+                        <i class="fas fa-chevron-right"></i>
+                    </button>
+
+                    <button class="date-btn" onclick="goToToday()"
+                        style="width: auto; padding: 0 12px; margin-left: 5px; font-weight: 600; font-size: 0.8rem;">
+                        Hoy
+                    </button>
+                </div>
+
+                <div style="width: 100px;"></div> <!-- Spacer for balance -->
+            </div>
+
+            <!-- LOADING STATE -->
+            <div id="loading-indicator" style="display:none; text-align:center; padding: 50px;">
+                <i class="fas fa-spinner fa-spin" style="font-size: 2rem; color: var(--accent);"></i>
+                <p style="margin-top: 15px; color: #94a3b8;">Cargando agendas...</p>
+            </div>
+
+            <!-- COLUMNS CONTAINER -->
+            <div id="staff-columns-container">
+                <!-- JS populated columns will go here -->
+            </div>
+    </main>
+
+    <!-- Detailed Edit Panel (Replaces simple modal) -->
+    <div id="vg-overlay" class="vg-overlay" onclick="closeDetailPanel()"></div>
+    <div id="vg-detail-panel" class="vg-detail-panel">
+        <div class="vg-detail-header">
+            <h3 id="detail-title">Detalles</h3>
+            <button class="close-btn" onclick="closeDetailPanel()"><i class="fas fa-times"></i></button>
+        </div>
+        <div style="padding: 0 25px;">
+            <div id="detail-subtitle" class="vg-subtitle" style="margin-bottom: 0;"></div>
+        </div>
+        <div id="detail-body" class="vg-detail-body">
+            <!-- Content injected via JS -->
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+
+    <script src="firebase-config.js"></script>
+    <script src="js/app-core.js"></script>
+    <script src="reservas-staff.js"></script>
+
+    <script>
+        // --- CONSTANTS & STATE ---
+        const STAFF_COLORS = ['#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#ef4444', '#6366f1', '#14b8a6'];
+        let currentDate = new Date().toISOString().split('T')[0];
+        let activeStaffList = [];
+        let allCatalogItems = [];
+
+        // --- INITIALIZATION ---
+        document.addEventListener('DOMContentLoaded', async () => {
+            // Init Navigation Sidebar
+            if (typeof setupNavigation === 'function') setupNavigation();
+
+            // Check URL param for date
+            const params = new URLSearchParams(window.location.search);
+            if (params.has('fecha')) {
+                currentDate = params.get('fecha');
+            } else {
+                // Default to today
+                const today = new Date();
+                const offset = today.getTimezoneOffset();
+                currentDate = new Date(today.getTime() - (offset * 60 * 1000)).toISOString().split('T')[0];
+            }
+
+            updateDateLabel();
+
+            // Initial Load
+            await loadCatalog();
+            await loadView();
+        });
+
+        // --- CORE FUNCTIONS ---
+
+        let serviceColorMap = {};
+
+        async function loadCatalog() {
+            try {
+                serviceColorMap = {};
+
+                // 1. Generics / Legacy Services (Base priority)
+                const snap = await db.collection('spa_services').get();
+                snap.forEach(doc => {
+                    const d = doc.data();
+                    const name = (d.nombre || d.name || '').toLowerCase().trim();
+                    if (name && d.color) {
+                        serviceColorMap[name] = d.color;
+                    }
+                });
+
+                // 2. Master Items (High Priority - Overwrites base)
+                const snapMaster = await db.collection('spa_item_master').get();
+                snapMaster.forEach(doc => {
+                    const d = doc.data();
+                    const name = (d.name || d.nombre || '').toLowerCase().trim();
+                    if (name && d.color) {
+                        serviceColorMap[name] = d.color;
+                    }
+                });
+
+                console.log("Service Color Map loaded", Object.keys(serviceColorMap).length);
+
+            } catch (e) { console.warn("Error loading catalog", e); }
+        }
+
+        async function loadView() {
+            showLoading(true);
+            try {
+                // 1. Load Active Staff
+                if (window.getActiveStaff) {
+                    activeStaffList = await window.getActiveStaff();
+                } else {
+                    // Fallback if reservas-staff not fully loaded or different context
+                    const snap = await db.collection('spa_staff').where('activo', '==', true).get();
+                    activeStaffList = [];
+                    snap.forEach(d => activeStaffList.push({ id: d.id, ...d.data() }));
+                }
+
+                // 2. Load Data for the Day
+                const [bookings, exceptions] = await Promise.all([
+                    window.getAllBookingsForDate(currentDate),
+                    window.getDayExceptionsForDate(currentDate)
+                ]);
+
+                // 3. Render Columns
+                await renderStaffColumns(bookings, exceptions);
+
+            } catch (error) {
+                console.error("Error loading view:", error);
+                Swal.fire('Error', 'No se pudieron cargar los datos.', 'error');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        function getServiceColor(serviceName) {
+            if (!serviceName) return '#64748b';
+            const cleanName = serviceName.toLowerCase().trim();
+
+            // 1. Exact Match in DB Map (High Priority)
+            if (serviceColorMap[cleanName]) return serviceColorMap[cleanName];
+
+            // 2. Normalized Match in DB Map
+            const normName = cleanName.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+            const foundKey = Object.keys(serviceColorMap).find(k =>
+                k.normalize("NFD").replace(/[\u0300-\u036f]/g, "") === normName
+            );
+            if (foundKey) return serviceColorMap[foundKey];
+
+            // 3. Fallback to Protocol Rules (Hardcoded rules for Presoterapia, Masajes, etc.)
+            if (window.getServiceProtocol) {
+                const prot = window.getServiceProtocol(serviceName);
+                if (prot && prot.color) return prot.color;
+            }
+
+            return '#64748b';
+        }
+
+        async function renderStaffColumns(allBookings, allExceptions) {
+            const container = document.getElementById('staff-columns-container');
+            container.innerHTML = '';
+
+            if (activeStaffList.length === 0) {
+                container.innerHTML = '<div style="width:100%; text-align:center; color:#94a3b8; padding:40px;">No hay terapeutas activos.</div>';
+                return;
+            }
+
+            let html = '';
+
+            for (let i = 0; i < activeStaffList.length; i++) {
+                const staff = activeStaffList[i];
+                const color = STAFF_COLORS[i % STAFF_COLORS.length];
+                const initials = (staff.nombre || staff.name || 'SF').substring(0, 2).toUpperCase();
+                const displayName = staff.alias || staff.nombre || 'Staff';
+
+                // -- Bookings --
+                const staffBookings = allBookings.filter(b => {
+                    const sId = staff.id;
+                    const sName = (staff.nombre || staff.name || '').toLowerCase().trim();
+                    const bId = b.staff_id || b.terapeuta_id || (b.staff ? b.staff.id : null);
+                    const bName = (b.staff_name || b.terapeuta || '').toLowerCase().trim();
+
+                    // Also check second staff slot
+                    const bId2 = b.staff_id2 || b.terapeuta_id2 || (b.staff2 ? b.staff2.id : null);
+                    const bName2 = (b.staff_name2 || b.terapeuta2 || '').toLowerCase().trim();
+
+                    const match1 = (bId === sId) || (sName && bName === sName);
+                    const match2 = (bId2 === sId) || (sName && bName2 === sName);
+
+                    return match1 || match2;
+                });
+                staffBookings.sort((a, b) => timeToMinutes(a.hora) - timeToMinutes(b.hora));
+
+                // -- Schedule --
+                const scheduleData = await window.getStaffScheduleForDate(staff, currentDate, allExceptions);
+
+                const isWorking = scheduleData.status === 'ok' && scheduleData.shifts && scheduleData.shifts.length > 0;
+
+                // -- Free Slots Calculation --
+                let freeSlots = [];
+                if (isWorking) {
+                    freeSlots = calculateFreeSlots(scheduleData.shifts, staffBookings);
+                }
+
+                const bookingsCount = staffBookings.length;
+
+                // -- BUILD CARD HTML --
+                // Header Background gradient
+                const headerBg = `linear-gradient(135deg, ${color}, ${adjustBrightness(color, -20)})`;
+
+                html += `
+                <div class="staff-col-card" style="border-top: 4px solid ${color};">
+                    
+                    <!-- HEADER -->
+                    <div class="staff-col-header" style="background: ${headerBg};">
+                        <div class="staff-avatar-initials">${initials}</div>
+                        <div>
+                            <div style="font-weight: 800; font-size: 1.1rem; text-shadow: 0 1px 2px rgba(0,0,0,0.1);">${displayName}</div>
+                            <div style="font-size: 0.75rem; opacity: 0.9;">
+                                ${!isWorking ? '<span style="background:rgba(0,0,0,0.2); padding:2px 6px; border-radius:4px;">NO TRABAJA</span>' : (bookingsCount + ' Citas')}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- BODY -->
+                    <div class="staff-col-body">
+                `;
+
+                if (!isWorking) {
+                    html += `
+                        <div style="text-align: center; padding: 40px 20px; color: #cbd5e1; background: #fff; height: 100%; display: flex; flex-direction: column; justify-content: center; min-height: 200px;">
+                            <div style="text-decoration: line-through; font-size: 1.2rem; font-weight: 700; color: #cbd5e1;">NO TRABAJA</div>
+                            <div style="text-decoration: line-through; font-size: 0.8rem; margin-top: 5px;">Día Libre / Descanso</div>
+                        </div>
+                     `;
+                } else {
+                    // Shifts
+                    if (scheduleData.shifts) {
+                        html += '<div style="margin-bottom: 15px;">';
+                        scheduleData.shifts.forEach(s => {
+                            html += `<span class="shift-tag" style="background: ${color}15; color: ${color}; border: 1px solid ${color}30;"><i class="fas fa-clock" style="margin-right:4px; font-size:0.75em;"></i>${s.start} - ${s.end}</span>`;
+                        });
+                        html += '</div>';
+                    }
+
+                    // Bookings List
+                    staffBookings.forEach(b => {
+                        const dur = parseInt(b.duracion) || 60;
+                        const endMin = timeToMinutes(b.hora) + dur;
+                        const endTime = minutesToTime(endMin);
+                        const sName = b.servicio || b.nombre_servicio || 'Servicio';
+
+                        // Check Color strictly
+                        let sColor = getServiceColor(sName);
+
+                        // Ensure it is a valid hex or accepted color format
+                        if (!sColor.startsWith('#') && !sColor.startsWith('rgb')) sColor = '#64748b';
+
+                        // Extract room properly
+                        let roomLabel = collectionToRoomLabel(b._collection);
+                        if (!roomLabel) roomLabel = '?';
+
+                        html += `
+                            <div class="booking-item" 
+                                 onclick="openEditReservation('${b.id}', '${b._collection || 'reservas_spa'}')"
+                                 style="border-left-color: ${sColor}; background: linear-gradient(to right, ${sColor}15, #ffffff);">
+                                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                                    <div style="font-weight: 800; color: #334155; font-size: 0.85rem;">
+                                        ${b.hora} <span style="font-weight:400; color:#94a3b8; font-size:0.75rem;">(${dur}m)</span>
+                                    </div>
+                                    <div style="font-size: 0.65rem; background: ${sColor}20; color: ${sColor}; padding: 1px 5px; border-radius: 4px; font-weight:700;">
+                                        ${roomLabel}
+                                    </div>
+                                </div>
+                                <div style="font-size: 0.8rem; font-weight: 700; color: ${sColor}; margin-bottom: 4px; line-height:1.2;">
+                                    ${sName}
+                                </div>
+                                <div style="font-size: 0.75rem; color: #64748b; display: flex; align-items:center; gap: 5px;">
+                                    <i class="fas fa-user-circle" style="opacity:0.6;"></i> 
+                                    <span style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:180px;">${b.nombre || 'Cliente'}</span>
+                                    ${b.telefono ? `<span style="font-size:0.65rem; opacity:0.7;">· ${b.telefono.slice(-4)}</span>` : ''}
+                                </div>
+                            </div>
+                        `;
+                    });
+
+                    // Free Slots Grouped
+                    if (freeSlots.length > 0) {
+                        const blocks = groupFreeSlots(freeSlots);
+                        html += `
+                            <div class="free-slots-section">
+                                <div class="free-slots-title" style="color: ${color};">
+                                    <i class="fas fa-plus-circle"></i> Huecos Disponibles
+                                </div>
+                                <div style="display: flex; flex-direction: column; gap: 8px;">
+                        `;
+
+                        blocks.forEach(block => {
+                            const startT = block[0];
+                            const endT = minutesToTime(timeToMinutes(block[block.length - 1]) + 15);
+                            const dur = block.length * 15;
+
+                            html += `
+                                <div style="background: #f8fafc; padding: 8px; border-radius: 8px; border: 1px dashed #cbd5e1;">
+                                    <div style="font-size: 0.7rem; font-weight: 700; color: #64748b; margin-bottom: 6px; display:flex; justify-content:space-between;">
+                                        <span>${startT} - ${endT}</span>
+                                        <span style="color:#10b981;">${dur} min</span>
+                                    </div>
+                                    <div class="time-chips-container">
+                            `;
+
+                            block.forEach(t => {
+                                html += `<div class="time-chip" 
+                                              onclick="startBooking('${staff.id}', '${currentDate}', '${t}')"
+                                              style="border-color: ${color}40; background: ${color}05; color: ${color};">
+                                              ${t}
+                                         </div>`;
+                            });
+
+                            html += `</div></div>`;
+                        });
+
+                        html += `</div></div>`;
+                    } else if (staffBookings.length > 0) {
+                        html += '<div style="margin-top:20px; text-align:center; padding:10px; border-radius:8px; background:#fef2f2; color: #ef4444; font-size:0.8rem; font-weight:700;"><i class="fas fa-ban"></i> SIN HUECOS</div>';
+                    }
+                }
+
+                html += `</div></div>`; // Close Body and Card
+            }
+
+            container.innerHTML = html;
+        }
+
+        // --- HELPERS ---
+
+        function calculateFreeSlots(shifts, bookings) {
+            let slots = new Set();
+
+            // Add working slots
+            shifts.forEach(shift => {
+                let start = timeToMinutes(shift.start);
+                let end = timeToMinutes(shift.end);
+                for (let m = start; m < end; m += 15) {
+                    slots.add(m);
+                }
+            });
+
+            // Remove booked slots
+            bookings.forEach(b => {
+                if (b.status === 'anulada') return;
+                let start = timeToMinutes(b.hora);
+                let dur = parseInt(b.duracion) || 60;
+                // Round duration up to nearest 15 for exclusion? Usually strict
+                let end = start + dur;
+                for (let m = start; m < end; m += 15) {
+                    slots.delete(m);
+                }
+            });
+
+            // Convert back to sorted time strings
+            return Array.from(slots).sort((a, b) => a - b).map(m => minutesToTime(m));
+        }
+
+        function groupFreeSlots(slots) {
+            if (slots.length === 0) return [];
+            const blocks = [];
+            let currentBlock = [slots[0]];
+            for (let i = 1; i < slots.length; i++) {
+                const prevMin = timeToMinutes(slots[i - 1]);
+                const currMin = timeToMinutes(slots[i]);
+                if (currMin - prevMin === 15) {
+                    currentBlock.push(slots[i]);
+                } else {
+                    blocks.push(currentBlock);
+                    currentBlock = [slots[i]];
+                }
+            }
+            blocks.push(currentBlock);
+            return blocks;
+        }
+
+        // --- DATE NAVIGATION ---
+        function updateDateLabel() {
+            // Fix timezone issue when creating Date from string 
+            const parts = currentDate.split('-');
+            const dateObj = new Date(parts[0], parts[1] - 1, parts[2]);
+
+            const options = { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' };
+            const label = dateObj.toLocaleDateString('es-ES', options);
+            // Capitalize first letter
+            const display = document.querySelector('#date-label span');
+            if (display) display.textContent = label.charAt(0).toUpperCase() + label.slice(1);
+
+            const picker = document.getElementById('date-picker');
+            if (picker) picker.value = currentDate;
+        }
+
+        function onDateChange(newDate) {
+            if (!newDate) return;
+            currentDate = newDate;
+            updateDateLabel();
+            loadView();
+        }
+
+        function goToToday() {
+            const today = new Date();
+            const offset = today.getTimezoneOffset();
+            const todayStr = new Date(today.getTime() - (offset * 60 * 1000)).toISOString().split('T')[0];
+            onDateChange(todayStr); // Reuse existing change handler
+        }
+
+        function previousDay() {
+            const parts = currentDate.split('-');
+            const d = new Date(parts[0], parts[1] - 1, parts[2]);
+
+            d.setDate(d.getDate() - 1);
+
+            const year = d.getFullYear();
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            onDateChange(`${year}-${month}-${day}`);
+        }
+
+        function nextDay() {
+            const parts = currentDate.split('-');
+            const d = new Date(parts[0], parts[1] - 1, parts[2]);
+
+            d.setDate(d.getDate() + 1);
+
+            const year = d.getFullYear();
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            onDateChange(`${year}-${month}-${day}`);
+        }
+
+        // --- ACTIONS & DETAILED PANEL LOGIC ---
+
+        let currentEditingId = null;
+        let currentEditingCollection = null;
+        let currentBookingData = null;
+
+        function closeDetailPanel() {
+            const panel = document.getElementById('vg-detail-panel');
+            const overlay = document.getElementById('vg-overlay');
+            if (panel) panel.classList.remove('open', 'centered', 'fullscreen');
+            if (overlay) overlay.classList.remove('visible');
+
+            currentEditingId = null;
+            currentEditingCollection = null;
+            currentBookingData = null;
+        }
+
+        async function openEditReservation(bookingId, collection) {
+            // Find staffId from booking if possible, or we need to pass it.
+            // In renderStaffColumns, we have staff.id. Let's update the onclick there to pass staffId.
+            // For now, let's try to infer or load it.
+            // Actually, best to update onclick in renderStaffColumns to pass staffId.
+            // But if I can't update renderStaffColumns easily in this step, I'll fetch the doc first.
+
+            try {
+                // Show Global Loading or panel loading?
+                const panel = document.getElementById('vg-detail-panel');
+                const overlay = document.getElementById('vg-overlay');
+
+                // Show panel in centered mode
+                panel.classList.remove('fullscreen');
+                panel.classList.add('centered');
+                overlay.classList.add('visible');
+                panel.classList.add('open');
+
+                document.getElementById('detail-body').innerHTML = '<div class="vg-loading"><i class="fas fa-spinner fa-spin"></i></div>';
+
+                const doc = await db.collection(collection).doc(bookingId).get();
+                if (!doc.exists) {
+                    Swal.fire('Error', 'La reserva no existe', 'error');
+                    closeDetailPanel();
+                    return;
+                }
+                const data = doc.data();
+                currentEditingId = bookingId;
+                currentEditingCollection = collection;
+                currentBookingData = data;
+
+                // Identify staff from data if available, or finding it in activeStaffList
+                let staffId = data.terapeuta_id;
+                // fallback if no terapeuta_id, try to match by name
+                if (!staffId && data.terapeuta) {
+                    const s = activeStaffList.find(st => (st.nombre || st.name || '').toLowerCase() === data.terapeuta.toLowerCase());
+                    if (s) staffId = s.id;
+                }
+
+                // Initialize form
+                renderBookingForm(staffId, currentDate, data.hora, data);
+
+                // Update Header
+                const clientName = data.nombre || data.cliente || 'Cliente';
+                const displayId = data.res_id || data.localizador || bookingId.slice(0, 8); // fallback
+
+                document.getElementById('detail-title').textContent = 'Editar Reserva';
+                document.getElementById('detail-subtitle').innerHTML = `
+                    <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-top:5px; width:100%;">
+                        <div>
+                            <span style="font-weight:800; font-size:1.2em; color:#334155; text-transform:uppercase;">${clientName}</span><br>
+                            <span style="font-size:0.85em; opacity:0.8; color:#94a3b8; font-weight:600;">${currentDate}</span>
+                        </div>
+                        <div style="text-align:right;">
+                            <span style="background:rgba(212,175,55,0.1); color:#d4af37; padding:4px 12px; border-radius:8px; font-weight:800; font-family:monospace; font-size:0.95em; border:1px solid #d4af37; border-style:dashed;"># ${displayId}</span>
+                        </div>
+                    </div>
+                `;
+
+            } catch (error) {
+                console.error("Error fetching booking details:", error);
+                Swal.fire('Error', 'No se pudieron cargar los detalles', 'error');
+                closeDetailPanel();
+            }
+        }
+
+        // New Booking Entry Point
+        function startBooking(staffId, dateStr, time) {
+            currentEditingId = null;
+            currentEditingCollection = null;
+            currentBookingData = null;
+
+            const panel = document.getElementById('vg-detail-panel');
+            const overlay = document.getElementById('vg-overlay');
+
+            panel.classList.remove('fullscreen');
+            panel.classList.add('centered');
+            overlay.classList.add('visible');
+            panel.classList.add('open');
+
+            const staff = activeStaffList.find(s => s.id === staffId);
+            const staffName = staff ? (staff.alias || staff.nombre) : 'Terapeuta';
+
+            document.getElementById('detail-title').textContent = 'Nueva Reserva';
+            document.getElementById('detail-subtitle').textContent = `${staffName} · ${dateStr} ${time}`;
+
+            renderBookingForm(staffId, dateStr, time, null);
+        }
+
+        function renderBookingForm(staffId, dateStr, time, data) {
+            const staff = activeStaffList.find(s => s.id === staffId);
+
+            // Room Options
+            const ROOMS = [
+                { code: 'reservas_cabina1', label: 'Cabina 1' },
+                { code: 'reservas_cabina2', label: 'Cabina 2' },
+                { code: 'reservas_cabina3', label: 'Cabina 3' },
+                { code: 'reservas_suite', label: 'Suite' },
+                { code: 'reservas_vip', label: 'VIP' },
+                { code: 'reservas_panacea', label: 'Panacea' },
+                { code: 'reservas_peluqueria', label: 'Peluquería' },
+            ];
+
+            // Build Room Options HTML
+            let roomOptions = '';
+            ROOMS.forEach(r => {
+                const selected = (data && (data._collection === r.code || currentEditingCollection === r.code)) ? 'selected' : '';
+                roomOptions += `<option value="${r.code}" ${selected}>${r.label}</option>`;
+            });
+
+            // Staff Options using activeStaffList
+            let staffOptions = `<option value="">Sin asignar</option>`;
+            activeStaffList.forEach(s => {
+                const selected = (staffId === s.id) ? 'selected' : '';
+                staffOptions += `<option value="${s.id}" ${selected}>${s.alias || s.nombre}</option>`;
+            });
+
+            // Default Values or Data Values
+            const valDate = (data && data.fecha) ? data.fecha : dateStr;
+            const valTime = (data && data.hora) ? data.hora : time;
+            const valPax = (data && data.pax) ? data.pax : 1;
+            const valDur = (data && (data.minutos || data.duracion)) ? (data.minutos || data.duracion) : 60;
+            const valClient = (data && (data.nombre || data.cliente)) ? (data.nombre || data.cliente) : '';
+            const valPhone = (data && (data.telefono || data.tel || data.phone)) ? (data.telefono || data.tel || data.phone) : '';
+            const valObs = (data && (data.observaciones || data.obs)) ? (data.observaciones || data.obs) : '';
+            const valOrigin = (data && data.origen) ? data.origen : 'particular';
+
+            // Payment
+            const valTotal = (data && (data.precio_total || data.precio || data.total)) ? parseFloat(data.precio_total || data.precio || data.total) : 0;
+            const valPaid = (data && (data.importe_pagado || data.pagado) && typeof data.pagado !== 'boolean') ? parseFloat(data.importe_pagado || data.pagado) : (data && data.pagado === true ? valTotal : 0);
+            const valPending = Math.max(0, valTotal - valPaid);
+
+            // Pre-calculate Service Search
+            const serviceName = (data && data.servicio) ? data.servicio : '';
+
+            // Service Options (Hidden Select)
+            let serviceOptionsHTML = `<option value="${serviceName}" selected>${serviceName}</option>`; // Basic Init
+
+            const html = `
+                <div class="vg-quick-form">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Fecha</label>
+                            <input type="date" id="res-date" value="${valDate}">
+                        </div>
+                        <div class="form-group">
+                            <label>Hora</label>
+                            <input type="time" id="res-time" value="${valTime}">
+                        </div>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                             <label>Sala</label>
+                             <select id="res-room">${roomOptions}</select>
+                        </div>
+                         <div class="form-group">
+                             <label>Origen</label>
+                              <select id="res-origin">
+                                <option value="particular" ${valOrigin === 'particular' ? 'selected' : ''}>Particular (Pago Directo)</option>
+                                <option value="hotel_inc" ${valOrigin === 'hotel_inc' ? 'selected' : ''}>Hotel - Incluido</option>
+                                <option value="hotel_no_inc" ${valOrigin === 'hotel_no_inc' ? 'selected' : ''}>Hotel - NO Incluidos</option>
+                                <option value="bono" ${valOrigin === 'bono' ? 'selected' : ''}>Bono Spa</option>
+                                <option value="smartbox" ${valOrigin === 'smartbox' ? 'selected' : ''}>Smartbox</option>
+                                <option value="wonderbox" ${valOrigin === 'wonderbox' ? 'selected' : ''}>Wonderbox</option>
+                              </select>
+                         </div>
+                    </div>
+                    
+                    <div class="form-row" style="grid-template-columns: 2fr 1fr;">
+                        <div class="form-group">
+                            <label>Cliente</label>
+                            <input type="text" id="res-client" value="${valClient}" placeholder="Nombre completo">
+                        </div>
+                        <div class="form-group">
+                            <label>Teléfono</label>
+                            <input type="tel" id="res-phone" value="${valPhone}" placeholder="000 000 000">
+                        </div>
+                    </div>
+                    
+                    <div class="form-row">
+                         <div class="form-group" style="position:relative;">
+                            <label>Servicio</label>
+                            <input type="text" id="res-servicio-search" value="${serviceName}" placeholder="Buscar servicio..." oninput="filterServiceOptions(this.value)" onfocus="showServiceDropdown()" onblur="setTimeout(()=>hideServiceDropdown(),200)">
+                            <div id="res-servicio-results" class="vg-service-dropdown dropdown-list"></div>
+                            <select id="res-service" style="display:none;" onchange="onServiceChange()">${serviceOptionsHTML}</select>
+                        </div>
+                        <div class="form-group">
+                             <label>Terapeuta</label>
+                             <select id="res-staff">${staffOptions}</select>
+                        </div>
+                    </div>
+
+                    <div class="form-row" style="grid-template-columns: 1fr 1fr;">
+                         <div class="form-group">
+                             <label>Minutos</label>
+                             <input type="number" id="res-duration" value="${valDur}">
+                         </div>
+                         <div class="form-group">
+                             <label>Pax</label>
+                             <input type="number" id="res-pax" value="${valPax}">
+                         </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Observaciones</label>
+                        <textarea id="res-obs" placeholder="Notas...">${valObs}</textarea>
+                    </div>
+
+                     <!-- Payment Block -->
+                    <div style="border-left: 4px solid #f59e0b; padding: 15px; margin-top: 15px; background: #fffcf0; border-radius: 0 8px 8px 0;">
+                        <h4 style="margin: 0 0 10px 0; font-size: 0.75rem; font-weight: 800; color: #92400e; display: flex; align-items: center; gap: 8px;">
+                            <i class="fas fa-credit-card"></i> CONTROL DE PAGO
+                        </h4>
+                        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;">
+                             <div style="background: #fff; padding: 8px; border-radius: 6px; border: 1px solid #fef3c7; text-align: center;">
+                                 <small style="color: #92400e; font-size: 0.6rem; font-weight: 700; text-transform: uppercase;">Total</small><br>
+                                 <input type="number" id="res-price-total" value="${valTotal.toFixed(2)}" onchange="updatePendingCalc()" style="width: 100%; border: none; text-align: center; font-weight: bold; color: #1e293b; outline:none;">
+                             </div>
+                             <div style="background: #fff; padding: 8px; border-radius: 6px; border: 1px solid #fef3c7; text-align: center;">
+                                 <small style="color: #22c55e; font-size: 0.6rem; font-weight: 700; text-transform: uppercase;">Pagado</small><br>
+                                 <input type="number" id="res-price-paid" value="${valPaid.toFixed(2)}" onchange="updatePendingCalc()" style="width: 100%; border: none; text-align: center; font-weight: bold; color: #22c55e; outline:none;">
+                             </div>
+                             <div style="background: #fff; padding: 8px; border-radius: 6px; border: 1px solid #fef3c7; text-align: center;">
+                                 <small style="color: #ef4444; font-size: 0.6rem; font-weight: 700; text-transform: uppercase;">Pendiente</small><br>
+                                 <input type="number" id="res-price-pending" value="${valPending.toFixed(2)}" readonly style="width: 100%; border: none; text-align: center; font-weight: bold; color: #ef4444; background:transparent;">
+                             </div>
+                        </div>
+                    </div>
+
+                    <div style="display:flex; gap:10px; margin-top:15px;">
+                         <button type="button" class="vg-submit-btn" onclick="submitBooking()" style="flex:2;">
+                            <i class="fas fa-save"></i> ${currentEditingId ? 'ACTUALIZAR RESERVA' : 'GUARDAR RESERVA'}
+                        </button>
+                        ${currentEditingId ? `
+                            <button type="button" onclick="deleteCurrentBooking()" style="flex:1; padding:12px; background:#fee2e2; color:#b91c1c; border:1px solid #fecaca; border-radius:10px; font-weight:700; cursor:pointer;">
+                                <i class="fas fa-trash"></i> ELIMINAR
+                            </button>
+                        ` : ''}
+                    </div>
+                </div>
+            `;
+
+            document.getElementById('detail-body').innerHTML = html;
+        }
+
+        // --- FORM HELPERS ---
+
+        function updatePendingCalc() {
+            const total = parseFloat(document.getElementById('res-price-total').value) || 0;
+            const paid = parseFloat(document.getElementById('res-price-paid').value) || 0;
+            const pending = Math.max(0, total - paid);
+            document.getElementById('res-price-pending').value = pending.toFixed(2);
+        }
+
+        // Service Dropdown
+        function filterServiceOptions(query) {
+            const resultsDiv = document.getElementById('res-servicio-results');
+            resultsDiv.classList.add('show');
+            // Use allCatalogItems global
+            const services = allCatalogItems || [];
+
+            let filtered = services;
+            if (query) {
+                const lowerQ = query.toLowerCase();
+                filtered = services.filter(s => (s.name || s.nombre || '').toLowerCase().includes(lowerQ));
+            }
+
+            if (filtered.length === 0) {
+                resultsDiv.innerHTML = '<div style="padding:10px; color:#64748b; font-size:0.8rem;">No encontrado</div>';
+                return;
+            }
+
+            let html = '';
+            filtered.forEach(item => {
+                const name = item.name || item.nombre;
+                const dur = item.duration || item.duracion || 60;
+                const price = item.price_pax || item.price || item.precio || 0;
+                const space = (item.allowedSpaces || [])[0] || item.space || '';
+                // Encode quotes
+                html += `<div class="dropdown-item" onclick="selectService('${name.replace(/'/g, "\\'")}', ${dur}, ${price}, '${space}')">${name} <span style="opacity:0.6; font-size:0.7em;">(${dur}m · ${price}€)</span></div>`;
+            });
+            resultsDiv.innerHTML = html;
+        }
+
+        function showServiceDropdown() { filterServiceOptions(document.getElementById('res-servicio-search').value); }
+        function hideServiceDropdown() {
+            const el = document.getElementById('res-servicio-results');
+            if (el) el.classList.remove('show');
+        }
+
+        function selectService(name, dur, price, space) {
+            document.getElementById('res-servicio-search').value = name;
+
+            // logic helpers
+            if (dur) document.getElementById('res-duration').value = dur;
+            if (price) {
+                document.getElementById('res-price-total').value = price;
+                updatePendingCalc();
+            }
+            // Add to hidden select for compatibility
+            const sel = document.getElementById('res-service');
+            sel.innerHTML = `<option value="${name}" selected>${name}</option>`;
+
+            hideServiceDropdown();
+        }
+
+        // --- SUBMIT ---
+        async function submitBooking() {
+            const dateVal = document.getElementById('res-date').value;
+            const time = document.getElementById('res-time').value;
+            const room = document.getElementById('res-room').value;
+            const client = document.getElementById('res-client').value;
+            if (!client || !room || !time) {
+                Swal.fire('Error', 'Faltan datos obligatorios (Cliente, Sala, Hora)', 'warning');
+                return;
+            }
+
+            const staffId = document.getElementById('res-staff').value;
+            const staff = activeStaffList.find(s => s.id === staffId);
+            const staffName = staff ? (staff.nombre || staff.name) : '';
+
+            let payload = {
+                fecha: dateVal,
+                hora: time,
+                duracion: parseInt(document.getElementById('res-duration').value) || 60,
+                servicio: document.getElementById('res-servicio-search').value,
+                terapeuta: staffName,
+                terapeuta_id: staffId,
+                nombre: client,
+                cliente: client,
+                telefono: document.getElementById('res-phone').value,
+                pax: parseInt(document.getElementById('res-pax').value) || 1,
+                origen: document.getElementById('res-origin').value,
+                precio: parseFloat(document.getElementById('res-price-total').value) || 0,
+                importe_pagado: parseFloat(document.getElementById('res-price-paid').value) || 0,
+                observaciones: document.getElementById('res-obs').value,
+                updated_at: new Date()
+            };
+
+            // Status calc
+            const tot = payload.precio;
+            const pd = payload.importe_pagado;
+            payload.estado_pago = (pd >= tot) ? 'pagado' : (pd > 0 ? 'parcial' : 'pendiente');
+            // If creating, set status
+            if (!currentEditingId) payload.status = 'confirmada';
+
+            try {
+                if (currentEditingId && currentEditingCollection) {
+                    // Check if collection changed (Room changed)
+                    if (room !== currentEditingCollection) {
+                        // Delete old and create new
+                        if (currentBookingData) {
+                            payload = { ...currentBookingData, ...payload };
+                            delete payload._id;
+                        }
+                        await db.collection(currentEditingCollection).doc(currentEditingId).delete();
+                        await db.collection(room).add(payload);
+                    } else {
+                        await db.collection(room).doc(currentEditingId).update(payload);
+                    }
+                    Swal.fire('Guardado', 'Reserva actualizada', 'success');
+                } else {
+                    payload.created_at = new Date();
+                    await db.collection(room).add(payload);
+                    Swal.fire('Guardado', 'Reserva creada', 'success');
+                }
+
+                closeDetailPanel();
+                loadView(); // Refresh
+
+            } catch (e) {
+                console.error(e);
+                Swal.fire('Error', 'Error al guardar', 'error');
+            }
+        }
+
+        async function deleteCurrentBooking() {
+            if (!currentEditingId || !currentEditingCollection) return;
+
+            const res = await Swal.fire({
+                title: '¿Eliminar?',
+                text: 'No podrás deshacer esto',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'Sí, eliminar'
+            });
+
+            if (res.isConfirmed) {
+                try {
+                    await db.collection(currentEditingCollection).doc(currentEditingId).delete();
+                    Swal.fire('Eliminada', '', 'success');
+                    closeDetailPanel();
+                    loadView();
+                } catch (e) {
+                    Swal.fire('Error', 'No se pudo eliminar', 'error');
+                }
+            }
+        }
+
+
+
+        function showLoading(show) {
+            const ind = document.getElementById('loading-indicator');
+            const cont = document.getElementById('staff-columns-container');
+            if (ind && cont) {
+                ind.style.display = show ? 'block' : 'none';
+                cont.style.display = show ? 'none' : 'flex';
+            }
+        }
+
+        // --- UTILS ---
+        function timeToMinutes(t) {
+            if (!t) return 0;
+            const [h, m] = t.split(':').map(Number);
+            return h * 60 + m;
+        }
+
+        function minutesToTime(m) {
+            const h = Math.floor(m / 60);
+            const min = m % 60;
+            return `${h.toString().padStart(2, '0')}:${min.toString().padStart(2, '0')}`;
+        }
+
+        function collectionToRoomLabel(colCode) {
+            if (!colCode) return '';
+            const map = {
+                'reservas_spa': 'SPA',
+                'reservas_suite': 'SUITE',
+                'reservas_vip': 'VIP',
+                'reservas_panacea': 'PANACEA',
+                'reservas_cabina1': 'CAB 1',
+                'reservas_cabina2': 'CAB 2',
+                'reservas_cabina3': 'CAB 3',
+                'reservas_peluqueria': 'PELU'
+            };
+            return map[colCode] || colCode.replace('reservas_', '').toUpperCase();
+        }
+
+        function adjustBrightness(col, amt) {
+            var usePound = false;
+            // Only works for hex
+            if (col[0] == "#") {
+                col = col.slice(1);
+                usePound = true;
+            }
+            if (!col || col.length < 6) return col;
+
+            var num = parseInt(col, 16);
+            var r = (num >> 16) + amt;
+            if (r > 255) r = 255;
+            else if (r < 0) r = 0;
+
+            var b = ((num >> 8) & 0x00FF) + amt;
+            if (b > 255) b = 255;
+            else if (b < 0) b = 0;
+
+            var g = (num & 0x0000FF) + amt;
+            if (g > 255) g = 255;
+            else if (g < 0) g = 0;
+
+            return (usePound ? "#" : "") + (g | (b << 8) | (r << 16)).toString(16);
+        }
+
+    </script>
+</body>
+
+</html>
