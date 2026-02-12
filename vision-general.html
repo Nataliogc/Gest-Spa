@@ -840,10 +840,10 @@
             <li><a href="index.html" class="nav-link" title="Inicio"><i class="fas fa-home"
                         style="color: #3b82f6;"></i></a></li>
             <li><a href="bonos.html" class="nav-link"><i class="fas fa-ticket-alt"></i> Bonos</a></li>
-            <li><a href="reservas.html?type=spa" class="nav-link"><i class="fas fa-water"></i> Spa</a></li>
-            <li><a href="reservas.html?type=cabinas" class="nav-link"><i class="fas fa-cubes"></i> Cabinas</a></li>
-            <li><a href="reservas.html?view=staff" class="nav-link"><i class="fas fa-calendar-alt"></i> Ocup Terap</a>
+            <li><a href="reservas-spa.html" class="nav-link"><i class="fas fa-water"></i> Spa</a></li>
+            <li><a href="reservas-salas.html?type=cabinas" class="nav-link"><i class="fas fa-cubes"></i> Cabinas</a>
             </li>
+            <li><a href="agenda-salas.html" class="nav-link"><i class="fas fa-calendar-alt"></i> Ocupación</a></li>
 
             <li class="dropdown">
                 <a href="#" class="nav-link dropdown-toggle">
@@ -851,9 +851,9 @@
                         style="font-size: 0.7em; margin-left: 5px;"></i>
                 </a>
                 <ul class="dropdown-menu">
-                    <li><a href="reservas.html?type=suite"><i class="fas fa-gem"></i> Suite</a></li>
-                    <li><a href="reservas.html?type=panacea"><i class="fas fa-columns"></i> Panacea & VIP</a></li>
-                    <li><a href="reservas.html?type=peluqueria"><i class="fas fa-cut"></i> Peluquería</a></li>
+                    <li><a href="reservas-salas.html?type=suite"><i class="fas fa-gem"></i> Suite</a></li>
+                    <li><a href="reservas-salas.html?type=panacea"><i class="fas fa-columns"></i> Panacea & VIP</a></li>
+                    <li><a href="reservas-salas.html?type=peluqueria"><i class="fas fa-cut"></i> Peluquería</a></li>
                 </ul>
             </li>
 
@@ -1016,11 +1016,54 @@
                 staffList = await window.loadStaff();
                 if (staffList.length === 0) staffList = await window.getActiveStaff();
                 await loadCatalog();
+                await loadColors(); // Load colors
                 await renderGrid();
             } catch (e) {
                 console.error("Init error:", e);
                 document.getElementById('vg-tbody').innerHTML = `<tr><td colspan="16" style="padding:40px; text-align:center; color:#ef4444;">${e.message}</td></tr>`;
             }
+        }
+
+        let serviceColorMap = {};
+
+        async function loadColors() {
+            try {
+                serviceColorMap = {};
+                // 1. Generics / Legacy
+                const snap = await db.collection('spa_services').get();
+                snap.forEach(doc => {
+                    const d = doc.data();
+                    const name = (d.nombre || d.name || '').toLowerCase().trim();
+                    if (name && d.color) serviceColorMap[name] = d.color;
+                });
+                // 2. Master Items (High Priority)
+                const snapMaster = await db.collection('spa_item_master').get();
+                snapMaster.forEach(doc => {
+                    const d = doc.data();
+                    const name = (d.name || d.nombre || '').toLowerCase().trim();
+                    if (name && d.color) serviceColorMap[name] = d.color;
+                });
+                console.log("[VG] Colores cargados:", Object.keys(serviceColorMap).length);
+            } catch (e) { console.warn("Error loading colors:", e); }
+        }
+
+        function getServiceColor(serviceName) {
+            if (!serviceName) return '#f59e0b'; // Default amber
+            const cleanName = serviceName.toLowerCase().trim();
+            // 1. DB Map
+            if (serviceColorMap[cleanName]) return serviceColorMap[cleanName];
+            // 2. Normalized
+            const normName = cleanName.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+            const foundKey = Object.keys(serviceColorMap).find(k =>
+                k.normalize("NFD").replace(/[\u0300-\u036f]/g, "") === normName
+            );
+            if (foundKey) return serviceColorMap[foundKey];
+            // 3. Fallback to app-core protocol (if available, though vision-general might not load it fully the same way)
+            if (window.getServiceProtocol) {
+                const prot = window.getServiceProtocol(serviceName);
+                if (prot && prot.color) return prot.color;
+            }
+            return '#f59e0b';
         }
 
         async function loadCatalog() {
@@ -1332,8 +1375,7 @@
 
                         // Color logic
                         const sName = b.servicio || b.nombre_servicio || 'Servicio';
-                        const item = allCatalogItems.find(i => (i.name || i.nombre || '').toLowerCase().trim() === sName.toLowerCase().trim());
-                        const serviceColor = item && item.color ? item.color : '#f59e0b'; // Default amber if not found
+                        const serviceColor = getServiceColor(sName);
                         const borderColor = serviceColor;
                         const bgColor = serviceColor + '20';
 
@@ -1501,8 +1543,7 @@
 
                             // Color logic
                             const sName = b.servicio || b.nombre_servicio || 'Servicio';
-                            const item = allCatalogItems.find(i => (i.name || i.nombre || '').toLowerCase().trim() === sName.toLowerCase().trim());
-                            const serviceColor = item && item.color ? item.color : '#f59e0b'; // Default amber if not found
+                            const serviceColor = getServiceColor(sName);
                             const borderColor = serviceColor;
                             const bgColor = serviceColor + '20'; // 12% opacity approx (hex) or use rgba
 

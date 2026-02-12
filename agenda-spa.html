@@ -1,0 +1,676 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ocupación Circuito Spa - Zenith Manager</title>
+    <link rel="icon" type="image/png" href="zenith-icon.png">
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <style>
+        /* Base styles adapted from vision-general.html and reservas.html */
+        .at-container {
+            padding: 20px 25px;
+            height: calc(100vh - 75px);
+            overflow-y: auto;
+            background: var(--bg);
+        }
+
+        /* HEADER */
+        .at-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
+        .at-header-left {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .at-header-icon {
+            width: 48px;
+            height: 48px;
+            background: linear-gradient(135deg, #3b82f6, #60a5fa);
+            /* Blueish for Water/Spa */
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 1.4rem;
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+        }
+
+        .at-title {
+            margin: 0;
+            font-size: 1.4rem;
+            font-weight: 800;
+            color: var(--text);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .at-subtitle {
+            margin: 0;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+
+        /* CONTROLS */
+        .at-controls {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .date-control-group {
+            display: flex;
+            align-items: center;
+            background: #fff;
+            border: 1px solid #cbd5e1;
+            border-radius: 10px;
+            padding: 4px;
+        }
+
+        .date-btn {
+            background: transparent;
+            border: none;
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            color: #64748b;
+            transition: all 0.2s;
+        }
+
+        .date-btn:hover {
+            background: #f1f5f9;
+            color: var(--text);
+        }
+
+        .date-display {
+            font-family: 'Montserrat', sans-serif;
+            font-weight: 700;
+            color: var(--text);
+            font-size: 0.9rem;
+            min-width: 180px;
+            text-align: center;
+            padding: 0 10px;
+            cursor: pointer;
+        }
+
+        /* GRID STYLES */
+        .timeline-container {
+            background: #fff;
+            border-radius: 16px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+            border: 1px solid var(--border);
+            overflow: hidden;
+            position: relative;
+        }
+
+        .timeline-scroll {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            max-height: calc(100vh - 200px);
+        }
+
+        table.timeline-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            font-size: 0.8rem;
+        }
+
+        .timeline-table thead th {
+            padding: 10px 4px;
+            background: #f8fafc;
+            color: #64748b;
+            font-weight: 700;
+            font-size: 0.7rem;
+            text-align: center;
+            border-bottom: 1px solid #e2e8f0;
+            border-right: 1px solid #f1f5f9;
+            position: sticky;
+            top: 0;
+            z-index: 20;
+        }
+
+        /* First column (Therapist Name) sticky */
+        .timeline-table th:first-child,
+        .timeline-table td:first-child {
+            position: sticky;
+            left: 0;
+            z-index: 30;
+            /* Higher than other cells */
+            background: #fff;
+            border-right: 2px solid #e2e8f0;
+            min-width: 160px;
+            text-align: left;
+            padding-left: 15px;
+        }
+
+        .timeline-table th:first-child {
+            background: #f8fafc;
+            /* Keep header bg */
+            z-index: 40;
+            /* Highest for top-left corner */
+        }
+
+        .timeline-table td {
+            padding: 0;
+            border-bottom: 1px solid #f1f5f9;
+            border-right: 1px solid #f1f5f9;
+            height: 46px;
+            vertical-align: middle;
+        }
+
+        .therapist-cell-content {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .therapist-avatar {
+            width: 28px;
+            height: 28px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.65rem;
+            font-weight: 800;
+            color: #fff;
+            flex-shrink: 0;
+        }
+
+        /* LEGEND */
+        .legend {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 0;
+            margin-left: auto;
+            /* Push to right */
+            font-size: 0.75rem;
+            color: #64748b;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .legend-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+        }
+
+        /* Overlay & Detail Panel */
+        .at-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.4);
+            z-index: 1999;
+            display: none;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .at-overlay.visible {
+            display: block;
+            opacity: 1;
+        }
+
+        .fs-panel {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 90%;
+            max-width: 600px;
+            max-height: 85vh;
+            background: #fff;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            z-index: 2000;
+            display: none;
+            flex-direction: column;
+            overflow: hidden;
+            border: 2px solid var(--accent);
+        }
+
+        .fs-header {
+            padding: 15px 20px;
+            background: #1e293b;
+            color: #fff;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-weight: 700;
+        }
+
+        .fs-body {
+            padding: 20px;
+            overflow-y: auto;
+            flex: 1;
+        }
+
+        .fs-booking-item {
+            padding: 12px;
+            margin-bottom: 10px;
+            background: #f8fafc;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+            border-left: 4px solid #cbd5e1;
+            cursor: default;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- TOP NAVBAR -->
+    <div class="sidebar">
+        <div style="display: flex; align-items: center; gap: 15px;">
+            <img src="logo-spa.jpg" alt="Cumbria Bienestar" style="height: 65px; width: auto; object-fit: contain;">
+        </div>
+
+        <ul class="nav-links" style="flex:1;">
+            <li><a href="index.html" class="nav-link" title="Inicio"><i class="fas fa-home"
+                        style="color: #3b82f6;"></i></a></li>
+            <li><a href="bonos.html" class="nav-link"><i class="fas fa-ticket-alt"></i> Bonos</a></li>
+            <li><a href="reservas-spa.html" class="nav-link"><i class="fas fa-water"></i> Spa</a></li>
+            <li><a href="reservas-salas.html?type=cabinas" class="nav-link"><i class="fas fa-cubes"></i> Cabinas</a>
+            </li>
+            <li><a href="agenda-spa.html" class="nav-link active" style="color:var(--accent); font-weight:bold;"><i
+                        class="fas fa-calendar-alt"></i> Ocup Spa</a>
+            </li>
+            <li><a href="agenda-salas.html" class="nav-link"><i class="fas fa-calendar-alt"></i> Ocup Salas</a>
+            </li>
+
+            <li class="dropdown">
+                <a href="#" class="nav-link dropdown-toggle">
+                    <i class="fas fa-door-open"></i> Salas <i class="fas fa-caret-down"
+                        style="font-size: 0.7em; margin-left: 5px;"></i>
+                </a>
+                <ul class="dropdown-menu">
+                    <li><a href="reservas-salas.html?type=suite"><i class="fas fa-gem"></i> Suite</a></li>
+                    <li><a href="reservas-salas.html?type=panacea"><i class="fas fa-columns"></i> Panacea & VIP</a></li>
+                    <li><a href="reservas-salas.html?type=peluqueria"><i class="fas fa-cut"></i> Peluquería</a></li>
+                </ul>
+            </li>
+
+            <li><a href="vision-general.html" class="nav-link"><i class="fas fa-binoculars"></i> Visión 15d</a></li>
+
+            <li class="dropdown">
+                <a href="#" class="nav-link dropdown-toggle">
+                    <i class="fas fa-users-cog"></i> GESTIÓN <i class="fas fa-caret-down"
+                        style="font-size: 0.7em; margin-left: 2px;"></i>
+                </a>
+                <ul class="dropdown-menu">
+                    <li><a href="personal.html"><i class="fas fa-user-tie"></i> Personal</a></li>
+                    <li><a href="catalogo.html"><i class="fas fa-book-open"></i> Catálogo</a></li>
+                    <li><a href="configuracion.html"><i class="fas fa-cogs"></i> Ajustes</a></li>
+                </ul>
+            </li>
+        </ul>
+
+        <div style="display: flex; align-items: center; gap: 10px;">
+            <div style="text-align: right; line-height: 1.2;">
+                <span style="font-size: 0.9rem; font-weight: 600; display: block; color: var(--text);">ZENITH</span>
+                <span style="font-size: 0.75rem; letter-spacing: 1px; color: var(--text-muted);">MANAGER</span>
+            </div>
+            <img src="zenith-logo.png" alt="Zenith" style="height: 35px; width: auto;">
+        </div>
+    </div>
+
+    <!-- MAIN CONTENT -->
+    <main class="main-content">
+        <div class="at-container">
+
+            <!-- HEADER -->
+            <div class="at-header">
+                <div class="at-header-left">
+                    <div style="display:flex; flex-direction:column;">
+                        <h2 class="at-title">Ocupación <span style="color:var(--accent);">CIRCUITO SPA</span></h2>
+                        <a href="agenda-salas.html"
+                            style="font-size: 0.7rem; color: #3b82f6; text-decoration: none; font-weight: 700; margin-top: 5px;">
+                            <i class="fas fa-exchange-alt"></i> CAMBIAR A AGENDA TERAPEUTAS
+                        </a>
+                    </div>
+                </div>
+
+                <div class="at-controls">
+                    <button class="date-btn" onclick="changeDate(-1)"><i class="fas fa-chevron-left"></i></button>
+                    <div class="date-display" id="date-display"
+                        onclick="document.getElementById('date-picker').showPicker()">
+                        Cargando...
+                    </div>
+                    <input type="date" id="date-picker" style="visibility:hidden; width:0; height:0;"
+                        onchange="setDate(this.value)">
+                    <button class="date-btn" onclick="changeDate(1)"><i class="fas fa-chevron-right"></i></button>
+                    <button class="date-btn" onclick="goToToday()"><i class="fas fa-calendar-day"></i></button>
+                </div>
+
+                <div class="legend">
+                    <div class="legend-item">
+                        <div class="legend-dot" style="background:#22c55e;"></div> Libre
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-dot" style="background:#f59e0b;"></div> Casi lleno
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-dot" style="background:#ef4444;"></div> Completo
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-dot" style="background:#475569;"></div> Bloqueado
+                    </div>
+                </div>
+            </div>
+
+            <!-- GRID -->
+            <div class="timeline-container">
+                <div class="timeline-scroll">
+                    <div id="grid-container">
+                        <!-- Filled by JS -->
+                        <div style="padding: 60px; text-align: center; color: #94a3b8;">
+                            <i class="fas fa-spinner fa-spin" style="font-size: 2rem;"></i>
+                            <div style="margin-top: 10px; font-weight: 600;">Cargando terapeutas...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- DETAIL PANEL (Simple list for clicked therapist) -->
+    <div class="at-overlay" id="at-overlay" onclick="closeDetail()"></div>
+    <div class="fs-panel" id="detail-panel">
+        <div class="fs-header">
+            <span id="detail-title">Detalles</span>
+            <button onclick="closeDetail()"
+                style="background:transparent; border:none; color:white; font-size:1.2rem; cursor:pointer;"><i
+                    class="fas fa-times"></i></button>
+        </div>
+        <div class="fs-body" id="detail-content"></div>
+    </div>
+
+    <!-- SCRIPTS -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <script src="firebase-config.js?v=4"></script>
+    <script src="reservas-staff.js?v=4"></script>
+    <script src="js/app-core.js"></script>
+
+    <script>
+        const STAFF_COLORS = ['#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#ef4444', '#6366f1', '#14b8a6'];
+        let currentDate = new Date().toISOString().split('T')[0];
+        let serviceColorMap = {};
+
+        // === INIT ===
+        document.addEventListener('DOMContentLoaded', async () => {
+            // Setup date
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.has('fecha')) currentDate = urlParams.get('fecha');
+            updateDateDisplay();
+
+            // Load data
+            await loadColors();
+            await renderGrid();
+        });
+
+        function updateDateDisplay() {
+            const d = new Date(currentDate + 'T12:00:00');
+            const str = d.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+            document.getElementById('date-display').textContent = str.charAt(0).toUpperCase() + str.slice(1);
+            document.getElementById('date-picker').value = currentDate;
+        }
+
+        function changeDate(days) {
+            const d = new Date(currentDate + 'T12:00:00');
+            d.setDate(d.getDate() + days);
+            setDate(d.toISOString().split('T')[0]);
+        }
+
+        function goToToday() {
+            setDate(new Date().toISOString().split('T')[0]);
+        }
+
+        function setDate(dateStr) {
+            currentDate = dateStr;
+            updateDateDisplay();
+            renderGrid();
+        }
+
+        // === COLOR LOGIC ===
+        async function loadColors() {
+            try {
+                serviceColorMap = {};
+                // 1. Generics / Legacy
+                const snap = await db.collection('spa_services').get();
+                snap.forEach(doc => {
+                    const d = doc.data();
+                    const name = (d.nombre || d.name || '').toLowerCase().trim();
+                    if (name && d.color) serviceColorMap[name] = d.color;
+                });
+                // 2. Master Items (High Priority)
+                const snapMaster = await db.collection('spa_item_master').get();
+                snapMaster.forEach(doc => {
+                    const d = doc.data();
+                    const name = (d.name || d.nombre || '').toLowerCase().trim();
+                    if (name && d.color) serviceColorMap[name] = d.color;
+                });
+                console.log("[AT] Colors loaded:", Object.keys(serviceColorMap).length);
+            } catch (e) { console.warn("Error loading colors:", e); }
+        }
+
+        function getServiceColor(serviceName) {
+            if (!serviceName) return '#94a3b8'; // default slate for unknown
+            const cleanName = serviceName.toLowerCase().trim();
+            // 1. DB Map
+            if (serviceColorMap[cleanName]) return serviceColorMap[cleanName];
+            // 2. Normalized
+            const normName = cleanName.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+            const foundKey = Object.keys(serviceColorMap).find(k =>
+                k.normalize("NFD").replace(/[\u0300-\u036f]/g, "") === normName
+            );
+            if (foundKey) return serviceColorMap[foundKey];
+            // 3. Fallback
+            return '#f59e0b'; // Amber fallback
+        }
+
+        // === GRID RENDERING ===
+        async function renderGrid() {
+            const container = document.getElementById('grid-container');
+            container.innerHTML = '<div style="padding: 60px; text-align: center; color: #94a3b8;"><i class="fas fa-spinner fa-spin" style="font-size: 2rem;"></i></div>';
+
+            try {
+                // 1. Get Data
+                const dayBookings = await window.getAllBookingsForDate(currentDate);
+                const spaBookings = dayBookings.filter(b => b._collection === 'reservas_spa' && b.status !== 'anulada');
+
+                // 2. Time Slots (10:00 to 21:00)
+                const timeSlots = [];
+                for (let h = 10; h < 21; h++) {
+                    for (let m of [0, 15, 30, 45]) {
+                        timeSlots.push(`${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`);
+                    }
+                }
+
+                // 3. Build Table
+                let html = '<table class="timeline-table">';
+
+                // Header
+                html += '<thead><tr><th>PLAZA CIRCUITO</th>';
+                timeSlots.forEach(t => html += `<th>${t}</th>`);
+                html += '</tr></thead><tbody>';
+
+                // We show 14 rows (The Spa capacity)
+                const CAPACITY = 14;
+                for (let i = 1; i <= CAPACITY; i++) {
+                    html += `<tr>`;
+                    html += `<td style="background: #f8fafc;">
+                        <div class="therapist-cell-content">
+                            <div class="therapist-avatar" style="background:#3b82f6;">${i}</div>
+                            <span style="font-weight:700; color:#1e293b; font-size:0.85rem;">Plaza ${i}</span>
+                        </div>
+                    </td>`;
+
+                    for (const time of timeSlots) {
+                        const cellData = getSpaCellStatus(i, time, spaBookings);
+                        html += `<td style="background:${cellData.bg}; cursor:${cellData.cursor};" title="${cellData.tooltip}" ${cellData.onclick || ''}></td>`;
+                    }
+                    html += `</tr>`;
+                }
+
+                html += '</tbody></table>';
+                container.innerHTML = html;
+
+            } catch (e) {
+                console.error("Error rendering grid:", e);
+                container.innerHTML = `<div style="color:red; text-align:center;">Error: ${e.message}</div>`;
+            }
+        }
+
+        function getSpaCellStatus(placeNum, time, spaBookings) {
+            const tMin = time.split(':').map(Number).reduce((a, b) => a * 60 + b);
+
+            // Calculate total pax at this time
+            const activeBookingsAtTime = spaBookings.filter(b => {
+                const [bh, bm] = b.hora.split(':').map(Number);
+                const start = bh * 60 + bm;
+                const dur = parseInt(b.duracion) || 60;
+                const end = start + dur;
+                return tMin >= start && tMin < end;
+            });
+
+            // If placeNum <= total pax, this "place" is occupied
+            let currentPaxCount = 0;
+            let occupiedBy = null;
+
+            for (const b of activeBookingsAtTime) {
+                const bPax = parseInt(b.pax) || 1;
+                if (placeNum > currentPaxCount && placeNum <= (currentPaxCount + bPax)) {
+                    occupiedBy = b;
+                    break;
+                }
+                currentPaxCount += bPax;
+            }
+
+            if (occupiedBy) {
+                const color = getServiceColor(occupiedBy.servicio || occupiedBy.nombre_servicio);
+                return {
+                    bg: color,
+                    tooltip: `${occupiedBy.servicio} - ${occupiedBy.nombre || 'Cliente'} (${occupiedBy.pax} pax)`,
+                    cursor: 'pointer',
+                    onclick: `onclick="openSpaDetail('${occupiedBy.id}')"`
+                };
+            }
+
+            return { bg: '#22c55e', tooltip: 'Libre', cursor: 'default' };
+        }
+
+        async function openSpaDetail(bookingId) {
+            // Find booking in global or fetch
+            const dayBookings = await window.getAllBookingsForDate(currentDate);
+            const b = dayBookings.find(x => x.id === bookingId);
+            if (!b) return;
+
+            document.getElementById('detail-title').textContent = "Reserva Spa";
+            const content = document.getElementById('detail-content');
+
+            const color = getServiceColor(b.servicio);
+            content.innerHTML = `
+                <div class="fs-booking-item" style="border-left-color:${color};">
+                    <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
+                        <span style="font-weight:800; color:#334155; font-size:1.1rem;">${b.hora} <span style="font-weight:400; font-size:0.8em;">(${b.duracion}m)</span></span>
+                        <span style="font-size:0.8rem; background:var(--accent); padding:4px 8px; border-radius:6px; color:white; font-weight:700;">${b.pax} PAX</span>
+                    </div>
+                    <div style="color:${color}; font-weight:700; font-size:1rem; margin-bottom:8px;">${b.servicio || 'Circuito Spa'}</div>
+                    <div style="font-size:0.9rem; color:#1e293b; font-weight:600;">
+                        <i class="fas fa-user"></i> ${b.nombre || 'Cliente'}
+                    </div>
+                    ${b.telefono ? `<div style="font-size:0.8rem; color:#64748b; margin-top:5px;"><i class="fas fa-phone"></i> ${b.telefono}</div>` : ''}
+                    ${b.observaciones ? `<div style="font-size:0.8rem; color:#64748b; margin-top:8px; padding:8px; background:#fff; border-radius:4px; border:1px solid #e2e8f0;">${b.observaciones}</div>` : ''}
+                </div>
+            `;
+
+            document.getElementById('at-overlay').classList.add('visible');
+            document.getElementById('detail-panel').style.display = 'flex';
+        }
+
+        // === DETAIL PANEL ===
+        // Reused simple view for now, could act as a breakdown
+        async function openDetail(staffId) {
+            const staff = (await window.getActiveStaff()).find(s => s.id === staffId);
+            if (!staff) return;
+
+            document.getElementById('detail-title').textContent = staff.alias || staff.nombre;
+            const content = document.getElementById('detail-content');
+            content.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Cargando...';
+
+            document.getElementById('at-overlay').classList.add('visible');
+            document.getElementById('detail-panel').style.display = 'flex';
+
+            // Load bookings again just for this list or reuse global if cached (not cached here)
+            const bookings = await window.getAllBookingsForDate(currentDate);
+            const myBookings = bookings.filter(b => {
+                if (b.status === 'anulada') return false;
+                const sId = staff.id;
+                const sName = (staff.nombre || staff.name || '').toLowerCase().trim();
+                const bId1 = b.staff_id || (b.staff ? b.staff.id : null) || b.terapeuta_id;
+                const bName1 = (b.staff_name || b.terapeuta || '').toLowerCase().trim();
+                return (bId1 === sId) || (sName && bName1 === sName);
+            }).sort((a, b) => a.hora.localeCompare(b.hora));
+
+            let html = '';
+            if (myBookings.length === 0) {
+                html = '<div style="text-align:center;color:#94a3b8;padding:20px;">Sin citas asignadas.</div>';
+            } else {
+                myBookings.forEach(b => {
+                    const color = getServiceColor(b.servicio);
+                    const mod = b._collection ? b._collection.replace('reservas_', '').toUpperCase() : 'APP';
+                    html += `
+                        <div class="fs-booking-item" style="border-left-color:${color};">
+                            <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+                                <span style="font-weight:800; color:#334155;">${b.hora} <span style="font-weight:400; font-size:0.8em;">(${b.duracion}m)</span></span>
+                                <span style="font-size:0.75rem; background:#cbd5e1; padding:2px 6px; border-radius:4px; color:#475569;">${mod}</span>
+                            </div>
+                            <div style="color:${color}; font-weight:700; font-size:0.9rem;">${b.servicio || 'Servicio'}</div>
+                            <div style="font-size:0.8rem; color:#64748b; margin-top:2px;">
+                                <i class="fas fa-user"></i> ${b.nombre || 'Cliente'}
+                            </div>
+                        </div>
+                     `;
+                });
+            }
+            content.innerHTML = html;
+        }
+
+        function closeDetail() {
+            document.getElementById('at-overlay').classList.remove('visible');
+            document.getElementById('detail-panel').style.display = 'none';
+        }
+
+    </script>
+</body>
+
+</html>

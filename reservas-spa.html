@@ -486,7 +486,7 @@
             <li><a href="bonos.html" class="nav-link"><i class="fas fa-ticket-alt"></i> Bonos</a></li>
 
 
-            <li><a href="reservas-spa.html" class="nav-link"><i class="fas fa-water"></i> Spa</a></li>
+            <li><a href="reservas-spa.html" class="nav-link active"><i class="fas fa-water"></i> Spa</a></li>
             <li><a href="reservas-salas.html?type=cabinas" class="nav-link"><i class="fas fa-cubes"></i> Cabinas</a>
             </li>
             <li><a href="agenda-salas.html" class="nav-link"><i class="fas fa-calendar-alt"></i> Ocupación</a></li>
@@ -830,6 +830,19 @@
                                 style="flex: 1.5; margin-bottom: 0; display: none; position: relative;">
                                 <label id="label-service"
                                     style="font-size: 0.65rem; font-weight: 800; color: #4a5568; text-transform: uppercase;">Servicio</label>
+
+                                <!-- MODE SELECTION (Service vs Pack) -->
+                                <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+                                    <button type="button" id="btn-mode-service"
+                                        onclick="setBookingServiceMode('service')"
+                                        style="flex: 1; padding: 6px; border: 1px solid #e2e8f0; background: #3b82f6; color: white; border-radius: 4px; font-weight: 600; font-size: 0.75rem; cursor: pointer; transition: all 0.2s;">
+                                        <i class="fas fa-concierge-bell"></i> SERVICIOS
+                                    </button>
+                                    <button type="button" id="btn-mode-pack" onclick="setBookingServiceMode('pack')"
+                                        style="flex: 1; padding: 6px; border: 1px solid #e2e8f0; background: #fff; color: #64748b; border-radius: 4px; font-weight: 600; font-size: 0.75rem; cursor: pointer; transition: all 0.2s;">
+                                        <i class="fas fa-gift"></i> PACKS
+                                    </button>
+                                </div>
                                 <div style="position: relative; display: flex; flex-direction: column; gap: 4px;">
                                     <div style="position: relative;">
                                         <input type="text" id="res-servicio-search" placeholder="🔍 Buscar servicio..."
@@ -1282,111 +1295,19 @@
                 isPrivate: false,
                 requiresStaff: false,
                 viewType: 'grid'
-            },
-            'suite': {
-                code: 'suite',
-                name: 'SUITE SPA',
-                collection: 'reservas_suite',
-                capacity: 1,
-                slotsWeek: SLOTS_15_MIN,
-                slotsSun: SLOTS_15_MIN,
-                isPrivate: true,
-                requiresStaff: true,
-                viewType: 'timeline' // Suite is now timeline based on user request
-            },
-            'panacea': {
-                code: 'panacea',
-                name: 'SALAS',
-                collection: 'reservas_panacea',
-                capacity: 1,
-                isPrivate: true,
-                requiresStaff: true,
-                viewType: 'timeline'
-            },
-            'vip': {
-                code: 'vip',
-                name: 'SALA VIP',
-                collection: 'reservas_vip',
-                capacity: 1,
-                isPrivate: true,
-                requiresStaff: true,
-                viewType: 'timeline'
-            },
-            'peluqueria': {
-                code: 'peluqueria',
-                name: 'PELUQUERÍA',
-                collection: 'reservas_peluqueria',
-                capacity: 2,
-                slotsWeek: SLOTS_15_MIN,
-                slotsSun: SLOTS_15_MIN,
-                isPrivate: false,
-                requiresStaff: true,
-                viewType: 'timeline'
-            },
-            'cabina1': {
-                code: 'cabina1',
-                name: 'CABINA 1',
-                collection: 'reservas_cabina1',
-                capacity: 1,
-                isPrivate: true,
-                requiresStaff: true,
-                viewType: 'timeline'
-            },
-            'cabina2': {
-                code: 'cabina2',
-                name: 'CABINA 2',
-                collection: 'reservas_cabina2',
-                capacity: 1,
-                isPrivate: true,
-                requiresStaff: true,
-                viewType: 'timeline'
-            },
-            'cabina3': {
-                code: 'cabina3',
-                name: 'CABINA 3',
-                collection: 'reservas_cabina3',
-                capacity: 1,
-                isPrivate: true,
-                requiresStaff: true,
-                viewType: 'timeline'
-            },
-            'cabinas': {
-                code: 'cabinas', // Wrapper module for view switching
-                name: 'CABINAS',
-                collection: 'reservas_cabinas_placeholder',
-                capacity: 0,
-                isPrivate: false,
-                requiresStaff: false,
-                viewType: 'timeline'
-            },
-            'terapeutas': {
-                code: 'terapeutas',
-                name: 'AGENDA TERAPEUTAS',
-                collection: 'reservas_spa',
-                capacity: 0,
-                isPrivate: false,
-                requiresStaff: false,
-                viewType: 'staff_occupancy'
             }
         };
         window.MODULES = MODULES;
 
 
-        // Detectar módulo actual
-        const urlParams = new URLSearchParams(window.location.search);
-        const moduleType = urlParams.get('type') || 'spa';
-        window.currentModule = MODULES[moduleType] || MODULES['spa'];
-        // Keep a local reference for easier typing if mostly used locally, 
-        // but remember to update window.currentModule when changing logical context.
+        // Módulo siempre es spa
+        window.currentModule = MODULES['spa'];
         let currentModule = window.currentModule;
 
         console.log("Módulo activo:", currentModule.name);
 
         // Actualizar Título
         document.querySelector('h2').textContent = currentModule.name;
-
-        // Configuración Global de Personal (Cargada al inicio)
-        let staffConfig = { morning: 2, afternoon: 2 };
 
         // Initialize Global Staff Array
         window.allStaff = [];
@@ -1437,8 +1358,12 @@
         async function loadColors() {
             try {
                 serviceColorMap = {};
-                // 1. Generics / Legacy
-                const snap = await db.collection('spa_services').get();
+                // Parallelize both fetches
+                const [snap, snapMaster] = await Promise.all([
+                    db.collection('spa_services').get(),
+                    db.collection('spa_item_master').get()
+                ]);
+
                 snap.forEach(doc => {
                     const d = doc.data();
                     const name = (d.nombre || d.name || '').toLowerCase().trim();
@@ -1446,17 +1371,21 @@
                         serviceColorMap[name] = d.color;
                     }
                 });
-                // 2. Master Items (High Priority)
-                const snapMaster = await db.collection('spa_item_master').get();
+
+                // Reuse snapMaster to populate window.masterItems and serviceColorMap
+                window.masterItems = [];
                 snapMaster.forEach(doc => {
                     const d = doc.data();
+                    window.masterItems.push({ id: doc.id, ...d });
                     const name = (d.name || d.nombre || '').toLowerCase().trim();
                     if (name && d.color) {
                         serviceColorMap[name] = d.color;
                     }
                 });
-                console.log("[COLORS] Colors loaded:", Object.keys(serviceColorMap).length);
-            } catch (e) { console.warn("[COLORS] Error loading colors:", e); }
+                console.log("[COLORS & MASTER] Data loaded:", Object.keys(serviceColorMap).length, "colors,", window.masterItems.length, "items.");
+            } catch (e) {
+                console.warn("[COLORS] Error loading colors/master items:", e);
+            }
         }
 
         function getServiceColor(serviceName) {
@@ -1483,14 +1412,18 @@
 
         async function cargarSpaConfig() {
             try {
-                // Cargar Horario Base Global (usado para apertura de salas)
-                const globalHoursDoc = await db.collection("spa_config").doc("staff_base_schedule").get();
+                const [globalHoursDoc, doc, settingsDoc] = await Promise.all([
+                    db.collection("spa_config").doc("staff_base_schedule").get(),
+                    db.collection("spa_config").doc("general").get(),
+                    db.collection("spa_config").doc("settings").get()
+                ]);
+
+                // 1. Horario Base Global
                 if (globalHoursDoc.exists) {
                     window.GLOBAL_OPENING_HOURS = globalHoursDoc.data();
-                    console.log("[DEBUG] Horario de apertura global cargado:", window.GLOBAL_OPENING_HOURS);
                 }
-                // Cargar General (Legacy / Split config)
-                const doc = await db.collection("spa_config").doc("general").get();
+
+                // 2. General
                 if (doc.exists) {
                     const data = doc.data();
                     if (data.capacity !== undefined) {
@@ -1503,21 +1436,13 @@
                     if (data.whatsappTemplate) spaConfig.whatsappTemplate = data.whatsappTemplate;
                 }
 
-                // Cargar Settings (New Unified Config with Schedules)
-                const settingsDoc = await db.collection("spa_config").doc("settings").get();
+                // 3. Settings
                 if (settingsDoc.exists) {
                     const settings = settingsDoc.data();
-                    console.log("[DEBUG] cargarSpaConfig raw settings:", settings); // Log raw data
-
                     if (settings.schedules) {
                         window.SPA_SCHEDULES = settings.schedules;
-                        spaConfig.schedules = settings.schedules; // CRITICAL: Ensure local config has schedules
-                        console.log("Horarios dinámicos cargados:", window.SPA_SCHEDULES);
-                    } else {
-                        console.warn("[DEBUG] Settings doc exists but 'schedules' field is missing or empty.");
-                        // Fallback or leave empty? spaConfig.schedules might be undefined.
+                        spaConfig.schedules = settings.schedules;
                     }
-                    // Override with settings if present (migrating to settings doc)
                     if (settings.capacity) {
                         spaConfig.capacity = parseInt(settings.capacity);
                         if (currentModule.code === 'spa') currentModule.capacity = spaConfig.capacity;
@@ -1526,18 +1451,13 @@
                     if (settings.closedDates) spaConfig.closedDates = settings.closedDates;
                     if (settings.whatsappTemplate) spaConfig.whatsappTemplate = settings.whatsappTemplate;
 
-                    // Dynamic Pricing for Hotel (no incluido)
                     spaConfig.hotelPriceWeekday = parseFloat(settings.hotelPriceWeekday) || 12;
                     spaConfig.hotelPriceWeekend = parseFloat(settings.hotelPriceWeekend) || 18;
-                    // Dynamic Pricing for Particular
                     spaConfig.particularPriceWeekday = parseFloat(settings.particularPriceWeekday) || 25;
                     spaConfig.particularPriceWeekend = parseFloat(settings.particularPriceWeekend) || 25;
-                    console.log("[DEBUG] Dynamic pricing loaded - Hotel:", spaConfig.hotelPriceWeekday, "/", spaConfig.hotelPriceWeekend, "Particular:", spaConfig.particularPriceWeekday, "/", spaConfig.particularPriceWeekend);
 
-                    // Load Blocked Slots (Turnos cerrados manualmente)
                     if (settings.blockedSlots) {
                         spaConfig.blockedSlots = settings.blockedSlots;
-                        console.log("[DEBUG] Blocked slots loaded:", spaConfig.blockedSlots);
                     }
                 }
 
@@ -1639,6 +1559,7 @@
         }
 
         document.addEventListener("DOMContentLoaded", async () => {
+            const urlParams = new URLSearchParams(window.location.search);
             const picker = document.getElementById("main-date-picker");
             const urlDate = urlParams.get('date');
             // Use local date (not UTC) to avoid timezone issues around midnight
@@ -1647,13 +1568,12 @@
             const initialDate = urlDate || localDate;
             picker.value = initialDate;
 
-            await cargarSpaConfig();
-            await window.loadStaff(); // Load staff data
-            await loadColors(); // Load service colors (NEW)
-            await loadStaffConfig(); // Cargar capacidad de personal (legacy?)
-            await loadMasterItems(); // Cargar configuración de espacios de items
-
-            await fetchBasePrice();
+            await Promise.all([
+                cargarSpaConfig(),
+                window.loadStaff(),
+                loadColors(),
+                fetchBasePrice()
+            ]);
             picker.addEventListener("change", () => loadReservas(picker.value));
 
             // Ajustar UI según modo
@@ -1690,12 +1610,6 @@
                 }
             }
 
-            // Auto-open Staff Availability if requested via view=staff
-            if (urlParams.get('view') === 'staff') {
-                openTherapistAvailability();
-                // Highlight link
-                document.getElementById('nav-occupancy-li')?.querySelector('a').classList.add('active');
-            }
 
             // ... (rest of DOMContentLoaded) ...
 
@@ -2052,8 +1966,9 @@
 
         async function fetchBasePrice() {
             try {
+                const moduleCode = currentModule.code;
                 // Si es Suite, buscar precio de Suite
-                if (moduleType === 'suite') {
+                if (moduleCode === 'suite') {
                     const snapshot = await db.collection("spa_services")
                         .where("categoria", "==", "suite_privada")
                         .get();
@@ -2079,7 +1994,7 @@
                 }
 
                 if (baseCircuitoPrice === 0) {
-                    baseCircuitoPrice = (moduleType === 'suite') ? 100 : 25;
+                    baseCircuitoPrice = (currentModule.code === 'suite') ? 100 : 25;
                 }
 
                 // Ensure master items are loaded for deep filtering
@@ -2099,7 +2014,7 @@
             } catch (err) {
                 if (window.checkFirestoreError && window.checkFirestoreError(err)) return;
                 console.error("Error fetching price:", err);
-                baseCircuitoPrice = (moduleType === 'suite') ? 100 : 25;
+                baseCircuitoPrice = (currentModule.code === 'suite') ? 100 : 25;
             }
         }
 
@@ -2531,10 +2446,19 @@
             const results = document.getElementById("res-servicio-results");
             if (!results || !window._allServiceOptions) return;
 
+            // Initialize mode if not set
+            if (!window._bookingServiceMode) window._bookingServiceMode = 'service';
+
             const q = query.toLowerCase().trim();
-            // Filter non-empty options and apply search query
+            // Filter non-empty options and apply search query AND mode
             const filtered = window._allServiceOptions.filter(optData => {
                 if (optData.value === "") return false;
+
+                // MODE FILTER
+                const isPack = optData.dataset.source === 'catalog_pack';
+                if (window._bookingServiceMode === 'service' && isPack) return false;
+                if (window._bookingServiceMode === 'pack' && !isPack) return false;
+
                 const text = optData.text.toLowerCase();
 
                 // 1. Direct match (includes)
@@ -2623,6 +2547,36 @@
 
             results.style.display = 'block';
         }
+
+        // --- MODE SWITCHER HELPER ---
+        window.setBookingServiceMode = function (mode) {
+            window._bookingServiceMode = mode;
+            const btnService = document.getElementById("btn-mode-service");
+            const btnPack = document.getElementById("btn-mode-pack");
+            const searchInput = document.getElementById("res-servicio-search");
+            const select = document.getElementById("res-servicio");
+
+            if (mode === 'service') {
+                if (btnService) { btnService.style.background = "#3b82f6"; btnService.style.color = "white"; btnService.style.borderColor = "#2563eb"; }
+                if (btnPack) { btnPack.style.background = "#fff"; btnPack.style.color = "#64748b"; btnPack.style.borderColor = "#e2e8f0"; }
+                if (searchInput) searchInput.placeholder = "🔍 Buscar servicio individual...";
+            } else {
+                if (btnPack) { btnPack.style.background = "#f59e0b"; btnPack.style.color = "white"; btnPack.style.borderColor = "#d97706"; }
+                if (btnService) { btnService.style.background = "#fff"; btnService.style.color = "#64748b"; btnService.style.borderColor = "#e2e8f0"; }
+                if (searchInput) searchInput.placeholder = "🔍 Buscar pack o experiencia...";
+            }
+
+            // Reset Search
+            if (searchInput) {
+                searchInput.value = "";
+                searchInput.focus();
+            }
+            if (select) select.value = "";
+            window._packItems = null;
+
+            // Refresh
+            showServiceDropdown();
+        };
 
         function selectServiceFromDropdown(val) {
             const sel = document.getElementById("res-servicio");
@@ -3282,17 +3236,6 @@
         // Global master items cache
         window.masterItems = [];
 
-        async function loadMasterItems() {
-            try {
-                const snap = await db.collection("spa_item_master").get();
-                window.masterItems = [];
-                snap.forEach(doc => window.masterItems.push(doc.data()));
-                console.log("Items maestros cargados:", window.masterItems.length);
-            } catch (e) {
-                if (window.checkFirestoreError && window.checkFirestoreError(e)) return;
-                console.error("Error loading master items:", e);
-            }
-        }
 
         function updatePackInfo() {
             const svcName = document.getElementById("res-servicio")?.value;
@@ -3304,7 +3247,9 @@
             if (!packContainer || !packSchedule) return;
 
             // SKIP PACK LOGIC FOR SPA AND PELUQUERIA (use simple single-service bookings)
-            if (currentModule.code === 'spa' || currentModule.code === 'peluqueria') {
+            // SKIP PACK LOGIC FOR PELUQUERIA (use simple single-service bookings)
+            // Removed 'spa' from exclusion to allow generic packs in Spa module
+            if (currentModule.code === 'peluqueria') {
                 packContainer.style.display = "none";
                 window._packItems = null;
                 return;
@@ -3467,269 +3412,50 @@
             // Use currentModule.code as source of truth
             const activeCode = currentModule.code;
 
-            try {
-                // Cargar Notas del Día
-                loadDayNotes(date);
-
-                // Verificar si el día está cerrado
-                if (spaConfig.closedDates.includes(date)) {
-                    if (slotsCont) {
-                        slotsCont.style.display = 'grid'; // Show message container
-                        slotsCont.innerHTML = `
+            // Verificar si el día está cerrado
+            if (spaConfig.closedDates && spaConfig.closedDates.includes(date)) {
+                if (slotsCont) {
+                    slotsCont.style.display = 'grid'; // Show message container
+                    slotsCont.innerHTML = `
                         <div style="grid-column: 1 / -1; background: #ffebee; color: #d32f2f; padding: 40px; border-radius: 12px; text-align: center; border: 1px solid #ffcdd2;">
                             <i class="fas fa-calendar-times" style="font-size: 3rem; margin-bottom: 15px; display: block;"></i>
                             <h3 style="margin:0;">DÍA CERRADO</h3>
                             <p style="margin-top:10px; opacity:0.8;">Este día no acepta reservas por configuración de sistema.</p>
                         </div>
                     `;
-                    }
-                    document.getElementById("details-section").style.display = "none";
-                    return;
                 }
+                const detailsSec = document.getElementById("details-section");
+                if (detailsSec) detailsSec.style.display = "none";
+                return;
+            }
 
-                if (activeCode === 'combined' || activeCode === 'panacea') {
-                    if (splitCont) splitCont.style.display = 'grid';
-
-                    const [panaceaParams, vipParams] = [MODULES['panacea'], MODULES['vip']];
-                    let hasLocalData = false;
-
-                    // A1. CARGA LOCAL SPLIT (Inmediata)
-                    if (window.apiLocal) {
-                        try {
-                            const allLocal = await apiLocal.getReservasByDate(date);
-                            if (allLocal && allLocal.length > 0) {
-                                const localPanacea = allLocal.filter(r => r._moduleCode === 'panacea' || r.collection === panaceaParams.collection);
-                                const localVip = allLocal.filter(r => r._moduleCode === 'vip' || r.collection === vipParams.collection);
-
-                                // Renderizar si hay algo relevante
-                                if (localPanacea.length > 0 || localVip.length > 0) {
-                                    // Staff mock vacío para render inmediato
-                                    renderTimeline(date, 'timeline-container-panacea', panaceaParams, localPanacea, {});
-                                    renderTimeline(date, 'timeline-container-vip', vipParams, localVip, {});
-                                    console.log(`[LOCAL-SPLIT] Renderizados ${localPanacea.length} Panacea / ${localVip.length} VIP`);
-                                    hasLocalData = true;
-                                    currentData = [...localPanacea, ...localVip];
-                                }
-                            }
-                        } catch (e) { console.warn("Error local split:", e); }
-                    }
-
-                    // A2. CARGA REMOTA SPLIT (Background)
-                    try {
-                        const [snapPanacea, snapVip, availPanacea, availVip] = await Promise.all([
-                            db.collection(panaceaParams.collection).where("fecha", "==", date).get(),
-                            db.collection(vipParams.collection).where("fecha", "==", date).get(),
-                            (typeof window.getDailyStaffAvailability === 'function' ? window.getDailyStaffAvailability('panacea', date) : {}),
-                            (typeof window.getDailyStaffAvailability === 'function' ? window.getDailyStaffAvailability('vip', date) : {})
-                        ]);
-
-                        let dataPanacea = [];
-                        snapPanacea.forEach(doc => dataPanacea.push({
-                            id: doc.id,
-                            ...doc.data(),
-                            _moduleCode: 'panacea',
-                            collection: panaceaParams.collection // Persistir origen
-                        }));
-
-                        let dataVip = [];
-                        snapVip.forEach(doc => dataVip.push({
-                            id: doc.id,
-                            ...doc.data(),
-                            _moduleCode: 'vip',
-                            collection: vipParams.collection
-                        }));
-
-                        // Guardar en LocalDB para futuro
-                        if (window.apiLocal) {
-                            const allRemote = [...dataPanacea, ...dataVip];
-                            for (const res of allRemote) {
-                                await apiLocal.saveReserva({ ...res, syncStatus: 'synced' });
-                            }
-                        }
-
-                        currentData = [...dataPanacea, ...dataVip];
-
-                        renderTimeline(date, 'timeline-container-panacea', panaceaParams, dataPanacea, availPanacea);
-                        renderTimeline(date, 'timeline-container-vip', vipParams, dataVip, availVip);
-
-                        if (window.updateGlobalSyncStatus) updateGlobalSyncStatus('synced');
-
-                        // Check URL auto-open logic
-                        const urlParams = new URLSearchParams(window.location.search);
-                        const targetId = urlParams.get('id');
-                        if (targetId) {
-                            const foundRes = currentData.find(r => r.id === targetId);
-                            if (foundRes && typeof editBooking === 'function') {
-                                editBooking(targetId, foundRes);
-                                setTimeout(() => {
-                                    const card = document.querySelector(`.booking-card[data-id="${targetId}"]`);
-                                    if (card) {
-                                        card.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                                        card.style.boxShadow = "0 0 0 4px #fbbf24";
-                                        setTimeout(() => card.style.boxShadow = "", 3000);
-                                    }
-                                }, 500);
-                            }
-                        }
-
-                    } catch (err) {
-                        console.error("Error loading combined view:", err);
-                        if (!hasLocalData && window.checkFirestoreError && window.checkFirestoreError(err)) {
-                            // Si falló remoto y no teníamos local, mostrar error visible
-                            if (window.updateGlobalSyncStatus) updateGlobalSyncStatus('offline');
-                        }
-                    }
-                    return; // Stop standard flow
-                }
-
-                if (activeCode === 'terapeutas') {
-                    if (staffCont) {
-                        staffCont.style.removeProperty('display');
-                        staffCont.style.display = 'block';
-                        await renderTherapistTimeline(date, 'therapist-timeline-grid-main');
-                    }
-                    return;
-                }
-
-                if (activeCode === 'cabinas') {
-                    if (cabinasCont) cabinasCont.style.display = 'grid';
-
-                    const [cab1, cab2, cab3] = [MODULES['cabina1'], MODULES['cabina2'], MODULES['cabina3']];
-
-                    // A1. LOCAL LOAD (Fast render)
-                    if (window.apiLocal) {
-                        try {
-                            const allLocal = await apiLocal.getReservasByDate(date);
-                            if (allLocal && allLocal.length > 0) {
-                                const l1 = allLocal.filter(r => r.collection === cab1.collection);
-                                const l2 = allLocal.filter(r => r.collection === cab2.collection);
-                                const l3 = allLocal.filter(r => r.collection === cab3.collection);
-
-                                if (l1.length || l2.length || l3.length) {
-                                    renderTimeline(date, 'timeline-container-cabina1', cab1, l1, {});
-                                    renderTimeline(date, 'timeline-container-cabina2', cab2, l2, {});
-                                    renderTimeline(date, 'timeline-container-cabina3', cab3, l3, {});
-                                    currentData = [...l1, ...l2, ...l3];
-                                }
-                            }
-                        } catch (e) { console.warn("Local load cabinas error:", e); }
-                    }
-
-                    // A2. REMOTE LOAD
-                    try {
-                        const [snap1, snap2, snap3] = await Promise.all([
-                            db.collection(cab1.collection).where("fecha", "==", date).get(),
-                            db.collection(cab2.collection).where("fecha", "==", date).get(),
-                            db.collection(cab3.collection).where("fecha", "==", date).get()
-                        ]);
-
-                        if (currentLoadId !== loadReservasInstance) {
-                            console.log("Aborting obsolete loadReservas (Cabinas)");
-                            return;
-                        }
-
-                        // RE-FORCE VISIBILITY (Race condition fix)
-                        if (slotsCont) slotsCont.style.setProperty('display', 'none', 'important');
-                        if (cabinasCont) {
-                            cabinasCont.style.removeProperty('display');
-                            cabinasCont.style.display = 'grid';
-                        }
-
-                        const d1 = [], d2 = [], d3 = [];
-                        snap1.forEach(doc => d1.push({ id: doc.id, ...doc.data(), collection: cab1.collection }));
-                        snap2.forEach(doc => d2.push({ id: doc.id, ...doc.data(), collection: cab2.collection }));
-                        snap3.forEach(doc => d3.push({ id: doc.id, ...doc.data(), collection: cab3.collection }));
-
-                        const combinedData = [...d1, ...d2, ...d3];
-
-                        // Auto-NoShow check ONLY if today
-                        const today = new Date().toISOString().split('T')[0];
-                        if (date === today) {
-                            // Check for all 3 collections
-                            const u1 = await window.processAutoNoShows(d1, 'cabina1');
-                            const u2 = await window.processAutoNoShows(d2, 'cabina2');
-                            const u3 = await window.processAutoNoShows(d3, 'cabina3');
-                            if (u1 || u2 || u3) return loadReservas(date);
-                        }
-
-                        currentData = combinedData;
-
-                        // Fetch availability for Cabinas (shared staff pool)
-                        const cabAvailability = (typeof window.getDailyStaffAvailability === 'function')
-                            ? await window.getDailyStaffAvailability('cabina1', date) // Use generic cabina1 to get the pool
-                            : {};
-                        currentStaffAvailability = cabAvailability;
-
-                        // Save Local
-                        if (window.apiLocal) {
-                            for (const res of currentData) {
-                                await apiLocal.saveReserva({ ...res, syncStatus: 'synced' });
-                            }
-                        }
-
-                        renderTimeline(date, 'timeline-container-cabina1', cab1, d1, cabAvailability);
-                        renderTimeline(date, 'timeline-container-cabina2', cab2, d2, cabAvailability);
-                        renderTimeline(date, 'timeline-container-cabina3', cab3, d3, cabAvailability);
-
-                        if (window.updateGlobalSyncStatus) updateGlobalSyncStatus('synced');
-
-                        // Check URL auto-open logic for Cabinas
-                        const urlParams = new URLSearchParams(window.location.search);
-                        const targetId = urlParams.get('id') || urlParams.get('res_id');
-                        if (targetId) {
-                            const foundRes = currentData.find(r => r.id === targetId);
-                            if (foundRes && typeof editBooking === 'function') {
-                                editBooking(targetId, foundRes);
-                                setTimeout(() => {
-                                    const card = document.querySelector(`.booking-card[data-id="${targetId}"]`);
-                                    if (card) {
-                                        card.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                                        card.style.boxShadow = "0 0 0 4px #fbbf24";
-                                        setTimeout(() => card.style.boxShadow = "", 3000);
-                                    }
-                                }, 500);
-                            }
-                        }
-
-                    } catch (err) {
-                        console.error("Error loading cabinas:", err);
-                    }
-                    return;
-                }
-
-
-                // --- STANDARD MODULES (SPA, SUITE, ETC) ---
-
-                // 1. Local Load (Instant)
+            try {
+                // 1. LOCAL LOAD (INSTANT) - Try to show cached data immediately
                 if (window.apiLocal) {
-                    try {
-                        const allLocal = await apiLocal.getReservasByDate(date);
+                    apiLocal.getReservasByDate(date).then(allLocal => {
                         if (allLocal && allLocal.length > 0) {
-                            // Filter by current collection
                             const relevantLocal = allLocal.filter(r => r.collection === currentModule.collection);
-
-                            if (relevantLocal.length > 0) {
+                            if (relevantLocal.length > 0 && currentLoadId === loadReservasInstance) {
                                 currentData = relevantLocal;
                                 renderSlots(date);
-                                console.log(`[LOCAL] Rendered ${relevantLocal.length} items for ${currentModule.name}`);
+                                console.log("[LOCAL] Instant render from cache.");
                             }
                         }
-                    } catch (e) {
-                        console.warn("Error loading local data:", e);
-                    }
+                    }).catch(e => console.warn("Local cache load failed:", e));
                 }
 
-                // 2. Remote Load (Background)
-                const snapshot = await db.collection(currentModule.collection).where("fecha", "==", date).get();
+                // 2. REMOTE FETCH (PARALLEL)
+                const [daySnapshot, staffAvailability] = await Promise.all([
+                    db.collection(currentModule.collection).where("fecha", "==", date).get(),
+                    currentModule.requiresStaff ? (window.getDailyStaffAvailability ? window.getDailyStaffAvailability(currentModule.code, date) : {}) : Promise.resolve({}),
+                    loadDayNotes(date) // Returns a promise
+                ]);
 
                 if (currentLoadId !== loadReservasInstance) return;
 
                 // RE-FORCE SLOT VISIBILITY
                 if (slotsCont) {
                     slotsCont.style.removeProperty('display');
-                    // Force grid if needed, otherwise let CSS take over (flex !important from class)
-                    // If CSS logic relies on flex, we leave it. Or set to block/grid if module requires.
-                    // For SPA module, it uses flex currently.
                 }
                 if (cabinasCont) cabinasCont.style.setProperty('display', 'none', 'important');
 
@@ -3738,47 +3464,39 @@
                     detailsCont.style.display = 'none';
                 }
 
-                const remoteData = [];
-                snapshot.forEach(doc => {
-                    const d = doc.data();
-                    // DEBUG: Trace Suite reservations
-                    if (currentModule.code === 'suite') {
-                        console.log("DEBUG SUITE LOAD:", doc.id, d.fecha, d.hora, d);
-                    }
-                    remoteData.push({ id: doc.id, ...d, collection: currentModule.collection });
-                });
+                currentStaffAvailability = staffAvailability;
 
-                // Sync Remote -> Local
-                if (window.apiLocal) {
-                    for (const r of remoteData) {
-                        await apiLocal.saveReserva({ ...r, syncStatus: 'synced' });
-                    }
-                }
+                const remoteData = [];
+                daySnapshot.forEach(doc => {
+                    remoteData.push({ id: doc.id, ...doc.data(), collection: currentModule.collection });
+                });
 
                 currentData = remoteData;
 
-                // Load Staff Availability if required
-                if (currentModule.requiresStaff) {
-                    currentStaffAvailability = (typeof window.getDailyStaffAvailability === 'function')
-                        ? await window.getDailyStaffAvailability(currentModule.code, date)
-                        : {};
+                // 3. RENDER REMOTE DATA
+                renderSlots(date);
+                if (window.updateGlobalSyncStatus) updateGlobalSyncStatus('synced');
+                if (selectedTime) updateDetails(selectedTime);
+
+                // 4. BACKGROUND TASKS
+
+                // Sync Remote -> Local (Parallelized)
+                if (window.apiLocal) {
+                    Promise.all(remoteData.map(r => apiLocal.saveReserva({ ...r, syncStatus: 'synced' })))
+                        .catch(e => console.warn("Background Local Sync failed:", e));
                 }
 
                 // Auto-NoShow check ONLY if today
                 const today = new Date().toISOString().split('T')[0];
                 if (date === today) {
-                    const updatedAny = await window.processAutoNoShows(currentData, currentModule.code);
-                    if (updatedAny) {
-                        // If we updated any, reload to get fresh data
-                        // (Safe because they are now marked no-show and won't trigger again)
-                        return loadReservas(date);
-                    }
+                    window.processAutoNoShows(currentData, currentModule.code).then(updatedAny => {
+                        if (updatedAny) {
+                            console.log("[AUTO-NOSHOW] Some bookings updated, refreshing UI.");
+                            renderSlots(date); // Just re-render slots with updated currentData
+                        }
+                    }).catch(e => console.error("[AUTO-NOSHOW] Error:", e));
                 }
-
-                renderSlots(date);
-                if (window.updateGlobalSyncStatus) updateGlobalSyncStatus('synced');
-
-                if (selectedTime) updateDetails(selectedTime);
+                return;
 
 
                 // Auto-open logic
@@ -3855,10 +3573,6 @@
         }
 
         function renderSlots(dateString) {
-            if (currentModule.viewType === 'timeline') {
-                renderTimeline(dateString);
-                return;
-            }
 
             // Crear fecha segura (mediodía) para evitar problemas de timezone
             const date = new Date(dateString + 'T12:00:00');
@@ -4267,6 +3981,10 @@
             window._currentPricingMode = null;
             if (!selectedTime) return;
 
+            // Reset Service Mode
+            if (window.setBookingServiceMode) window.setBookingServiceMode('service');
+
+            const moduleType = currentModule.code;
             const dateStr = document.getElementById("main-date-picker").value;
             const isBlocked = (spaConfig.blockedSlots && spaConfig.blockedSlots[dateStr] && spaConfig.blockedSlots[dateStr].includes(selectedTime));
 
@@ -5384,22 +5102,12 @@
                 if (!isAgendaLess && !isForced) {
                     // Check Sala
                     let conflictMsg = null;
-                    if (currentModule.isPrivate) {
-                        const collision = await checkRoomAvailability(date, time, duration, id);
-                        if (collision) {
-                            if (collision.nombre === "Aforo Máximo Superado") {
-                                conflictMsg = `Aforo Completo (${collision.now}/${collision.max})`;
-                            } else {
-                                conflictMsg = `Sala Ocupada por ${collision.nombre || 'Otro cliente'} (${collision.hora})`;
-                            }
-                        }
-                    }
-
-                    // Check Personal
-                    if (!conflictMsg && requiresStaffForThisBooking) {
-                        const staffFree = await checkReservationStaffAvailability(date, time, duration, id);
-                        if (!staffFree) {
-                            conflictMsg = "Terapeuta NO disponible en este horario.";
+                    const collision = await checkRoomAvailability(date, time, duration, id);
+                    if (collision) {
+                        if (collision.nombre === "Aforo Máximo Superado") {
+                            conflictMsg = `Aforo Completo (${collision.now}/${collision.max})`;
+                        } else {
+                            conflictMsg = `Sala Ocupada por ${collision.nombre || 'Otro cliente'} (${collision.hora})`;
                         }
                     }
 
@@ -5724,290 +5432,8 @@
 
         // ------------------- TIMELINE & LOGICA NOVEDOSA -------------------
 
-        function renderTimeline(dateString, containerId = "slots-container", moduleConfig = currentModule, data = currentData, availability = currentStaffAvailability) {
-            const container = document.getElementById(containerId);
-            container.innerHTML = "";
-            container.className = "timeline-mode"; // Switch to timeline specific styles
-
-            // Intervalo dinámico según módulo: 15min para privados, 30min para otros
-            const step = moduleConfig.isPrivate ? 15 : 30;
-
-            const dateObj = new Date(dateString + 'T00:00:00');
-            const isSunday = dateObj.getDay() === 0;
-            const closingHour = isSunday ? 15 : 22;
-
-            var now = new Date();
-            var isToday = (dateString === now.toISOString().split('T')[0]);
-            var currH = now.getHours();
-            var currM = now.getMinutes();
-
-            for (let h = 10; h < closingHour; h++) {
-                const intervals = (step === 15) ? [0, 15, 30, 45] : [0, 30];
-                for (let m of intervals) {
-                    if (h === 21 && m > 45) continue;
-                    if (h === 21 && step === 30 && m === 30) continue;
-
-                    const timeLabel = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
-                    const row = document.createElement("div");
-                    row.className = "timeline-row";
-                    row.style.display = "flex";
-                    row.style.borderBottom = "1px solid #f0f0f0";
-
-                    // Columna de hora
-                    const timeCol = document.createElement("div");
-                    timeCol.className = "time-col";
-                    timeCol.innerHTML = `<span class="time-bubble">${timeLabel}</span>`;
-                    row.appendChild(timeCol);
-
-                    // Columna de contenido
-                    const contentCol = document.createElement("div");
-                    contentCol.className = "content-col";
-
-                    // Lógica de ocupación
-                    // Lógica de ocupación
-                    const currentSlotMin = h * 60 + m;
-                    const nextSlotMin = currentSlotMin + step;
-
-                    const bookingsInSlot = data.filter(r => {
-                        const showCancelled = document.getElementById("show-cancelled")?.checked;
-                        if (r.status === 'anulada' && !showCancelled) return false;
-                        const [rh, rm] = r.hora.split(':').map(Number);
-                        const rStart = rh * 60 + rm;
-                        const rDuration = parseInt(r.duracion) || 60;
-
-                        // Don't add cleaning time for blocked slots
-                        const isBlock = r.isBlock || r.status === 'blocked';
-                        const cleaningTime = isBlock ? 0 : parseInt(spaConfig.cleaningTime || 0);
-
-                        const rEndTotal = rStart + rDuration + cleaningTime;
-                        return (currentSlotMin < rEndTotal && nextSlotMin > rStart);
-                    });
-
-                    const isOccupied = bookingsInSlot.length > 0;
-                    const maxCapacity = moduleConfig.capacity || 1;
-                    const bookingsCount = bookingsInSlot.length;
-
-                    // 1. Mostrar reservas existentes
-                    if (isOccupied) {
-                        // DEBUG: Trace Suite Rendering
-                        if (currentModule.code === 'suite') {
-                            bookingsInSlot.forEach(b => console.log(`DEBUG SUITE RENDER slot=${timeLabel}:`, b.nombre, b.hora));
-                        }
-                        bookingsInSlot.forEach(booking => {
-                            const [bh, bm] = booking.hora.split(':').map(Number);
-                            const bStart = bh * 60 + bm;
-                            const bDuration = parseInt(booking.duracion || 60);
-                            const bEnd = bStart + bDuration;
-                            // Check if this slot is in the cleaning period
-                            const isCleaning = currentSlotMin >= bEnd;
-
-                            if (booking.isBlock || booking.status === 'blocked') {
-                                // Especial para bloqueos
-                                const blockCard = document.createElement("div");
-                                blockCard.className = "status-lock";
-                                blockCard.style.background = "#fee2e2";
-                                blockCard.style.color = "#b91c1c";
-                                blockCard.style.padding = "10px";
-                                blockCard.style.borderRadius = "8px";
-                                blockCard.style.border = "1px dashed #f87171";
-                                blockCard.style.cursor = "pointer";
-                                blockCard.innerHTML = `<i class="fas fa-lock"></i> <b>SALA CERRADA:</b> ${booking.servicio || 'Mantenimiento'}`;
-                                blockCard.onclick = (e) => {
-                                    e.stopPropagation();
-                                    editBooking(booking.id, booking);
-                                };
-                                contentCol.appendChild(blockCard);
-                            } else if (booking.hora === timeLabel) {
-                                const card = createBookingCardTimeline(booking);
-                                if (booking.status === 'anulada') {
-                                    card.style.opacity = '0.6';
-                                    card.style.background = '#f1f5f9';
-                                    card.style.border = '1px dashed #cbd5e1';
-
-                                    // Visual indicator
-                                    const cancelledLabel = document.createElement("div");
-                                    cancelledLabel.innerHTML = '<i class="fas fa-ban"></i> ANULADA';
-                                    cancelledLabel.style.color = "#ef4444";
-                                    cancelledLabel.style.fontSize = "0.65rem";
-                                    cancelledLabel.style.fontWeight = "800";
-                                    cancelledLabel.style.marginBottom = "4px";
-
-                                    // Prepend or adjust styles
-                                    card.insertBefore(cancelledLabel, card.firstChild);
-                                    card.querySelectorAll("*").forEach(el => el.style.textDecoration = "line-through");
-                                    cancelledLabel.style.textDecoration = "none"; // Exception
-                                }
-                                contentCol.appendChild(card);
-                            } else {
-                                const lock = document.createElement("div");
-                                lock.className = "status-lock";
-                                if (booking.status === 'anulada') {
-                                    lock.style.color = "#cbd5e1";
-                                    lock.style.textDecoration = "line-through";
-                                    lock.innerHTML = `<i class="fas fa-ban"></i> Anulada (${booking.nombre})`;
-                                } else if (isCleaning) {
-                                    lock.style.color = "#ed8936";
-                                    lock.innerHTML = `<i class="fas fa-broom"></i> Limpieza / Preparación`;
-                                } else {
-                                    lock.innerHTML = `<i class="fas fa-lock"></i> Ocupado por ${booking.nombre}`;
-                                }
-                                contentCol.appendChild(lock);
-                            }
-                        });
-                    }
-
-                    // 2. Lógica de botón "Reservar" o Avisos
-                    const isPast = isToday && (h < currH || (h === currH && m < currM));
-
-                    if (isPast) {
-                        if (!isOccupied) {
-                            contentCol.innerHTML = '<span style="color:#cbd5e1; font-size:0.75rem; font-weight:600; text-transform:uppercase;">Fuera de hora</span>';
-                        }
-                    } else {
-                        // Check Staff
-                        // If availability map is empty (not loaded), assume available (99) to avoid blocking UI
-                        const isAvailabilityLoaded = availability && Object.keys(availability).length > 0;
-                        let staffFreeCount = (moduleConfig.requiresStaff && isAvailabilityLoaded) ? (availability[timeLabel] || 0) : 99;
-
-                        // Check Space
-                        const defaultDur = 60;
-                        const hasSpace = moduleConfig.isPrivate ? checkSpaceSync(timeLabel, defaultDur, data) : (bookingsCount < maxCapacity);
-
-                        // MODIFIED: Remove 'hasSpace' constraint to allow booking attempt even if 60min doesn't fit
-                        // The user can force it or change duration in the form.
-                        if (staffFreeCount > 0 && (!isOccupied || (moduleConfig.capacity && moduleConfig.capacity > 1))) {
-                            // Mostrar botón Reservar si hay hueco físico y de personal
-                            // Container for actions
-                            const actionsDiv = document.createElement("div");
-                            actionsDiv.style.display = "flex";
-                            actionsDiv.style.gap = "8px";
-                            actionsDiv.style.alignItems = "center";
-                            actionsDiv.style.marginTop = isOccupied ? "10px" : "0";
-
-                            // Reservar Button
-                            const addBtn = document.createElement("button");
-                            addBtn.className = "btn btn-outline btn-sm";
-                            addBtn.style.width = "fit-content";
-                            addBtn.innerHTML = "<i class='fas fa-plus'></i> Reservar";
-                            addBtn.onclick = () => {
-                                window.currentModule = moduleConfig;
-                                currentModule = moduleConfig;
-                                currentData = data;
-                                currentStaffAvailability = availability;
-                                selectedTime = timeLabel;
-                                showBookingForm();
-                            };
-
-                            // Bloquear Button (New)
-                            const blockBtn = document.createElement("button");
-                            blockBtn.className = "btn btn-outline btn-sm";
-                            blockBtn.style.width = "fit-content";
-                            blockBtn.style.borderColor = "#ef4444";
-                            blockBtn.style.color = "#ef4444";
-                            blockBtn.title = "Cerrar sala a esta hora";
-                            blockBtn.innerHTML = "<i class='fas fa-lock'></i> Cerrar";
-                            blockBtn.onclick = () => {
-                                const reason = prompt("Indica el motivo del bloqueo (Opcional):", "Mantenimiento");
-                                if (reason === null) return; // Cancelled
-
-                                const duration = moduleConfig.isPrivate ? 15 : 30; // Default slot duration
-                                const start = timeLabel;
-                                // Calculate simple end time for display/logging if needed, but logic uses start+duration
-
-                                const confirmMsg = `¿Bloquear ${timeLabel} (${duration} min)?`;
-                                if (!confirm(confirmMsg)) return;
-
-                                // Direct Save
-                                const targetCollection = moduleConfig.collection;
-                                db.collection(targetCollection).add({
-                                    nombre: "SALA CERRADA",
-                                    cliente: "SALA CERRADA",
-                                    servicio: reason || "Bloqueo",
-                                    hora: start,
-                                    duracion: duration,
-                                    fecha: dateString,
-                                    pax: 1,
-                                    isBlock: true,
-                                    status: 'blocked',
-                                    created_at: firebase.firestore.FieldValue.serverTimestamp()
-                                }).then(() => {
-                                    showToast("Franja bloqueada", "success");
-                                    loadReservas(dateString);
-                                }).catch(err => {
-                                    console.error(err);
-                                    alert("Error al bloquear: " + err.message);
-                                });
-                            };
-
-                            actionsDiv.appendChild(addBtn);
-                            actionsDiv.appendChild(blockBtn);
-                            contentCol.appendChild(actionsDiv);
-                        } else if (!isOccupied) {
-                            // Si no hay hueco y no hay reservas, mostrar por qué
-                            if (staffFreeCount === 0 && moduleConfig.requiresStaff) {
-                                contentCol.innerHTML = '<span style="color:#ef4444; font-size:0.75rem;"><i class="fas fa-user-slash"></i> Therapist unavailable</span>';
-                            } else if (!hasSpace) {
-                                // Content explicitly left empty as per user request
-                                // contentCol.innerHTML = '<span style="color:#666; font-size:0.75rem;"><i class="fas fa-ban"></i> Sin espacio</span>';
-                            }
-                        }
-                    }
-
-                    row.appendChild(contentCol);
-                    container.appendChild(row);
-
-                    // Mark anchor for auto-scroll (First slot of current hour)
-                    if (isToday && h === currH && m === intervals[0]) {
-                        row.id = `timeline-anchor-${containerId}`;
-                    }
-                }
-            }
-
-            // Scroll to current time
-            if (isToday) {
-                setTimeout(() => {
-                    const anchor = document.getElementById(`timeline-anchor-${containerId}`);
-                    if (anchor) {
-                        anchor.scrollIntoView({ behavior: "smooth", block: "start", inline: "nearest" });
-                    }
-                }, 300);
-            }
-        }
 
         // Helper simple para colisiones
-        function findCollision(start, duration, existingBookings, excludeId = null) {
-            // Revert signature to accept start as string "HH:mm" to be compatible with callers
-            const [h, m] = start.split(':').map(Number);
-            const startMin = h * 60 + m;
-
-            const endMin = startMin + parseInt(duration);
-            // Cleaning time removed per user request
-            const cleaning = 0;
-            const endMinTotal = endMin + cleaning;
-
-            return existingBookings.find(b => {
-                if (b.status === 'anulada') return false;
-                if (b.id === excludeId) return false;
-
-                const [bh, bm] = b.hora.split(':').map(Number);
-                const bStart = bh * 60 + bm;
-                const bDur = parseInt(b.duracion || 60);
-                const bEnd = bStart + bDur;
-                const bCleaning = 0;
-                const bEndTotal = bEnd + bCleaning;
-
-                // Collision:
-                // (NewStart < ExistingEndTotal) AND (NewEndTotal > ExistingStart)
-                return (startMin < bEndTotal && endMinTotal > bStart);
-            });
-        }
-
-        // Helper síncrono para verificar hueco en renderTimeline y updateAvailableTimeSlots
-        function checkSpaceSync(start, duration, customData = null, excludeId = null) {
-            const bookingsToCheck = customData || currentData;
-            const collision = findCollision(start, duration, bookingsToCheck, excludeId);
-            return !collision; // If collision (object) found, return false (no space). If undefined, return true.
-        }
 
         async function checkRoomAvailability(date, start, duration, excludeId = null) {
             // Si la fecha es distinta a la cargada actualmente, necesitamos los datos de esa fecha
@@ -6021,26 +5447,22 @@
                 bookings = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             }
 
-            if (currentModule.viewType === 'timeline') {
-                return findCollision(start, duration, bookings, excludeId);
-            } else {
-                // Modo Capacity
-                const dayReservations = bookings.filter(r => r.hora === start && r.status !== 'anulada' && r.id !== excludeId);
-                const paxOccupied = dayReservations.reduce((sum, r) => sum + (r.pax || 0), 0);
-                const newPax = parseInt(document.getElementById("res-pax")?.value || 1);
-                const maxCapacity = spaConfig.capacity || currentModule.capacity || 20;
+            // Módulo Spa siempre usa Modo Capacity (Aforo)
+            const dayReservations = bookings.filter(r => r.hora === start && r.status !== 'anulada' && r.id !== excludeId);
+            const paxOccupied = dayReservations.reduce((sum, r) => sum + (r.pax || 0), 0);
+            const newPax = parseInt(document.getElementById("res-pax")?.value || 1);
+            const maxCapacity = spaConfig.capacity || currentModule.capacity || 20;
 
-                if (paxOccupied + newPax > maxCapacity) {
-                    return {
-                        nombre: "Aforo Máximo Superado",
-                        hora: start,
-                        duracion: 0,
-                        now: paxOccupied + newPax,
-                        max: maxCapacity
-                    };
-                }
-                return null;
+            if (paxOccupied + newPax > maxCapacity) {
+                return {
+                    nombre: "Aforo Máximo Superado",
+                    hora: start,
+                    duracion: 0,
+                    now: paxOccupied + newPax,
+                    max: maxCapacity
+                };
             }
+            return null;
         }
 
         // Helper: Extract service information from pack breakdown
@@ -6395,102 +5817,6 @@
 
 
 
-        async function checkReservationStaffAvailability(date, time, duration, id) {
-            if (typeof window.getAvailableStaffForRoom === 'function') {
-                try {
-                    const roomCode = currentModule.code;
-                    const pax = parseInt(document.getElementById("res-pax")?.value) || 1;
-                    // Pass 'id' as the 5th argument (excludeId)
-                    const availableStaff = await window.getAvailableStaffForRoom(roomCode, date, time, duration, id);
-
-                    // If pax > 1, check if we have at least 2 therapists
-                    if (pax > 1) {
-                        return availableStaff && availableStaff.length >= 2;
-                    }
-                    return availableStaff && availableStaff.length > 0;
-                } catch (e) {
-                    console.error("Error calling getAvailableStaffForRoom:", e);
-                    return false;
-                }
-            }
-            return true;
-        }
-
-        function createBookingCardTimeline(booking) {
-            const div = document.createElement("div");
-            div.className = "booking-card";
-            div.dataset.id = booking.id; // Add ID for direct access
-
-            // Color logic using new getServiceColor function
-            const color = getServiceColor ? getServiceColor(booking.servicio) : '#64748b';
-            const borderColor = color;
-            const bgColor = `${color}15`; // Increased opacity slightly to 15%
-
-            // Override if cancelled
-            const isCancelled = booking.status === 'anulada';
-
-            div.style.borderColor = isCancelled ? "#cbd5e1" : "#e2e8f0";
-            div.style.borderLeft = `5px solid ${isCancelled ? '#94a3b8' : borderColor}`;
-            div.style.background = isCancelled ? "#f8fafc" : bgColor;
-
-            // Payment Status Check
-            let paid = parseFloat(booking.pagado || booking.payment?.paid || 0);
-            let total = parseFloat(booking.precio_total || booking.precio || 0);
-            let isPaid = paid >= (total - 0.05); // Tolerance
-            // Treat Hotel/Bono as paid for valid visual even if technically 0 paid
-            const origen = (booking.origen || "").toLowerCase();
-            if (['hotel_inc', 'bono', 'smartbox', 'wonderbox', 'ego'].includes(origen)) isPaid = true;
-
-            const pendingIcon = !isPaid ? `<i class="fas fa-coins" style="color:#f59e0b; margin-left:5px; font-size:0.9rem;" title="Pago Pendiente: ${(total - paid).toFixed(2)}€"></i>` : '';
-
-            div.innerHTML = `
-                <div class="booking-info">
-                    <h4 style="display:flex; justify-content:space-between; align-items:center;">
-                        <span>${booking.nombre}</span>
-                        ${pendingIcon}
-                    </h4>
-                    <p>
-                        <span><i class="fas fa-spa"></i> ${booking.servicio}</span>
-                        <span><i class="fas fa-clock"></i> ${booking.duracion || 60} min</span>
-                        ${booking.tel ? `<span><i class="fas fa-phone"></i> ${booking.tel}</span>` : ''}
-                        ${(booking.staff_name || booking.terapeuta) ? `
-                            <span style="font-size: 0.75rem; color: #0f766e; display: flex; align-items: center; gap: 5px; margin-top: 2px;">
-                                <i class="fas fa-user-check"></i> 
-                                ${booking.staff_name || booking.terapeuta}
-                                ${booking.staff_name2 ? ` + ${booking.staff_name2}` : ''}
-                            </span>` : ''}
-                    </p>
-                </div>
-                <div class="booking-actions">
-                    <button onclick="editBooking('${booking.id}')" class="btn btn-outline btn-xs" style="padding: 4px 8px;">
-                        <i class="fas fa-edit"></i>
-                    </button>
-                    ${booking.tel ? (() => {
-                    const cleanTel = booking.tel.replace(/\s/g, '');
-                    const dateStr = new Date(booking.fecha).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' });
-
-                    let msg = spaConfig.whatsappTemplate || "Hola {{nombre}}, confirmamos su cita para el {{fecha}} a las {{hora}}h.";
-                    msg = msg.replace(/{{nombre}}/g, booking.nombre || "")
-                        .replace(/{{fecha}}/g, dateStr)
-                        .replace(/{{hora}}/g, booking.hora || "")
-                        .replace(/{{espacio}}/g, currentModule.name || "")
-                        .replace(/{{servicio}}/g, booking.servicio || "")
-                        .replace(/{{telefono}}/g, booking.tel || "")
-                        .replace(/{{pax}}/g, booking.pax || "")
-                        .replace(/{{total}}/g, (booking.precio_total || booking.precio || 0) + "€")
-                        .replace(/{{notas}}/g, booking.obs || "");
-
-                    return `
-                            <a href="whatsapp://send?phone=34${cleanTel}&text=${encodeURIComponent(msg)}" 
-                               class="btn btn-outline btn-xs" 
-                               style="padding: 4px 8px; color: #25d366; border-color: #25d366;">
-                                <i class="fab fa-whatsapp"></i>
-                            </a>`;
-                })() : ''}
-                </div>
-            `;
-            return div;
-        }
 
         // toggleRoomField removed - simplified into window.toggleRoomField below
 
@@ -6556,19 +5882,6 @@
             if (durationField) durationField.addEventListener('change', checkAndUpdateStaff);
         }
 
-        async function loadStaffConfig() {
-            try {
-                const doc = await db.collection("config_personal").doc("main_staff_config").get();
-                if (doc.exists) {
-                    const data = doc.data();
-                    staffConfig.morning = data.morning_count || 1;
-                    staffConfig.afternoon = data.afternoon_count || 1;
-                }
-            } catch (err) {
-                if (window.checkFirestoreError && window.checkFirestoreError(err)) return;
-                console.error("Error cargando staffConfig:", err);
-            }
-        }
 
         function showToast(message, type = 'info') {
             const container = document.getElementById('toast-container');
@@ -7296,10 +6609,8 @@
         // NEW: Processor for Auto No-Show
         window.processAutoNoShows = async function (bookings, moduleCode) {
             const now = new Date();
-            const todayStr = now.toISOString().split('T')[0];
-
             const noShowDeadlineMinutes = 45;
-            let updatedAny = false;
+            const updates = [];
 
             for (const res of bookings) {
                 if (res.status === 'confirmada' && !res.attended && !res.no_show) {
@@ -7307,551 +6618,20 @@
                     const deadlineTime = new Date(resDateTime.getTime() + noShowDeadlineMinutes * 60 * 1000);
 
                     if (now > deadlineTime) {
-                        console.log(`[AUTO-NOSHOW] Marking reservation ${res.id} as no-show (deadline passed).`);
-                        await window.markAsNoShow(res.id, moduleCode, true);
-                        updatedAny = true;
+                        console.log(`[AUTO-NOSHOW] Scheduling update for ${res.id}`);
+                        updates.push(window.markAsNoShow(res.id, moduleCode, true));
                     }
                 }
             }
-            return updatedAny;
+
+            if (updates.length > 0) {
+                await Promise.all(updates);
+                return true;
+            }
+            return false;
         };
 
-        // ============================================
-        // THERAPIST AVAILABILITY DASHBOARD
-        // ============================================
 
-        // Track current date for the availability modal
-        let therapistAvailabilityCurrentDate = null;
-
-        async function openTherapistAvailability() {
-            const modal = document.getElementById('therapist-availability-modal');
-            if (!modal) return;
-
-            const dateStr = document.getElementById('main-date-picker').value;
-            therapistAvailabilityCurrentDate = dateStr; // Store current date
-
-            modal.style.display = 'flex';
-
-            // Render the timeline
-            await renderTherapistTimeline(dateStr);
-        }
-        window.openTherapistAvailability = openTherapistAvailability;
-
-        function changeTherapistAvailabilityDate(days) {
-            if (!therapistAvailabilityCurrentDate) return;
-
-            const currentDate = new Date(therapistAvailabilityCurrentDate + 'T12:00:00');
-            currentDate.setDate(currentDate.getDate() + days);
-
-            const year = currentDate.getFullYear();
-            const month = String(currentDate.getMonth() + 1).padStart(2, '0');
-            const day = String(currentDate.getDate()).padStart(2, '0');
-            const newDateStr = `${year}-${month}-${day}`;
-
-            therapistAvailabilityCurrentDate = newDateStr;
-            renderTherapistTimeline(newDateStr);
-        }
-        window.changeTherapistAvailabilityDate = changeTherapistAvailabilityDate;
-
-        async function setTherapistAvailabilityDate(dateStr) {
-            if (!dateStr) return;
-            therapistAvailabilityCurrentDate = dateStr;
-            await renderTherapistTimeline(dateStr);
-        }
-        window.setTherapistAvailabilityDate = setTherapistAvailabilityDate;
-
-        function closeTherapistAvailability() {
-            const modal = document.getElementById('therapist-availability-modal');
-            if (modal) modal.style.display = 'none';
-        }
-        window.closeTherapistAvailability = closeTherapistAvailability;
-
-        async function renderTherapistTimeline(dateStr, containerId = 'therapist-timeline-grid') {
-            const container = document.getElementById(containerId);
-            if (!container) return;
-
-            // Update date display
-            const dateDisplay = document.getElementById('therapist-availability-date');
-            if (dateDisplay) {
-                const dateObj = new Date(dateStr + 'T12:00:00');
-                const formattedDate = dateObj.toLocaleDateString('es-ES', {
-                    weekday: 'long',
-                    year: 'numeric',
-                    month: 'long',
-                    day: 'numeric'
-                });
-                dateDisplay.textContent = formattedDate.charAt(0).toUpperCase() + formattedDate.slice(1);
-            }
-
-            container.innerHTML = '<div style="padding: 40px; text-align: center; color: #64748b;"><i class="fas fa-spinner fa-spin" style="font-size: 2rem;"></i><br><br>Cargando disponibilidad...</div>';
-
-            try {
-                // Get all active staff
-                const allStaff = await window.getActiveStaff();
-                if (!allStaff || allStaff.length === 0) {
-                    container.innerHTML = '<div style="padding: 40px; text-align: center; color: #64748b;">No hay terapeutas activos</div>';
-                    return;
-                }
-
-                // Show ALL active therapists (no room filtering)
-                const cabinasStaff = allStaff.filter(staff => staff.activo !== false);
-
-                if (cabinasStaff.length === 0) {
-                    container.innerHTML = '<div style="padding: 40px; text-align: center; color: #64748b;">No hay terapeutas activos</div>';
-                    return;
-                }
-
-                // Get all bookings and exceptions for the day
-                const [dayBookings, dayExceptions] = await Promise.all([
-                    window.getAllBookingsForDate(dateStr),
-                    window.getDayExceptionsForDate(dateStr)
-                ]);
-
-                // Generate time slots based on global opening hours
-                const daysMap = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-                const dayKey = daysMap[new Date(dateStr + 'T12:00:00').getDay()];
-                const dayConfig = (window.GLOBAL_OPENING_HOURS && window.GLOBAL_OPENING_HOURS[dayKey]) ? window.GLOBAL_OPENING_HOURS[dayKey] : null;
-
-                const timeSlots = [];
-                if (dayConfig && dayConfig.enabled && dayConfig.shifts && dayConfig.shifts.length > 0) {
-                    dayConfig.shifts.forEach(shift => {
-                        const [startH, startM] = shift.start.split(':').map(Number);
-                        const [endH, endM] = shift.end.split(':').map(Number);
-
-                        for (let hour = startH; hour <= endH; hour++) {
-                            for (let minute of [0, 15, 30, 45]) {
-                                if (hour === startH && minute < startM) continue;
-                                if (hour === endH && minute > endM) continue;
-                                if (hour === endH && minute === endM) {
-                                    if (minute === 0) break; // Don't add last slot starting at end time if on the hour
-                                    else continue;
-                                }
-                                const timeStr = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
-                                if (!timeSlots.includes(timeStr)) timeSlots.push(timeStr);
-                            }
-                        }
-                    });
-                    timeSlots.sort();
-                } else {
-                    // Fallback
-                    const isSunday = new Date(dateStr + 'T12:00:00').getDay() === 0;
-                    const end = isSunday ? 15 : 21;
-                    for (let hour = 10; hour < end; hour++) {
-                        for (let minute of [0, 15, 30, 45]) {
-                            const timeStr = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
-                            timeSlots.push(timeStr);
-                        }
-                    }
-                }
-
-                // Build the grid
-                let html = '<table style="width: 100%; border-collapse: separate; border-spacing: 0; font-size: 0.8rem;">';
-
-                // Header row
-                html += '<thead><tr style="background: #f1f5f9; position: sticky; top: 0; z-index: 20;">';
-                html += '<th style="padding: 12px; text-align: left; border: 1px solid #e2e8f0; min-width: 140px; font-weight: 700; position: sticky; left: 0; background: #f1f5f9; z-index: 30;">Terapeuta</th>';
-                timeSlots.forEach(time => {
-                    html += `<th style="padding: 6px 2px; text-align: center; border: 1px solid #e2e8f0; min-width: 48px; font-size: 0.7rem; font-weight: 600;">${time}</th>`;
-                });
-                html += '</tr></thead>';
-
-                // Body rows - one per therapist
-                html += '<tbody>';
-                for (const staff of cabinasStaff) {
-                    html += '<tr>';
-                    html += `<td onclick="showTherapistDayAgenda('${staff.id}', '${staff.name || staff.alias}', '${dateStr}')" 
-                                style="padding: 12px; border: 1px solid #e2e8f0; font-weight: 600; background: #fafafa; position: sticky; left: 0; z-index: 15; box-shadow: 2px 0 5px rgba(0,0,0,0.05); cursor: pointer; color: #1e40af;">
-                                <i class="fas fa-calendar-check" style="margin-right: 5px; opacity: 0.5;"></i> ${staff.name || 'Sin nombre'}
-                             </td>`;
-
-                    // Pre-calculate all slots for this therapist in parallel
-                    const results = await Promise.all(timeSlots.map(time => getTherapistStatusForSlot(staff, dateStr, time, dayBookings, dayExceptions)));
-
-                    results.forEach((result, idx) => {
-                        const time = timeSlots[idx];
-                        const status = typeof result === 'string' ? result : result.status;
-                        const booking = typeof result === 'object' ? result.booking : null;
-
-                        const cellStyle = getStatusCellStyle(status, booking);
-                        const tooltip = getStatusTooltip(result, staff.name, time);
-
-                        const clickHandler = (status === 'busy' && booking) ?
-                            `onclick="showTimelineBookingDetail('${booking.id}', '${booking._collection}')" style="${cellStyle} cursor: pointer;"` :
-                            `style="${cellStyle}"`;
-
-                        html += `<td style="padding: 0; border: 1px solid #e2e8f0; text-align: center;" title="${tooltip}">`;
-                        html += `<div ${clickHandler}></div>`;
-                        html += '</td>';
-                    });
-
-                    html += '</tr>';
-                }
-                html += '</tbody></table>';
-
-                container.innerHTML = html;
-
-            } catch (error) {
-                console.error('Error rendering therapist timeline:', error);
-                container.innerHTML = '<div style="padding: 40px; text-align: center; color: #ef4444;">Error al cargar disponibilidad</div>';
-            }
-        }
-
-        async function getTherapistStatusForSlot(staff, dateStr, time, dayBookings, dayExceptions = null) {
-            // Check if staff is scheduled to work at this time
-            const isScheduled = await window.checkStaffAvailability(staff, dateStr, time, 30, dayExceptions);
-
-            if (!isScheduled) {
-                return 'not-working'; // Red - not scheduled
-            }
-
-            // Check if staff has a booking at this time
-            const booking = dayBookings.find(booking => {
-                // EXCLUDE ROOM BLOCKS (Maintenance, etc) from therapist timeline
-                // A room block affects the room, not necessarily the labor of the therapist.
-                if (booking.isBlock || booking.status === 'blocked') return false;
-
-                // Robust Check: ID (Primary/Secondary) OR Name (Fallback)
-                const sId = (staff.id || staff.nombre || '').trim();
-                const sName = (staff.nombre || staff.name || '').toLowerCase().trim();
-                const sAlias = (staff.alias || '').toLowerCase().trim();
-
-                // Check Primary Staff
-                const bId1 = booking.staff_id || booking.terapeuta_id || (booking.staff ? booking.staff.id : null);
-                const bName1 = (booking.staff_name || booking.terapeuta || '').toLowerCase().trim();
-                let isMatch1 = false;
-                if (bId1) {
-                    isMatch1 = (sId && bId1 === sId);
-                } else if (bName1) {
-                    isMatch1 = (sName && (bName1 === sName || (sAlias && bName1 === sAlias)));
-                }
-
-                // Check Secondary Staff
-                const bId2 = booking.staff_id2 || booking.terapeuta_id2 || (booking.staff2 ? booking.staff2.id : null);
-                const bName2 = (booking.staff_name2 || booking.terapeuta2 || '').toLowerCase().trim();
-                let isMatch2 = false;
-                if (bId2) {
-                    isMatch2 = (sId && bId2 === sId);
-                } else if (bName2) {
-                    isMatch2 = (sName && (bName2 === sName || (sAlias && bName2 === sAlias)));
-                }
-
-                if (!isMatch1 && !isMatch2) return false;
-                if (booking.status === 'anulada') return false;
-
-                // Check time overlap
-                const bookingTime = booking.hora;
-                const bookingDuration = parseInt(booking.duracion) || 60;
-
-                // Convert times to minutes for comparison
-                const [slotH, slotM] = time.split(':').map(Number);
-                const slotMinutes = slotH * 60 + slotM;
-
-                const [bookH, bookM] = bookingTime.split(':').map(Number);
-                const bookStartMinutes = bookH * 60 + bookM;
-                const bookEndMinutes = bookStartMinutes + bookingDuration;
-
-                // Check if slot overlaps with booking
-                const overlaps = slotMinutes >= bookStartMinutes && slotMinutes < bookEndMinutes;
-
-                if (overlaps) {
-                    // STORE MATCH REASON FOR DEBUGGING
-                    booking._debugMatch = `M1:${isMatch1} M2:${isMatch2}`;
-                    return true;
-                }
-                return false;
-            });
-
-            if (booking) {
-                return { status: 'busy', booking, debugMatch: booking._debugMatch }; // Orange - has booking
-            }
-
-            return { status: 'available' }; // Green - available
-        }
-
-        function getStatusCellStyle(status, booking = null) {
-            const baseStyle = 'width: 100%; height: 40px; display: flex; align-items: center; justify-content: center;';
-
-            switch (status) {
-                case 'available':
-                    return baseStyle + ' background: #22c55e; cursor: pointer;';
-                case 'busy':
-                    if (booking) {
-                        const color = (typeof getServiceColor === 'function') ? getServiceColor(booking.servicio) :
-                            (window.getServiceColor ? window.getServiceColor(booking.servicio) : '#f59e0b');
-                        return baseStyle + ` background: ${color}; cursor: pointer; border: 1px solid rgba(0,0,0,0.1);`;
-                    }
-                    return baseStyle + ' background: #f59e0b; cursor: pointer;';
-                case 'not-working':
-                    return baseStyle + ' background: #ef4444;';
-                default:
-                    return baseStyle + ' background: #94a3b8;';
-            }
-        }
-
-        function getStatusTooltip(result, staffName, time) {
-            const status = typeof result === 'string' ? result : result.status;
-            const booking = typeof result === 'object' ? result.booking : null;
-
-            switch (status) {
-                case 'available':
-                    return `${staffName} - Libre a las ${time}`;
-                case 'busy':
-                    if (booking) {
-                        const moduleCode = booking._collection ? booking._collection.replace('reservas_', '') : '';
-                        const moduleName = (window.MODULES && window.MODULES[moduleCode]) ? window.MODULES[moduleCode].name : moduleCode.toUpperCase();
-                        return `${staffName} - OCUPADO en ${moduleName}: ${booking.nombre || 'Cliente'} (${booking.servicio || 'Servicio'}) a las ${time}`;
-                    }
-                    return `${staffName} - Ocupado a las ${time}`;
-                case 'not-working':
-                    return `${staffName} - No trabaja a las ${time}`;
-                default:
-                    return `${staffName} - Sin datos para ${time}`;
-            }
-        }
-
-        async function showTimelineBookingDetail(bookingId, collection) {
-            try {
-                // Feedback visual sutil
-                console.log(`[TIMELINE] Intentando abrir reserva ${bookingId} de ${collection}`);
-
-                // Buscar la reserva en la colección específica
-                const doc = await db.collection(collection).doc(bookingId).get();
-                if (!doc.exists) {
-                    alert('No se encontró la reserva en la base de datos.');
-                    return;
-                }
-
-                const data = doc.data();
-                const bookingData = {
-                    id: doc.id,
-                    ...data,
-                    _moduleCode: collection.replace('reservas_', '')
-                };
-
-                // Normalización de códigos de módulo
-                if (bookingData._moduleCode === 'vip') bookingData._moduleCode = 'vip';
-                if (bookingData._moduleCode === 'panacea') bookingData._moduleCode = 'panacea';
-
-                // Cerrar modal de disponibilidad
-                // closeTherapistAvailability(); // KEEP OPEN per user request
-
-                // Abrir en el modal de edición principal
-                // editBooking(id, explicitRes) se encarga de todo
-                await editBooking(bookingId, bookingData);
-
-            } catch (err) {
-                console.error("Error al abrir detalle desde timeline:", err);
-                alert('Error al cargar los detalles de la reserva.');
-            }
-        }
-
-        // Show/hide relevant buttons based on current module
-        function updateTimelineButtons() {
-            const availabilityBtn = document.getElementById('therapist-availability-btn');
-            const blockRoomBtn = document.getElementById('block-room-btn');
-
-            const relevantCodes = ['cabina', 'suite', 'panacea', 'vip', 'peluqueria', 'spa'];
-            const isRelevant = currentModule && currentModule.code &&
-                (relevantCodes.some(code => currentModule.code.startsWith(code))); // Reverted Cabinas check
-
-            if (availabilityBtn) availabilityBtn.style.display = isRelevant ? 'flex' : 'none';
-            if (blockRoomBtn) blockRoomBtn.style.display = 'none'; // HIDDEN per user request "prefiero en la linea de la hora"
-        }
-
-        // Hook into loadReservas to update button visibility
-        const originalLoadReservas = loadReservas;
-        loadReservas = async function (...args) {
-            await originalLoadReservas.apply(this, args);
-            updateTimelineButtons();
-
-            // Refresh Therapist Agenda if modal is open
-            const tModal = document.getElementById('therapist-availability-modal');
-            if (tModal && tModal.style.display !== 'none' && window.currentTherapistAgendaParams) {
-                // Refresh grid (optional, but good for sync)
-                if (typeof renderTherapistAvailabilityGrid === 'function') {
-                    // We might need to fetch availability again? 
-                    // For now, let's just refresh the list which is critical for the user feedback
-                }
-                const { staffId, staffName, dateStr } = window.currentTherapistAgendaParams;
-                showTherapistDayAgenda(staffId, staffName, dateStr);
-            }
-        };
-
-        // --- BLOCK ROOM LOGIC ---
-        function openBlockRoomModal() {
-            const modal = document.getElementById('block-room-modal');
-            if (!modal) return;
-
-            // Populate room select
-            const roomSel = document.getElementById('br-room');
-            roomSel.innerHTML = '';
-
-            // Si estamos en una vista de sala específica, solo esa
-            if (currentModule.code !== 'cabinas') {
-                const opt = document.createElement('option');
-                opt.value = currentModule.code;
-                opt.textContent = currentModule.name;
-                roomSel.appendChild(opt);
-                roomSel.disabled = true;
-            } else {
-                // Si estamos en cabinas general, permitir elegir cuál
-                ['cabina1', 'cabina2', 'cabina3'].forEach(c => {
-                    const opt = document.createElement('option');
-                    opt.value = c;
-                    opt.textContent = MODULES[c].name;
-                    roomSel.appendChild(opt);
-                });
-                roomSel.disabled = false;
-            }
-
-            // Set current date
-            document.getElementById('br-date').value = document.getElementById('main-date-picker').value;
-
-            modal.style.display = 'flex';
-        }
-
-        async function showTherapistDayAgenda(staffId, staffName, dateStr) {
-            window.currentTherapistAgendaParams = { staffId, staffName, dateStr };
-
-            // Dynamic ID Selection
-            const isMainView = (currentModule && currentModule.code === 'terapeutas');
-            const suffix = isMainView ? '-main' : '';
-
-            const list = document.getElementById(`therapist-agenda-inline-list${suffix}`);
-            const nameEl = document.getElementById(`inline-agenda-staff-name${suffix}`);
-            const container = document.getElementById(`therapist-agenda-inline-container${suffix}`);
-
-            if (!list || !container) return;
-
-            // Show container
-            container.style.display = 'block';
-            nameEl.textContent = staffName;
-            list.innerHTML = '<div style="padding:20px; text-align:center;"><i class="fas fa-spinner fa-spin"></i> Cargando agenda...</div>';
-
-            // Scroll to it
-            container.scrollIntoView({ behavior: 'smooth', block: 'start' });
-
-            try {
-                const bookings = await window.getAllBookingsForDate(dateStr);
-                // Filter for this therapist
-                const myBookings = bookings.filter(b => {
-                    if (b.status === 'anulada') return false;
-                    // Exclude room blocks from therapist specific agenda
-                    if (b.isBlock || b.status === 'blocked') return false;
-
-                    const sId = (staffId || '').trim();
-                    const sName = (staffName || '').trim().toLowerCase();
-
-                    // Check Primary Staff
-                    const bId1 = b.staff_id || b.terapeuta_id || (b.staff ? b.staff.id : null);
-                    const bName1 = (b.staff_name || b.terapeuta || '').trim().toLowerCase();
-                    const isMatch1 = (sId && bId1 === sId) || (sName && (bName1 === sName));
-
-                    // Check Secondary Staff
-                    const bId2 = b.staff_id2 || b.terapeuta_id2 || (b.staff2 ? b.staff2.id : null);
-                    const bName2 = (b.staff_name2 || b.terapeuta2 || '').trim().toLowerCase();
-                    const isMatch2 = (sId && bId2 === sId) || (sName && (bName2 === sName));
-
-                    return isMatch1 || isMatch2;
-                }).sort((a, b) => a.hora.localeCompare(b.hora));
-
-                if (myBookings.length === 0) {
-                    list.innerHTML = '<div style="padding:30px; text-align:center; color:#64748b;">No hay servicios para este día.</div>';
-                } else {
-                    let html = '';
-                    myBookings.forEach(b => {
-                        const roomName = (MODULES[b._collection || b.module] || { name: b._collection || 'Servicio' }).name || b._collection || 'General';
-                        const collection = b._collection || (MODULES[b.module] ? MODULES[b.module].collection : 'reservas_cabina_no_collection');
-
-                        // --- PROTOCOLO DE COLOR ---
-                        // Search for custom color in Master Items if available
-                        let customColor = null;
-                        if (window.masterItems) {
-                            const mItem = window.masterItems.find(i => i.name && i.name.toLowerCase().trim() === (b.servicio || b.nombre_servicio || '').toLowerCase().trim());
-                            if (mItem && mItem.color) customColor = mItem.color;
-                        }
-
-                        const protocol = window.getServiceProtocol ? window.getServiceProtocol(b.servicio || b.nombre_servicio) : { color: '#64748b' };
-                        const borderColor = customColor || protocol.color;
-                        const bgColor = `${borderColor}40`; // Increased opacity (40 = 25%)
-
-                        html += `
-                            <div onclick="showTimelineBookingDetail('${b.id}', '${collection}')" style="cursor:pointer; background-color:${bgColor}; border:1px solid #e2e8f0; border-left: 5px solid ${borderColor}; border-radius:8px; padding:12px; margin-bottom:8px; display:flex; gap:12px; align-items:center; transition: transform 0.2s;" onmouseover="this.style.transform='translateX(5px)'" onmouseout="this.style.transform='translateX(0)'">
-                                <div style="background:#fff; border: 1px solid #e2e8f0; padding:5px 8px; border-radius:6px; font-weight:800; color:#1e3a8a; font-size:0.85rem; min-width: 60px; text-align:center;">${b.hora}</div>
-                                <div style="flex:1;">
-                                    <div style="font-weight:700; font-size:0.85rem; color:#1e293b;">${(b.servicio || b.nombre_servicio || 'Servicio').toUpperCase()}</div>
-                                    <div style="font-size:0.75rem; color:#64748b; display: flex; align-items: center; gap: 8px; margin-top: 2px;">
-                                        <span><i class="fas fa-map-marker-alt" style="color: #94a3b8;"></i> ${roomName}</span>
-                                        <span style="opacity: 0.5;">|</span>
-                                        <span><i class="fas fa-user" style="color: #94a3b8;"></i> ${b.nombre || 'Cliente'}</span>
-                                    </div>
-                                </div>
-                                <div style="font-size:0.75rem; font-weight:800; color:${borderColor};">${b.duracion || 60} min</div>
-                            </div>
-                        `;
-                    });
-                    list.innerHTML = html;
-                }
-            } catch (err) {
-                console.error("Error loading therapist agenda:", err);
-                list.innerHTML = '<div style="padding:20px; color:red;">Error al cargar agenda.</div>';
-            }
-        }
-        window.showTherapistDayAgenda = showTherapistDayAgenda;
-
-        function closeBlockRoomModal() {
-            document.getElementById('block-room-modal').style.display = 'none';
-        }
-
-        async function saveRoomBlock() {
-            const room = document.getElementById('br-room').value;
-            const date = document.getElementById('br-date').value;
-            const start = document.getElementById('br-start').value;
-            const end = document.getElementById('br-end').value;
-            const reason = document.getElementById('br-reason').value.trim() || 'Bloqueo / Mantenimiento';
-
-            if (!date || !start || !end) {
-                alert('Por favor, rellena todos los campos.');
-                return;
-            }
-
-            // Calcular duración
-            const startMin = timeToMinutes(start);
-            const endMin = timeToMinutes(end);
-            const duration = endMin - startMin;
-
-            if (duration <= 0) {
-                alert('La hora de fin debe ser posterior a la de inicio.');
-                return;
-            }
-
-            const confirmMsg = `¿Seguro que quieres cerrar la ${room.toUpperCase()} el día ${date} de ${start} a ${end}?`;
-            if (!confirm(confirmMsg)) return;
-
-            try {
-                const targetCollection = MODULES[room].collection;
-                await db.collection(targetCollection).add({
-                    nombre: "SALA CERRADA",
-                    cliente: "SALA CERRADA",
-                    servicio: reason,
-                    hora: start,
-                    duracion: duration,
-                    fecha: date,
-                    pax: 1,
-                    isBlock: true, // Flag especial
-                    status: 'blocked',
-                    created_at: firebase.firestore.FieldValue.serverTimestamp()
-                });
-
-                closeBlockRoomModal();
-                loadReservas(document.getElementById('main-date-picker').value);
-                alert('Sala bloqueada correctamente.');
-
-            } catch (err) {
-                console.error("Error al bloquear sala:", err);
-                alert('Error al guardar el bloqueo.');
-            }
-        }
 
 
         // Función para desbloquear reservas pasadas
@@ -7879,64 +6659,6 @@
     <!-- Staff Management Integration -->
     <script src="reservas-staff.js"></script>
 
-    <!-- MODAL BLOQUEO DE SALA -->
-    <div id="block-room-modal" class="modal" style="z-index: 10000;">
-        <div class="modal-content" style="max-width: 400px; padding: 25px; border-radius: 15px;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                <h3
-                    style="margin: 0; display: flex; align-items: center; gap: 10px; color: #1e293b; font-size: 1.2rem;">
-                    <i class="fas fa-lock" style="color: #ef4444;"></i> Cerrar Sala
-                </h3>
-                <button onclick="closeBlockRoomModal()"
-                    style="background: #ef4444; border: none; color: #fff; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 0.75rem; font-weight: 800; text-transform: uppercase;">Salir</button>
-            </div>
-
-            <div style="margin-bottom: 15px;">
-                <label
-                    style="display: block; font-size: 0.7rem; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 6px;">Sala
-                    a cerrar</label>
-                <select id="br-room" class="param-input"
-                    style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #e2e8f0; font-size: 0.9rem; background: #f8fafc;"></select>
-            </div>
-
-            <div style="margin-bottom: 15px;">
-                <label
-                    style="display: block; font-size: 0.7rem; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 6px;">Fecha</label>
-                <input type="date" id="br-date" class="param-input"
-                    style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #e2e8f0; font-size: 0.9rem;">
-            </div>
-
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
-                <div>
-                    <label
-                        style="display: block; font-size: 0.7rem; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 6px;">Desde</label>
-                    <input type="time" id="br-start" class="param-input"
-                        style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #e2e8f0; font-size: 0.9rem;"
-                        value="10:00">
-                </div>
-                <div>
-                    <label
-                        style="display: block; font-size: 0.7rem; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 6px;">Hasta</label>
-                    <input type="time" id="br-end" class="param-input"
-                        style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #e2e8f0; font-size: 0.9rem;"
-                        value="22:00">
-                </div>
-            </div>
-
-            <div style="margin-bottom: 25px;">
-                <label
-                    style="display: block; font-size: 0.7rem; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 6px;">Motivo
-                    (opcional)</label>
-                <input type="text" id="br-reason" placeholder="Ej: Mantenimiento, Limpieza..." class="param-input"
-                    style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #e2e8f0; font-size: 0.9rem;">
-            </div>
-
-            <button onclick="saveRoomBlock()" class="btn btn-accent"
-                style="width: 100%; padding: 14px; background: #ef4444; color: white; border: none; font-weight: 700; border-radius: 10px; cursor: pointer; transition: all 0.2s;">
-                Confirmar Cierre de Sala
-            </button>
-        </div>
-    </div>
 
 
     <!-- MODAL REGISTRO PAGO PROFESIONAL -->
@@ -7993,25 +6715,6 @@
 
     <div id="toast-container"
         style="position: fixed; top: 20px; right: 20px; z-index: 99999; display: flex; flex-direction: column; align-items: flex-end;">
-    </div>
-    <!-- Therapist Agenda Detail Modal -->
-    <div id="therapist-agenda-modal" class="modal" style="display: none; z-index: 11000;">
-        <div class="modal-content" style="max-width: 450px; padding: 0; border-radius: 12px; overflow: hidden;">
-            <div
-                style="background: #1e293b; color: #fff; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center;">
-                <h3 style="margin: 0; font-size: 1rem;">Agenda: <span id="agenda-staff-name"
-                        style="color: var(--accent);"></span></h3>
-                <button onclick="document.getElementById('therapist-agenda-modal').style.display='none'"
-                    style="background: #ef4444; border: none; color: #fff; padding: 6px 15px; border-radius: 6px; cursor: pointer; font-size: 0.75rem; font-weight: 800; text-transform: uppercase;">Salir</button>
-            </div>
-            <div style="padding: 15px; background: #f8fafc; border-bottom: 1px solid #e2e8f0;">
-                <div id="agenda-date-info" style="font-size: 0.8rem; font-weight: 600; color: #64748b;"></div>
-            </div>
-            <div id="therapist-agenda-list"
-                style="max-height: 60vh; overflow-y: auto; padding: 10px; background: #fff;">
-                <!-- Filled dynamically -->
-            </div>
-        </div>
     </div>
 </body>
 

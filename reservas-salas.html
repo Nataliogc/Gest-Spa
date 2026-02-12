@@ -534,7 +534,7 @@
             <div style="display: flex; align-items: center; gap: 20px;">
                 <img src="zenith-logo.png" alt="Zenith Logo" style="height: 40px; width: auto; margin-right: -5px;">
                 <h2 style="margin: 0; line-height: 1; white-space: nowrap; font-size: 1.5rem;">PANEL DE TURNOS <small
-                        style="font-weight: 400; font-size: 1rem; color: #64748b;">(SPA)</small></h2>
+                        style="font-weight: 400; font-size: 1rem; color: #64748b;">(SALAS)</small></h2>
 
                 <div
                     style="display: flex; align-items: center; background: #f1f5f9; padding: 6px 12px; border-radius: 8px; gap: 8px;">
@@ -1272,17 +1272,6 @@
         // Aseguramos que termine en 21:45 (el loop lo cubre)
 
         const MODULES = {
-            'spa': {
-                code: 'spa',
-                name: 'Rva Circuito Spa',
-                collection: 'reservas_spa',
-                capacity: 20,
-                slotsWeek: SLOTS_SPA_WEEK,
-                slotsSun: SLOTS_SPA_SUN,
-                isPrivate: false,
-                requiresStaff: false,
-                viewType: 'grid'
-            },
             'suite': {
                 code: 'suite',
                 name: 'SUITE SPA',
@@ -1372,12 +1361,10 @@
         window.MODULES = MODULES;
 
 
-        // Detectar módulo actual
+        // Detectar módulo actual (cabinas por defecto aquí)
         const urlParams = new URLSearchParams(window.location.search);
-        const moduleType = urlParams.get('type') || 'spa';
-        window.currentModule = MODULES[moduleType] || MODULES['spa'];
-        // Keep a local reference for easier typing if mostly used locally, 
-        // but remember to update window.currentModule when changing logical context.
+        const moduleType = urlParams.get('type') || 'cabinas';
+        window.currentModule = MODULES[moduleType] || MODULES['cabinas'];
         let currentModule = window.currentModule;
 
         console.log("Módulo activo:", currentModule.name);
@@ -1639,6 +1626,7 @@
         }
 
         document.addEventListener("DOMContentLoaded", async () => {
+            const urlParams = new URLSearchParams(window.location.search);
             const picker = document.getElementById("main-date-picker");
             const urlDate = urlParams.get('date');
             // Use local date (not UTC) to avoid timezone issues around midnight
@@ -2052,8 +2040,9 @@
 
         async function fetchBasePrice() {
             try {
+                const moduleCode = currentModule.code;
                 // Si es Suite, buscar precio de Suite
-                if (moduleType === 'suite') {
+                if (moduleCode === 'suite') {
                     const snapshot = await db.collection("spa_services")
                         .where("categoria", "==", "suite_privada")
                         .get();
@@ -2079,7 +2068,7 @@
                 }
 
                 if (baseCircuitoPrice === 0) {
-                    baseCircuitoPrice = (moduleType === 'suite') ? 100 : 25;
+                    baseCircuitoPrice = (currentModule.code === 'suite') ? 100 : 25;
                 }
 
                 // Ensure master items are loaded for deep filtering
@@ -2099,7 +2088,7 @@
             } catch (err) {
                 if (window.checkFirestoreError && window.checkFirestoreError(err)) return;
                 console.error("Error fetching price:", err);
-                baseCircuitoPrice = (moduleType === 'suite') ? 100 : 25;
+                baseCircuitoPrice = (currentModule.code === 'suite') ? 100 : 25;
             }
         }
 

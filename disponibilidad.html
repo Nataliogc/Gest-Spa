@@ -349,11 +349,13 @@
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
     <script src="firebase-config.js?v=4"></script>
+    <script src="js/app-core.js"></script>
     <script src="reservas-staff.js?v=4"></script>
     <script>
         let currentDate = new Date().toISOString().split('T')[0];
         let selectedStaffId = null;
         let allStaffList = [];
+        let serviceColorMap = {};
 
         async function init() {
             try {
@@ -361,11 +363,54 @@
                     window.db = firebase.firestore();
                 }
                 setupPWA();
-                await loadData();
+                await Promise.all([
+                    loadData(),
+                    loadColors()
+                ]);
             } catch (e) {
                 console.error("Init error:", e);
                 document.getElementById('agenda-card').innerHTML = `<div class="no-services">Error de inicio: ${e.message}</div>`;
             }
+        }
+
+        async function loadColors() {
+            try {
+                serviceColorMap = {};
+                // 1. Generics / Legacy
+                const snap = await db.collection('spa_services').get();
+                snap.forEach(doc => {
+                    const d = doc.data();
+                    const name = (d.nombre || d.name || '').toLowerCase().trim();
+                    if (name && d.color) serviceColorMap[name] = d.color;
+                });
+                // 2. Master Items (High Priority)
+                const snapMaster = await db.collection('spa_item_master').get();
+                snapMaster.forEach(doc => {
+                    const d = doc.data();
+                    const name = (d.name || d.nombre || '').toLowerCase().trim();
+                    if (name && d.color) serviceColorMap[name] = d.color;
+                });
+                console.log("Colors loaded:", Object.keys(serviceColorMap).length);
+            } catch (e) { console.warn("Error loading colors:", e); }
+        }
+
+        function getServiceColor(serviceName) {
+            if (!serviceName) return '#64748b';
+            const cleanName = serviceName.toLowerCase().trim();
+            // 1. DB Map
+            if (serviceColorMap[cleanName]) return serviceColorMap[cleanName];
+            // 2. Normalized
+            const normName = cleanName.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+            const foundKey = Object.keys(serviceColorMap).find(k =>
+                k.normalize("NFD").replace(/[\u0300-\u036f]/g, "") === normName
+            );
+            if (foundKey) return serviceColorMap[foundKey];
+            // 3. App Core Protocol Fallback
+            if (window.getServiceProtocol) {
+                const prot = window.getServiceProtocol(serviceName);
+                if (prot && prot.color) return prot.color;
+            }
+            return '#64748b';
         }
 
         async function loadData() {
@@ -463,7 +508,7 @@
                     if (!isWorking) {
                         html += `<div class="slot slot-off"></div>`;
                     } else {
-                        const isBusy = myBookings.find(b => {
+                        const busyBooking = myBookings.find(b => {
                             const [bh, bm] = b.hora.split(':').map(Number);
                             const start = bh * 60 + bm;
                             const end = start + (parseInt(b.duracion) || 60);
@@ -471,7 +516,13 @@
                             const t = th * 60 + tm;
                             return t >= start && t < end;
                         });
-                        html += `<div class="slot ${isBusy ? 'slot-busy' : 'slot-free'}"></div>`;
+
+                        if (busyBooking) {
+                            const color = getServiceColor(busyBooking.servicio);
+                            html += `<div class="slot" style="background:${color};" title="${busyBooking.servicio}"></div>`;
+                        } else {
+                            html += `<div class="slot slot-free"></div>`;
+                        }
                     }
                 }
                 html += `</div><div class="time-labels">`;
@@ -482,8 +533,10 @@
                 html += `<div class="booking-list">`;
                 if (myBookings.length > 0) {
                     myBookings.forEach(b => {
+                        const color = getServiceColor(b.servicio);
+                        // Header or border color
                         html += `
-                            <div class="booking-item">
+                            <div class="booking-item" style="border-left: 5px solid ${color};">
                                 <div class="booking-time">${b.hora}</div>
                                 <div class="booking-details">
                                     <div class="service-name">${b.servicio || 'Servicio'}</div>

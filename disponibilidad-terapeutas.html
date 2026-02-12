@@ -411,11 +411,10 @@
                         style="color: #3b82f6;"></i></a>
             </li>
             <li><a href="bonos.html" class="nav-link"><i class="fas fa-ticket-alt"></i> Bonos</a></li>
-            <li><a href="reservas.html?type=spa" class="nav-link"><i class="fas fa-water"></i> Spa</a></li>
-            <li><a href="reservas.html?type=cabinas" class="nav-link"><i class="fas fa-cubes"></i> Cabinas</a></li>
-            <li><a href="reservas.html?view=staff" class="nav-link active"
-                    style="color:var(--accent); font-weight:bold;"><i class="fas fa-calendar-alt"></i> Ocup Terap</a>
+            <li><a href="reservas-spa.html" class="nav-link"><i class="fas fa-water"></i> Spa</a></li>
+            <li><a href="reservas-salas.html?type=cabinas" class="nav-link"><i class="fas fa-cubes"></i> Cabinas</a>
             </li>
+            <li><a href="agenda-salas.html" class="nav-link"><i class="fas fa-calendar-alt"></i> Ocupación</a></li>
 
             <li class="dropdown">
                 <a href="#" class="nav-link dropdown-toggle">
@@ -423,9 +422,9 @@
                         style="font-size: 0.7em; margin-left: 5px;"></i>
                 </a>
                 <ul class="dropdown-menu">
-                    <li><a href="reservas.html?type=suite"><i class="fas fa-gem"></i> Suite</a></li>
-                    <li><a href="reservas.html?type=panacea"><i class="fas fa-columns"></i> Panacea & VIP</a></li>
-                    <li><a href="reservas.html?type=peluqueria"><i class="fas fa-cut"></i> Peluquería</a></li>
+                    <li><a href="reservas-salas.html?type=suite"><i class="fas fa-gem"></i> Suite</a></li>
+                    <li><a href="reservas-salas.html?type=panacea"><i class="fas fa-columns"></i> Panacea & VIP</a></li>
+                    <li><a href="reservas-salas.html?type=peluqueria"><i class="fas fa-cut"></i> Peluquería</a></li>
                 </ul>
             </li>
 
@@ -699,19 +698,27 @@
                 const bookingsCount = staffBookings.length;
 
                 // -- BUILD CARD HTML --
-                // Header Background gradient
-                const headerBg = `linear-gradient(135deg, ${color}, ${adjustBrightness(color, -20)})`;
+                // Header Background based on working status
+                let headerBg = `linear-gradient(135deg, ${color}, ${adjustBrightness(color, -20)})`;
+                let headerContentClass = '';
+
+                if (!isWorking) {
+                    headerBg = '#ffffff'; // White background for not working
+                    headerContentClass = 'not-working-header'; // Helper class if needed
+                }
 
                 html += `
-                <div class="staff-col-card" style="border-top: 4px solid ${color};">
+                <div class="staff-col-card" style="border-top: 4px solid ${!isWorking ? '#cbd5e1' : color};">
                     
                     <!-- HEADER -->
-                    <div class="staff-col-header" style="background: ${headerBg};">
-                        <div class="staff-avatar-initials">${initials}</div>
+                    <div class="staff-col-header" style="background: ${headerBg}; box-shadow: ${!isWorking ? 'none' : ''}; border-bottom: ${!isWorking ? '1px solid #e2e8f0' : 'none'};">
+                        <div class="staff-avatar-initials" style="${!isWorking ? 'background:#cbd5e1; color:#fff;' : ''}">${initials}</div>
                         <div>
-                            <div style="font-weight: 800; font-size: 1.1rem; text-shadow: 0 1px 2px rgba(0,0,0,0.1);">${displayName}</div>
+                            <div style="font-weight: 800; font-size: 1.1rem; ${!isWorking ? 'color: #94a3b8;' : 'text-shadow: 0 1px 2px rgba(0,0,0,0.1);'}">
+                                ${displayName}
+                            </div>
                             <div style="font-size: 0.75rem; opacity: 0.9;">
-                                ${!isWorking ? '<span style="background:rgba(0,0,0,0.2); padding:2px 6px; border-radius:4px;">NO TRABAJA</span>' : (bookingsCount + ' Citas')}
+                                ${!isWorking ? '<span style="color:#94a3b8; font-weight:700;">NT</span>' : (bookingsCount + ' Citas')}
                             </div>
                         </div>
                     </div>
@@ -723,8 +730,8 @@
                 if (!isWorking) {
                     html += `
                         <div style="text-align: center; padding: 40px 20px; color: #cbd5e1; background: #fff; height: 100%; display: flex; flex-direction: column; justify-content: center; min-height: 200px;">
-                            <div style="text-decoration: line-through; font-size: 1.2rem; font-weight: 700; color: #cbd5e1;">NO TRABAJA</div>
-                            <div style="text-decoration: line-through; font-size: 0.8rem; margin-top: 5px;">Día Libre / Descanso</div>
+                            <div style="font-size: 2rem; font-weight: 800; color: #e2e8f0; margin-bottom: 10px;">NT</div>
+                            <div style="text-decoration: line-through; font-size: 0.8rem; color: #cbd5e1;">NO TRABAJA</div>
                         </div>
                      `;
                 } else {
