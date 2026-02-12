@@ -4659,24 +4659,15 @@
 
             toggleRoomField();
 
-            // Filtrar Orígenes para Suite
-            const origenSel = document.getElementById("res-origen");
-            if (moduleType === 'suite') {
-                for (let i = 0; i < origenSel.options.length; i++) {
-                    const opt = origenSel.options[i];
-                    const valid = ['particular', 'hotel_inc', 'hotel_no_inc', 'bono'].includes(opt.value);
-                    opt.style.display = valid ? "block" : "none";
-                }
-            } else {
-                for (let i = 0; i < origenSel.options.length; i++) {
-                    origenSel.options[i].style.display = "block";
-                }
-            }
+
+            // Filtrar Orígenes: Delegado a filterOriginOptions() llamada anteriormente (línea 4494)
+            // Esto asegura que módulos como Panacea/VIP mantienen sus restricciones y no se resetean incorrectamente.
+
 
             // Ocultar precio por persona en Suite
             const pricePaxGroup = document.getElementById("price-group");
             if (pricePaxGroup) {
-                pricePaxGroup.style.display = (moduleType === 'suite') ? "none" : "block";
+                pricePaxGroup.style.display = (currentModule.code === 'suite') ? "none" : "block";
             }
 
             // FORCE PRICE RE-CALCULATION (Fix for 0€ prices in SPA)
