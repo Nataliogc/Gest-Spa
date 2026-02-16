@@ -211,6 +211,23 @@
             border-left-style: solid;
         }
 
+        .booking-item.status-anulada {
+            opacity: 0.6;
+            filter: grayscale(0.8);
+            background: #f1f5f9 !important;
+            border-left-style: dotted !important;
+            border-left-width: 4px !important;
+        }
+
+        .booking-item.status-anulada * {
+            text-decoration: line-through;
+            color: #94a3b8 !important;
+        }
+
+        .booking-item.status-anulada .anulada-badge {
+            text-decoration: none !important;
+        }
+
         /* FREE SLOT BLOCK */
         .free-slots-section {
             margin-top: 15px;
@@ -263,7 +280,7 @@
             height: 100vh;
             background: #fff;
             box-shadow: -10px 0 40px rgba(0, 0, 0, 0.15);
-            z-index: 2000;
+            z-index: 3001;
             transition: right 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             display: flex;
             flex-direction: column;
@@ -341,7 +358,7 @@
             width: 100%;
             height: 100%;
             background: rgba(0, 0, 0, 0.4);
-            z-index: 1999;
+            z-index: 3000;
             display: none;
             opacity: 0;
             transition: opacity 0.3s;
@@ -395,6 +412,11 @@
 
         .service-result-item:hover {
             background: #f8fafc;
+        }
+
+        /* FORCE SWEETALERT ON TOP */
+        .swal2-container {
+            z-index: 10000 !important;
         }
     </style>
 </head>
@@ -493,7 +515,12 @@
                     </button>
                 </div>
 
-                <div style="width: 100px;"></div> <!-- Spacer for balance -->
+                <label
+                    style="display: flex; align-items: center; gap: 8px; font-size: 0.8rem; color: #64748b; cursor: pointer; background: #f1f5f9; padding: 6px 12px; border-radius: 12px; border: 1px solid #e2e8f0; margin-left:15px; user-select:none;">
+                    <input type="checkbox" id="show-cancelled-toggle" onchange="toggleCancelled()">
+                    <span style="font-weight:700;">Ver Anuladas</span>
+                </label>
+                <div style="flex: 1;"></div> <!-- Spacer for balance -->
             </div>
 
             <!-- LOADING STATE -->
@@ -539,6 +566,7 @@
         let currentDate = new Date().toISOString().split('T')[0];
         let activeStaffList = [];
         let allCatalogItems = [];
+        let showCancelledBookings = localStorage.getItem('spa_show_cancelled_availability') === 'true';
 
         // --- INITIALIZATION ---
         document.addEventListener('DOMContentLoaded', async () => {
@@ -557,6 +585,10 @@
             }
 
             updateDateLabel();
+
+            // Sync toggle
+            const toggle = document.getElementById('show-cancelled-toggle');
+            if (toggle) toggle.checked = showCancelledBookings;
 
             // Initial Load
             await loadCatalog();
@@ -668,6 +700,8 @@
 
                 // -- Bookings --
                 const staffBookings = allBookings.filter(b => {
+                    if (!showCancelledBookings && b.status === 'anulada') return false;
+
                     const sId = staff.id;
                     const sName = (staff.nombre || staff.name || '').toLowerCase().trim();
                     const bId = b.staff_id || b.terapeuta_id || (b.staff ? b.staff.id : null);
@@ -760,14 +794,16 @@
                         // Extract room properly
                         let roomLabel = collectionToRoomLabel(b._collection);
                         if (!roomLabel) roomLabel = '?';
+                        const isAnulada = b.status === 'anulada';
 
                         html += `
-                            <div class="booking-item" 
+                            <div class="booking-item ${isAnulada ? 'status-anulada' : ''}" 
                                  onclick="openEditReservation('${b.id}', '${b._collection || 'reservas_spa'}')"
-                                 style="border-left-color: ${sColor}; background: linear-gradient(to right, ${sColor}15, #ffffff);">
+                                 style="border-left-color: ${sColor}; background: ${isAnulada ? '#f1f5f9' : `linear-gradient(to right, ${sColor}15, #ffffff)`};">
                                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
                                     <div style="font-weight: 800; color: #334155; font-size: 0.85rem;">
-                                        ${b.hora} <span style="font-weight:400; color:#94a3b8; font-size:0.75rem;">(${dur}m)</span><span style="font-family:monospace; font-size:0.7rem; opacity:0.6; margin-left:8px; background:rgba(0,0,0,0.05); padding:1px 4px; border-radius:4px;">#${b.res_id || b.id.slice(0,6)}</span>
+                                        ${b.hora} <span style="font-weight:400; color:#94a3b8; font-size:0.75rem;">(${dur}m)</span><span style="font-family:monospace; font-size:0.7rem; opacity:0.6; margin-left:8px; background:rgba(0,0,0,0.05); padding:1px 4px; border-radius:4px;">#${b.res_id || b.id.slice(0, 6)}</span>
+                                        ${isAnulada ? '<span class="anulada-badge" style="background:#ef4444; color:#fff; font-size:0.6rem; padding:1px 4px; border-radius:4px; margin-left:5px; text-decoration:none !important;">ANULADA</span>' : ''}
                                     </div>
                                     <div style="font-size: 0.65rem; background: ${sColor}20; color: ${sColor}; padding: 1px 5px; border-radius: 4px; font-weight:700;">
                                         ${roomLabel}
@@ -935,21 +971,27 @@
             onDateChange(`${year}-${month}-${day}`);
         }
 
+        function toggleCancelled() {
+            showCancelledBookings = document.getElementById('show-cancelled-toggle').checked;
+            localStorage.setItem('spa_show_cancelled_availability', showCancelledBookings);
+            loadView();
+        }
+
         // --- ACTIONS & DETAILED PANEL LOGIC ---
 
-        let currentEditingId = null;
-        let currentEditingCollection = null;
-        let currentBookingData = null;
+        window.currentEditingId = null;
+        window.currentEditingCollection = null;
+        window.currentBookingData = null;
 
-        function closeDetailPanel() {
+        window.closeDetailPanel = function () {
             const panel = document.getElementById('vg-detail-panel');
             const overlay = document.getElementById('vg-overlay');
             if (panel) panel.classList.remove('open', 'centered', 'fullscreen');
             if (overlay) overlay.classList.remove('visible');
 
-            currentEditingId = null;
-            currentEditingCollection = null;
-            currentBookingData = null;
+            window.currentEditingId = null;
+            window.currentEditingCollection = null;
+            window.currentBookingData = null;
         }
 
         async function openEditReservation(bookingId, collection) {
@@ -979,9 +1021,9 @@
                     return;
                 }
                 const data = doc.data();
-                currentEditingId = bookingId;
-                currentEditingCollection = collection;
-                currentBookingData = data;
+                window.currentEditingId = bookingId;
+                window.currentEditingCollection = collection;
+                window.currentBookingData = data;
 
                 // Identify staff from data if available, or finding it in activeStaffList
                 let staffId = data.terapeuta_id;
@@ -1020,8 +1062,8 @@
 
         // New Booking Entry Point
         function startBooking(staffId, dateStr, time) {
-            currentEditingId = null;
-            currentEditingCollection = null;
+            window.currentEditingId = null;
+            window.currentEditingCollection = null;
             currentBookingData = null;
 
             const panel = document.getElementById('vg-detail-panel');
@@ -1187,7 +1229,7 @@
                          <button type="button" class="vg-submit-btn" onclick="submitBooking()" style="flex:2;">
                             <i class="fas fa-save"></i> ${currentEditingId ? 'ACTUALIZAR RESERVA' : 'GUARDAR RESERVA'}
                         </button>
-                        ${currentEditingId ? `
+                        ${window.currentEditingId ? `
                             <button type="button" onclick="deleteCurrentBooking()" style="flex:1; padding:12px; background:#fee2e2; color:#b91c1c; border:1px solid #fecaca; border-radius:10px; font-weight:700; cursor:pointer;">
                                 <i class="fas fa-trash"></i> ELIMINAR
                             </button>
@@ -1301,59 +1343,80 @@
             if (!currentEditingId) payload.status = 'confirmada';
 
             try {
-                if (currentEditingId && currentEditingCollection) {
-                    // Check if collection changed (Room changed)
-                    if (room !== currentEditingCollection) {
-                        // Delete old and create new
-                        if (currentBookingData) {
-                            payload = { ...currentBookingData, ...payload };
-                            delete payload._id;
+                if (window.currentEditingId && window.currentEditingCollection) {
+                    // Update
+                    if (room !== window.currentEditingCollection) {
+                        // Room changed (Move across collections)
+                        console.log("[MOVE] Moving from", window.currentEditingCollection, "to", room);
+                        if (window.currentBookingData) {
+                            payload = { ...window.currentBookingData, ...payload };
                         }
-                        console.log("[DELETE] Col:", currentEditingCollection, "ID:", currentEditingId); if(!currentEditingId) { throw new Error("ID de reserva no detectado"); }; await db.collection(currentEditingCollection).doc(currentEditingId).delete();
+                        await db.collection(window.currentEditingCollection).doc(window.currentEditingId).delete();
                         await db.collection(room).add(payload);
                     } else {
-                        await db.collection(room).doc(currentEditingId).update(payload);
+                        // Standard update
+                        await db.collection(room).doc(window.currentEditingId).update(payload);
                     }
                     Swal.fire('Guardado', 'Reserva actualizada', 'success');
                 } else {
+                    // Create
+                    payload.status = 'confirmada';
                     payload.created_at = new Date();
                     await db.collection(room).add(payload);
                     Swal.fire('Guardado', 'Reserva creada', 'success');
                 }
 
-                closeDetailPanel();
+                window.closeDetailPanel();
                 loadView(); // Refresh
 
             } catch (e) {
-                console.error(e);
-                Swal.fire('Error', 'Error al guardar', 'error');
+                console.error("Error al guardar reserva:", e);
+                Swal.fire('Error', 'No se pudo guardar: ' + (e.message || e), 'error');
             }
         }
 
         async function deleteCurrentBooking() {
-            if (!currentEditingId || !currentEditingCollection) return;
+            const resId = window.currentEditingId;
+            const resColl = window.currentEditingCollection;
+
+            if (!resId || !resColl) {
+                console.error("DELETE ERROR: Missing ID or Collection", { resId, resColl });
+                Swal.fire('Error', 'No se detectó el ID de la reserva. Intenta abrirla de nuevo.', 'error');
+                return;
+            }
 
             const res = await Swal.fire({
-                title: '¿Eliminar?',
-                text: 'No podrás deshacer esto',
+                title: '¿Eliminar Reserva?',
+                text: 'Esta acción no se puede deshacer.',
                 icon: 'warning',
                 showCancelButton: true,
-                confirmButtonText: 'Sí, eliminar'
+                confirmButtonColor: '#ef4444',
+                confirmButtonText: 'Sí, eliminar',
+                cancelButtonText: 'Cancelar'
             });
 
             if (res.isConfirmed) {
                 try {
-                    console.log("[DELETE] Col:", currentEditingCollection, "ID:", currentEditingId); if(!currentEditingId) { throw new Error("ID de reserva no detectado"); }; await db.collection(currentEditingCollection).doc(currentEditingId).delete();
-                    Swal.fire('Eliminada', '', 'success');
-                    closeDetailPanel();
+                    console.log("[DELETE] Executing deletion for:", resColl, resId);
+                    await db.collection(resColl).doc(resId).delete();
+
+                    window.closeDetailPanel();
+
+                    await Swal.fire({
+                        title: 'Eliminada',
+                        text: 'La reserva ha sido borrada.',
+                        icon: 'success',
+                        timer: 1500,
+                        showConfirmButton: false
+                    });
+
                     loadView();
                 } catch (e) {
                     console.error("Error al eliminar reserva:", e);
-                    Swal.fire('Error', 'No se pudo eliminar: ' + (e.message || e), 'error');
+                    Swal.fire('Error', 'Error crítico: ' + (e.message || e), 'error');
                 }
             }
         }
-
 
 
         function showLoading(show) {
