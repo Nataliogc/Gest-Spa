@@ -1046,6 +1046,7 @@
 
             // Room Options
             const ROOMS = [
+                { code: 'reservas_spa', label: 'SPA' },
                 { code: 'reservas_cabina1', label: 'Cabina 1' },
                 { code: 'reservas_cabina2', label: 'Cabina 2' },
                 { code: 'reservas_cabina3', label: 'Cabina 3' },
@@ -1347,7 +1348,8 @@
                     closeDetailPanel();
                     loadView();
                 } catch (e) {
-                    Swal.fire('Error', 'No se pudo eliminar', 'error');
+                    console.error("Error al eliminar reserva:", e);
+                    Swal.fire('Error', 'No se pudo eliminar: ' + (e.message || e), 'error');
                 }
             }
         }
