@@ -4410,7 +4410,7 @@
             btnCancel.style.display = isAnulada ? "none" : "block";
             if (btnReactivar) btnReactivar.style.display = isAnulada ? "block" : "none";
 
-            document.getElementById("res-id-display").textContent = res.res_id || "SIN ID";
+            document.getElementById("res-id-display").textContent = res.res_id || id || "SIN ID";
             document.getElementById("form-id").value = id;
             document.getElementById("form-date").value = res.fecha;
             document.getElementById("form-date").dataset.originalDate = res.fecha;

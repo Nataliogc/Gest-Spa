@@ -767,7 +767,7 @@
                                  style="border-left-color: ${sColor}; background: linear-gradient(to right, ${sColor}15, #ffffff);">
                                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
                                     <div style="font-weight: 800; color: #334155; font-size: 0.85rem;">
-                                        ${b.hora} <span style="font-weight:400; color:#94a3b8; font-size:0.75rem;">(${dur}m)</span>
+                                        ${b.hora} <span style="font-weight:400; color:#94a3b8; font-size:0.75rem;">(${dur}m)</span><span style="font-family:monospace; font-size:0.7rem; opacity:0.6; margin-left:8px; background:rgba(0,0,0,0.05); padding:1px 4px; border-radius:4px;">#${b.res_id || b.id.slice(0,6)}</span>
                                     </div>
                                     <div style="font-size: 0.65rem; background: ${sColor}20; color: ${sColor}; padding: 1px 5px; border-radius: 4px; font-weight:700;">
                                         ${roomLabel}
@@ -996,7 +996,7 @@
 
                 // Update Header
                 const clientName = data.nombre || data.cliente || 'Cliente';
-                const displayId = data.res_id || data.localizador || bookingId.slice(0, 8); // fallback
+                const displayId = data.res_id || data.localizador || (bookingId && bookingId.length > 5 ? bookingId.slice(0, 8) : bookingId) || "SIN ID";
 
                 document.getElementById('detail-title').textContent = 'Editar Reserva';
                 document.getElementById('detail-subtitle').innerHTML = `
@@ -1309,7 +1309,7 @@
                             payload = { ...currentBookingData, ...payload };
                             delete payload._id;
                         }
-                        await db.collection(currentEditingCollection).doc(currentEditingId).delete();
+                        console.log("[DELETE] Col:", currentEditingCollection, "ID:", currentEditingId); if(!currentEditingId) { throw new Error("ID de reserva no detectado"); }; await db.collection(currentEditingCollection).doc(currentEditingId).delete();
                         await db.collection(room).add(payload);
                     } else {
                         await db.collection(room).doc(currentEditingId).update(payload);
@@ -1343,7 +1343,7 @@
 
             if (res.isConfirmed) {
                 try {
-                    await db.collection(currentEditingCollection).doc(currentEditingId).delete();
+                    console.log("[DELETE] Col:", currentEditingCollection, "ID:", currentEditingId); if(!currentEditingId) { throw new Error("ID de reserva no detectado"); }; await db.collection(currentEditingCollection).doc(currentEditingId).delete();
                     Swal.fire('Eliminada', '', 'success');
                     closeDetailPanel();
                     loadView();
