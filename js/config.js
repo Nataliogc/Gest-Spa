@@ -1203,50 +1203,20 @@ window.migrateBonoSpaceToNull = migrateBonoSpaceToNull;
 // --- SPACES ---
 async function cargarSpaces() {
     try {
-        const snapshot = await db.collection("spa_spaces").orderBy("name", "asc").get();
+        const snapshot = await db.collection("spa_spaces").get();
         spaConfigState.spaces = [];
         snapshot.forEach(doc => spaConfigState.spaces.push({ id: doc.id, ...doc.data() }));
 
-        const DEFAULT_SPACES = [
-            { code: 'spa', name: 'Spa', capacity: 20, type: 'circuit' },
-            { code: 'panacea', name: 'Panacea (Cabinas)', capacity: 5, type: 'service' },
-            { code: 'suite', name: 'Suite Spa', capacity: 2, type: 'private' },
-            { code: 'vip', name: 'Sala VIP', capacity: 4, type: 'private' },
-            { code: 'peluqueria', name: 'Peluquería', capacity: 2, type: 'service' },
-            { code: 'cabina1', name: 'Cabina 1', capacity: 1, type: 'service' },
-            { code: 'cabina2', name: 'Cabina 2', capacity: 1, type: 'service' },
-            { code: 'cabina3', name: 'Cabina 3', capacity: 1, type: 'service' },
-            { code: 'gimnasio', name: 'Gimnasio', capacity: 10, type: 'other' },
-            { code: 'restaurante', name: 'Restaurante', capacity: 50, type: 'other' },
-            { code: 'terraza', name: 'Terraza', capacity: 30, type: 'other' },
-            { code: 'jardin', name: 'Jardín', capacity: 20, type: 'other' }
-        ];
+        // Client-side sorting: Order (asc) -> Name (asc)
+        spaConfigState.spaces.sort((a, b) => {
+            const orderA = (a.order !== undefined && a.order !== null) ? a.order : 999;
+            const orderB = (b.order !== undefined && b.order !== null) ? b.order : 999;
+            if (orderA !== orderB) return orderA - orderB;
+            return (a.name || '').localeCompare(b.name || '');
+        });
 
         // FALLBACK DEFAULT SPACES IF DB EMPTY
-        if (spaConfigState.spaces.length === 0) {
-            console.warn("No spaces in DB, using defaults.");
-            spaConfigState.spaces = DEFAULT_SPACES;
-        } else {
-            // AUTO-FIX: Ensure Cabinas exist if they are missing (Common issue since they were added later)
-            const existingCodes = spaConfigState.spaces.map(s => s.code);
-            const missingCabins = DEFAULT_SPACES.filter(d => d.code.startsWith('cabina') && !existingCodes.includes(d.code));
-
-            if (missingCabins.length > 0) {
-                console.log("Auto-injecting missing cabins:", missingCabins);
-                const batch = db.batch();
-                missingCabins.forEach(c => {
-                    const ref = db.collection("spa_spaces").doc();
-                    batch.set(ref, { ...c, created_at: new Date().toISOString() });
-                });
-                await batch.commit();
-
-                // Reload to get IDs
-                const snap2 = await db.collection("spa_spaces").orderBy("name", "asc").get();
-                spaConfigState.spaces = [];
-                snap2.forEach(doc => spaConfigState.spaces.push({ id: doc.id, ...doc.data() }));
-                showToast("Se han añadido las Cabinas 1, 2 y 3 a la configuración", "success");
-            }
-        }
+        /* Default validation removed to rely on DB content */
 
         renderSpaces();
         renderMasterItems(); // Refresh dropdowns
@@ -1266,30 +1236,45 @@ function renderSpaces() {
 
     const typeLabels = { 'private': 'Privada', 'circuit': 'Circuito', 'service': 'Servicios', 'other': 'Otro' };
 
-    grid.innerHTML = spaConfigState.spaces.map(s => `
-        <div style="background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 15px; border-top: 4px solid ${s.color || '#8b5cf6'};">
+    grid.innerHTML = spaConfigState.spaces.map(s => {
+        const isDeleted = s.deleted === true;
+        const opacity = isDeleted ? '0.6' : '1';
+        const bgColor = isDeleted ? '#f8fafc' : '#fff';
+        const borderStyle = isDeleted ? '1px dashed #cbd5e1' : '1px solid #e2e8f0';
+        const statusBadge = isDeleted ? '<span style="background:#fee2e2; color:#ef4444; font-size:0.6rem; padding:2px 6px; border-radius:4px; margin-left:6px; font-weight:800;">ELIMINADA</span>' : '';
+        const orderBadge = (s.order !== undefined && s.order !== null) ? `<span style="background:#f1f5f9; color:#64748b; font-size:0.65rem; padding:2px 6px; border-radius:4px; margin-right:6px; font-weight:600;">#${s.order}</span>` : '';
+
+        return `
+        <div style="background: ${bgColor}; opacity: ${opacity}; border: ${borderStyle}; border-radius: 8px; padding: 15px; border-top: 4px solid ${s.color || '#8b5cf6'}; position: relative;">
             <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 10px;">
                 <div>
-                    <h4 style="margin: 0; font-size: 0.95rem; font-weight: 600;">${s.name}</h4>
+                    <h4 style="margin: 0; font-size: 0.95rem; font-weight: 600; display:flex; align-items:center;">
+                        ${orderBadge} ${s.name} ${statusBadge}
+                    </h4>
                     <p style="margin: 4px 0 0 0; font-size: 0.7rem; color: #94a3b8; text-transform: uppercase;">${s.code}</p>
                 </div>
                 <div style="display: flex; gap: 5px;">
-                    <button onclick="openSpaceModal('${s.id}')" class="btn-icon"><i class="fas fa-edit"></i></button>
-                    <button onclick="deleteSpace('${s.id}')" class="btn-icon danger"><i class="fas fa-trash-alt"></i></button>
+                    ${isDeleted ?
+                `<button onclick="restoreSpace('${s.id}')" class="btn-icon" style="color: #10b981; background: #ecfdf5; border-color: #a7f3d0;" title="Restaurar"><i class="fas fa-undo"></i></button>
+                         <button onclick="deleteSpace('${s.id}')" class="btn-icon danger" title="Eliminar definitivamente"><i class="fas fa-times"></i></button>`
+                :
+                `<button onclick="openSpaceModal('${s.id}')" class="btn-icon"><i class="fas fa-edit"></i></button>
+                         <button onclick="deleteSpace('${s.id}')" class="btn-icon danger" title="Desactivar"><i class="fas fa-trash-alt"></i></button>`
+            }
                 </div>
             </div>
             <div style="display: flex; gap: 10px; font-size: 0.75rem;">
-                 <div style="flex: 1; background: #f8fafc; padding: 6px; border-radius: 4px; text-align: center;">
+                 <div style="flex: 1; background: #f1f5f9; padding: 6px; border-radius: 4px; text-align: center;">
                     <div style="color: #64748b; font-size: 0.65rem;">CAPACIDAD</div>
                     <div style="font-weight: 600;">${s.capacity || 1}</div>
                 </div>
-                <div style="flex: 1; background: #f8fafc; padding: 6px; border-radius: 4px; text-align: center;">
+                <div style="flex: 1; background: #f1f5f9; padding: 6px; border-radius: 4px; text-align: center;">
                     <div style="color: #64748b; font-size: 0.65rem;">TIPO</div>
                     <div style="font-weight: 600;">${typeLabels[s.type] || 'N/A'}</div>
                 </div>
             </div>
         </div>
-    `).join('');
+    `}).join('');
 }
 
 function openSpaceModal(id = null) {
@@ -1298,17 +1283,32 @@ function openSpaceModal(id = null) {
     document.getElementById("space-id").value = "";
     document.getElementById("space-modal-title").textContent = "Nueva Sala";
 
+    // Default state for Code input
+    const codeInput = document.getElementById("space-code");
+    codeInput.disabled = false;
+    codeInput.style.background = "#f8fafc";
+    codeInput.style.cursor = "text";
+    codeInput.style.opacity = "1";
+
     if (id) {
         const s = spaConfigState.spaces.find(x => x.id === id);
         if (s) {
             document.getElementById("space-modal-title").textContent = "Editar Sala";
             document.getElementById("space-id").value = s.id;
             document.getElementById("space-name").value = s.name;
-            document.getElementById("space-code").value = s.code;
+
+            // Set and Lock Code
+            codeInput.value = s.code;
+            codeInput.disabled = true;
+            codeInput.style.background = "#e2e8f0";
+            codeInput.style.cursor = "not-allowed";
+            codeInput.style.opacity = "0.7";
+
             document.getElementById("space-capacity").value = s.capacity;
             document.getElementById("space-type").value = s.type;
             document.getElementById("space-color").value = s.color;
             document.getElementById("space-description").value = s.description || '';
+            document.getElementById("space-order").value = (s.order !== undefined) ? s.order : '';
         }
     }
     document.getElementById("space-modal").style.display = "flex";
@@ -1318,24 +1318,32 @@ function closeSpaceModal() {
     document.getElementById("space-modal").style.display = "none";
 }
 
-async function saveSpace(e) {
-    e.preventDefault();
+async function saveSpace(event) {
+    if (event) event.preventDefault();
     const id = document.getElementById("space-id").value;
+
+    // Base data (mutable fields)
     const data = {
         name: document.getElementById("space-name").value.trim(),
-        code: document.getElementById("space-code").value.trim().toLowerCase(),
-        capacity: parseInt(document.getElementById("space-capacity").value),
+        capacity: parseInt(document.getElementById("space-capacity").value) || 1,
         type: document.getElementById("space-type").value,
         color: document.getElementById("space-color").value,
         description: document.getElementById("space-description").value.trim(),
+        order: parseInt(document.getElementById("space-order").value) || 0,
         updated_at: new Date().toISOString()
     };
+
+    // Only set 'code' and 'created_at' for NEW records
+    if (!id) {
+        data.code = document.getElementById("space-code").value.trim().toLowerCase().replace(/\s+/g, '_');
+        data.deleted = false;
+        data.created_at = new Date().toISOString();
+    }
 
     try {
         if (id) {
             await db.collection("spa_spaces").doc(id).update(data);
         } else {
-            data.created_at = new Date().toISOString();
             await db.collection("spa_spaces").add(data);
         }
         closeSpaceModal();
@@ -1347,11 +1355,35 @@ async function saveSpace(e) {
 }
 
 async function deleteSpace(id) {
-    if (!confirm("¿Eliminar esta sala?")) return;
+    const space = spaConfigState.spaces.find(s => s.id === id);
+    if (!space) return;
+
+    if (space.deleted) {
+        if (!confirm("⚠️ ATENCIÓN: Esta sala ya está marcada como eliminada.\n\n¿Deseas eliminarla DEFINITIVAMENTE de la base de datos?\nEsta acción no se puede deshacer y podría afectar a históricos antiguos que no usen el código.")) return;
+        try {
+            await db.collection("spa_spaces").doc(id).delete();
+            cargarSpaces();
+            showToast("Sala eliminada definitivamente", "success");
+        } catch (err) {
+            showToast("Error: " + err.message, "error");
+        }
+    } else {
+        if (!confirm("¿Desactivar esta sala?\n\nLa sala dejará de estar disponible para NUEVAS reservas, pero se mantendrá visible aquí y en el histórico.")) return;
+        try {
+            await db.collection("spa_spaces").doc(id).update({ deleted: true });
+            cargarSpaces();
+            showToast("Sala desactivada (Soft Delete)", "success");
+        } catch (err) {
+            showToast("Error: " + err.message, "error");
+        }
+    }
+}
+
+async function restoreSpace(id) {
     try {
-        await db.collection("spa_spaces").doc(id).delete();
+        await db.collection("spa_spaces").doc(id).update({ deleted: false });
         cargarSpaces();
-        showToast("Sala eliminada", "success");
+        showToast("Sala reactivada", "success");
     } catch (err) {
         showToast("Error: " + err.message, "error");
     }

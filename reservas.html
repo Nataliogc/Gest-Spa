@@ -8013,6 +8013,49 @@
             </div>
         </div>
     </div>
+    <script>
+        document.addEventListener("DOMContentLoaded", () => {
+            // AUTO-CAPTURE URL PARAMS FOR VOUCHER BOOKING
+            const urlParams = new URLSearchParams(window.location.search);
+            const action = urlParams.get('action');
+            const voucher = urlParams.get('voucher');
+            const client = urlParams.get('client');
+            const service = urlParams.get('service');
+            const phone = urlParams.get('phone');
+            const pax = urlParams.get('pax');
+
+            if (action === 'new' && voucher) {
+                const bookingData = {
+                    cliente: client || '',
+                    producto: service || '',
+                    bono: voucher,
+                    telefono: phone || '',
+                    pax: pax || '1'
+                };
+
+                // Store in session to survive reload/navigation
+                sessionStorage.setItem('pendingVoucherBooking', JSON.stringify(bookingData));
+                console.log("Voucher Booking Pending:", bookingData);
+
+                // Clean URL
+                const newUrl = window.location.protocol + "//" + window.location.host + window.location.pathname + "?type=" + (urlParams.get('type') || 'spa');
+                window.history.replaceState({ path: newUrl }, '', newUrl);
+
+                // Show notice
+                const notice = document.createElement("div");
+                notice.id = "v-booking-notice";
+                notice.style = "position:fixed; top:80px; left:50%; transform:translateX(-50%); background:#ecfdf5; color:#065f46; padding:10px 20px; border-radius:30px; box-shadow:0 4px 12px rgba(0,0,0,0.1); z-index:9999; font-weight:600; display:flex; align-items:center; gap:10px;";
+                notice.innerHTML = `<i class="fas fa-ticket-alt"></i> Reservando con Bono: ${voucher}`;
+                document.body.appendChild(notice);
+
+                setTimeout(() => {
+                    if (typeof showToast === 'function') {
+                        showToast("Selecciona un turno para completar la reserva del bono", "info");
+                    }
+                }, 1000);
+            }
+        });
+    </script>
 </body>
 
 </html>

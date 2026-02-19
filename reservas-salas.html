@@ -620,12 +620,13 @@
             style="display: none; grid-template-columns: 1fr 1fr; gap: 20px; height: calc(100vh - 160px);">
             <!-- Col 1 (LEFT) -> VIP -->
             <div id="split-col-1" style="display: flex; flex-direction: column; height: 100%;">
-                <h3 style="text-align: center; margin-bottom: 10px; color: var(--accent);">SALA VIP</h3>
+                <h3 id="vip-header" style="text-align: center; margin-bottom: 10px; color: var(--accent);">SALA VIP</h3>
                 <div id="timeline-container-vip" class="timeline-mode" style="flex:1;"></div>
             </div>
             <!-- Col 2 (RIGHT) -> PANACEA -->
             <div id="split-col-2" style="display: flex; flex-direction: column; height: 100%;">
-                <h3 style="text-align: center; margin-bottom: 10px; color: var(--accent);">SALA PANACEA</h3>
+                <h3 id="panacea-header" style="text-align: center; margin-bottom: 10px; color: var(--accent);">SALA
+                    PANACEA</h3>
                 <div id="timeline-container-panacea" class="timeline-mode" style="flex:1;"></div>
             </div>
         </div>
@@ -635,17 +636,20 @@
             style="display: none; grid-template-columns: 1fr 1fr 1fr; gap: 20px; height: calc(100vh - 160px);">
             <!-- Col 1 -->
             <div id="split-col-c1" style="display: flex; flex-direction: column; height: 100%;">
-                <h3 style="text-align: center; margin-bottom: 10px; color: var(--accent);">CABINA 1</h3>
+                <h3 id="cabina1-header" style="text-align: center; margin-bottom: 10px; color: var(--accent);">CABINA 1
+                </h3>
                 <div id="timeline-container-cabina1" class="timeline-mode" style="flex:1;"></div>
             </div>
             <!-- Col 2 -->
             <div id="split-col-c2" style="display: flex; flex-direction: column; height: 100%;">
-                <h3 style="text-align: center; margin-bottom: 10px; color: var(--accent);">CABINA 2</h3>
+                <h3 id="cabina2-header" style="text-align: center; margin-bottom: 10px; color: var(--accent);">CABINA 2
+                </h3>
                 <div id="timeline-container-cabina2" class="timeline-mode" style="flex:1;"></div>
             </div>
             <!-- Col 3 -->
             <div id="split-col-c3" style="display: flex; flex-direction: column; height: 100%;">
-                <h3 style="text-align: center; margin-bottom: 10px; color: var(--accent);">CABINA 3</h3>
+                <h3 id="cabina3-header" style="text-align: center; margin-bottom: 10px; color: var(--accent);">CABINA 3
+                </h3>
                 <div id="timeline-container-cabina3" class="timeline-mode" style="flex:1;"></div>
             </div>
         </div>
@@ -1271,7 +1275,7 @@
         }
         // Aseguramos que termine en 21:45 (el loop lo cubre)
 
-        const MODULES = {
+        let MODULES = {
             'suite': {
                 code: 'suite',
                 name: 'SUITE SPA',
@@ -1360,17 +1364,129 @@
         };
         window.MODULES = MODULES;
 
-
         // Detectar módulo actual (cabinas por defecto aquí)
         const urlParams = new URLSearchParams(window.location.search);
         const moduleType = urlParams.get('type') || 'cabinas';
         window.currentModule = MODULES[moduleType] || MODULES['cabinas'];
         let currentModule = window.currentModule;
 
-        console.log("Módulo activo:", currentModule.name);
+        console.log("Módulo activo (Static):", currentModule.name);
 
-        // Actualizar Título
-        document.querySelector('h2').textContent = currentModule.name;
+        // Actualizar Título Inicial
+        if (currentModule) document.querySelector('h2').textContent = currentModule.name;
+
+        // --- DYNAMIC MODULE LOADING FROM DB ---
+        async function initDynamicModules() {
+            try {
+                // Wait for DB to be ready
+                let retries = 0;
+                while (!window.db && retries < 20) {
+                    await new Promise(r => setTimeout(r, 100));
+                    retries++;
+                }
+
+                if (!window.db) {
+                    console.warn("DB not ready for Dynamic Modules, using static defaults.");
+                    return;
+                }
+
+                const snap = await db.collection("spa_spaces").get();
+                if (!snap.empty) {
+                    let updatedCount = 0;
+                    snap.forEach(doc => {
+                        const data = doc.data();
+                        const code = (data.code || '').toLowerCase();
+                        if (!code) return;
+
+                        // Create module definition from DB data
+                        const isPrivate = (data.type === 'private' || data.type === 'service');
+
+                        const defaultColl = MODULES[code] ? MODULES[code].collection : `reservas_${code}`;
+
+                        MODULES[code] = {
+                            code: code,
+                            name: (data.name || code).toUpperCase(),
+                            collection: defaultColl,
+                            capacity: parseInt(data.capacity) || 1,
+                            isPrivate: isPrivate,
+                            requiresStaff: true, // Default for spa spaces
+                            viewType: 'timeline',
+                            color: data.color, // Extra metadata
+                            deleted: !!data.deleted // Soft delete flag
+                        };
+                        updatedCount++;
+                    });
+
+                    console.log(`[MODULES] Loaded ${updatedCount} dynamic modules from DB.`);
+
+                    // UPDATE TIMELINE HEADERS WITH DYNAMIC NAMES
+                    const headerMap = {
+                        'vip': 'vip-header',
+                        'panacea': 'panacea-header',
+                        'cabina1': 'cabina1-header',
+                        'cabina2': 'cabina2-header',
+                        'cabina3': 'cabina3-header'
+                    };
+
+                    Object.keys(headerMap).forEach(modCode => {
+                        if (MODULES[modCode]) {
+                            const headerEl = document.getElementById(headerMap[modCode]);
+                            if (headerEl) headerEl.textContent = MODULES[modCode].name;
+                        }
+                    });
+
+                    // OPTIONAL: Update text of EXISTING sidebar links if they match a module
+                    // This preserves the structure but refreshes the label
+                    document.querySelectorAll('.sidebar .dropdown-menu a').forEach(link => {
+                        const href = link.getAttribute('href');
+                        if (href && href.includes('type=')) {
+                            const type = href.split('type=')[1];
+                            // If it's a direct match
+                            if (MODULES[type] && MODULES[type].name) {
+                                // Keep icon, update text. 
+                                // CAUTION: Panacea & VIP is a combined link often.
+                                // If exact match, update.
+                                if (type !== 'panacea') { // Skip combined ones for now unless we want to parse
+                                    const icon = link.querySelector('i');
+                                    if (icon) {
+                                        link.innerHTML = '';
+                                        link.appendChild(icon);
+                                        link.appendChild(document.createTextNode(' ' + MODULES[type].name));
+                                    }
+                                }
+                            }
+                        }
+                    });
+
+                    // Re-evaluate Current Module
+                    const urlParams = new URLSearchParams(window.location.search);
+                    const type = urlParams.get('type') || 'cabinas';
+
+                    if (MODULES[type]) {
+                        window.currentModule = MODULES[type];
+                        currentModule = window.currentModule;
+                        document.querySelector('h2').textContent = currentModule.name;
+                        console.log("Módulo activo (Dynamic):", currentModule.name);
+
+                        // Force a reload of the view to reflect name changes
+                        // But only if we are on the view
+                        if (document.getElementById("slots-container")) {
+                            // Trigger refresh if we have a date
+                            const datePicker = document.getElementById("main-date-picker");
+                            if (datePicker && datePicker.value) {
+                                loadReservas(datePicker.value);
+                            }
+                        }
+                    }
+                }
+            } catch (e) {
+                console.error("Error loading dynamic modules:", e);
+            }
+        }
+
+        document.addEventListener("DOMContentLoaded", () => {
+            initDynamicModules();
+        });
 
         // Configuración Global de Personal (Cargada al inicio)
         let staffConfig = { morning: 2, afternoon: 2 };
@@ -1686,6 +1802,22 @@
             }
 
             // ... (rest of DOMContentLoaded) ...
+
+            // INTEGRATION: Capture URL Params for Voucher Booking (e.g. from Mesa Chef)
+            if (urlParams.get('action') === 'new' && urlParams.get('voucher')) {
+                const voucherData = {
+                    cliente: urlParams.get('client') || '',
+                    bono: urlParams.get('voucher') || '',
+                    producto: urlParams.get('service') || '',
+                    telefono: urlParams.get('phone') || '',
+                    sesiones_restantes: urlParams.get('pax') || 1
+                };
+                sessionStorage.setItem('pendingVoucherBooking', JSON.stringify(voucherData));
+                console.log("[AUTO-BOOKING] Pending Voucher stored:", voucherData);
+                // Clean URL but keep type
+                const newUrl = window.location.pathname + "?type=" + (urlParams.get('type') || 'cabinas');
+                window.history.replaceState({}, document.title, newUrl);
+            }
 
             // Verificar si venimos de reservar un bono desde el Dashboard
             const pendingBooking = sessionStorage.getItem('pendingVoucherBooking');
@@ -2100,11 +2232,23 @@
             const contextCode = contextCodeStr || currentModule.code;
 
             // Filter modules to show compatible rooms based on type (Private vs Open)
+            // Filter modules to show compatible rooms based on type (Private vs Open)
+            // STRICT FILTERING: Remove junk (test names) and duplicates
+            const EXCLUDED_NAMES = ['pesadilla', 'mari', 'pepito', 'gimnasio', 'mar', 'hotel', 'rayos uva', 'restaurante', 'agenda terapeutas'];
+
             const keys = Object.keys(window.MODULES || {}).filter(k => {
                 const m = window.MODULES[k];
                 if (!m) return false;
-                if (k === 'cabinas' || k === 'staff') return false;
 
+                // 1. Basic Filters
+                if (k === 'cabinas' || k === 'staff' || k === 'terapeutas') return false;
+                if (m.deleted) return false;
+
+                // 2. Name Filter (Blacklist)
+                const nameLower = (m.name || '').toLowerCase().trim();
+                if (EXCLUDED_NAMES.includes(nameLower)) return false;
+
+                // 3. Contextual Filter (Keep existing logic but stricter)
                 // Fixed Modules: Can only stay in themselves
                 if (contextCode === 'spa') return k === 'spa';
                 if (contextCode === 'panacea') return k === 'panacea';
@@ -2120,10 +2264,22 @@
             // Sort keys to ensure cabina order
             keys.sort();
 
+            // DEDUPLICATION BY NAME
+            const seenNames = new Set();
+
             keys.forEach(k => {
+                const m = window.MODULES[k];
+                let cleanName = (m.name || '').trim();
+
+                // MANUAL OVERRIDE FOR MISNAMED CABINS
+                cleanName = cleanName.toUpperCase();
+
+                if (seenNames.has(cleanName)) return; // Skip duplicate names
+                seenNames.add(cleanName);
+
                 const opt = document.createElement("option");
                 opt.value = k;
-                opt.textContent = window.MODULES[k].name;
+                opt.textContent = cleanName;
                 sel.appendChild(opt);
             });
 
@@ -4399,6 +4555,44 @@
             populateServices();
             renderComplementos();
 
+            // AUTO-FILL FROM PENDING VOUCHER (Mesa Chef / Bonos)
+            const pcVoucher = sessionStorage.getItem('pendingVoucherBooking');
+            if (pcVoucher) {
+                try {
+                    const pv = JSON.parse(pcVoucher);
+                    console.log("[AUTO-FILL] Filling form with voucher data:", pv);
+
+                    document.getElementById("res-nombre").value = pv.cliente || '';
+                    document.getElementById("res-origen").value = 'bono'; // Set Type to "Spa (Nº Bono)"
+
+                    const bField = document.getElementById("res-bono");
+                    if (bField) {
+                        bField.value = pv.bono || '';
+                        // Trigger visual validation immediately
+                        triggerBalanceCheck();
+                    }
+
+                    if (pv.telefono) document.getElementById("res-tel").value = pv.telefono;
+
+                    // Try to match service name roughly
+                    if (pv.producto) {
+                        const svcInput = document.getElementById("res-servicio");
+                        if (svcInput) {
+                            // Try exact match first
+                            let match = currentServices.find(s => (s.nombre || '').toLowerCase() === pv.producto.toLowerCase());
+                            if (!match) {
+                                // Try partial match
+                                match = currentServices.find(s => (s.nombre || '').toLowerCase().includes(pv.producto.toLowerCase()));
+                            }
+                            if (match) svcInput.value = match.nombre;
+                        }
+                    }
+
+                } catch (e) {
+                    console.error("Error auto-filling voucher:", e);
+                }
+            }
+
             // Default service logic
             const resService = document.getElementById("res-servicio");
             if (resService) {
@@ -5856,7 +6050,15 @@
                         // Check Staff
                         // If availability map is empty (not loaded), assume available (99) to avoid blocking UI
                         const isAvailabilityLoaded = availability && Object.keys(availability).length > 0;
-                        let staffFreeCount = (moduleConfig.requiresStaff && isAvailabilityLoaded) ? (availability[timeLabel] || 0) : 99;
+
+                        // STAFF CHECK LOGIC:
+                        // Normal Modules: if moduleConfig.requiresStaff, check availability.
+                        // Suite Exception (User Request): Suite does NOT require staff for timeline visibility, 
+                        // even though some services inside might. We treat it as always available staff-wise in timeline.
+                        let effectiveRequiresStaff = moduleConfig.requiresStaff;
+                        if (moduleConfig.code === 'suite') effectiveRequiresStaff = false;
+
+                        let staffFreeCount = (effectiveRequiresStaff && isAvailabilityLoaded) ? (availability[timeLabel] || 0) : 99;
 
                         // Check Space
                         const defaultDur = 60;
@@ -5933,8 +6135,8 @@
                             contentCol.appendChild(actionsDiv);
                         } else if (!isOccupied) {
                             // Si no hay hueco y no hay reservas, mostrar por qué
-                            if (staffFreeCount === 0 && moduleConfig.requiresStaff) {
-                                contentCol.innerHTML = '<span style="color:#ef4444; font-size:0.75rem;"><i class="fas fa-user-slash"></i> Therapist unavailable</span>';
+                            if (staffFreeCount === 0 && effectiveRequiresStaff) {
+                                contentCol.innerHTML = '<span style="color:#ef4444; font-size:0.75rem; font-weight:600;"><i class="fas fa-user-slash"></i> Therapist unavailable</span>';
                             } else if (!hasSpace) {
                                 // Content explicitly left empty as per user request
                                 // contentCol.innerHTML = '<span style="color:#666; font-size:0.75rem;"><i class="fas fa-ban"></i> Sin espacio</span>';
@@ -7741,6 +7943,9 @@
                     const bName2 = (b.staff_name2 || b.terapeuta2 || '').trim().toLowerCase();
                     const isMatch2 = (sId && bId2 === sId) || (sName && (bName2 === sName));
 
+                    // DEBUG: Check why it might fail
+                    // if (b.staff_name2) console.log(`Checking ${b.staff_name2} against ${sName} -> Match: ${isMatch2}`);
+
                     return isMatch1 || isMatch2;
                 }).sort((a, b) => a.hora.localeCompare(b.hora));
 
@@ -7764,18 +7969,51 @@
                         const borderColor = customColor || protocol.color;
                         const bgColor = `${borderColor}40`; // Increased opacity (40 = 25%)
 
+                        // Observation Icon Logic
+                        const obsIcon = (b.obs && b.obs.trim().length > 0)
+                            ? `<i class="fas fa-comment-dots" style="color:${borderColor}; font-size:1rem; margin-left:auto;" title="Ver observaciones"></i>`
+                            : '';
+
+                        // Partner / Helper Logic
+                        let relationText = '';
+                        // Identify if current view is for Secondary or Primary
+                        // staffId is passed to this function
+                        const viewStaffId = (staffId || '').trim();
+
+                        // Check if this booking has secondary
+                        const hasSecondary = (b.staff_id2 || b.terapeuta_id2);
+
+                        // Check if I am secondary
+                        const amISecondary = (b.staff_id2 === viewStaffId || b.terapeuta_id2 === viewStaffId);
+
+                        if (amISecondary) {
+                            // I am helping someone
+                            const primaryName = b.staff_name || b.terapeuta || 'Compañero';
+                            relationText = `<div style="font-size:0.7rem; color:#d97706; font-weight:600; margin-top:2px;"><i class="fas fa-hands-helping"></i> Ayudando a ${primaryName}</div>`;
+                        } else if (hasSecondary) {
+                            // I am primary, someone helps me
+                            const secondaryName = b.staff_name2 || b.terapeuta2 || 'Compañero';
+                            relationText = `<div style="font-size:0.7rem; color:#d97706; font-weight:600; margin-top:2px;"><i class="fas fa-user-friends"></i> + ${secondaryName}</div>`;
+                        }
+
                         html += `
                             <div onclick="showTimelineBookingDetail('${b.id}', '${collection}')" style="cursor:pointer; background-color:${bgColor}; border:1px solid #e2e8f0; border-left: 5px solid ${borderColor}; border-radius:8px; padding:12px; margin-bottom:8px; display:flex; gap:12px; align-items:center; transition: transform 0.2s;" onmouseover="this.style.transform='translateX(5px)'" onmouseout="this.style.transform='translateX(0)'">
                                 <div style="background:#fff; border: 1px solid #e2e8f0; padding:5px 8px; border-radius:6px; font-weight:800; color:#1e3a8a; font-size:0.85rem; min-width: 60px; text-align:center;">${b.hora}</div>
                                 <div style="flex:1;">
-                                    <div style="font-weight:700; font-size:0.85rem; color:#1e293b;">${(b.servicio || b.nombre_servicio || 'Servicio').toUpperCase()}</div>
+                                    <div style="font-weight:700; font-size:0.85rem; color:#1e293b; display:flex; align-items:center; gap:8px;">
+                                        ${(b.servicio || b.nombre_servicio || 'Servicio').toUpperCase()}
+                                    </div>
                                     <div style="font-size:0.75rem; color:#64748b; display: flex; align-items: center; gap: 8px; margin-top: 2px;">
                                         <span><i class="fas fa-map-marker-alt" style="color: #94a3b8;"></i> ${roomName}</span>
                                         <span style="opacity: 0.5;">|</span>
                                         <span><i class="fas fa-user" style="color: #94a3b8;"></i> ${b.nombre || 'Cliente'}</span>
                                     </div>
+                                    ${relationText}
                                 </div>
-                                <div style="font-size:0.75rem; font-weight:800; color:${borderColor};">${b.duracion || 60} min</div>
+                                <div style="display:flex; flex-direction:column; align-items:flex-end; gap:4px; margin-left:auto;">
+                                    <div style="font-size:0.75rem; font-weight:800; color:${borderColor};">${b.duracion || 60}m</div>
+                                    ${obsIcon}
+                                </div>
                             </div>
                         `;
                     });
@@ -7833,7 +8071,21 @@
                 });
 
                 closeBlockRoomModal();
-                loadReservas(document.getElementById('main-date-picker').value);
+
+                // FORCE REFRESH
+                // Check if we are viewing the date of the block
+                const currentViewDate = document.getElementById('main-date-picker').value;
+                if (currentViewDate === date) {
+                    // Show loading state if possible or just reload
+                    // Small delay to ensure Firestore consistency
+                    setTimeout(() => {
+                        loadReservas(currentViewDate);
+                    }, 500);
+                } else {
+                    // If we blocked a different date, maybe jump to it? 
+                    // For now, just alert success.
+                }
+
                 alert('Sala bloqueada correctamente.');
 
             } catch (err) {

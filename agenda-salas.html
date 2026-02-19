@@ -624,14 +624,21 @@
                     const myBookings = dayBookings.filter(b => {
                         if (b.status === 'anulada') return false;
                         if (b.isBlock || b.status === 'blocked') return false;
+
                         const sId = staff.id;
                         const sName = (staff.nombre || staff.name || '').toLowerCase().trim();
-                        // Check logic simplified
+
+                        // Check Primary
                         const bId1 = b.staff_id || b.terapeuta_id || (b.staff ? b.staff.id : null);
                         const bName1 = (b.staff_name || b.terapeuta || '').toLowerCase().trim();
-                        const bId2 = b.staff_id2 || b.terapeuta_id2;
+                        const isMatch1 = (bId1 && bId1 === sId) || (bName1 && bName1 === sName);
 
-                        return (bId1 === sId) || (sName && bName1 === sName) || (bId2 === sId);
+                        // Check Secondary
+                        const bId2 = b.staff_id2 || b.terapeuta_id2 || (b.staff2 ? b.staff2.id : null);
+                        const bName2 = (b.staff_name2 || b.terapeuta2 || '').toLowerCase().trim();
+                        const isMatch2 = (bId2 && bId2 === sId) || (bName2 && bName2 === sName);
+
+                        return isMatch1 || isMatch2;
                     });
 
                     for (const time of timeSlots) {
@@ -657,6 +664,8 @@
             const tMin = time.split(':').map(Number).reduce((a, b) => a * 60 + b);
 
             let isWorking = false;
+            // Use window.checkStaffAvailability or simplified logic here if not available
+            // Reuse the schedule object passed which comes from getStaffScheduleForDate
             if (schedule.status === 'ok' && schedule.shifts) {
                 isWorking = schedule.shifts.some(sh => {
                     const start = sh.start.split(':').map(Number).reduce((a, b) => a * 60 + b);
@@ -726,11 +735,25 @@
             const bookings = await window.getAllBookingsForDate(currentDate);
             const myBookings = bookings.filter(b => {
                 if (b.status === 'anulada') return false;
+
                 const sId = staff.id;
                 const sName = (staff.nombre || staff.name || '').toLowerCase().trim();
-                const bId1 = b.staff_id || (b.staff ? b.staff.id : null) || b.terapeuta_id;
+
+                // Check Primary
+                const bId1 = b.staff_id || b.terapeuta_id || (b.staff ? b.staff.id : null);
                 const bName1 = (b.staff_name || b.terapeuta || '').toLowerCase().trim();
-                return (bId1 === sId) || (sName && bName1 === sName);
+                const isMatch1 = (bId1 && bId1 === sId) || (bName1 && bName1 === sName);
+
+                // Check Secondary
+                const bId2 = b.staff_id2 || b.terapeuta_id2 || (b.staff2 ? b.staff2.id : null);
+                const bName2 = (b.staff_name2 || b.terapeuta2 || '').toLowerCase().trim();
+                const isMatch2 = (bId2 && bId2 === sId) || (bName2 && bName2 === sName);
+
+                // Attach match info for display
+                b._isPrimary = isMatch1;
+                b._isSecondary = isMatch2;
+
+                return isMatch1 || isMatch2;
             }).sort((a, b) => a.hora.localeCompare(b.hora));
 
             let html = '';
@@ -752,28 +775,46 @@
                         editUrl = `reservas-salas.html?type=${modCode}&action=edit&id=${b.id}&date=${b.fecha}`;
                     }
 
+                    // Partner Info
+                    let partnerInfo = '';
+                    if (b._isPrimary && (b.staff_name2 || b.terapeuta2)) {
+                        partnerInfo = `<div style="font-size:0.75rem; color:#d97706; margin-top:4px; font-weight:600;"><i class="fas fa-user-friends"></i> + ${b.staff_name2 || b.terapeuta2}</div>`;
+                    } else if (b._isSecondary) {
+                        partnerInfo = `<div style="font-size:0.75rem; color:#d97706; margin-top:4px; font-weight:600;"><i class="fas fa-user-friends"></i> Ayuda a ${b.staff_name || b.terapeuta}</div>`;
+                    }
+
+                    // Observations
+                    const obsHtml = b.obs ? `<div style="margin-top:8px; padding:8px; background:#f8fafc; border:1px dashed #cbd5e1; border-radius:6px; font-size:0.75rem; color:#475569; font-style:italic; line-height:1.4;"><i class="fas fa-comment-alt" style="margin-right:4px;"></i> "${b.obs}"</div>` : '';
+
+
                     const label = modCode.toUpperCase().replace('CABINA', 'CABINA ');
 
                     html += `
-                        <div class="fs-booking-item" style="border-left-color:${color};">
-                            <div class="fs-booking-details">
-                                <div style="display:flex; justify-content:space-between; margin-bottom:6px; align-items:center;">
-                                    <span style="font-weight:800; color:#1e293b; font-size:1.05rem;">
-                                        <i class="far fa-clock" style="color:#64748b; margin-right:4px;"></i> ${b.hora} 
-                                        <small style="font-weight:500; color:#64748b; font-size:0.75rem; margin-left:4px;">(${b.duracion} min)</small>
-                                    </span>
-                                    <span style="font-size:0.65rem; background:#f1f5f9; padding:4px 8px; border-radius:6px; color:#475569; font-weight:700; border:1px solid #e2e8f0;">${label}</span>
+                        <div class="fs-booking-item" style="border-left-color:${color}; flex-direction:column; align-items:stretch;">
+                            <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+                                <div class="fs-booking-details">
+                                    <div style="display:flex; justify-content:space-between; margin-bottom:6px; align-items:center;">
+                                        <span style="font-weight:800; color:#1e293b; font-size:1.05rem; display:flex; align-items:center;">
+                                            <i class="far fa-clock" style="color:#64748b; margin-right:4px;"></i> ${b.hora} 
+                                            <small style="font-weight:500; color:#64748b; font-size:0.75rem; margin-left:4px;">(${b.duracion} min)</small>
+                                            ${b.obs ? '<i class="fas fa-comment-dots" style="color:#f59e0b; margin-left:8px; font-size:0.9rem;" title="Ver observaciones"></i>' : ''}
+                                        </span>
+                                        <span style="font-size:0.65rem; background:#f1f5f9; padding:4px 8px; border-radius:6px; color:#475569; font-weight:700; border:1px solid #e2e8f0; white-space:nowrap; margin-left:10px;">${label}</span>
+                                    </div>
+                                    <div style="color:${color}; font-weight:800; font-size:0.95rem; margin-bottom:4px;">${b.servicio || 'Servicio'}</div>
+                                    <div style="font-size:0.85rem; color:#475569; font-weight:600; display:flex; align-items:center; gap:6px;">
+                                        <i class="fas fa-user-circle" style="color:#cbd5e1;"></i> ${b.nombre || 'Cliente'}
+                                    </div>
+                                    ${partnerInfo}
                                 </div>
-                                <div style="color:${color}; font-weight:800; font-size:0.95rem; margin-bottom:4px;">${b.servicio || 'Servicio'}</div>
-                                <div style="font-size:0.85rem; color:#475569; font-weight:600; display:flex; align-items:center; gap:6px;">
-                                    <i class="fas fa-user-circle" style="color:#cbd5e1;"></i> ${b.nombre || 'Cliente'}
+                                <div class="fs-booking-actions">
+                                    <button class="btn-edit-inline" onclick="window.location.href='${editUrl}'">
+                                        <i class="fas fa-edit"></i>
+                                    </button>
                                 </div>
                             </div>
-                            <div class="fs-booking-actions">
-                                <button class="btn-edit-inline" onclick="window.location.href='${editUrl}'">
-                                    <i class="fas fa-edit"></i> Editar
-                                </button>
-                            </div>
+                            <!-- Observations Row -->
+                            ${obsHtml}
                         </div>
                      `;
                 });

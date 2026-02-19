@@ -476,17 +476,36 @@
                 const exceptions = await window.getDayExceptionsForDate(currentDate);
                 const workingToday = await isWorkingToday(staff, currentDate, exceptions);
 
-                const name = staff.nombre || staff.name;
+                const sId = staff.id;
+                const sName = (staff.nombre || staff.name || '').trim().toLowerCase();
+
                 const myBookings = bookings.filter(b => {
                     if (b.status === 'anulada') return false;
-                    const assignedId = b.staff_id || b.terapeuta_id || (b.staff ? b.staff.id : null) || b.terapeuta;
-                    return assignedId === staff.id || assignedId === name || b.staff_name === name || b.terapeuta === name;
+
+                    // Check Primary
+                    const bId1 = b.staff_id || b.terapeuta_id || (b.staff ? b.staff.id : null);
+                    const bName1 = (b.staff_name || b.terapeuta || '').trim().toLowerCase();
+                    const isMatch1 = (bId1 && bId1 === sId) || (bName1 && bName1 === sName);
+
+                    // Check Secondary
+                    const bId2 = b.staff_id2 || b.terapeuta_id2 || (b.staff2 ? b.staff2.id : null);
+                    const bName2 = (b.staff_name2 || b.terapeuta2 || '').trim().toLowerCase();
+                    const isMatch2 = (bId2 && bId2 === sId) || (bName2 && bName2 === sName);
+
+                    // Tag the booking with match type for display logic
+                    b._isPrimary = isMatch1;
+                    b._isSecondary = isMatch2;
+
+                    return isMatch1 || isMatch2;
                 }).sort((a, b) => a.hora.localeCompare(b.hora));
 
                 // 1. HEADER
                 let html = `
                     <div class="agenda-header">
-                        <h2 class="agenda-title">${name}</h2>
+                        <div style="display:flex; flex-direction:column;">
+                            <h2 class="agenda-title">${staff.nombre || staff.name}</h2>
+                            <span style="font-size:0.75rem; color:#64748b;">${myBookings.length} servicios hoy</span>
+                        </div>
                         <span class="status-badge ${workingToday ? 'status-working' : 'status-off'}">${workingToday ? 'Trabaja hoy' : 'Día libre'}</span>
                     </div>
                 `;
@@ -534,18 +553,37 @@
                 if (myBookings.length > 0) {
                     myBookings.forEach(b => {
                         const color = getServiceColor(b.servicio);
-                        // Header or border color
+
+                        // Determine partner text
+                        let partnerInfo = '';
+                        if (b._isPrimary && (b.staff_name2 || b.terapeuta2)) {
+                            partnerInfo = `<div style="font-size:0.75rem; color:#d97706; margin-top:2px; font-weight:600;"><i class="fas fa-user-friends"></i> + ${b.staff_name2 || b.terapeuta2}</div>`;
+                        } else if (b._isSecondary) {
+                            partnerInfo = `<div style="font-size:0.75rem; color:#d97706; margin-top:2px; font-weight:600;"><i class="fas fa-user-friends"></i> Ayudando a ${b.staff_name || b.terapeuta}</div>`;
+                        }
+
+                        // Escape for onclick
+                        const safeObs = (b.obs || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+                        const safeTitle = (b.servicio || 'Servicio').replace(/'/g, "\\'");
+
+                        const hasObs = (b.obs && b.obs.trim().length > 0);
+                        const obsIcon = hasObs ? `<i class="fas fa-comment-dots" style="color:#f59e0b; margin-left:8px; font-size:0.9rem;"></i>` : '';
+
                         html += `
-                            <div class="booking-item" style="border-left: 5px solid ${color};">
+                            <div class="booking-item" style="border-left: 5px solid ${color}; cursor:pointer;" onclick="openDetailModal('${safeTitle}', '${safeObs || 'Sin observaciones'}')">
                                 <div class="booking-time">${b.hora}</div>
-                                <div class="booking-details">
+                                <div class="booking-details" style="flex:1;">
                                     <div class="service-name">${b.servicio || 'Servicio'}</div>
                                     <div class="booking-meta">
                                         <span><i class="fas fa-user"></i> ${b.nombre || 'Cliente'}</span>
                                         <span><i class="fas fa-map-marker-alt"></i> ${getRoom(b._collection)}</span>
                                     </div>
+                                    ${partnerInfo}
                                 </div>
-                                <div class="booking-duration">${b.duracion || 60}m</div>
+                                <div class="booking-duration" style="display:flex; flex-direction:column; align-items:center; gap:4px;">
+                                    <span>${b.duracion || 60}m</span>
+                                    ${obsIcon}
+                                </div>
                             </div>
                         `;
                     });
@@ -574,8 +612,15 @@
             }
             const dateObj = new Date(date + 'T12:00:00');
             const dayKey = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'][dateObj.getDay()];
-            const schedule = staff.default_schedule || {};
+            const schedule = staff.default_schedule || userDefaultSchedule || {}; // userDefaultSchedule from app-core check
+            // Fallback if app-core doesn't provide default
             return schedule[dayKey] ? schedule[dayKey].enabled : false;
+        }
+
+        function openDetailModal(title, content) {
+            document.getElementById('modalTitle').textContent = title;
+            document.getElementById('modalContent').textContent = content;
+            document.getElementById('detailModal').style.display = 'flex';
         }
 
         document.getElementById('btnPrev').onclick = () => { let d = new Date(currentDate + 'T12:00:00'); d.setDate(d.getDate() - 1); currentDate = d.toISOString().split('T')[0]; refreshAgenda(); }
@@ -600,6 +645,38 @@
         }
         init();
     </script>
+
+    <!-- Detail Modal -->
+    <div id="detailModal"
+        style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:1000; justify-content:center; align-items:center;">
+        <div
+            style="background:#fff; width:90%; max-width:400px; border-radius:12px; padding:25px; box-shadow:0 10px 25px rgba(0,0,0,0.2); animation: slideUp 0.3s ease;">
+            <h3 id="modalTitle"
+                style="margin-top:0; color:var(--text); border-bottom:1px solid #e2e8f0; padding-bottom:10px; margin-bottom:15px;">
+            </h3>
+            <div
+                style="font-size:0.75rem; font-weight:700; color:#94a3b8; margin-bottom:5px; text-transform:uppercase;">
+                OBSERVACIONES:</div>
+            <p id="modalContent"
+                style="color:#475569; font-size:0.95rem; line-height:1.5; white-space: pre-wrap; background:#f8fafc; padding:10px; border-radius:8px; border:1px solid #e2e8f0; min-height:60px;">
+            </p>
+            <button onclick="document.getElementById('detailModal').style.display='none'"
+                style="width:100%; padding:12px; background:var(--text); color:#fff; border:none; border-radius:8px; font-weight:bold; cursor:pointer; margin-top:20px;">CERRAR</button>
+        </div>
+    </div>
+    <style>
+        @keyframes slideUp {
+            from {
+                transform: translateY(20px);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+    </style>
 </body>
 
 </html>
