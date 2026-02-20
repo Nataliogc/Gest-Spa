@@ -2232,9 +2232,9 @@
             const contextCode = contextCodeStr || currentModule.code;
 
             // Filter modules to show compatible rooms based on type (Private vs Open)
-            // Filter modules to show compatible rooms based on type (Private vs Open)
-            // STRICT FILTERING: Remove junk (test names) and duplicates
-            const EXCLUDED_NAMES = ['pesadilla', 'mari', 'pepito', 'gimnasio', 'mar', 'hotel', 'rayos uva', 'restaurante', 'agenda terapeutas'];
+            // STRICT FILTERING: Remove junk (test names) but ALLOW 'mar', 'mari'
+            const EXCLUDED_NAMES = ['pesadilla', 'mari', 'pepito', 'gimnasio', 'hotel', 'rayos uva', 'restaurante', 'agenda terapeutas'];
+            // Removed 'mar' from blacklist to fix issue, kept others to clean up UI
 
             const keys = Object.keys(window.MODULES || {}).filter(k => {
                 const m = window.MODULES[k];
@@ -2246,17 +2246,20 @@
 
                 // 2. Name Filter (Blacklist)
                 const nameLower = (m.name || '').toLowerCase().trim();
-                if (EXCLUDED_NAMES.includes(nameLower)) return false;
+                // Special check: Allow 'mari' explicitly even if it was in the list previously
+                if (nameLower !== 'mari' && EXCLUDED_NAMES.includes(nameLower)) return false;
+                // Note: 'mar' is not in the array above, so it passes. 'mari' is in array but we exclude it from check here just in case.
 
                 // 3. Contextual Filter (Keep existing logic but stricter)
                 // Fixed Modules: Can only stay in themselves
                 if (contextCode === 'spa') return k === 'spa';
-                if (contextCode === 'panacea') return k === 'panacea';
+                // Relaxed Panacea to allow moving reservations in/out
+                // if (contextCode === 'panacea') return k === 'panacea'; 
                 if (contextCode === 'peluqueria') return k === 'peluqueria';
 
-                // Movable Context (Cabinas, Suite, VIP):
-                // Exclude Spa, Panacea, Peluqueria from these selectors
-                if (['spa', 'panacea', 'peluqueria'].includes(k)) return false;
+                // Movable Context (Cabinas, Suite, VIP, Panacea):
+                // Exclude Spa, Peluqueria from these selectors (Allow Panacea)
+                if (['spa', 'peluqueria'].includes(k)) return false;
 
                 return true;
             });
