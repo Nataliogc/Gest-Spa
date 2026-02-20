@@ -2,7 +2,7 @@
   "name": "Zenith Spa Disp",
   "short_name": "Spa Disp",
   "description": "Agenda de Terapeutas - Zenith Spa",
-  "start_url": "disponibilidad.html",
+  "start_url": "disponibilidad.html?v=7",
   "display": "standalone",
   "background_color": "#f8fafc",
   "theme_color": "#1e293b",

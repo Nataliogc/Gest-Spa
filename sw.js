@@ -1,4 +1,4 @@
-const CACHE_NAME = 'spa-availability-v5';
+const CACHE_NAME = 'spa-availability-v6';
 const urlsToCache = [
     './disponibilidad.html',
     'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css'
@@ -26,9 +26,10 @@ self.addEventListener('activate', event => {
     );
 });
 
+// Network First strategy: tries network first, falls back to cache if offline
 self.addEventListener('fetch', event => {
     event.respondWith(
-        caches.match(event.request)
-            .then(response => response || fetch(event.request))
+        fetch(event.request)
+            .catch(() => caches.match(event.request))
     );
 });

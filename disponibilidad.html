@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Agenda Terapeutas - Zenith Spa</title>
-    <link rel="manifest" href="manifest.json?v=5">
+    <link rel="manifest" href="manifest.json?v=7">
     <meta name="theme-color" content="#1e293b">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
@@ -152,7 +152,7 @@
 
         .timeline-grid {
             display: flex;
-            min-width: 800px;
+            min-width: 900px;
             border: 1px solid #e2e8f0;
             border-radius: 8px;
             overflow: hidden;
@@ -184,7 +184,7 @@
 
         .time-labels {
             display: flex;
-            min-width: 800px;
+            min-width: 900px;
             margin-top: 5px;
         }
 
@@ -323,6 +323,9 @@
         <div style="display:flex; align-items:center; gap:10px;">
             <i class="fas fa-calendar-check" style="color:var(--accent); font-size: 1.4rem;"></i>
             <h1 style="margin:0; font-size: 1.1rem; font-weight: 800; letter-spacing: -0.5px;">ZENITH SPA</h1>
+            <button onclick="window.location.reload(true)"
+                style="background:none; border:none; color:white; opacity:0.5; padding:5px;"><i
+                    class="fas fa-sync-alt"></i></button>
         </div>
         <button id="installApp" class="btn-install">INSTALAR APP</button>
     </div>
@@ -348,10 +351,27 @@
 
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
-    <script src="firebase-config.js?v=5"></script>
+    <script src="firebase-config.js?v=7"></script>
     <script src="js/app-core.js"></script>
-    <script src="reservas-staff.js?v=5"></script>
+    <script src="reservas-staff.js?v=7"></script>
     <script>
+        const APP_VERSION = 'v7';
+
+        async function checkVersion() {
+            const savedVersion = localStorage.getItem('zenith_disp_version');
+            if (savedVersion !== APP_VERSION) {
+                console.log("Nueva versión detectada, limpiando caché...");
+                localStorage.setItem('zenith_disp_version', APP_VERSION);
+                if ('serviceWorker' in navigator) {
+                    const registrations = await navigator.serviceWorker.getRegistrations();
+                    for (let registration of registrations) {
+                        await registration.unregister();
+                    }
+                }
+                setTimeout(() => window.location.reload(true), 500);
+            }
+        }
+
         let currentDate = new Date().toISOString().split('T')[0];
         let selectedStaffId = null;
         let allStaffList = [];
@@ -359,6 +379,7 @@
 
         async function init() {
             try {
+                await checkVersion();
                 if (typeof db === 'undefined' && typeof firebase !== 'undefined') {
                     window.db = firebase.firestore();
                 }
@@ -478,6 +499,7 @@
 
                 const sId = staff.id;
                 const sName = (staff.nombre || staff.name || '').trim().toLowerCase();
+                const sAlias = (staff.alias || '').trim().toLowerCase();
 
                 const myBookings = bookings.filter(b => {
                     if (b.status === 'anulada') return false;
@@ -485,12 +507,12 @@
                     // Check Primary
                     const bId1 = b.staff_id || b.terapeuta_id || (b.staff ? b.staff.id : null);
                     const bName1 = (b.staff_name || b.terapeuta || '').trim().toLowerCase();
-                    const isMatch1 = (bId1 && bId1 === sId) || (bName1 && bName1 === sName);
+                    const isMatch1 = (bId1 && bId1 === sId) || (bName1 && (bName1 === sName || (sAlias && bName1 === sAlias)));
 
                     // Check Secondary
                     const bId2 = b.staff_id2 || b.terapeuta_id2 || (b.staff2 ? b.staff2.id : null);
                     const bName2 = (b.staff_name2 || b.terapeuta2 || '').trim().toLowerCase();
-                    const isMatch2 = (bId2 && bId2 === sId) || (bName2 && bName2 === sName);
+                    const isMatch2 = (bId2 && bId2 === sId) || (bName2 && (bName2 === sName || (sAlias && bName2 === sAlias)));
 
                     // Tag the booking with match type for display logic
                     b._isPrimary = isMatch1;
@@ -640,7 +662,16 @@
         function setupPWA() {
             if ('serviceWorker' in navigator) {
                 const base = window.location.pathname.includes('/Gest-Spa/') ? '/Gest-Spa/' : '/';
-                navigator.serviceWorker.register(base + 'sw.js').catch(err => console.warn("SW error:", err));
+                navigator.serviceWorker.register(base + 'sw.js?v=7').then(reg => {
+                    reg.onupdatefound = () => {
+                        const installingWorker = reg.installing;
+                        installingWorker.onstatechange = () => {
+                            if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                window.location.reload();
+                            }
+                        };
+                    };
+                }).catch(err => console.warn("SW error:", err));
             }
             let deferredPrompt;
             window.addEventListener('beforeinstallprompt', (e) => {
