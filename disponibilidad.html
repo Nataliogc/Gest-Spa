@@ -600,7 +600,18 @@
         }
 
         function getRoom(col) {
-            const map = { 'reservas_cabina1': 'C1', 'reservas_cabina2': 'C2', 'reservas_cabina3': 'C3', 'reservas_suite': 'SUITE', 'reservas_vip': 'VIP', 'reservas_panacea': 'PANACEA', 'reservas_peluqueria': 'PELU' };
+            const map = {
+                'reservas_cabina1': 'C1',
+                'reservas_cabina2': 'C2',
+                'reservas_cabina3': 'C3',
+                'reservas_cabinas': 'CABINAS',
+                'reservas_suite': 'SUITE',
+                'reservas_vip': 'VIP',
+                'reservas_panacea': 'PANACEA',
+                'reservas_peluqueria': 'PELU',
+                'reservas_gimnasio': 'GYM',
+                'reservas_complementos': 'COMP'
+            };
             return map[col] || (col ? col.replace('reservas_', '').toUpperCase() : 'SPA');
         }
 

@@ -210,7 +210,8 @@ window.getAllBookingsForDate = async function (date) {
     const collections = [
         'reservas_cabina1', 'reservas_cabina2', 'reservas_cabina3',
         'reservas_suite', 'reservas_vip', 'reservas_panacea',
-        'reservas_peluqueria', 'reservas_spa'
+        'reservas_peluqueria', 'reservas_spa', 'reservas_cabinas',
+        'reservas_gimnasio', 'reservas_complementos'
     ];
 
     let allBookings = [];
