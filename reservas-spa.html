@@ -5104,22 +5104,14 @@
 
                     // If Conflict Found
                     if (conflictMsg) {
-                        if (isLocalSaleFlow) {
-                            // SOFT BLOCK - Get actual service configuration
-                            const serviceInfo = getSelectedServiceInfo();
-                            revealConflictWarning(conflictMsg, date, time, duration, currentModule.code, serviceInfo);
-                            isSavingReservation = false;
-                            btn.disabled = false;
-                            btn.innerHTML = originalText;
-                            return;
-                        } else {
-                            // HARD BLOCK (Legacy/Bonos/Hotel)
-                            alert(`¡CONFLICTO!\n\n${conflictMsg}`);
-                            isSavingReservation = false;
-                            btn.disabled = false;
-                            btn.innerHTML = originalText;
-                            return;
-                        }
+                        // SOFT BLOCK for everyone - User Requested: "Meter con aviso y bajo responsabilidad"
+                        const serviceInfo = getSelectedServiceInfo();
+                        revealConflictWarning(conflictMsg, date, time, duration, currentModule.code, serviceInfo);
+
+                        isSavingReservation = false;
+                        btn.disabled = false;
+                        btn.innerHTML = originalText;
+                        return;
                     }
                 }
 
@@ -5565,24 +5557,47 @@
             }
 
             // Show SweetAlert popup
-            Swal.fire({
+            const result = await Swal.fire({
                 icon: 'warning',
                 title: '⚠️ CONFLICTO DE DISPONIBILIDAD',
                 html: `
                     <div style="text-align: left;">
                         <p style="font-size: 0.95rem; color: #475569; margin-bottom: 10px;">${message}</p>
+                        <p style="font-size: 0.85rem; color: #ef4444; font-weight: 600;">¿Deseas forzar la reserva bajo tu responsabilidad?</p>
                         ${alternativesHTML}
                     </div>
                 `,
                 width: '600px',
-                showConfirmButton: true,
+                showCancelButton: true,
                 confirmButtonText: 'Cerrar',
                 confirmButtonColor: '#64748b',
+                cancelButtonText: '⚠️ FORZAR RESERVA',
+                cancelButtonColor: '#ef4444',
                 customClass: {
                     popup: 'conflict-alert-popup',
                     htmlContainer: 'conflict-alert-content'
                 }
             });
+
+            if (result.dismiss === Swal.DismissReason.cancel) {
+                // User wants to Force
+                const { value: name } = await Swal.fire({
+                    title: 'RESPONSABILIDAD',
+                    input: 'text',
+                    inputLabel: 'Nombre de quien indica (Obligatorio)',
+                    placeholder: 'Tu nombre...',
+                    showCancelButton: true,
+                    inputValidator: (value) => {
+                        if (!value) return '¡Debes indicar quién autoriza!';
+                    }
+                });
+
+                if (name) {
+                    window._spaReceptionist = name;
+                    window._spaOverbookingMode = 'force';
+                    handleFormSubmit(true);
+                }
+            }
         }
 
         // Find alternative available slots
