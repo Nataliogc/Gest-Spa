@@ -14,6 +14,6 @@ firebase.initializeApp(firebaseConfig);
 window.db = firebase.firestore();
 
 // Evita errores de conexión en entorno local (file://)
-window.db.settings({ experimentalForceLongPolling: true, merge: true });
+window.db.settings({ experimentalAutoDetectLongPolling: true, merge: true });
 
 console.log("Firebase Initialized - Mode: Dynamic Sync (Long Polling)");
