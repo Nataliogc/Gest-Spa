@@ -80,20 +80,29 @@ function robahotel_get_bonos($request) {
             $product = $item->get_product();
             if (!$product) continue;
             
+            // Detección de sesiones
+            $sessions = (int) $product->get_meta('_bono_sesiones');
+            
+            // Item Meta (for Bookings)
+            $item_meta = $item->get_meta_data();
+            $meta_flat = array();
+            foreach ($item_meta as $m) {
+                $meta_flat[$m->key] = $m->value;
+            }
+
             $items_data[] = [
-                'nombre' => $item->get_name(),
-                'cantidad' => $item->get_quantity(),
-                'precio' => (float) $item->get_total(),
-                'product_id' => $product->get_id(),
+                'nombre'       => $item->get_name(),
+                'cantidad'     => $item->get_quantity(),
+                'precio'       => (float) $item->get_total(),
+                'product_id'   => $product->get_id(),
                 'variation_id' => $item->get_variation_id(),
+                'sessions'     => $sessions > 0 ? $sessions : 1, // Default 1 for standard services
+                'meta'         => $meta_flat,
             ];
             
             $total_price += (float) $item->get_total();
             $product_names[] = $item->get_name();
         }
-        
-        // Si el pedido no tiene items, saltar
-        if (empty($items_data)) continue;
         
         // Generar código de bono único por pedido
         $codigo_bono = 'BONO' . $order->get_id();
@@ -329,7 +338,13 @@ function robahotel_send_recovery_email($request) {
             'message' => 'Email enviado a ' . $customer_email,
             'order_id' => $order_id
         ];
-    } else {
-        return new WP_Error('email_failed', 'Error enviando email', ['status' => 500]);
     }
+}
+
+/**
+ * Helper para detectar categoría
+ */
+function robahotel_has_category($product_id, $category_slug) {
+    if (!function_exists('has_term')) return false;
+    return has_term($category_slug, 'product_cat', $product_id);
 }

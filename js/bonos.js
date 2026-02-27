@@ -1432,7 +1432,14 @@ async function sincronizarConTienda(persistentData, btn, originalText) {
         const datePickerValue = document.getElementById("voucher-date") ? document.getElementById("voucher-date").value : null;
 
         let cutoffStr;
-        if (datePickerValue) {
+        const isDeepSync = window.event && window.event.shiftKey;
+
+        if (isDeepSync) {
+            console.log('[SYNC] 🚀 Deep Sync requested (Shift key). Fetching last 6 months.');
+            const deepCutoff = new Date();
+            deepCutoff.setMonth(deepCutoff.getMonth() - 6);
+            cutoffStr = deepCutoff.toISOString().split('T')[0];
+        } else if (datePickerValue) {
             cutoffStr = datePickerValue;
         } else if (monthsBack === 0) {
             const today = new Date();
@@ -1974,6 +1981,8 @@ async function sincronizarConTienda(persistentData, btn, originalText) {
         const endpointInfo = usedOptimized ? ' (optimizado ⚡)' : ' (fallback)';
         if (newCount > 0) {
             showToast(`${newCount} bonos nuevos sincronizados${endpointInfo}`, 'success');
+        } else if (isDeepSync) {
+            showToast(`Sincronización profunda completada`, 'success');
         } else {
             showToast(`Sincronización completada${endpointInfo}`, 'success');
         }
