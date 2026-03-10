@@ -3076,6 +3076,9 @@
                     if (currentModule.code === 'suite' && svcName && svcName.toLowerCase().includes('suite spa')) {
                         showStaff = false;
                     }
+                    if (serviceData && parseInt(serviceData.required_therapists) === 0) {
+                        showStaff = false;
+                    }
 
                     staffGroup.style.display = showStaff ? "block" : "none";
 
@@ -5521,6 +5524,9 @@
                 // Logic: Hide staff for "Suite Spa" basic service, keep for others (Massages) if module requires it
                 let requiresStaffForThisBooking = currentModule.requiresStaff;
                 if (currentModule.code === 'suite' && svcName && svcName.toLowerCase().includes('suite spa')) {
+                    requiresStaffForThisBooking = false;
+                }
+                if (itemConfig && itemConfig.required_therapists === 0) {
                     requiresStaffForThisBooking = false;
                 }
 

@@ -933,8 +933,8 @@
                 document.getElementById("sm-duracion").value = service.duracion || "";
                 document.getElementById("sm-pax").value = service.pax || "1";
                 updatePaxIcon(service.pax || "1"); // Update icon based on loaded value
-                document.getElementById("sm-sesiones").value = service.sesiones || "1";
-                document.getElementById("sm-required-therapists").value = service.required_therapists || "1";
+                document.getElementById("sm-sesiones").value = service.sesiones !== undefined ? service.sesiones : "1";
+                document.getElementById("sm-required-therapists").value = service.required_therapists !== undefined ? service.required_therapists : "1";
                 document.getElementById("sm-categoria").value = service.categoria;
                 document.getElementById("sm-descripcion").value = service.descripcion || "";
 
@@ -1104,9 +1104,9 @@
                 nombre: nombre,
                 precio: parseFloat(document.getElementById("sm-precio").value),
                 duracion: parseInt(document.getElementById("sm-duracion").value) || 0,
-                pax: parseInt(document.getElementById("sm-pax").value) || 1,
-                sesiones: parseInt(document.getElementById("sm-sesiones").value) || 1,
-                required_therapists: parseInt(document.getElementById("sm-required-therapists").value) || 1,
+                pax: document.getElementById("sm-pax").value === 'group' ? 'group' : (parseInt(document.getElementById("sm-pax").value) || 1),
+                sesiones: isNaN(parseInt(document.getElementById("sm-sesiones").value)) ? 1 : parseInt(document.getElementById("sm-sesiones").value),
+                required_therapists: isNaN(parseInt(document.getElementById("sm-required-therapists").value)) ? 1 : parseInt(document.getElementById("sm-required-therapists").value),
                 imagen: document.getElementById("sm-imagen").value.trim(),
                 categoria: document.getElementById("sm-categoria").value,
                 espacio: espacioValue, // Legacy support

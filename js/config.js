@@ -605,7 +605,7 @@ function renderMasterItems() {
                         class="param-input" style="width: 100%; text-align: center;" min="1" max="50">
             </td>
             <td style="padding: 6px 2px; text-align: center;">
-                <input type="number" value="${item.required_therapists || 1}" onchange="updateMasterItemField('${item.id}', 'required_therapists', parseInt(this.value))" 
+                <input type="number" value="${item.required_therapists !== undefined ? item.required_therapists : 1}" onchange="updateMasterItemField('${item.id}', 'required_therapists', isNaN(parseInt(this.value)) ? 1 : parseInt(this.value))" 
                         class="param-input" style="width: 100%; text-align: center; font-weight: bold; color: #3b82f6;" min="0" max="4">
             </td>
             <td style="padding: 6px 2px; text-align: center;">
