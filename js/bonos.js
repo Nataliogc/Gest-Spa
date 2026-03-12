@@ -1843,15 +1843,22 @@ async function sincronizarConTienda(persistentData, btn, originalText) {
                     calculatedTotal = 0;
                     b.items_desglosados.forEach(item => {
                         // Pasar IDs para detección precisa por item
+                        // NOTA: El plugin WooCommerce (robahotel) devuelve 'nombre' y 'cantidad'
+                        // mientras que el modo legacy usa 'name' y 'sessions'
+                        const itemName = item.name || item.nombre || '';
+                        const itemQuantity = item.cantidad || 1; // Cantidad comprada en WooCommerce
                         const det = detectSessions({
-                            producto: item.name,
-                            importe: item.price,
+                            producto: itemName,
+                            importe: item.price || item.precio,
                             product_id: item.product_id,
-                            variation_id: item.variation_id
+                            variation_id: item.variation_id,
+                            cantidad: itemQuantity
                         });
-                        item.sessions = det.total;
+                        // Normalizar el item para que tenga siempre el campo 'name'
+                        if (!item.name && item.nombre) item.name = item.nombre;
+                        item.sessions = det.total * itemQuantity; // Sesiones = detectadas × cantidad
                         item.pax = det.paxPerSession;
-                        calculatedTotal += det.total;
+                        calculatedTotal += item.sessions;
                     });
                 }
 

@@ -265,8 +265,43 @@ async function generarPDFBono(datos, download = true) {
 // ... Resto Wrappers iguales ...
 async function descargarBonoPDF(codigoBono, mensajePersonalizado, itemsOverride = null) {
     try {
-        const bono = state.bonos.find(b => b.bono === codigoBono);
-        if (!bono) throw new Error('Bono no encontrado');
+        // 1. Buscar en state.bonos (carga en memoria)
+        let bono = state.bonos.find(b => b.bono === codigoBono || b.codigo === codigoBono);
+
+        // 2. Fallback: buscar en IndexedDB (Local)
+        if (!bono && window.apiLocal) {
+            try {
+                bono = await apiLocal.getBonoByCode(codigoBono);
+                if (bono) console.log('[PDF] Bono encontrado en IndexedDB:', codigoBono);
+            } catch (e) {
+                console.warn('[PDF] Error buscando en IndexedDB:', e);
+            }
+        }
+
+        // 3. Fallback: buscar en Firestore (Nube)
+        if (!bono && window.db) {
+            try {
+                showToast('Buscando bono en la nube...', 'info');
+                const docSnap = await db.collection('spa_vouchers').doc(codigoBono).get();
+                if (docSnap.exists) {
+                    bono = { ...docSnap.data(), bono: codigoBono };
+                    console.log('[PDF] Bono encontrado en Firestore:', codigoBono);
+                } else {
+                    // Intentar búsqueda por campo 'bono'
+                    const querySnap = await db.collection('spa_vouchers')
+                        .where('bono', '==', codigoBono).limit(1).get();
+                    if (!querySnap.empty) {
+                        const doc = querySnap.docs[0];
+                        bono = { ...doc.data(), bono: doc.id };
+                        console.log('[PDF] Bono encontrado en Firestore (query):', doc.id);
+                    }
+                }
+            } catch (e) {
+                console.warn('[PDF] Error buscando en Firestore:', e);
+            }
+        }
+
+        if (!bono) throw new Error(`Bono ${codigoBono} no encontrado en local ni en la nube`);
         let fechaCompra = parseFechaSegura(bono.fecha_compra || bono.fecha);
         const fechaValidez = new Date(fechaCompra);
         fechaValidez.setFullYear(fechaValidez.getFullYear() + 1);

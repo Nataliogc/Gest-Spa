@@ -18,7 +18,7 @@ add_action('rest_api_init', function () {
         'permission_callback' => '__return_true', // Cambiar a autenticación si es necesario
         'args' => [
             'per_page' => [
-                'default' => 30,
+                'default' => 100,
                 'sanitize_callback' => 'absint',
             ],
             'page' => [
@@ -92,11 +92,14 @@ function robahotel_get_bonos($request) {
 
             $items_data[] = [
                 'nombre'       => $item->get_name(),
+                'name'         => $item->get_name(), // Alias para compatibilidad JS
                 'cantidad'     => $item->get_quantity(),
                 'precio'       => (float) $item->get_total(),
+                'price'        => (float) $item->get_total(), // Alias para compatibilidad JS
                 'product_id'   => $product->get_id(),
                 'variation_id' => $item->get_variation_id(),
                 'sessions'     => $sessions > 0 ? $sessions : 1, // Default 1 for standard services
+                'pax'          => 1, // Default 1 persona
                 'meta'         => $meta_flat,
             ];
             
