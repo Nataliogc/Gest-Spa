@@ -1460,17 +1460,16 @@ async function sincronizarConTienda(persistentData, btn, originalText) {
         }
 
         // PRIORITY 1: Try optimized endpoint (direct, fast, cached)
-        // CHECK: Only try direct fetch if we are on the allowed origin (production)
-        // otherwise CORS will block it and show an ugly error in console.
-        const isProduction = window.location.origin === 'https://nataliogc.github.io';
+        // Con CORS habilitado en el servidor, podemos intentar el fetch directo desde cualquier origen
+        const canTryDirect = typeof fetchBonosDirect === 'function';
 
-        if (isProduction && typeof fetchBonosDirect === 'function') {
+        if (canTryDirect) {
             try {
                 console.log('[SYNC] Trying optimized endpoint (direct)...');
                 const startTime = performance.now();
 
                 shopVouchers = await fetchBonosDirect({
-                    per_page: 50,
+                    per_page: 100,
                     desde: cutoffStr
                 }, 10000);
 
@@ -1480,11 +1479,7 @@ async function sincronizarConTienda(persistentData, btn, originalText) {
 
             } catch (optError) {
                 console.warn('[SYNC] Optimized endpoint failed:', optError.message);
-                console.log('[SYNC] Falling back to CORS proxy system...');
-                // Fallthrough to next block
             }
-        } else {
-            console.log('[SYNC] Environment is local/dev, skipping direct fetch to avoid CORS errors.');
         }
 
         // Logic flow continuing to fallback...
@@ -2811,7 +2806,7 @@ function renderBonosFromState() {
                 <div style="display: flex; flex-direction: column; align-items: center; justify-content:center; cursor: pointer;" 
                      title="Recordatorio: Marcar como Facturado">
                      <input type="checkbox" 
-                            ${(b.facturado === true || (b.facturado !== false && new Date(b.fecha || b.fecha_compra || b.date_created) < new Date().setHours(0, 0, 0, 0))) ? 'checked' : ''} 
+                            ${b.facturado === true ? 'checked' : ''} 
                             onclick="toggleInvoiceStatus('${b.bono}', this.checked)" 
                             style="cursor: pointer; width: 16px; height: 16px; margin:0; accent-color: var(--accent);">
                      <span style="font-size: 0.6em; color: #64748b; font-weight:600;">FACT.</span>

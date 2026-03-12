@@ -14,7 +14,12 @@ if (!defined('ABSPATH')) exit;
 add_action('rest_api_init', function () {
     register_rest_route('robahotel/v1', '/bonos', [
         'methods'  => 'GET',
-        'callback' => 'robahotel_get_bonos',
+        'callback' => function($request) {
+            // Añadir headers CORS para permitir acceso directo desde la web
+            header("Access-Control-Allow-Origin: *");
+            header("Access-Control-Allow-Methods: GET");
+            return robahotel_get_bonos($request);
+        },
         'permission_callback' => '__return_true', // Cambiar a autenticación si es necesario
         'args' => [
             'per_page' => [
