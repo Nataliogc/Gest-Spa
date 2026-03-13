@@ -391,7 +391,7 @@ function renderDashboard() {
         }
 
         const balanceAmount = Math.max(0, (parseFloat(c.precio_total) || 0) - paid);
-        const hasBalance = balanceAmount > 0.05 && !['hotel_inc', 'bono', 'smartbox', 'wonderbox', 'ego'].includes(c.origen);
+        const hasBalance = balanceAmount > 0.05 && !['hotel_inc', 'bono', 'smartbox', 'wonderbox', 'ego', 'groupon'].includes(c.origen);
 
         return `
             <tr style="${isNoShow ? 'opacity: 0.5;' : ''}">

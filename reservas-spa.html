@@ -803,6 +803,7 @@
                                     <option value="smartbox">Smartbox</option>
                                     <option value="wonderbox">Wonderbox</option>
                                     <option value="ego">Ego Experiencias</option>
+                                    <option value="groupon">Groupon</option>
                                 </select>
                             </div>
                         </div>
@@ -3753,6 +3754,7 @@
                 else if (res.origen === 'smartbox') { badgeClass = "badge-smartbox"; badgeText = "Smartbox"; }
                 else if (res.origen === 'wonderbox') { badgeClass = "badge-wonderbox"; badgeText = "Wonderbox"; }
                 else if (res.origen === 'ego') { badgeClass = "badge-ego"; badgeText = "Ego Exp"; }
+                else if (res.origen === 'groupon') { badgeClass = "badge-groupon"; badgeText = "Groupon"; }
 
                 const isAnulada = res.status === 'anulada';
                 const isWaitlist = res.status === 'lista_espera';
@@ -3801,7 +3803,7 @@
                         }
 
                         const pending = Math.max(0, total - paid);
-                        const isExempt = ['hotel_inc', 'bono', 'smartbox', 'wonderbox', 'ego'].includes(res.origen);
+                        const isExempt = ['hotel_inc', 'bono', 'smartbox', 'wonderbox', 'ego', 'groupon'].includes(res.origen);
 
                         if (isAnulada || isExempt) return '';
 
@@ -6423,7 +6425,7 @@
 
             // 2. Determine visibility based on logic
             const isHotel = (origen === 'hotel_inc' || origen === 'hotel_no_inc');
-            const isVoucher = ['bono', 'smartbox', 'wonderbox', 'ego'].includes(origen);
+            const isVoucher = ['bono', 'smartbox', 'wonderbox', 'ego', 'groupon'].includes(origen);
             const needsPayment = (origen === 'particular' || origen === 'hotel_no_inc');
 
             if (isHotel) {
