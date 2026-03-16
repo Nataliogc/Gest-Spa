@@ -985,7 +985,13 @@ async function searchVomerByNumericInputCombined(numStr) {
     });
 
     const finalResults = Array.from(uniqueMap.values());
-    finishSearch(finalResults);
+    
+    // Si no hay resultados y es un número de 4+ dígitos, sugerir importación manual
+    if (finalResults.length === 0 && numStr.length >= 4) {
+        finishSearch([], numStr); // Pasar el término para mostrar botón de importación
+    } else {
+        finishSearch(finalResults);
+    }
 }
 
 // Deprecated old function (kept just in case, routed to new one)
@@ -1023,19 +1029,72 @@ async function searchVoucherByCodeInternal(code) {
             if (!querySnap.empty) {
                 const doc = querySnap.docs[0];
                 console.log(`[SEARCH INTERNAL] Encontrado en Nube (Query field): ${doc.id}`);
-                return { ...doc.data(), bono: doc.id }; // Use actual ID
+                return { ...doc.data(), bono: doc.id };
             }
         }
     } catch (e) { console.error(`[SEARCH ERROR] ${code}`, e); }
     return null;
 }
 
-function finishSearch(results) {
+// --- RE-SYNC SPECIFIC VOUCHER ---
+window.importVoucherByNumber = async function(num) {
+    if (!num) return;
+    const btnId = `import-btn-${num}`;
+    const btn = document.getElementById(btnId);
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Buscando en tienda...';
+    }
+
+    try {
+        showToast(`Buscando Bono ${num} en la tienda virtual...`, "info");
+        
+        // Intentar fetch directo por Order ID (NUEVO Soporte en Plugin)
+        const shopVouchers = await fetchBonosDirect({
+            order_id: num,
+            per_page: 1
+        }, 15000);
+
+        const targetCode = `BONO${num}`;
+        const match = shopVouchers.find(v => String(v.bono) === targetCode || String(v.bono).includes(num));
+
+        if (!match) {
+            throw new Error(`El pedido #${num} no se encontró en la tienda o no está en estado 'Completado'.`);
+        }
+
+        showToast("¡Pedido encontrado! Sincronizando datos...", "success");
+        
+        // Usar la lógica de sincronización masiva pero para este bono
+        // Para simplificar, forzamos una sincronización con un cutoff que incluya este bono
+        await sincronizarConTienda(false, true); // true = deep sync para buscar más atrás
+        
+        // El sync recargará la tabla. Si no aparece, lo buscamos de nuevo
+        setTimeout(() => {
+            const searchInput = document.getElementById("voucher-search");
+            if (searchInput) {
+                searchInput.value = num;
+                searchInput.dispatchEvent(new Event('input'));
+            }
+        }, 1000);
+
+    } catch (err) {
+        console.error("Error importing voucher:", err);
+        showToast(err.message, "error");
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = `<i class="fas fa-cloud-download-alt"></i> Reintentar Importar #${num}`;
+        }
+    }
+};
+
+/**
+ * Finaliza la búsqueda y actualiza el DOM
+ */
+function finishSearch(results, missingNum = null) {
     state.bonos = results;
-    state.isActiveSearch = true; // IMPORTANT: Bypass filters
-    renderBonosFromState();
+    state.isActiveSearch = true;
+    renderBonosFromState(missingNum);
     updateCount();
-    showToast(`Encontrado: ${results[0].bono}`, "success");
 }
 
 /**
@@ -2528,7 +2587,7 @@ async function toggleInvoiceStatus(bonoCode, isChecked) {
     }
 }
 
-function renderBonosFromState() {
+function renderBonosFromState(missingNum = null) {
     const tbody = document.getElementById("vouchers-table-body");
     if (!tbody) return;
 
@@ -2706,7 +2765,22 @@ function renderBonosFromState() {
     }
 
     if (filtered.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding: 20px; color: var(--text-muted);">No se encontraron bonos.</td></tr>`;
+        if (missingNum) {
+            tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; padding: 40px;">
+                <div style="margin-bottom: 15px; color: var(--text-muted);">
+                    <i class="fas fa-search" style="font-size: 2rem; opacity: 0.3;"></i><br>
+                    No se encontró el bono <strong>${missingNum}</strong> en el sistema local.
+                </div>
+                <button id="import-btn-${missingNum}" class="btn btn-accent" onclick="importVoucherByNumber('${missingNum}')" style="box-shadow: 0 4px 12px rgba(212, 175, 55, 0.3);">
+                    <i class="fas fa-cloud-download-alt"></i> Sincronizar Bono #${missingNum} desde la Tienda
+                </button>
+                <p style="font-size: 0.75rem; color: #94a3b8; margin-top: 15px;">
+                    Esto buscará el pedido directamente en WooCommerce y lo importará si está completado.
+                </p>
+            </td></tr>`;
+        } else {
+            tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding: 20px; color: var(--text-muted);">No se encontraron bonos.</td></tr>`;
+        }
         return;
     }
 

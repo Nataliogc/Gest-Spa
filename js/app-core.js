@@ -7,6 +7,7 @@ const URL_BONOS_OPTIMIZED = "https://cumbriabienestar.es/wp-json/robahotel/v1/bo
 // --- CORS PROXY FALLBACKS ---
 const CORS_PROXIES = [
     { name: 'CorsProxy.io', url: (target) => `https://corsproxy.io/?${encodeURIComponent(target)}` },
+    { name: 'Codetabs', url: (target) => `https://api.codetabs.com/v1/proxy?url=${encodeURIComponent(target)}` },
     { name: 'AllOrigins', url: (target) => `https://api.allorigins.win/raw?url=${encodeURIComponent(target)}` },
     { name: 'ThingProxy', url: (target) => `https://thingproxy.freeboard.io/fetch/${target}` },
     { name: 'CorsAnywhere', url: (target) => `https://cors-anywhere.herokuapp.com/${target}` }
@@ -83,6 +84,9 @@ window.fetchBonosDirect = async function (params = {}, timeout = 10000) {
             url.searchParams.append(key, params[key]);
         }
     });
+
+    // Add cache buster
+    url.searchParams.append('_', Date.now());
 
     console.log('[OPTIMIZED] Fetching from:', url.toString());
 

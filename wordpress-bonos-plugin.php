@@ -33,6 +33,10 @@ add_action('rest_api_init', function () {
             'desde' => [
                 'default' => '',
                 'sanitize_callback' => 'sanitize_text_field',
+            ],
+            'order_id' => [
+                'default' => '',
+                'sanitize_callback' => 'sanitize_text_field',
             ]
         ]
     ]);
@@ -45,9 +49,10 @@ function robahotel_get_bonos($request) {
     $per_page = $request->get_param('per_page');
     $page = $request->get_param('page');
     $desde = $request->get_param('desde');
+    $order_id = $request->get_param('order_id');
     
     // Clave de cache única por parámetros
-    $cache_key = 'robahotel_bonos_' . md5(serialize([$per_page, $page, $desde]));
+    $cache_key = 'robahotel_bonos_' . md5(serialize([$per_page, $page, $desde, $order_id]));
     
     // Intentar obtener del cache
     $cached = get_transient($cache_key);
@@ -70,6 +75,12 @@ function robahotel_get_bonos($request) {
     // Filtro por fecha si se especifica
     if (!empty($desde)) {
         $args['date_created'] = '>=' . $desde;
+    }
+
+    // Filtro por ID específico
+    if (!empty($order_id)) {
+        $args['post__in'] = [ (int) $order_id ];
+        $args['status'] = ['any']; // Permitir buscar cualquier estado si se busca por ID
     }
     
     $orders = wc_get_orders($args);
