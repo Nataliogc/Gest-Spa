@@ -2268,23 +2268,30 @@
             // Sort keys to ensure cabina order
             keys.sort();
 
-            // DEDUPLICATION BY NAME
-            const seenNames = new Set();
+            // DEDUPLICATION BY NAME (Prefer contextCode)
+            const mapOptions = new Map();
 
             keys.forEach(k => {
                 const m = window.MODULES[k];
-                let cleanName = (m.name || '').trim();
+                let cleanName = (m.name || '').trim().toUpperCase();
 
-                // MANUAL OVERRIDE FOR MISNAMED CABINS
-                cleanName = cleanName.toUpperCase();
+                // Si no existe o si es el modulo en el que estamos actualmente, lo guardamos
+                // Esto asegura que nunca se nos quede fuera el código esperado para sel.value
+                if (!mapOptions.has(cleanName) || k === contextCode) {
+                    mapOptions.set(cleanName, k);
+                }
+            });
 
-                if (seenNames.has(cleanName)) return; // Skip duplicate names
-                seenNames.add(cleanName);
+            keys.forEach(k => {
+                const m = window.MODULES[k];
+                let cleanName = (m.name || '').trim().toUpperCase();
 
-                const opt = document.createElement("option");
-                opt.value = k;
-                opt.textContent = cleanName;
-                sel.appendChild(opt);
+                if (mapOptions.get(cleanName) === k) {
+                    const opt = document.createElement("option");
+                    opt.value = k;
+                    opt.textContent = cleanName;
+                    sel.appendChild(opt);
+                }
             });
 
             // Set Value
