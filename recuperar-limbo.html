@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Recuperar Reservas del Limbo (Invo)</title>
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        body { padding: 40px; font-family: 'Inter', sans-serif; background: #f8fafc; }
+        .container { max-width: 800px; margin: 0 auto; background: white; border-radius: 12px; padding: 30px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
+        h1 { color: #1e293b; font-size: 1.5rem; margin-bottom: 20px; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px; }
+        .alert { background: #fff3cd; color: #856404; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #ffeeba; }
+        .btn { background: #6366f1; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 1rem; }
+        .btn:hover { background: #4f46e5; }
+        .btn:disabled { background: #94a3b8; cursor: not-allowed; }
+        #log { margin-top: 20px; background: #1e293b; color: #10b981; padding: 20px; border-radius: 8px; height: 300px; overflow-y: auto; font-family: monospace; white-space: pre-wrap;}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1><i class="fas fa-toolbox"></i> Recuperación de Reservas "Limbo"</h1>
+        
+        <div class="alert">
+            <strong>¿Qué es esta herramienta?</strong><br>
+            Al haber un problema con el desplegable de "SALA VIP", las nuevas reservas se guardaron en una base de datos temporal con el nombre incorrecto de sala (ej. <code>reservas_sala vip</code>) en lugar de la oficial (<code>reservas_vip</code>). Esta herramienta buscará las reservas perdidas y las moverá a la carpeta correcta para que vuelvan a aparecer en el calendario.
+        </div>
+
+        <button id="btn-scan" class="btn" onclick="startRecovery()">1. Buscar y Recuperar Reservas</button>
+
+        <div id="log">Esperando acción...</div>
+    </div>
+
+    <!-- Firebase -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <script src="firebase-config.js"></script>
+
+    <script>
+        const db = firebase.firestore();
+        
+        function addLog(msg) {
+            const logBox = document.getElementById('log');
+            logBox.innerHTML += `\n[${new Date().toLocaleTimeString()}] ${msg}`;
+            logBox.scrollTop = logBox.scrollHeight;
+        }
+
+        async function startRecovery() {
+            document.getElementById('btn-scan').disabled = true;
+            addLog("Iniciando escaneo dinámico de salas en Firestore...");
+
+            try {
+                // 1. Mirar los códigos dinámicos que causaron el problema
+                const spacesSnap = await db.collection("spa_spaces").get();
+                const possibleCollections = [];
+                
+                let foundVipAlias = false;
+
+                spacesSnap.forEach(doc => {
+                    const data = doc.data();
+                    const code = (data.code || '').toLowerCase();
+                    const name = (data.name || '').toLowerCase();
+                    
+                    // Si encontramos algo con la palabra VIP y que no sea exactamente el original 'vip'
+                    if (code && code !== 'vip' && (code.includes('vip') || name.includes('vip'))) {
+                        possibleCollections.push(`reservas_${code}`);
+                        foundVipAlias = true;
+                        addLog(`Alias detectado en configuración: ${code} -> colección: reservas_${code}`);
+                    }
+                });
+
+                // Añadimos colecciones extra por si acaso
+                const fallbackCollections = ['reservas_sala vip', 'reservas_salavip', 'reservas_SALA VIP'];
+                for (const col of fallbackCollections) {
+                    if (!possibleCollections.includes(col)) {
+                        possibleCollections.push(col);
+                    }
+                }
+
+                addLog(`Colecciones a revisar en total: ${possibleCollections.join(', ')}`);
+                
+                let totalRecovered = 0;
+
+                for (const colName of possibleCollections) {
+                    addLog(`------------------------------`);
+                    addLog(`Inspeccionando: ${colName}...`);
+                    
+                    try {
+                        const snap = await db.collection(colName).get();
+                        
+                        if (snap.empty) {
+                            addLog(`Vacío o inexistente.`);
+                            continue;
+                        }
+
+                        addLog(`>> ¡ENCONTRADAS ${snap.docs.length} RESERVAS en ${colName}!`);
+
+                        for (const docSnap of snap.docs) {
+                            const resData = docSnap.data();
+                            
+                            // Aseguramos que la sala es correctamente apuntada a 'vip'
+                            resData.sala = 'vip'; // Reparación
+                            resData._moduleCode = 'vip'; // Reparación
+                            resData.collection = 'reservas_vip'; // Reparación del rastro
+
+                            addLog(`Moviendo reserva ${resData.res_id || docSnap.id} a reservas_vip...`);
+                            
+                            // 1. Copiar a la colección correcta
+                            await db.collection("reservas_vip").doc(docSnap.id).set(resData);
+                            
+                            // 2. Eliminar del limbo
+                            await db.collection(colName).doc(docSnap.id).delete();
+
+                            totalRecovered++;
+                        }
+                        
+                    } catch (e) {
+                        addLog(`Error leyendo ${colName}: ${e.message}`);
+                    }
+                }
+
+                addLog(`===============================`);
+                if (totalRecovered > 0) {
+                    addLog(`¡ÉXITO! Se han recuperado y reubicado ${totalRecovered} reservas.`);
+                    addLog(`Puedes volver al calendario de la Sala VIP y verás que ya están ahí.`);
+                } else {
+                    addLog(`Fin del escaneo. No se encontraron reservas atascadas en las colecciones temporales inspeccionadas.`);
+                }
+
+            } catch (err) {
+                addLog(`ERROR FATAL: ${err.message}`);
+            }
+
+            document.getElementById('btn-scan').disabled = false;
+        }
+    </script>
+</body>
+</html>
