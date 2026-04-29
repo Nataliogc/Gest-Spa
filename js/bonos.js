@@ -14,6 +14,45 @@ const state = {
 // --- INIT ---
 const db = window.db || firebase.firestore();
 
+function getLocalDateYMD(date = new Date()) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
+
+function getVoucherLocalDateYMD(rawDate) {
+    if (!rawDate) return '';
+
+    if (typeof rawDate === 'string') {
+        const trimmed = rawDate.trim();
+        if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+            return trimmed;
+        }
+    }
+
+    const parsed = new Date(rawDate);
+    if (isNaN(parsed.getTime())) {
+        return typeof rawDate === 'string' ? rawDate.slice(0, 10) : '';
+    }
+
+    return getLocalDateYMD(parsed);
+}
+
+function normalizeVoucherSourceDate(voucher) {
+    if (!voucher) return '';
+    const rawDate = voucher.fecha_compra || voucher.purchase_date || voucher.date_created || voucher.order_date || voucher.created_at || voucher.fecha || '';
+    return getVoucherLocalDateYMD(rawDate);
+}
+
+function getPreviousDayYMD(dateYMD) {
+    if (!dateYMD || !/^\d{4}-\d{2}-\d{2}$/.test(dateYMD)) return dateYMD || '';
+    const [year, month, day] = dateYMD.split('-').map(Number);
+    const date = new Date(year, month - 1, day);
+    date.setDate(date.getDate() - 1);
+    return getLocalDateYMD(date);
+}
+
 // --- DETECTOR DE CUOTA DE GOOGLE AGOTADA (Gestionado en app-core.js) ---
 
 
@@ -33,11 +72,7 @@ function initBonos() {
     // RESTAURADO: Forzar fecha de hoy por defecto como pide el usuario
     const dateInput = document.getElementById("voucher-date");
     if (dateInput) {
-        const today = new Date();
-        const yyyy = today.getFullYear();
-        const mm = String(today.getMonth() + 1).padStart(2, '0');
-        const dd = String(today.getDate()).padStart(2, '0');
-        dateInput.value = `${yyyy}-${mm}-${dd}`;
+        dateInput.value = getLocalDateYMD();
     }
 
     // FIX: Default filter to "all" (Todos) as requested to show all daily sales
@@ -1371,9 +1406,9 @@ async function cargarBonos() {
             cutoffStr = cutoffDate.toISOString().split('T')[0];
 
         } else if (datePickerValue) {
-            // Priority 2: Use specific date from picker (only if Range is default/0)
-            cutoffStr = datePickerValue;
-            console.log(`[OPTIMIZACIÓN] Usando fecha del selector como filtro: >= ${cutoffStr}`);
+            // Priority 2: Use selected date with a 1-day safety margin for UTC-stored online sales
+            cutoffStr = getPreviousDayYMD(datePickerValue);
+            console.log(`[OPTIMIZACIÓN] Usando fecha del selector con margen: >= ${cutoffStr} (día visible ${datePickerValue})`);
 
         } else {
             // Priority 3: Default to Today-1
@@ -1499,7 +1534,7 @@ async function sincronizarConTienda(persistentData, btn, originalText) {
             deepCutoff.setMonth(deepCutoff.getMonth() - 6);
             cutoffStr = deepCutoff.toISOString().split('T')[0];
         } else if (datePickerValue) {
-            cutoffStr = datePickerValue;
+            cutoffStr = getPreviousDayYMD(datePickerValue);
         } else if (monthsBack === 0) {
             const today = new Date();
             today.setDate(today.getDate() - 1); // MARGEN DE SEGURIDAD
@@ -1634,13 +1669,11 @@ async function sincronizarConTienda(persistentData, btn, originalText) {
             if (!b.telefono) b.telefono = b.billing_phone || b.phone || '';
             if (!b.email) b.email = b.billing_email || b.email || '';
 
-            // 2.5 NORMALIZACIÓN DE FECHA (WooCommerce puede usar varios nombres)
-            if (!b.fecha || b.fecha === '-') {
-                b.fecha = b.fecha_compra || b.date_created || b.order_date || b.created_at || '';
-                // Si es datetime, extraer solo la fecha
-                if (b.fecha && b.fecha.includes(' ')) {
-                    b.fecha = b.fecha.split(' ')[0];
-                }
+            // 2.5 NORMALIZACIÓN DE FECHA
+            // Para Woo priorizamos la fecha/hora real de compra y la bajamos a fecha local.
+            const normalizedSourceDate = normalizeVoucherSourceDate(b);
+            if (normalizedSourceDate) {
+                b.fecha = normalizedSourceDate;
             }
 
             // Compatibility
@@ -2666,7 +2699,7 @@ function renderBonosFromState(missingNum = null) {
         // Fecha (solo aplica si NO hay búsqueda por código)
         let dateMatch = true;
         if (filterDate && b.fecha) {
-            dateMatch = String(b.fecha).startsWith(filterDate);
+            dateMatch = getVoucherLocalDateYMD(b.fecha) === filterDate;
         }
 
         // Estado (solo aplica si NO hay búsqueda por código)
@@ -2714,6 +2747,10 @@ function renderBonosFromState(missingNum = null) {
             if (parts.length > 3) {
                 normalizedCode = parts.slice(0, 3).join('-');
             }
+        } else if (code.startsWith('Tarj-')) {
+            // Los códigos Tarj-18439/Tarj-18440 son bonos distintos.
+            // No eliminar el sufijo numérico o se colapsan todos en "Tarj".
+            normalizedCode = code;
         } else {
             // Para BONO estándar
             normalizedCode = code.replace(/-\d+$/, '');
@@ -2725,7 +2762,16 @@ function renderBonosFromState(missingNum = null) {
         } else {
             // Si ya existe, preferir el que NO tiene sufijo (el del plugin nuevo)
             const existingIndex = uniqueBonos.findIndex(existing => {
-                const existingNormalized = String(existing.bono || existing.codigo).trim().replace(/-\d+$/, '');
+                const existingCode = String(existing.bono || existing.codigo).trim();
+                let existingNormalized = existingCode;
+                if (existingCode.startsWith('LOC-')) {
+                    const existingParts = existingCode.split('-');
+                    if (existingParts.length > 3) {
+                        existingNormalized = existingParts.slice(0, 3).join('-');
+                    }
+                } else if (!existingCode.startsWith('Tarj-')) {
+                    existingNormalized = existingCode.replace(/-\d+$/, '');
+                }
                 return existingNormalized === normalizedCode;
             });
 
@@ -5535,6 +5581,7 @@ async function createLocalVoucher() {
 
     const discountPercent = state.lvCart.length > 0 ? Math.max(...state.lvCart.map(i => parseFloat(i.discount_percent) || 0)) : 0;
 
+    const now = new Date();
     const newVoucher = {
         bono: code,
         codigo: code,
@@ -5544,7 +5591,7 @@ async function createLocalVoucher() {
         producto: productNames,
         precio: totalPrice,
         importe: totalPrice,
-        fecha: new Date().toISOString(),
+        fecha: getLocalDateYMD(now),
         estado: 'pending',
         origen: 'local',
         sesiones_totales: totalSessions,
@@ -5558,9 +5605,9 @@ async function createLocalVoucher() {
             const diff = (rawPrice - i.price) * i.sessions;
             return sum + (diff > 0 ? diff : 0);
         }, 0),
-        createdAt: new Date().toISOString(),
+        createdAt: now.toISOString(),
         manual_update: true,
-        updated_at: new Date().toISOString(),
+        updated_at: now.toISOString(),
         // === PAYMENT CONTROL FIELDS ===
         estado_pago: (totalPrice === 0 && (discountPercent >= 100 || productNames.toLowerCase().includes('invitacion'))) ? 'pagado' : 'pendiente',
         importe_pagado: 0,
