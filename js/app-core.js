@@ -1122,3 +1122,156 @@ window.getServiceProtocol = function (serviceName) {
 
     return { color: '#64748b', tratamiento: 'SERVICIOS VARIOS', category: 'otros' };
 };
+
+/**
+ * Synchronizes a spa reservation to Mesachef (reservas_restaurante collection)
+ * if it contains restaurant-related services or complements.
+ * Uses the same reservation ID for both documents to enable seamless editing and cancellation.
+ */
+window.syncReservationToMesachef = async function (id, payload) {
+    if (!id || !payload) return;
+    try {
+        const serviceName = (payload.servicio || '').toLowerCase();
+        const complementos = payload.complementos || [];
+        
+        // 1. Check if the reservation is restaurant-related
+        const isRestaurantService = serviceName.includes('restaurante') || 
+                                    serviceName.includes('menu') || 
+                                    serviceName.includes('menú') || 
+                                    serviceName.includes('comida') || 
+                                    serviceName.includes('cena') || 
+                                    serviceName.includes('almuerzo');
+                                    
+        const isRestaurantComplement = complementos.some(comp => {
+            const compLower = comp.toLowerCase();
+            return compLower.includes('restaurante') || 
+                   compLower.includes('menu') || 
+                   compLower.includes('menú') || 
+                   compLower.includes('comida') || 
+                   compLower.includes('cena') || 
+                   compLower.includes('almuerzo');
+        });
+        
+        const isRestaurantCollection = payload.collection === 'reservas_restaurante' || payload.origen === 'restaurante';
+
+        const isRestaurantRelated = isRestaurantService || isRestaurantComplement || isRestaurantCollection;
+
+        if (!isRestaurantRelated) {
+            // If it is NOT restaurant-related, check if there's an existing document in Mesachef to remove
+            // to handle cases where a service was edited from restaurant to something else.
+            const docRef = db.collection("reservas_restaurante").doc(id);
+            const docSnap = await docRef.get();
+            if (docSnap.exists) {
+                console.log(`[MESACHEF SYNC] Removing non-restaurant reservation from Mesachef: ${id}`);
+                await docRef.delete();
+            }
+            return;
+        }
+
+        console.log(`[MESACHEF SYNC] Syncing reservation ${id} to Mesachef...`);
+
+        // 2. Prepare Mesachef payload
+        const hour = parseInt((payload.hora || '12:00').split(':')[0]) || 12;
+        const turno = hour < 18 ? 'almuerzo' : 'cena';
+        
+        // Parse the reservation date to Firestore Timestamp
+        let firebaseFecha = null;
+        if (typeof firebase !== 'undefined' && firebase.firestore && firebase.firestore.Timestamp) {
+            const dateParts = (payload.fecha || '').split('-');
+            if (dateParts.length === 3) {
+                const y = parseInt(dateParts[0]);
+                const m = parseInt(dateParts[1]) - 1;
+                const d = parseInt(dateParts[2]);
+                const dateObj = new Date(y, m, d, 12, 0, 0); // 12:00 noon to avoid timezone issues
+                firebaseFecha = firebase.firestore.Timestamp.fromDate(dateObj);
+            }
+        }
+        if (!firebaseFecha) {
+            firebaseFecha = payload.fecha; // fallback to string
+        }
+
+        const name = payload.nombre || payload.cliente || '';
+        
+        const mesachefPayload = {
+            hotel: "Cumbria", // Always Cumbria as requested
+            referencia: payload.bono ? payload.bono : id, // Bono or Reservation ID
+            fecha: firebaseFecha,
+            espacio: 'Restaurante',
+            nombre: name,
+            cliente: name,
+            telefono: payload.tel || payload.telefono || '',
+            hora: payload.hora || '14:00',
+            mesa: payload.mesa || '',
+            pax: parseInt(payload.pax) || 1,
+            ninos: parseInt(payload.ninos) || 0,
+            precio: 0, // Always 0.00 since it is included
+            turno: turno,
+            estado: payload.status === 'anulada' ? 'anulada' : 'confirmada',
+            notas: (payload.obs || '') + (payload.bono ? ` [Bono: ${payload.bono}]` : '') + ` [Sincronizado desde Gest-Spa]`,
+            notaCliente: '',
+            servicioIncluido: true, // Always marked as included
+            tipoIncluido: 'spa', // Always Spa (Nº Bono)
+            campoHabitacion: payload.hab || null,
+            campoBono: payload.bono || null,
+            external_id: id,
+            updatedAt: typeof firebase !== 'undefined' && firebase.firestore && firebase.firestore.FieldValue
+                ? firebase.firestore.FieldValue.serverTimestamp()
+                : new Date().toISOString()
+        };
+
+        if (payload.status === 'anulada') {
+            mesachefPayload.cancelledAt = typeof firebase !== 'undefined' && firebase.firestore && firebase.firestore.FieldValue
+                ? firebase.firestore.FieldValue.serverTimestamp()
+                : new Date().toISOString();
+        }
+
+        // 3. Write to reservas_restaurante collection with the same document ID
+        await db.collection("reservas_restaurante").doc(id).set(mesachefPayload, { merge: true });
+        console.log(`[MESACHEF SYNC] Successfully synced reservation ${id} to Mesachef.`);
+    } catch (err) {
+        console.error(`[MESACHEF SYNC] Error syncing reservation ${id} to Mesachef:`, err);
+    }
+};
+
+/**
+ * Cancels a spa reservation in Mesachef if it exists.
+ */
+window.cancelReservationInMesachef = async function (id) {
+    if (!id) return;
+    try {
+        const docRef = db.collection("reservas_restaurante").doc(id);
+        const docSnap = await docRef.get();
+        if (docSnap.exists) {
+            console.log(`[MESACHEF SYNC] Cancelling reservation in Mesachef: ${id}`);
+            await docRef.update({
+                estado: 'anulada',
+                cancelledAt: typeof firebase !== 'undefined' && firebase.firestore && firebase.firestore.FieldValue
+                    ? firebase.firestore.FieldValue.serverTimestamp()
+                    : new Date().toISOString(),
+                updatedAt: typeof firebase !== 'undefined' && firebase.firestore && firebase.firestore.FieldValue
+                    ? firebase.firestore.FieldValue.serverTimestamp()
+                    : new Date().toISOString()
+            });
+        }
+    } catch (err) {
+        console.error(`[MESACHEF SYNC] Error cancelling reservation ${id} in Mesachef:`, err);
+    }
+};
+
+/**
+ * Permanently deletes a spa reservation in Mesachef if it exists.
+ */
+window.deleteReservationInMesachef = async function (id) {
+    if (!id) return;
+    try {
+        const docRef = db.collection("reservas_restaurante").doc(id);
+        const docSnap = await docRef.get();
+        if (docSnap.exists) {
+            console.log(`[MESACHEF SYNC] Deleting reservation in Mesachef: ${id}`);
+            await docRef.delete();
+        }
+    } catch (err) {
+        console.error(`[MESACHEF SYNC] Error deleting reservation ${id} in Mesachef:`, err);
+    }
+};
+

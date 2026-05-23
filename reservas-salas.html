@@ -5304,6 +5304,11 @@
                     cancelled_at: new Date().toISOString()
                 });
 
+                // Sync status change to Mesachef
+                if (window.syncReservationToMesachef) {
+                    await window.syncReservationToMesachef(id, { ...resData, status: 'anulada' });
+                }
+
                 // REEMBOLSO DE SESIONES SI ES BONO
                 if (resData.origen === 'bono' && resData.bono) {
                     const vDoc = await db.collection("spa_vouchers").doc(resData.bono).get();
@@ -5371,6 +5376,11 @@
                     updated_at: new Date().toISOString()
                 });
 
+                // Sync status change to Mesachef
+                if (window.syncReservationToMesachef) {
+                    await window.syncReservationToMesachef(id, { ...resData, status: 'confirmada' });
+                }
+
                 showToast("Reserva reactivada correctamente", "success");
                 closeModal();
                 loadReservas(document.getElementById("main-date-picker").value);
@@ -5386,6 +5396,12 @@
                 const res = currentData.find(r => r.id === id);
                 const targetColl = res ? (res.collection || currentModule.collection) : currentModule.collection;
                 await db.collection(targetColl).doc(id).delete();
+
+                // Delete from Mesachef if it exists there
+                if (window.deleteReservationInMesachef) {
+                    await window.deleteReservationInMesachef(id);
+                }
+
                 loadReservas(document.getElementById("main-date-picker").value);
             } catch (err) { alert(err.message); }
         }
@@ -5848,6 +5864,11 @@
                     }
                     if (window.updateGlobalSyncStatus) updateGlobalSyncStatus('synced');
                     showToast("Reserva guardada", "success");
+
+                    // Sync reservation details to Mesachef
+                    if (window.syncReservationToMesachef) {
+                        await window.syncReservationToMesachef(id, payload);
+                    }
                 } catch (fsErr) {
                     console.warn("Offline save:", fsErr);
                     showToast("Guardado localmente", "info");
