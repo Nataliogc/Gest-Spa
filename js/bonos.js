@@ -1461,6 +1461,13 @@ async function cargarBonos() {
 
             const voucherKey = String(data.bono || data.codigo || doc.id).trim();
             if (!voucherKey) return;
+
+            // OMITIR DOCUMENTOS FANTASMA (ID numérico autoincremental de IndexedDB subido a Firestore por error)
+            if (/^\d+$/.test(doc.id) && voucherKey !== doc.id) {
+                console.warn(`[GHOST DETECTED] Omitiendo documento fantasma en spa_vouchers: ID=${doc.id}, Bono=${voucherKey}`);
+                return;
+            }
+
             persistentData[voucherKey] = pickBestVoucherVersion(persistentData[voucherKey], data);
         });
 
@@ -4302,7 +4309,9 @@ async function saveVoucherChanges() {
             variation_id: (state.bonos.find(b => b.bono === code)?.variation_id) || null,
             // 3️⃣ BLOQUEO POST-GUARDADO (ESTABILIDAD TOTAL)
             sync_locked: true,
-            sync_locked_at: new Date().toISOString()
+            sync_locked_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
         };
 
         // VALIDATION: Mandatory Phone

@@ -893,8 +893,8 @@ class SyncManager {
 
             for (const item of pendingBonos) {
                 try {
-                    // Sanitizar id
-                    const docId = item.id || item.bono || item.codigo;
+                    // Sanitizar id: Priorizar código del bono sobre la clave primaria autoincremental de IndexedDB
+                    const docId = item.bono || item.codigo || item.id;
                     if (!docId) continue;
 
                     // Preparar payload (excluir campos locales)

@@ -109,6 +109,10 @@ window.apiLocal = {
                 const idsToDelete = existing.slice(1).map(x => x.id);
                 await db.bonos.bulkDelete(idsToDelete);
             }
+        } else if (data.id && isNaN(Number(data.id))) {
+            // Si no existe y el ID es un string no numérico (código de bono),
+            // lo quitamos para que Dexie genere una clave numérica autoincremental ++id
+            delete data.id;
         }
 
         return await db.bonos.put(data);
@@ -155,12 +159,18 @@ window.apiLocal = {
 
         // Dexie update necesita la clave primaria
         // Si 'id' es la clave de Dexie (numérica), bien. 
-        // Si 'id' es string (Guid), depende del esquema.
+        // Si 'id' es string (Guid/Código), depende del esquema.
         // Esquema: '++id' (auto-increment numérico). 
-        // PERO saveBono hace put(data). Si data tiene id=... lo usa.
-        // Asumimos que saveBono recibe {id: 123, ...} si viene de local.
+        // Si recibimos un string como 'id' (código de bono), buscamos su id numérico local.
+        let primaryKey = id;
+        if (table === 'bonos' && typeof id === 'string') {
+            const existing = await db.bonos.where('bono').equals(id).first();
+            if (existing) {
+                primaryKey = existing.id;
+            }
+        }
 
-        return await db[table].update(id, {
+        return await db[table].update(primaryKey, {
             syncStatus: 'synced',
             lastSyncAt: new Date().toISOString(),
             firestoreId: firestoreId
