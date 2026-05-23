@@ -734,7 +734,7 @@ function getSpaceForService(serviceName) {
 // Helper para redirección a gestión de restaurante
 async function openRestauranteFromVoucher(client, service, code, space, pax, phone) {
     // Intentamos detectar el nombre del módulo (gestion-Salones o mesachef)
-    const base = (typeof getBaseURL === 'function') ? getBaseURL('mesachef') : '../gestion-Salones/';
+    const base = (typeof getBaseURL === 'function') ? getBaseURL('mesachef') : '../Mesachef/';
     const basePath = `${base}restaurante.html`;
 
     const cleanClient = (client || '').trim();
@@ -897,7 +897,7 @@ async function goToReservation(client, service, code, space, pax) {
     // LE PONGO UN ALERT TEMPORAL:
     // alert(debugMsg);
 
-    // Si es hotel/restaurante, redirigir al proyecto independiente (gestion-Salones)
+    // Si es hotel/restaurante, redirigir al proyecto independiente (Mesachef)
     if (type === 'hotel' || type === 'restaurante' || type === 'rest' || (type || '').toLowerCase().includes('restaurante') || (type || '').toLowerCase() === 'rest') {
         // Find voucher object to get phone number
         const voucherObj = state.bonos.find(b => b.bono === code || b.codigo === code);

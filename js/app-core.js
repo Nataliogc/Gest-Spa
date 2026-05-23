@@ -485,8 +485,8 @@ window.getBaseURL = function (moduleName) {
 
     // Canonical mapping for modules (to handle casing if needed)
     const moduleMap = {
-        'gestion-Salones': 'gestion-Salones',
-        'mesachef': 'gestion-Salones' // Alias for restaurant module
+        'gestion-Salones': 'Mesachef',
+        'mesachef': 'Mesachef' // Alias for restaurant module
     };
     const targetModule = moduleMap[moduleName] || moduleName;
 
