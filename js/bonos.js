@@ -3587,6 +3587,13 @@ async function openVoucherManagement(code) {
                                 <i class="fas fa-check-circle"></i> Consumido ${consumidoFecha}${consumidoUsuario ? ` por ${consumidoUsuario}` : ''}
                             </span>
                         `;
+                    } else if (v.estado === 'anulado') {
+                        complementButton = `
+                            <button class="btn btn-sm" disabled
+                                style="padding:4px 12px; font-size:0.75rem; background:#fee2e2; color:#ef4444; cursor:not-allowed; border:none; border-radius:4px;">
+                                <i class="fas fa-ban"></i> Anulado
+                            </button>
+                        `;
                     } else {
                         complementButton = `
                             <button class="btn btn-sm" onclick="consumeComplement(${idx})"
@@ -3617,7 +3624,14 @@ async function openVoucherManagement(code) {
 
                 let buttonsHtml = '';
 
-                if (isComplete) {
+                if (v.estado === 'anulado') {
+                    buttonsHtml = `
+                        <button class="btn btn-sm" disabled
+                            style="padding:2px 8px; font-size:0.7rem; background:#fee2e2; color:#ef4444; cursor:not-allowed; border:none; white-space:nowrap; border-radius:4px;">
+                            <i class="fas fa-ban"></i> Anulado
+                        </button>
+                     `;
+                } else if (isComplete) {
                     buttonsHtml = `
                         <button class="btn btn-sm" disabled
                             style="padding:2px 8px; font-size:0.7rem; background:#cbd5e1; color:#64748b; cursor:not-allowed; border:none; white-space:nowrap; border-radius:4px;">
@@ -4176,12 +4190,14 @@ async function openVoucherManagement(code) {
         'pending': 'ACTIVO',
         'completed': 'CANJEADO',
         'expired': 'CADUCADO',
-        'partially': 'EN USO'
+        'partially': 'EN USO',
+        'anulado': '❌ ANULADO',
+        'cancelled': '❌ ANULADO'
     };
 
     // Recalcular estado real en base a items si existen (para corregir visualmente si la DB está desfasada)
     let displayStatus = v.estado;
-    if (detectedServices && detectedServices.length > 0) {
+    if (displayStatus !== 'anulado' && detectedServices && detectedServices.length > 0) {
         const allItemsComplete = detectedServices.every(item => (item.used || 0) >= (item.sessions || 1));
         const anyItemUsed = detectedServices.some(item => (item.used || 0) > 0);
 
@@ -4206,7 +4222,28 @@ async function openVoucherManagement(code) {
     }
 
     badge.textContent = label;
-    badge.className = `st-badge st-${displayStatus}`;
+    const badgeClass = displayStatus === 'anulado' ? 'cancelled' : displayStatus;
+    badge.className = `st-badge st-${badgeClass}`;
+
+    // Configurar dinámicamente el botón de cabecera (Anular / Reactivar)
+    const cancelButton = document.getElementById("vm-cancel-btn");
+    if (cancelButton) {
+        if (displayStatus === 'anulado') {
+            cancelButton.innerHTML = '<i class="fas fa-undo"></i> Reactivar';
+            cancelButton.onclick = () => reactivarBono();
+            cancelButton.style.background = "#dcfce7";
+            cancelButton.style.borderColor = "#86efac";
+            cancelButton.style.color = "#15803d";
+            cancelButton.title = "Reactivar este bono";
+        } else {
+            cancelButton.innerHTML = '<i class="fas fa-ban"></i> Anular';
+            cancelButton.onclick = () => annulVoucher();
+            cancelButton.style.background = "#fef2f2";
+            cancelButton.style.borderColor = "#fecaca";
+            cancelButton.style.color = "#dc2626";
+            cancelButton.title = "Anular este bono";
+        }
+    }
 
     // Ocultar botones "Canjear 1" y "Total" si tiene múltiples ítems o si NO es multi-sesión
     const hasMultipleItems = state.editingVoucherItems.length > 1;
@@ -4353,30 +4390,35 @@ async function saveVoucherChanges() {
         console.log(`[SAVE] Preservando precio actual: ${updates.importe}€`);
 
         // Auto estado logic (Item-aware)
-        // Priority: If Global Counters say Completed (Used >= Total), force Completed.
-        const globalComplete = updates.sesiones_usadas >= updates.sesiones_totales && updates.sesiones_totales > 0;
-        const globalPartial = updates.sesiones_usadas > 0;
-
-        if (globalComplete) {
-            updates.estado = 'completed';
-        } else if (updates.items_desglosados && updates.items_desglosados.length > 0) {
-            // PACK: Completo solo si TODOS los items están completos (y global no forzó completado)
-            const allItemsComplete = updates.items_desglosados.every(item => (item.used || 0) >= (item.sessions || 1));
-            const anyItemUsed = updates.items_desglosados.some(item => (item.used || 0) > 0);
-
-            if (allItemsComplete) {
-                updates.estado = 'completed';
-            } else if (anyItemUsed) {
-                updates.estado = 'partially';
-            } else {
-                updates.estado = (v && v.estado) ? v.estado : 'pending';
-            }
+        // Priority: If already cancelled, preserve 'anulado'
+        if (v && v.estado === 'anulado') {
+            updates.estado = 'anulado';
         } else {
-            // Simple/Legacy logic
-            if (globalPartial) {
-                updates.estado = 'partially';
+            // Priority: If Global Counters say Completed (Used >= Total), force Completed.
+            const globalComplete = updates.sesiones_usadas >= updates.sesiones_totales && updates.sesiones_totales > 0;
+            const globalPartial = updates.sesiones_usadas > 0;
+
+            if (globalComplete) {
+                updates.estado = 'completed';
+            } else if (updates.items_desglosados && updates.items_desglosados.length > 0) {
+                // PACK: Completo solo si TODOS los items están completos (y global no forzó completado)
+                const allItemsComplete = updates.items_desglosados.every(item => (item.used || 0) >= (item.sessions || 1));
+                const anyItemUsed = updates.items_desglosados.some(item => (item.used || 0) > 0);
+
+                if (allItemsComplete) {
+                    updates.estado = 'completed';
+                } else if (anyItemUsed) {
+                    updates.estado = 'partially';
+                } else {
+                    updates.estado = (v && v.estado) ? v.estado : 'pending';
+                }
             } else {
-                updates.estado = (v && v.estado) ? v.estado : 'pending';
+                // Simple/Legacy logic
+                if (globalPartial) {
+                    updates.estado = 'partially';
+                } else {
+                    updates.estado = (v && v.estado) ? v.estado : 'pending';
+                }
             }
         }
 
@@ -4565,6 +4607,12 @@ async function reactivarBono() {
         // Resetear uso de items
         if (state.editingVoucherItems) {
             state.editingVoucherItems.forEach(item => item.used = 0);
+        }
+
+        // Modificar el estado local de memoria a 'pending' antes de guardar para permitir reactivación en saveVoucherChanges
+        const v = state.bonos.find(b => (b.bono || b.codigo) === code);
+        if (v) {
+            v.estado = 'pending';
         }
 
         await saveVoucherChanges();
