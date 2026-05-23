@@ -4534,10 +4534,7 @@ async function reactivarBono() {
     if (!confirm(confirmMsg)) return;
 
     try {
-        // Fix: Use generic selector or specific header selector since it moved
-        let btn = document.querySelector("#voucher-modal .modal-header button[onclick='reactivarBono()']");
-        // Fallback in case I move it back or multiple exist (take the visible one logic if needed, but header is specific enough)
-        if (!btn) btn = document.querySelector("button[onclick='reactivarBono()']");
+        let btn = document.getElementById("vm-cancel-btn");
 
         if (!btn) {
             console.error("No reaction button found");
@@ -4626,7 +4623,7 @@ async function reactivarBono() {
         console.error("Error reactivando bono:", err);
         alert("Error al reactivar: " + err.message);
     } finally {
-        const btn = document.querySelector("button[onclick='reactivarBono()']");
+        const btn = document.getElementById("vm-cancel-btn");
         if (btn) {
             btn.disabled = false;
             // Restaurar icono original si se conoce, o dejar texto genérico
