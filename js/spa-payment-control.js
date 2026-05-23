@@ -272,6 +272,23 @@ async function registerPayment(voucherId, paymentData, options = {}) {
             pagos: [...voucher.pagos, pagoRecord]
         };
 
+        // Persistir también en IndexedDB para evitar que al recargar
+        // la carga local vuelva a mostrar un estado de pago antiguo.
+        if (typeof window !== 'undefined' && window.apiLocal && typeof window.apiLocal.saveBono === 'function') {
+            try {
+                await window.apiLocal.saveBono({
+                    ...result.voucher,
+                    id: voucher.id || voucherId,
+                    bono: voucher.bono || voucherId,
+                    codigo: voucher.codigo || voucher.bono || voucherId,
+                    syncStatus: 'synced',
+                    lastSyncAt: new Date().toISOString()
+                });
+            } catch (localErr) {
+                console.warn('[PAYMENT-CONTROL] No se pudo persistir pago en IndexedDB:', localErr);
+            }
+        }
+
     } catch (err) {
         result.error = err.message;
         console.error('[PAYMENT-CONTROL] Error registrando pago:', err);

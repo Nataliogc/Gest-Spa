@@ -1373,6 +1373,29 @@ async function cargarBonos() {
 
     let persistentData = {};
 
+    // Resolver conflictos cuando existe más de un documento para el mismo bono
+    // (p. ej. escrituras mezcladas por doc.id y por doc(code)).
+    function pickBestVoucherVersion(current, incoming) {
+        if (!current) return incoming;
+        if (!incoming) return current;
+
+        const currentTs = Date.parse(current.updated_at || current.updatedAt || current.last_updated || current.lastSyncAt || current.synced_at || current.fecha || '') || 0;
+        const incomingTs = Date.parse(incoming.updated_at || incoming.updatedAt || incoming.last_updated || incoming.lastSyncAt || incoming.synced_at || incoming.fecha || '') || 0;
+
+        // Priorizar el más reciente
+        if (incomingTs > currentTs) return incoming;
+        if (currentTs > incomingTs) return current;
+
+        // Si empatan, priorizar estado de pago más avanzado
+        const rank = { pendiente: 0, parcial: 1, pagado: 2 };
+        const currentRank = rank[(current.estado_pago || '').toLowerCase()] ?? -1;
+        const incomingRank = rank[(incoming.estado_pago || '').toLowerCase()] ?? -1;
+        if (incomingRank > currentRank) return incoming;
+        if (currentRank > incomingRank) return current;
+
+        return incoming;
+    }
+
     try {
         // 1. Carga desde Firestore CON FILTRO DE FECHA (optimización de lecturas)
         // Por defecto: SOLO HOY (reduce ~98% de lecturas)
@@ -1433,18 +1456,20 @@ async function cargarBonos() {
         // GUARDAR EN LOCAL Y ACTUALIZAR ESTADO
         snapshot.forEach((doc) => {
             const data = doc.data();
-            data.id = doc.id; // CRITICAL: Save document ID for repairs
+            data.id = doc.id; // CRITICAL: Save document ID for writes/repairs
             data.is_local = false; // Viene de Firestore
-            persistentData[doc.id] = data;
+
+            const voucherKey = String(data.bono || data.codigo || doc.id).trim();
+            if (!voucherKey) return;
+            persistentData[voucherKey] = pickBestVoucherVersion(persistentData[voucherKey], data);
         });
 
         // --- FUSIÓN CRÍTICA: Añadir bonos locales (IndexedDB) a persistentData ---
         if (state.bonos && state.bonos.length > 0) {
             state.bonos.forEach(localBono => {
-                const id = localBono.bono || localBono.codigo;
-                if (!persistentData[id]) {
-                    persistentData[id] = localBono;
-                }
+                const voucherKey = String(localBono.bono || localBono.codigo || localBono.id || '').trim();
+                if (!voucherKey) return;
+                persistentData[voucherKey] = pickBestVoucherVersion(persistentData[voucherKey], localBono);
             });
         }
 
@@ -3311,8 +3336,8 @@ async function openVoucherManagement(code) {
     // === PAYMENT BLOCK RENDERING ===
     const paymentBlockEl = document.getElementById('vm-payment-block');
     if (paymentBlockEl && typeof SpaPaymentControl !== 'undefined') {
-        // Determine collection based on origin
-        const collection = (v.origen || '').toLowerCase().includes('woo') ? 'woo_sales' : 'local_sales';
+        // Fuente real de bonos en esta vista: spa_vouchers
+        const collection = 'spa_vouchers';
         SpaPaymentControl._currentVoucherId = v.id || code;
         SpaPaymentControl._currentCollection = collection;
         paymentBlockEl.innerHTML = SpaPaymentControl.renderPaymentBlock(v);
