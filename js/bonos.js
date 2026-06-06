@@ -2731,7 +2731,17 @@ function renderBonosFromState(missingNum = null) {
         // Fecha (solo aplica si NO hay búsqueda por código)
         let dateMatch = true;
         if (filterDate && b.fecha) {
-            dateMatch = getVoucherLocalDateYMD(b.fecha) === filterDate;
+            const bDate = getVoucherLocalDateYMD(b.fecha);
+            dateMatch = (bDate === filterDate);
+            
+            // FIX: Si el filtro es "hoy", incluir pedidos de la tienda online de "ayer" 
+            // para que los pedidos nocturnos/tardíos no parezca que "no llegan".
+            if (!dateMatch && getLocalDateYMD() === filterDate) {
+                const prevDay = getPreviousDayYMD(filterDate);
+                if (bDate === prevDay && (b.origen === 'woocommerce' || b.origen === 'woo' || (b.bono && b.bono.startsWith('BONO')))) {
+                    dateMatch = true;
+                }
+            }
         }
 
         // Estado (solo aplica si NO hay búsqueda por código)
