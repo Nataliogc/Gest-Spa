@@ -45,31 +45,61 @@ async function renderVoucherHistory(bonoCode, internalValidations = []) {
 
             // Consultas por código
             codesToSearch.forEach(code => {
-                queryPromises.push(colRef.where("bono", "==", code).get().then(snap => ({ snap, col })));
+                queryPromises.push(colRef.where("bono", "==", code).get().then(snap => ({ snap, col })).catch(e => ({ snap: [], col })));
             });
+
+            // En reservas de restaurante, también buscar por campoBono
+            if (col === 'reservas_restaurante') {
+                codesToSearch.forEach(code => {
+                    queryPromises.push(colRef.where("campoBono", "==", code).get().then(snap => ({ snap, col })).catch(e => ({ snap: [], col })));
+                });
+            }
 
             // Consulta por email (si existe)
             if (clientEmail) {
-                queryPromises.push(colRef.where("email", "==", clientEmail).get().then(snap => ({ snap, col })));
+                queryPromises.push(colRef.where("email", "==", clientEmail).get().then(snap => ({ snap, col })).catch(e => ({ snap: [], col })));
             }
         });
+
+        // Consultar también base de datos de producción de Mesachef si está disponible
+        const mesachefDb = typeof window.getMesachefFirestore === 'function' ? window.getMesachefFirestore() : null;
+        if (mesachefDb) {
+            const mCol = mesachefDb.collection('reservas_restaurante');
+            codesToSearch.forEach(code => {
+                queryPromises.push(mCol.where("campoBono", "==", code).get().then(snap => ({ snap, col: 'reservas_restaurante' })).catch(e => ({ snap: [], col: 'reservas_restaurante' })));
+                queryPromises.push(mCol.where("bono", "==", code).get().then(snap => ({ snap, col: 'reservas_restaurante' })).catch(e => ({ snap: [], col: 'reservas_restaurante' })));
+            });
+        }
 
         // Esperar a que terminen todas
         const results = await Promise.all(queryPromises);
         const addedIds = new Set();
 
         results.forEach(({ snap, col }) => {
+            if (!snap || typeof snap.forEach !== 'function') return;
             snap.forEach(doc => {
                 if (addedIds.has(doc.id)) return;
                 const d = doc.data();
 
                 // Filtrar anuladas y validar coincidencia si es por email
-                if (d.status !== 'anulada') {
-                    // Si el match fue por email, solo aceptamos si es origen 'bono' para evitar cruces
-                    // (A menos que el código de bono coincida exactamente)
-                    const matchesCode = Array.from(codesToSearch).includes(d.bono);
+                const isCancelled = d.status === 'anulada' || d.estado === 'anulada' || d.estado === 'cancelada';
+                if (!isCancelled) {
+                    const matchesCode = Array.from(codesToSearch).includes(d.bono) || 
+                                        Array.from(codesToSearch).includes(d.campoBono) || 
+                                        Array.from(codesToSearch).includes(d.referencia);
+
                     if (matchesCode || d.origen === 'bono') {
-                        allReservations.push({ ...d, _col: col, id: doc.id });
+                        let fechaNorm = d.fecha;
+                        if (d.fecha && typeof d.fecha.toDate === 'function') {
+                            fechaNorm = d.fecha.toDate().toISOString().split('T')[0];
+                        }
+                        allReservations.push({ 
+                            ...d, 
+                            fecha: fechaNorm,
+                            servicio: d.servicio || 'Menú en Restaurante',
+                            _col: col, 
+                            id: doc.id 
+                        });
                         addedIds.add(doc.id);
                     }
                 }

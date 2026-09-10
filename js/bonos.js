@@ -91,32 +91,131 @@ function initBonos() {
     // Check for pending restaurant reservations waiting in localStorage
     processPendingVoucherReservations();
 
-    // NEW: Listen for reservation completion messages from restaurant window
-    // NEW: Listen for reservation completion messages from restaurant window (Cross-Window Communication)
+    // Listen for reservation completion messages from restaurant window (Cross-Window Communication)
     window.addEventListener('message', async (event) => {
         if (event.data && (event.data.type === 'RESERVATION_COMPLETED' || event.data.type === 'RESTAURANT_RESERVATION_CREATED')) {
             console.log('[BONOS] Received reservation completion message:', event.data);
 
-            const { code, voucher } = event.data;
+            const { code, voucher, id, date, time, pax, service } = event.data;
             const finalCode = code || voucher;
 
             if (!finalCode) {
                 console.warn('[BONOS] No voucher code in message, checking all pending reservations.');
-            } else {
-                showToast(`✅ Reserva confirmada para ${finalCode}. Actualizando...`, 'success');
+                await processPendingVoucherReservations();
+                return;
             }
 
-            // CRITICAL: The bridge script stores the reservation in localStorage.
-            // We call processPendingVoucherReservations to handle the Firestore update.
-            console.log('[BONOS] Triggering pending reservation processing...');
+            showToast(`✅ Reserva confirmada en Mesachef para ${finalCode}. Actualizando...`, 'success');
+
+            // 1. Process directly into Firestore & State
+            try {
+                let voucherDoc = null;
+                let docId = finalCode;
+
+                let doc = await db.collection('spa_vouchers').doc(finalCode).get();
+                if (!doc.exists) {
+                    const querySnap = await db.collection('spa_vouchers')
+                        .where('bono', '==', finalCode)
+                        .limit(1)
+                        .get();
+                    if (!querySnap.empty) {
+                        doc = querySnap.docs[0];
+                        docId = doc.id;
+                    }
+                }
+
+                if (doc && doc.exists) {
+                    voucherDoc = { ...doc.data(), bono: finalCode, _docId: docId };
+                } else {
+                    voucherDoc = state.bonos.find(b => b.bono === finalCode || b.codigo === finalCode);
+                }
+
+                if (voucherDoc) {
+                    const v = normalizeVoucher(voucherDoc);
+                    let items = v.items || [];
+                    let updated = false;
+                    const srvTarget = (service || 'restaurante').toLowerCase();
+
+                    for (let i = 0; i < items.length; i++) {
+                        const itName = (items[i].name || '').toLowerCase();
+                        const itSpace = (items[i].space || '').toLowerCase();
+                        const isRest = itName.includes('restaurante') || itName.includes('menú') || itName.includes('menu') ||
+                                       itSpace.includes('rest') || srvTarget.includes(itName) || itName.includes(srvTarget);
+                        if (isRest) {
+                            const curUsed = items[i].used || 0;
+                            const curTotal = items[i].sessions || 1;
+                            if (curUsed < curTotal) {
+                                items[i].used = curUsed + 1;
+                                items[i].usadas = items[i].used;
+                                items[i].lastReservationId = id || '';
+                                items[i].lastReservationDate = date || new Date().toISOString().split('T')[0];
+                                items[i].validations = items[i].validations || [];
+                                items[i].validations.push({
+                                    fecha: date || new Date().toISOString().split('T')[0],
+                                    hora: time || '',
+                                    pax: pax || 1,
+                                    external_id: id || '',
+                                    source: 'mesachef'
+                                });
+                                updated = true;
+                                console.log(`[BONOS] Incremented restaurant usage for '${items[i].name}' (${curUsed} -> ${items[i].used})`);
+                                break;
+                            }
+                        }
+                    }
+
+                    if (updated) {
+                        const totalUsed = items.reduce((sum, it) => sum + (it.used || 0), 0);
+                        const finalV = normalizeVoucher({ ...voucherDoc, items_desglosados: items, sesiones_usadas: totalUsed });
+                        const finalStatus = finalV.effectivelyCompleted ? 'completed' : 'partially';
+
+                        await db.collection('spa_vouchers').doc(docId).update({
+                            items_desglosados: items,
+                            sesiones_usadas: totalUsed,
+                            estado: finalStatus,
+                            updatedAt: new Date().toISOString()
+                        });
+
+                        // Create history record in reservas_restaurante
+                        const resDate = date || new Date().toISOString().split('T')[0];
+                        const reservaRecord = {
+                            bono: finalCode,
+                            origen: 'bono',
+                            cliente: voucherDoc.cliente || '',
+                            nombre: voucherDoc.cliente || '',
+                            telefono: voucherDoc.telefono || '',
+                            pax: parseInt(pax) || (voucherDoc.pax || 1),
+                            fecha: resDate,
+                            hora: time || '14:00',
+                            servicio: service || 'Menú en Restaurante',
+                            status: 'confirmada',
+                            createdAt: new Date().toISOString(),
+                            external_id: id || '',
+                            notes: 'Reserva confirmada desde Mesachef'
+                        };
+
+                        try {
+                            await db.collection('reservas_restaurante').add(reservaRecord);
+                        } catch (hErr) {
+                            console.warn('[BONOS] Could not write history record to reservas_restaurante:', hErr);
+                        }
+
+                        if (window.apiLocal) {
+                            await apiLocal.saveBono({ ...voucherDoc, items_desglosados: items, sesiones_usadas: totalUsed, estado: finalStatus, syncStatus: 'synced' });
+                        }
+
+                        showToast(`✅ Bono ${finalCode} actualizado con reserva de Mesachef`, 'success');
+                    }
+                }
+            } catch (err) {
+                console.error('[BONOS] Error processing Mesachef reservation message:', err);
+            }
+
+            // Also check legacy pending queue
             await processPendingVoucherReservations();
 
-            // Additional insurance: if a code was provided, sync that specific voucher
-            if (finalCode) {
-                await syncSingleVoucher(finalCode);
-                // Dispatch event to refresh UI components (including the modal)
-                window.dispatchEvent(new CustomEvent('vouchers-updated', { detail: { code: finalCode, source: 'message-integration' } }));
-            }
+            // Refresh UI components
+            window.dispatchEvent(new CustomEvent('vouchers-updated', { detail: { code: finalCode, source: 'mesachef-message' } }));
         }
     });
 
@@ -172,7 +271,7 @@ async function continueWithoutPaymentFromBlock() {
         return;
     }
 
-    if (!confirm('⚠️ ¿Continuar sin cobrar?\\n\\nEl servicio quedará marcado como PENDIENTE DE COBRO.')) {
+    if (!confirm('⚠️ ¿Continuar sin cobrar?\n\nEl servicio quedará marcado como PENDIENTE DE COBRO.')) {
         return;
     }
 
@@ -187,23 +286,11 @@ async function continueWithoutPaymentFromBlock() {
 
     closePaymentBlockModal();
 
-    // Proceed with reservation
+    // Proceed with reservation using full routing logic (bypassing payment check)
     const { client, service, code, space, pax } = pending;
     window._pendingReservation = null;
 
-    // Direct call - skip payment check since we just approved
-    if (!confirm(`¿Ir al calendario para reservar '${service}' para ${client}?`)) return;
-
-    let type = 'spa';
-    const lowerService = (service || '').toLowerCase();
-    if (lowerService.includes('masaje') || lowerService.includes('tratamiento') || lowerService.includes('ritual')) {
-        type = 'panacea';
-    } else if (lowerService.includes('suite')) {
-        type = 'suite';
-    }
-
-    const url = `reservas.html?type=${type}&action=new&client=${encodeURIComponent(client)}&service=${encodeURIComponent(service)}&voucher=${code}`;
-    window.open(url, '_blank');
+    await goToReservation(client, service, code, space, pax, true /* skipPaymentCheck */);
 }
 // === END PAYMENT BLOCK MODAL HELPERS ===
 
@@ -732,13 +819,23 @@ function getSpaceForService(serviceName) {
 }
 
 // Helper para redirección a gestión de restaurante
-async function openRestauranteFromVoucher(client, service, code, space, pax, phone) {
-    // Intentamos detectar el nombre del módulo (gestion-Salones o mesachef)
-    const base = (typeof getBaseURL === 'function') ? getBaseURL('mesachef') : '../Mesachef/';
-    const basePath = `${base}restaurante.html`;
-
+async function openRestauranteFromVoucher(client, service, code, space, pax, phone, alreadyConfirmed = false) {
     const cleanClient = (client || '').trim();
     const cleanBono = (code || '').trim();
+    const cleanService = (service || 'Restaurante').trim();
+
+    if (!alreadyConfirmed) {
+        if (!confirm(`¿Ir a Mesachef para reservar '${cleanService}' para ${cleanClient || 'el cliente'}?`)) {
+            return;
+        }
+    }
+
+    // Intentamos detectar el nombre del módulo (gestion-Salones o mesachef)
+    let base = (typeof getBaseURL === 'function') ? getBaseURL('mesachef') : 'https://nataliogc.github.io/Mesachef/';
+    if (!base || base === '') {
+        base = 'https://nataliogc.github.io/Mesachef/';
+    }
+    const basePath = `${base.replace(/\/+$/, '')}/restaurante.html`;
 
     // Detectar Hotel Context para Cumbria
     let hotelContext = 'Guadiana';
@@ -751,9 +848,9 @@ async function openRestauranteFromVoucher(client, service, code, space, pax, pho
 
     const params = new URLSearchParams({
         client: cleanClient,
-        service: service || 'Restaurante',
+        service: cleanService,
         voucher: cleanBono,
-        space: space || 'rest',
+        space: 'Restaurante',
         pax: pax || 1,
         phone: phone || '',
         hotel: hotelContext,
@@ -761,44 +858,71 @@ async function openRestauranteFromVoucher(client, service, code, space, pax, pho
     });
 
     const finalUrl = `${basePath}?${params.toString()}`;
-    console.log(`[REDIRECT] Abriendo restaurante: ${finalUrl}`);
+    console.log(`[REDIRECT] Abriendo restaurante en Mesachef: ${finalUrl}`);
 
-    if (confirm(`¿Ir al calendario para reservar '${service}' para ${cleanClient}?`)) {
-        window.open(finalUrl, '_blank');
+    const newWin = window.open(finalUrl, '_blank');
+    if (!newWin || newWin.closed || typeof newWin.closed === 'undefined') {
+        // Bloqueador de ventanas emergentes activado en el navegador
+        showToast(`⚠️ El navegador bloqueó la apertura de Mesachef. <a href="${finalUrl}" target="_blank" style="color:#fff;text-decoration:underline;font-weight:bold;margin-left:8px;">Haz clic aquí para abrirlo</a>`, 'warning', 15000);
     }
 }
 
 // Helper para redirección
-async function goToReservation(client, service, code, space, pax) {
-    service = decodeURIComponent(service).trim();
-    client = decodeURIComponent(client).trim();
-    code = decodeURIComponent(code).trim();
+async function goToReservation(client, service, code, space, pax, skipPaymentCheck = false) {
+    service = decodeURIComponent(service || '').trim();
+    client = decodeURIComponent(client || '').trim();
+    code = decodeURIComponent(code || '').trim();
     space = decodeURIComponent(space || '').trim();
     // pax is usually a number or unencoded string, but safe to decode if string
     if (typeof pax === 'string') pax = decodeURIComponent(pax).trim();
 
     // === PAYMENT CONTROL CHECK ===
-    const voucherForPayment = state.bonos.find(b => b.bono === code || b.codigo === code);
-    if (voucherForPayment && typeof SpaPaymentControl !== 'undefined') {
-        const paymentCheck = SpaPaymentControl.canStartService(voucherForPayment);
-        if (!paymentCheck.allowed) {
-            // Show payment block modal
-            window._pendingReservation = { client, service, code, space, pax };
-            const amountEl = document.getElementById('payment-block-amount');
-            if (amountEl) amountEl.textContent = `Pendiente: ${paymentCheck.pendingAmount.toFixed(2)}€`;
-            const modal = document.getElementById('paymentBlockModal');
-            if (modal) modal.style.display = 'flex';
-            return; // Block reservation until payment resolved
+    if (!skipPaymentCheck) {
+        const voucherForPayment = state.bonos.find(b => b.bono === code || b.codigo === code);
+        if (voucherForPayment && typeof SpaPaymentControl !== 'undefined') {
+            const paymentCheck = SpaPaymentControl.canStartService(voucherForPayment);
+            if (!paymentCheck.allowed) {
+                // Show payment block modal
+                window._pendingReservation = { client, service, code, space, pax };
+                const amountEl = document.getElementById('payment-block-amount');
+                if (amountEl) amountEl.textContent = `Pendiente: ${paymentCheck.pendingAmount.toFixed(2)}€`;
+                const modal = document.getElementById('paymentBlockModal');
+                if (modal) modal.style.display = 'flex';
+                return; // Block reservation until payment resolved
+            }
         }
     }
     // === END PAYMENT CONTROL ===
 
+    // Normalizar strings
+    const serviceNorm = service.toLowerCase().trim();
+    const spaceNorm = (space || '').toLowerCase().trim();
+
+    // --- DETECCIÓN PRIORITARIA: RESTAURANTE (MESACHEF) ---
+    const isRestaurant = spaceNorm.includes('rest') ||
+                         spaceNorm.includes('comida') ||
+                         spaceNorm.includes('cena') ||
+                         serviceNorm.includes('restaurante') ||
+                         serviceNorm.includes('menú') ||
+                         serviceNorm.includes('menu') ||
+                         serviceNorm.includes('comida') ||
+                         serviceNorm.includes('cena') ||
+                         serviceNorm.includes('almuerzo');
+
+    if (isRestaurant) {
+        if (!confirm(`¿Ir a Mesachef para reservar '${service}' para ${client || 'el cliente'}?`)) return;
+
+        const voucherObj = state.bonos.find(b => b.bono === code || b.codigo === code);
+        const clientPhone = voucherObj ? voucherObj.telefono : '';
+        const finalPax = pax || (voucherObj ? (voucherObj.pax || voucherObj.pax_adultos) : '1');
+
+        await openRestauranteFromVoucher(client, service, code, 'Restaurante', finalPax, clientPhone, true /* already confirmed */);
+        return;
+    }
+
     if (!confirm(`¿Ir al calendario para reservar '${service}' para ${client}?`)) return;
 
     // 1. Buscar en Master Items (Prioridad Absoluta para Espacio)
-    // Normalizar strings
-    const serviceNorm = service.toLowerCase().trim();
-
     // Debug logging (Visual para el usuario)
     let debugMsg = `DEBUG GOTO:\nService: ${serviceNorm}\nMaster Items Loaded: ${state.masterItems.length}\n`;
 
@@ -817,16 +941,20 @@ async function goToReservation(client, service, code, space, pax) {
     else debugMsg += `Match Exacto: NO\n`;
 
     if (!masterItem) {
-        masterItem = state.masterItems.find(i => serviceNorm.includes((i.name || '').toLowerCase().trim()));
+        masterItem = state.masterItems.find(i => {
+            const iName = (i.name || '').toLowerCase().trim();
+            return iName.length > 2 && serviceNorm.includes(iName);
+        });
         if (masterItem) debugMsg += `Match Includes (Service -> Master): SI (${masterItem.name})\n`;
     }
 
     if (!masterItem) {
-        masterItem = state.masterItems.find(i => (i.name || '').toLowerCase().trim().includes(serviceNorm));
+        masterItem = state.masterItems.find(i => {
+            const iName = (i.name || '').toLowerCase().trim();
+            return serviceNorm.length > 2 && iName.includes(serviceNorm);
+        });
         if (masterItem) debugMsg += `Match Includes (Master -> Service): SI (${masterItem.name})\n`;
     }
-
-    // alert(debugMsg);
 
     // Default module
     let type = 'spa';
@@ -892,10 +1020,6 @@ async function goToReservation(client, service, code, space, pax) {
     }
 
     debugMsg += `FINAL TYPE: ${type}`;
-    // alert(debugMsg); // Descomentar para debug extremo, pero mejor console.log si el usuario puede verlo
-    // Si el usuario dijo "entra en el navegador", quizas no ve la consola.
-    // LE PONGO UN ALERT TEMPORAL:
-    // alert(debugMsg);
 
     // Si es hotel/restaurante, redirigir al proyecto independiente (Mesachef)
     if (type === 'hotel' || type === 'restaurante' || type === 'rest' || (type || '').toLowerCase().includes('restaurante') || (type || '').toLowerCase() === 'rest') {
@@ -905,7 +1029,7 @@ async function goToReservation(client, service, code, space, pax) {
         // Use pax passed from button, fallback to voucher pax or 1
         const finalPax = pax || (voucherObj ? (voucherObj.pax || voucherObj.pax_adultos) : '1');
 
-        await openRestauranteFromVoucher(client, service, code, type, finalPax, clientPhone);
+        await openRestauranteFromVoucher(client, service, code, 'Restaurante', finalPax, clientPhone, true /* already confirmed */);
         return;
     }
 

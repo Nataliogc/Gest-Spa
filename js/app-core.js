@@ -479,7 +479,8 @@ function formatDateToISO(dateStr) {
  * Detects if running on GitHub Pages, localhost or local filesystem.
  */
 window.getBaseURL = function (moduleName) {
-    const host = window.location.hostname;
+    const host = window.location.hostname || '';
+    const protocol = window.location.protocol || '';
     const isGitHub = host.includes('github.io');
     const isLocalhost = host.includes('localhost') || host.includes('127.0.0.1');
 
@@ -491,15 +492,16 @@ window.getBaseURL = function (moduleName) {
     const targetModule = moduleMap[moduleName] || moduleName;
 
     if (isGitHub) {
-        const user = host.split('.')[0];
+        const user = host.split('.')[0] || 'nataliogc';
         return `https://${user}.github.io/${targetModule}/`;
     } else if (isLocalhost) {
         return `../${targetModule}/`;
+    } else if (protocol === 'file:') {
+        // Fallback for file:// protocol (local browsers block cross-file script navigation)
+        return `https://nataliogc.github.io/${targetModule}/`;
     } else {
-        // Fallback for file:// protocol (Sibling folders)
-        const path = `../${targetModule}/`;
-        console.log(`[getBaseURL] Local file detected, using sibling path: ${path}`);
-        return path;
+        // Fallback for intranet/custom hosts
+        return `https://nataliogc.github.io/${targetModule}/`;
     }
 };
 
@@ -1123,6 +1125,32 @@ window.getServiceProtocol = function (serviceName) {
     return { color: '#64748b', tratamiento: 'SERVICIOS VARIOS', category: 'otros' };
 };
 
+const MESACHEF_FIREBASE_CONFIG = {
+    apiKey: "AIzaSyAXv_wKD48EFDe8FBQ-6m0XGUNoxSRiTJY",
+    authDomain: "mesa-chef-prod.firebaseapp.com",
+    projectId: "mesa-chef-prod",
+    storageBucket: "mesa-chef-prod.firebasestorage.app",
+    messagingSenderId: "43170330072",
+    appId: "1:43170330072:web:bcdd09e39930ad08bf2ead"
+};
+
+let _mesachefDbInstance = null;
+window.getMesachefFirestore = function () {
+    if (_mesachefDbInstance) return _mesachefDbInstance;
+    if (typeof firebase === 'undefined') return null;
+    try {
+        let app = (firebase.apps || []).find(a => a.name === 'mesachefApp');
+        if (!app) {
+            app = firebase.initializeApp(MESACHEF_FIREBASE_CONFIG, 'mesachefApp');
+        }
+        _mesachefDbInstance = app.firestore();
+        return _mesachefDbInstance;
+    } catch (e) {
+        console.warn('[MESACHEF SYNC] Could not initialize Mesachef Firestore instance:', e);
+        return null;
+    }
+};
+
 /**
  * Synchronizes a spa reservation to Mesachef (reservas_restaurante collection)
  * if it contains restaurant-related services or complements.
@@ -1156,14 +1184,24 @@ window.syncReservationToMesachef = async function (id, payload) {
 
         const isRestaurantRelated = isRestaurantService || isRestaurantComplement || isRestaurantCollection;
 
+        const mesachefDb = window.getMesachefFirestore();
+
         if (!isRestaurantRelated) {
             // If it is NOT restaurant-related, check if there's an existing document in Mesachef to remove
             // to handle cases where a service was edited from restaurant to something else.
             const docRef = db.collection("reservas_restaurante").doc(id);
             const docSnap = await docRef.get();
             if (docSnap.exists) {
-                console.log(`[MESACHEF SYNC] Removing non-restaurant reservation from Mesachef: ${id}`);
+                console.log(`[MESACHEF SYNC] Removing non-restaurant reservation from local: ${id}`);
                 await docRef.delete();
+            }
+            if (mesachefDb) {
+                try {
+                    await mesachefDb.collection("reservas_restaurante").doc(id).delete();
+                    console.log(`[MESACHEF SYNC] Removing non-restaurant reservation from Mesachef prod: ${id}`);
+                } catch (delErr) {
+                    console.warn(`[MESACHEF SYNC] Could not delete non-restaurant from Mesachef prod:`, delErr);
+                }
             }
             return;
         }
@@ -1225,9 +1263,19 @@ window.syncReservationToMesachef = async function (id, payload) {
                 : new Date().toISOString();
         }
 
-        // 3. Write to reservas_restaurante collection with the same document ID
+        // 3. Write to reservas_restaurante collection in local db
         await db.collection("reservas_restaurante").doc(id).set(mesachefPayload, { merge: true });
-        console.log(`[MESACHEF SYNC] Successfully synced reservation ${id} to Mesachef.`);
+        console.log(`[MESACHEF SYNC] Successfully synced reservation ${id} to local db.`);
+
+        // 4. Also write to Mesachef production database (mesa-chef-prod)
+        if (mesachefDb) {
+            try {
+                await mesachefDb.collection("reservas_restaurante").doc(id).set(mesachefPayload, { merge: true });
+                console.log(`[MESACHEF SYNC] Successfully synced reservation ${id} to Mesachef production DB.`);
+            } catch (prodErr) {
+                console.warn(`[MESACHEF SYNC] Could not sync reservation ${id} to Mesachef production DB:`, prodErr);
+            }
+        }
     } catch (err) {
         console.error(`[MESACHEF SYNC] Error syncing reservation ${id} to Mesachef:`, err);
     }
@@ -1241,17 +1289,29 @@ window.cancelReservationInMesachef = async function (id) {
     try {
         const docRef = db.collection("reservas_restaurante").doc(id);
         const docSnap = await docRef.get();
+        const updatePayload = {
+            estado: 'anulada',
+            cancelledAt: typeof firebase !== 'undefined' && firebase.firestore && firebase.firestore.FieldValue
+                ? firebase.firestore.FieldValue.serverTimestamp()
+                : new Date().toISOString(),
+            updatedAt: typeof firebase !== 'undefined' && firebase.firestore && firebase.firestore.FieldValue
+                ? firebase.firestore.FieldValue.serverTimestamp()
+                : new Date().toISOString()
+        };
+
         if (docSnap.exists) {
-            console.log(`[MESACHEF SYNC] Cancelling reservation in Mesachef: ${id}`);
-            await docRef.update({
-                estado: 'anulada',
-                cancelledAt: typeof firebase !== 'undefined' && firebase.firestore && firebase.firestore.FieldValue
-                    ? firebase.firestore.FieldValue.serverTimestamp()
-                    : new Date().toISOString(),
-                updatedAt: typeof firebase !== 'undefined' && firebase.firestore && firebase.firestore.FieldValue
-                    ? firebase.firestore.FieldValue.serverTimestamp()
-                    : new Date().toISOString()
-            });
+            console.log(`[MESACHEF SYNC] Cancelling reservation in local Mesachef: ${id}`);
+            await docRef.update(updatePayload);
+        }
+
+        const mesachefDb = window.getMesachefFirestore();
+        if (mesachefDb) {
+            try {
+                await mesachefDb.collection("reservas_restaurante").doc(id).update(updatePayload);
+                console.log(`[MESACHEF SYNC] Cancelled reservation in Mesachef prod: ${id}`);
+            } catch (prodErr) {
+                console.warn(`[MESACHEF SYNC] Could not cancel in Mesachef prod:`, prodErr);
+            }
         }
     } catch (err) {
         console.error(`[MESACHEF SYNC] Error cancelling reservation ${id} in Mesachef:`, err);
@@ -1267,8 +1327,18 @@ window.deleteReservationInMesachef = async function (id) {
         const docRef = db.collection("reservas_restaurante").doc(id);
         const docSnap = await docRef.get();
         if (docSnap.exists) {
-            console.log(`[MESACHEF SYNC] Deleting reservation in Mesachef: ${id}`);
+            console.log(`[MESACHEF SYNC] Deleting reservation in local Mesachef: ${id}`);
             await docRef.delete();
+        }
+
+        const mesachefDb = window.getMesachefFirestore();
+        if (mesachefDb) {
+            try {
+                await mesachefDb.collection("reservas_restaurante").doc(id).delete();
+                console.log(`[MESACHEF SYNC] Deleted reservation in Mesachef prod: ${id}`);
+            } catch (prodErr) {
+                console.warn(`[MESACHEF SYNC] Could not delete from Mesachef prod:`, prodErr);
+            }
         }
     } catch (err) {
         console.error(`[MESACHEF SYNC] Error deleting reservation ${id} in Mesachef:`, err);
