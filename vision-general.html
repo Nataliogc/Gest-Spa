@@ -1379,13 +1379,21 @@
                         const borderColor = serviceColor;
                         const bgColor = serviceColor + '20';
 
-                        // CHANGED: Open edit modal instead of navigating
-                        html += `<div class="detail-booking-item" style="background:${bgColor}; border-color:${borderColor}60; border-left-color:${borderColor};" onclick="openEditReservation('${b.id}', '${b._collection}', '${staffId}', '${dateStr}')" title="Editar en ${roomLabel}">
-                            <div class="detail-booking-time" style="color:${borderColor}; filter: brightness(0.7);">${b.hora} — ${minutesToTime(endMin)}</div>
-                            <div class="detail-booking-service" style="color:${borderColor}; filter: brightness(0.6);">${sName}</div>
-                            <div class="detail-booking-client" style="color:${borderColor}; filter: brightness(0.6);"><i class="fas fa-user" style="font-size:0.6rem;"></i> ${b.nombre || 'Cliente'} ${b.telefono ? '· ' + b.telefono : ''}</div>
-                            <div class="detail-booking-room" style="color:${borderColor}; filter: brightness(0.7);"><i class="fas fa-door-open" style="font-size:0.5rem;"></i> ${roomLabel}</div>
-                            <i class="fas fa-pencil-alt booking-link-icon" style="color:${borderColor}"></i>
+                        html += `<div class="detail-booking-item" style="background:${bgColor}; border-color:${borderColor}60; border-left-color:${borderColor}; display:flex; justify-content:space-between; align-items:center;" onclick="openEditReservation('${b.id}', '${b._collection}', '${staffId}', '${dateStr}')" title="Click para editar reserva">
+                            <div style="flex:1; padding-right:10px;">
+                                <div class="detail-booking-time" style="color:${borderColor}; filter: brightness(0.7);">${b.hora} — ${minutesToTime(endMin)}</div>
+                                <div class="detail-booking-service" style="color:${borderColor}; filter: brightness(0.6); font-weight:700;">${sName}</div>
+                                <div class="detail-booking-client" style="color:${borderColor}; filter: brightness(0.6);"><i class="fas fa-user" style="font-size:0.6rem;"></i> ${b.nombre || 'Cliente'} ${b.telefono ? '· ' + b.telefono : ''}</div>
+                                <div class="detail-booking-room" style="color:${borderColor}; filter: brightness(0.7); font-weight:600;"><i class="fas fa-door-open" style="font-size:0.5rem;"></i> ${roomLabel} ${(b.bono || b.localizador) ? '· <span style="color:#059669;"><i class="fas fa-ticket-alt"></i> Bono: ' + (b.bono || b.localizador) + '</span>' : ''}</div>
+                            </div>
+                            <div style="display:flex; gap:6px; align-items:center;" onclick="event.stopPropagation();">
+                                <button type="button" onclick="quickDeleteBooking('${b.id}', '${b._collection}', '${(b.nombre || 'Cliente').replace(/'/g, "\\'")}', '${b.hora}', '${roomLabel}', '${staffId}', '${dateStr}')" title="Eliminar cita" style="background:#fee2e2; border:1px solid #fca5a5; color:#dc2626; border-radius:6px; padding:6px 9px; cursor:pointer; font-size:0.75rem; transition:all 0.15s;" onmouseover="this.style.background='#fecaca'" onmouseout="this.style.background='#fee2e2'">
+                                    <i class="fas fa-trash-alt"></i>
+                                </button>
+                                <button type="button" onclick="openEditReservation('${b.id}', '${b._collection}', '${staffId}', '${dateStr}')" title="Editar cita" style="background:white; border:1px solid #cbd5e1; color:#475569; border-radius:6px; padding:6px 9px; cursor:pointer; font-size:0.75rem; transition:all 0.15s;" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='white'">
+                                    <i class="fas fa-pencil-alt"></i>
+                                </button>
+                            </div>
                         </div>`;
                     });
                     html += `</div>`;
@@ -1548,12 +1556,23 @@
                             const bgColor = serviceColor + '20'; // 12% opacity approx (hex) or use rgba
 
                             staffCards += `<div onclick="openEditReservation('${b.id}', '${b._collection}', '${staff.id}', '${dateStr}')" style="padding:8px 10px; background:${bgColor}; border:1px solid ${borderColor}60; border-left:4px solid ${borderColor}; border-radius:0 8px 8px 0; margin-bottom:6px; cursor:pointer; transition:all 0.15s;" onmouseover="this.style.transform='translateX(3px)';this.style.boxShadow='0 2px 8px rgba(0,0,0,0.08)'" onmouseout="this.style.transform='';this.style.boxShadow=''">
-                                <div style="font-weight:800; font-size:0.85rem; color:#92400e; mix-blend-mode: multiply;">${b.hora} \u2014 ${minutesToTime(endMin)}</div>
+                                <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+                                    <div style="font-weight:800; font-size:0.85rem; color:#92400e; mix-blend-mode: multiply;">${b.hora} \u2014 ${minutesToTime(endMin)}</div>
+                                    <div style="display:flex; gap:4px; align-items:center;" onclick="event.stopPropagation();">
+                                        <button type="button" onclick="quickDeleteBooking('${b.id}', '${b._collection}', '${(b.nombre || 'Cliente').replace(/'/g, "\\'")}', '${b.hora}', '${roomLabel}', '${staff.id}', '${dateStr}', true)" title="Eliminar cita" style="background:#fee2e2; border:1px solid #fca5a5; color:#dc2626; border-radius:5px; padding:2px 6px; cursor:pointer; font-size:0.65rem; transition:all 0.15s;" onmouseover="this.style.background='#fecaca'" onmouseout="this.style.background='#fee2e2'">
+                                            <i class="fas fa-trash-alt"></i>
+                                        </button>
+                                        <button type="button" onclick="openEditReservation('${b.id}', '${b._collection}', '${staff.id}', '${dateStr}')" title="Editar cita" style="background:white; border:1px solid #cbd5e1; color:#475569; border-radius:5px; padding:2px 6px; cursor:pointer; font-size:0.65rem; transition:all 0.15s;" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='white'">
+                                            <i class="fas fa-pencil-alt"></i>
+                                        </button>
+                                    </div>
+                                </div>
                                 <div style="font-size:0.78rem; color:#78350f; margin-top:2px; font-weight:600; mix-blend-mode: multiply;">${sName}</div>
                                 <div style="display:flex; justify-content:space-between; margin-top:4px; font-size:0.72rem; color:#a16207; mix-blend-mode: multiply;">
                                     <span><i class="fas fa-user" style="font-size:0.55rem; margin-right:3px;"></i>${b.nombre || 'Cliente'}</span>
                                     <span style="opacity:0.7;"><i class="fas fa-door-open" style="font-size:0.5rem; margin-right:2px;"></i>${roomLabel}</span>
                                 </div>
+                                ${(b.bono || b.localizador) ? `<div style="font-size:0.7rem; color:#059669; font-weight:700; margin-top:3px;"><i class="fas fa-ticket-alt"></i> Bono: ${b.bono || b.localizador}</div>` : ''}
                             </div>`;
                         });
                     }
@@ -1767,7 +1786,8 @@
                         <label style="font-size: 0.7rem; font-weight: 800; color: #065f46; text-transform: uppercase; display: flex; align-items: center; gap: 6px;">
                             <i class="fas fa-ticket-alt"></i> Número de Bono / Localizador / Cupón
                         </label>
-                        <input type="text" id="res-bono" class="vg-input" placeholder="Introduce el número o localizador del bono (ej: B-12345)..." style="background: white; border-color: #6ee7b7; font-weight: 700; color: #065f46; margin-top: 4px;">
+                        <input type="text" id="res-bono" class="vg-input" oninput="checkBonoLive(this.value)" placeholder="Introduce el número o localizador del bono (ej: B-12345)..." style="background: white; border-color: #6ee7b7; font-weight: 700; color: #065f46; margin-top: 4px;">
+                        <div id="bono-balance-info" style="margin-top: 6px;"></div>
                     </div>
                     
                     <!-- ROW 2: Client, Phone -->
@@ -2160,6 +2180,94 @@
             })
         }
 
+        async function quickDeleteBooking(bookingId, collection, clientName, time, roomLabel, staffId, dateStr, isDayView = false) {
+            const result = await Swal.fire({
+                title: '¿Eliminar cita?',
+                html: `
+                    <div style="text-align:left; font-size:0.9rem; line-height:1.6; background:#f8fafc; padding:12px; border-radius:8px; border:1px solid #e2e8f0; margin-top:10px;">
+                        <b>Cliente:</b> ${clientName}<br>
+                        <b>Hora:</b> ${time}<br>
+                        <b>Sala:</b> ${roomLabel}
+                    </div>
+                    <p style="margin-top:10px; color:#dc2626; font-size:0.82rem; font-weight:600;">
+                        <i class="fas fa-exclamation-triangle"></i> Esta acción eliminará la reserva y liberará la sala.
+                    </p>
+                `,
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#dc2626',
+                cancelButtonColor: '#64748b',
+                confirmButtonText: '<i class="fas fa-trash"></i> Sí, eliminar',
+                cancelButtonText: 'Cancelar'
+            });
+
+            if (result.isConfirmed) {
+                try {
+                    await db.collection(collection).doc(bookingId).delete();
+                    Swal.fire({
+                        title: 'Eliminada',
+                        text: 'La cita ha sido eliminada correctamente.',
+                        icon: 'success',
+                        timer: 1500,
+                        showConfirmButton: false
+                    });
+                    await renderGrid();
+                    const panel = document.getElementById('vg-detail-panel');
+                    if (isDayView || (panel && panel.classList.contains('fullscreen'))) {
+                        openGeneralDayDetail(dateStr);
+                    } else if (staffId && dateStr) {
+                        openTherapistDetail(staffId, dateStr);
+                    }
+                } catch (error) {
+                    console.error("Error deleting booking:", error);
+                    Swal.fire('Error', 'No se pudo eliminar la reserva: ' + error.message, 'error');
+                }
+            }
+        }
+
+        async function checkBonoLive(bonoCode) {
+            const infoEl = document.getElementById('bono-balance-info');
+            if (!infoEl) return;
+            if (!bonoCode || bonoCode.trim().length < 3) {
+                infoEl.innerHTML = '';
+                return;
+            }
+            const cleanCode = bonoCode.trim();
+            try {
+                let voucherDoc = null;
+                const docRef = await db.collection("spa_vouchers").doc(cleanCode).get();
+                if (docRef.exists) {
+                    voucherDoc = docRef.data();
+                } else {
+                    const snap = await db.collection("spa_vouchers").where("localizador", "==", cleanCode).get();
+                    if (!snap.empty) {
+                        voucherDoc = snap.docs[0].data();
+                    }
+                }
+
+                if (voucherDoc) {
+                    const clientName = voucherDoc.cliente || voucherDoc.beneficiario || 'Sin titular';
+                    const totalSes = parseInt(voucherDoc.total_sesiones || voucherDoc.sesiones || 1);
+                    const usedSes = parseInt(voucherDoc.sesiones_usadas || 0);
+                    const leftSes = Math.max(0, totalSes - usedSes);
+
+                    infoEl.innerHTML = `
+                        <div style="background:#dcfce7; border:1px solid #86efac; border-radius:6px; padding:6px 10px; font-size:0.75rem; color:#166534; font-weight:700;">
+                            <i class="fas fa-check-circle"></i> Bono Válido: ${leftSes} de ${totalSes} sesiones disponibles (${clientName})
+                        </div>
+                    `;
+                } else {
+                    infoEl.innerHTML = `
+                        <div style="background:#fffbeb; border:1px solid #fef08a; border-radius:6px; padding:6px 10px; font-size:0.75rem; color:#854d0e; font-weight:600;">
+                            <i class="fas fa-info-circle"></i> Código de bono o cupón (se guardará vinculado a esta cita)
+                        </div>
+                    `;
+                }
+            } catch (e) {
+                infoEl.innerHTML = '';
+            }
+        }
+
 
         // onServiceChange replaced by helper above
 
@@ -2195,6 +2303,66 @@
             if (!room) {
                 Swal.fire('Error', 'Selecciona una sala', 'error');
                 return;
+            }
+
+            // Check for duplicate client bookings or overlapping bookings on the same day/time
+            const durInt = parseInt(duration) || 60;
+            const newStart = timeToMinutes(time);
+            const newEnd = newStart + durInt;
+            const cleanClient = client.trim().toLowerCase();
+            const cleanPhone = phone.trim();
+
+            let bookingsToday = [];
+            if (window.getAllBookingsForDate) {
+                try {
+                    bookingsToday = await window.getAllBookingsForDate(dateVal);
+                } catch(e) {
+                    console.warn("Could not check bookings for date:", e);
+                }
+            }
+
+            // Check duplicate client bookings on the same day/time
+            const duplicateClientBookings = bookingsToday.filter(b => {
+                if (currentEditingId && b.id === currentEditingId) return false;
+                if (b.status === 'anulada') return false;
+                const bName = (b.nombre || b.cliente || '').trim().toLowerCase();
+                const bPhone = (b.telefono || b.tel || '').trim();
+                const nameMatches = bName && (bName === cleanClient || (cleanClient.length > 5 && (bName.includes(cleanClient) || cleanClient.includes(bName))));
+                const phoneMatches = cleanPhone && cleanPhone.length > 6 && bPhone === cleanPhone;
+                if (!nameMatches && !phoneMatches) return false;
+
+                const bStart = timeToMinutes(b.hora);
+                const bEnd = bStart + (parseInt(b.duracion) || 60);
+                return (newStart < bEnd && newEnd > bStart);
+            });
+
+            if (duplicateClientBookings.length > 0) {
+                const dup = duplicateClientBookings[0];
+                const dupRoom = collectionToRoomLabel(dup._collection);
+                const dupTime = dup.hora;
+                const dupTherapist = dup.terapeuta || dup.staff_name || 'Desconocido';
+                const dupWarning = await Swal.fire({
+                    title: '¡Posible cita duplicada!',
+                    html: `
+                        <div style="text-align:left; font-size:0.9rem; line-height:1.6; background:#fff7ed; border:1px solid #fdba74; padding:12px; border-radius:8px; margin-top:10px;">
+                            <div style="font-weight:700; color:#c2410c; margin-bottom:6px;"><i class="fas fa-exclamation-triangle"></i> El cliente <b>${client}</b> ya tiene una cita en este horario:</div>
+                            <b>Hora:</b> ${dupTime}<br>
+                            <b>Sala:</b> ${dupRoom}<br>
+                            <b>Terapeuta:</b> ${dupTherapist}<br>
+                            <b>Servicio:</b> ${dup.servicio || 'Servicio'}
+                        </div>
+                        <p style="margin-top:10px; font-size:0.85rem; color:#64748b;">
+                            ¿Deseas continuar guardando esta cita de todas formas?
+                        </p>
+                    `,
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonColor: '#f97316',
+                    cancelButtonColor: '#64748b',
+                    confirmButtonText: 'Sí, continuar',
+                    cancelButtonText: 'Cancelar y revisar'
+                });
+                if (!dupWarning.isConfirmed) return;
             }
 
             const confirm = await Swal.fire({
