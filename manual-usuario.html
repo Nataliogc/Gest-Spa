@@ -409,11 +409,25 @@
     <div class="manual-actions-bar no-print">
         <div style="display:flex; align-items:center; gap:12px;">
             <i class="fas fa-book-reader" style="color:#d4af37; font-size:1.2rem;"></i>
-            <span style="font-weight:700; font-size:0.95rem;">Manual Oficial de Usuario | Gest-Spa & Zenith Manager</span>
+            <span style="font-weight:700; font-size:0.95rem;">Manual Oficial Dinámico | Gest-Spa & Zenith</span>
+            <span style="background:rgba(34,197,94,0.2); border:1px solid #22c55e; color:#4ade80; padding:2px 8px; border-radius:12px; font-size:0.7rem; font-weight:800; letter-spacing:0.5px;">EN VIVO</span>
         </div>
-        <button class="btn-print" onclick="window.print()">
-            <i class="fas fa-print"></i> Imprimir / Guardar en PDF
-        </button>
+
+        <!-- Live Search Box -->
+        <div style="display:flex; align-items:center; gap:8px; background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.25); border-radius:6px; padding:5px 12px;">
+            <i class="fas fa-search" style="color:#cbd5e1; font-size:0.8rem;"></i>
+            <input type="text" id="manual-search-input" oninput="filterManualContent(this.value)" placeholder="Buscar en el manual (bono, baja, duplicada, citas...)" style="background:transparent; border:none; color:white; font-size:0.82rem; outline:none; width:260px; font-family:'Montserrat',sans-serif;">
+            <button type="button" onclick="clearSearch()" style="background:none; border:none; color:#94a3b8; cursor:pointer; font-size:0.75rem;" title="Limpiar búsqueda">&times;</button>
+        </div>
+
+        <div style="display:flex; gap:8px; align-items:center;">
+            <a href="Manual_Usuario_Gest_Spa.pdf" download="Manual_Usuario_Gest_Spa.pdf" style="background:#334155; color:white; border:1px solid #475569; padding:8px 14px; border-radius:6px; font-weight:700; font-size:0.82rem; text-decoration:none; display:flex; align-items:center; gap:6px; transition:all 0.15s;" onmouseover="this.style.background='#475569'" onmouseout="this.style.background='#334155'">
+                <i class="fas fa-download"></i> Descargar PDF
+            </a>
+            <button class="btn-print" onclick="window.print()">
+                <i class="fas fa-print"></i> Imprimir / Guardar en PDF
+            </button>
+        </div>
     </div>
 
     <div class="manual-wrapper">
@@ -422,17 +436,45 @@
         <!-- PORTADA -->
         <!-- =================================================================== -->
         <div class="cover">
-            <div class="cover-badge"><i class="fas fa-certificate"></i> Manual Operativo de Procesos</div>
+            <div class="cover-badge"><i class="fas fa-sync-alt fa-spin" style="margin-right:6px;"></i> Manual Dinámico y Actualizado</div>
             <h1 class="cover-title">GEST-SPA / <span>ZENITH</span></h1>
             <p class="cover-subtitle">Guía práctica de uso diario, agendamiento de citas, gestión de personal, control de bonos y resolución de incidencias para el equipo de recepción y estética.</p>
             <div class="cover-meta">
                 <span><i class="fas fa-users"></i> Para todo el personal</span>
-                <span><i class="fas fa-calendar-check"></i> Versión 2.0 (Actualizada)</span>
+                <span><i class="fas fa-calendar-check"></i> <span id="manual-dynamic-date">Actualizado 2026</span></span>
                 <span><i class="fas fa-shield-alt"></i> Procesos Controlados</span>
             </div>
         </div>
 
         <div class="page">
+
+            <!-- =================================================================== -->
+            <!-- NOVEDADES Y ACTUALIZACIONES EN VIVO (CHANGELOG) -->
+            <!-- =================================================================== -->
+            <div id="section-novedades" style="background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); border: 2px solid #86efac; border-radius: 10px; padding: 18px 22px; margin-bottom: 25px; box-shadow: 0 4px 12px rgba(22,101,52,0.06);">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; flex-wrap:wrap; gap:8px;">
+                    <div style="font-weight:800; font-size:1.05rem; color:#166534; display:flex; align-items:center; gap:8px;">
+                        <i class="fas fa-rocket" style="color:#22c55e;"></i> Últimas Novedades y Mejoras Implementadas
+                    </div>
+                    <span style="background:#22c55e; color:white; padding:3px 10px; border-radius:12px; font-size:0.72rem; font-weight:800; text-transform:uppercase;">
+                        Versión Dinámica
+                    </span>
+                </div>
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; font-size:0.83rem; color:#14532d;">
+                    <div style="background:white; padding:10px 12px; border-radius:8px; border:1px solid #bbf7d0;">
+                        <b>⚡ Asistente de Reasignación:</b> Alerta automática ante bajas médicas para reubicar todas las citas en 1 clic y contacto directo por WhatsApp.
+                    </div>
+                    <div style="background:white; padding:10px 12px; border-radius:8px; border:1px solid #bbf7d0;">
+                        <b>🗑️ Borrado Directo de Duplicados:</b> Botón de papelera en cada tarjeta para eliminar reservas duplicadas o erróneas en 1 segundo.
+                    </div>
+                    <div style="background:white; padding:10px 12px; border-radius:8px; border:1px solid #bbf7d0;">
+                        <b>🎫 Consulta en Vivo de Bonos:</b> Verificación instantánea del saldo de sesiones y titular al introducir el código en la cita.
+                    </div>
+                    <div style="background:white; padding:10px 12px; border-radius:8px; border:1px solid #bbf7d0;">
+                        <b>📅 Cuadrante Semanal Visual:</b> Control de turnos partidos, continuos y sábados con asignación rápida por plantilla.
+                    </div>
+                </div>
+            </div>
 
             <!-- =================================================================== -->
             <!-- ÍNDICE DE CONTENIDOS -->
@@ -748,11 +790,65 @@
             </div>
 
             <div style="text-align:center; color:#94a3b8; font-size:0.75rem; margin-top:30px; border-top:1px solid #e2e8f0; padding-top:15px;">
-                Documento de Formación y Calidad · Gest-Spa & Zenith Manager · Plataforma Operativa
+                Documento de Formación y Calidad · Gest-Spa & Zenith Manager · Plataforma Operativa Dinámica
             </div>
 
         </div>
     </div>
 
+    <!-- Script Interactivo y Dinámico -->
+    <script>
+        // Fechador dinámico en tiempo real
+        document.addEventListener('DOMContentLoaded', () => {
+            const dateEl = document.getElementById('manual-dynamic-date');
+            if (dateEl) {
+                const now = new Date();
+                const options = { month: 'long', year: 'numeric' };
+                const dateStr = now.toLocaleDateString('es-ES', options);
+                dateEl.textContent = 'Actualizado en ' + dateStr.charAt(0).toUpperCase() + dateStr.slice(1);
+            }
+        });
+
+        // Buscador interactivo en vivo
+        function filterManualContent(query) {
+            const cleanQuery = query.trim().toLowerCase();
+            const elements = document.querySelectorAll('.step-box, .qa-card, .ui-mockup, .checklist-item');
+
+            if (!cleanQuery) {
+                elements.forEach(el => {
+                    el.style.display = '';
+                    el.style.boxShadow = '';
+                    el.style.borderColor = '';
+                });
+                return;
+            }
+
+            let firstMatch = null;
+            elements.forEach(el => {
+                const text = el.textContent.toLowerCase();
+                if (text.includes(cleanQuery)) {
+                    el.style.display = '';
+                    el.style.borderColor = '#d4af37';
+                    el.style.boxShadow = '0 0 0 3px rgba(212, 175, 55, 0.2)';
+                    if (!firstMatch) firstMatch = el;
+                } else {
+                    el.style.boxShadow = '';
+                    el.style.borderColor = '';
+                }
+            });
+
+            if (firstMatch && cleanQuery.length >= 3) {
+                firstMatch.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        }
+
+        function clearSearch() {
+            const input = document.getElementById('manual-search-input');
+            if (input) {
+                input.value = '';
+                filterManualContent('');
+            }
+        }
+    </script>
 </body>
 </html>
