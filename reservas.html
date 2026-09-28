@@ -5967,7 +5967,7 @@
                         } else if (!isOccupied) {
                             // Si no hay hueco y no hay reservas, mostrar por qué
                             if (staffFreeCount === 0 && moduleConfig.requiresStaff) {
-                                contentCol.innerHTML = '<span style="color:#ef4444; font-size:0.75rem;"><i class="fas fa-user-slash"></i> Therapist unavailable</span>';
+                                contentCol.innerHTML = '<span style="color:#ef4444; font-size:0.75rem;"><i class="fas fa-user-slash"></i> Terapeuta no disponible</span>';
                             } else if (!hasSpace) {
                                 // Content explicitly left empty as per user request
                                 // contentCol.innerHTML = '<span style="color:#666; font-size:0.75rem;"><i class="fas fa-ban"></i> Sin espacio</span>';
@@ -6141,7 +6141,7 @@
                     let statusText = '';
 
                     if (!alt.hasEnoughTherapists) {
-                        statusText = `Therapists unavailable (needs ${requiredTherapists})`;
+                        statusText = `Terapeutas no disponibles (se necesitan ${requiredTherapists})`;
                     } else if (availableTime < requiredTime) {
                         statusText = `Solo ${availableTime} min (necesitas ${requiredTime})`;
                     } else {
