@@ -108,6 +108,139 @@
             font-weight: 600;
             font-size: 0.85rem;
         }
+
+        /* TABS & ROSTER STYLES */
+        .view-tab-btn {
+            padding: 10px 18px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            border: none;
+            background: none;
+            color: #64748b;
+            cursor: pointer;
+            border-bottom: 3px solid transparent;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s;
+        }
+        .view-tab-btn:hover {
+            color: var(--accent);
+        }
+        .view-tab-btn.active {
+            color: var(--accent);
+            border-bottom-color: var(--accent);
+        }
+        .roster-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.85rem;
+        }
+        .roster-table th {
+            background: #f8fafc;
+            color: #475569;
+            font-weight: 700;
+            padding: 12px 14px;
+            border-bottom: 2px solid #e2e8f0;
+            text-align: center;
+            white-space: nowrap;
+        }
+        .roster-table th:first-child {
+            text-align: left;
+            position: sticky;
+            left: 0;
+            background: #f8fafc;
+            z-index: 2;
+        }
+        .roster-table td {
+            padding: 10px 8px;
+            border-bottom: 1px solid #f1f5f9;
+            border-right: 1px solid #f1f5f9;
+            vertical-align: top;
+            min-width: 125px;
+        }
+        .roster-table td:first-child {
+            position: sticky;
+            left: 0;
+            background: white;
+            z-index: 1;
+            box-shadow: 2px 0 5px rgba(0,0,0,0.03);
+            min-width: 200px;
+        }
+        .roster-day-cell {
+            border-radius: 8px;
+            padding: 6px 8px;
+            min-height: 58px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            position: relative;
+        }
+        .roster-day-cell:hover {
+            filter: brightness(0.96);
+            transform: scale(1.02);
+            box-shadow: 0 2px 5px rgba(0,0,0,0.08);
+        }
+        .roster-shift-badge {
+            background: #d1fae5;
+            color: #065f46;
+            border: 1px solid #a7f3d0;
+            border-radius: 6px;
+            padding: 2px 6px;
+            font-size: 0.72rem;
+            font-weight: 700;
+            display: inline-block;
+            text-align: center;
+        }
+        .roster-custom-shift-badge {
+            background: #fed7aa;
+            color: #9a3412;
+            border: 1px solid #fdba74;
+            border-radius: 6px;
+            padding: 2px 6px;
+            font-size: 0.72rem;
+            font-weight: 700;
+            display: inline-block;
+            text-align: center;
+        }
+        .roster-absence-badge {
+            background: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #fca5a5;
+            border-radius: 6px;
+            padding: 4px 6px;
+            font-size: 0.72rem;
+            font-weight: 700;
+            text-align: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+        }
+        .roster-off-badge {
+            background: #f1f5f9;
+            color: #94a3b8;
+            border: 1px dashed #cbd5e1;
+            border-radius: 6px;
+            padding: 4px 6px;
+            font-size: 0.72rem;
+            font-weight: 600;
+            text-align: center;
+        }
+        .btn-status-toggle {
+            cursor: pointer;
+            border-radius: 20px;
+            padding: 3px 10px;
+            font-size: 0.72rem;
+            font-weight: 700;
+            border: 1px solid transparent;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
     </style>
 </head>
 
@@ -170,12 +303,18 @@
 
     <main class="main-content">
         <section style="flex: 1; overflow-y: auto; padding: 25px;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 15px;">
                 <div>
-                    <h2 style="margin: 0; font-size: 1.8rem; color: var(--text);">Gestión de Personal</h2>
-                    <p class="muted" style="margin: 5px 0 0 0;">Administra terapeutas y su disponibilidad</p>
+                    <h2 style="margin: 0; font-size: 1.8rem; color: var(--text);">Gestión de Personal y Horarios</h2>
+                    <p class="muted" style="margin: 5px 0 0 0;">Planifica cuadrantes semanales, turnos, bajas y vacaciones</p>
                 </div>
-                <div style="display: flex; gap: 10px;">
+                <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                    <button onclick="openRangeAbsenceModal()" class="btn btn-outline" style="border-color: #f43f5e; color: #e11d48; font-weight: 600;">
+                        <i class="fas fa-umbrella-beach"></i> Ausencia / Vacaciones
+                    </button>
+                    <button onclick="openQuickScheduleModal()" class="btn btn-outline" style="border-color: #6366f1; color: #4f46e5; font-weight: 600;">
+                        <i class="fas fa-bolt"></i> Asignar Turno Rápido
+                    </button>
                     <button onclick="openGlobalScheduleModal()" class="btn btn-outline">
                         <i class="fas fa-clock"></i> Horario Base Global
                     </button>
@@ -185,27 +324,90 @@
                 </div>
             </div>
 
-            <!-- Filters -->
-            <div class="filter-group">
-                <label>
-                    <input type="radio" name="staff-filter" value="active" checked>
-                    <span>Activos</span>
-                </label>
-                <label>
-                    <input type="radio" name="staff-filter" value="inactive">
-                    <span>Dados de Baja</span>
-                </label>
-                <label>
-                    <input type="radio" name="staff-filter" value="all">
-                    <span>Todos</span>
-                </label>
+            <!-- View Switcher Tabs -->
+            <div class="view-tabs" style="display: flex; gap: 8px; margin-bottom: 20px; border-bottom: 2px solid #e2e8f0; padding-bottom: 0;">
+                <button id="tab-btn-roster" onclick="switchPersonalView('roster')" class="view-tab-btn active">
+                    <i class="fas fa-calendar-week"></i> Cuadrante Semanal (Turnos y Ausencias)
+                </button>
+                <button id="tab-btn-cards" onclick="switchPersonalView('cards')" class="view-tab-btn">
+                    <i class="fas fa-id-card"></i> Fichas de Personal
+                </button>
             </div>
 
-            <!-- Staff List -->
-            <div id="staff-list">
-                <div style="padding: 40px; text-align: center; color: #94a3b8;">
-                    <i class="fas fa-spinner fa-spin" style="font-size: 2rem;"></i>
-                    <p style="margin: 10px 0 0 0;">Cargando personal...</p>
+            <!-- VIEW 1: CUADRANTE SEMANAL -->
+            <div id="roster-view-container">
+                <div style="display: flex; justify-content: space-between; align-items: center; background: white; padding: 14px 18px; border-radius: 12px; border: 1px solid #e2e8f0; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); flex-wrap: wrap; gap: 12px;">
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <button onclick="navigateRosterWeek(-1)" class="btn btn-outline btn-sm" title="Semana anterior" style="padding: 6px 12px;">
+                            <i class="fas fa-chevron-left"></i> Anterior
+                        </button>
+                        <span id="roster-week-label" style="font-weight: 700; font-size: 1.05rem; color: #1e293b; min-width: 260px; text-align: center;">Cargando semana...</span>
+                        <button onclick="navigateRosterWeek(1)" class="btn btn-outline btn-sm" title="Semana siguiente" style="padding: 6px 12px;">
+                            Siguiente <i class="fas fa-chevron-right"></i>
+                        </button>
+                        <button onclick="navigateRosterWeek(0)" class="btn btn-outline btn-sm" style="font-size: 0.8rem; background: #f8fafc;">
+                            Esta Semana
+                        </button>
+                    </div>
+
+                    <div style="display: flex; gap: 16px; align-items: center; flex-wrap: wrap;">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <label style="font-size: 0.82rem; color: #64748b; font-weight: 600;">Filtrar Sala:</label>
+                            <select id="roster-room-filter" onchange="renderWeeklyRoster()" style="padding: 6px 12px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 0.85rem; background: white;">
+                                <option value="all">Todas las salas</option>
+                                <option value="cabina">Cabinas / Estética</option>
+                                <option value="peluqueria">Peluquería</option>
+                                <option value="panacea">Panacea</option>
+                                <option value="suite">Suite</option>
+                                <option value="vip">VIP</option>
+                                <option value="spa">Circuito Spa</option>
+                            </select>
+                        </div>
+                        <!-- Legend -->
+                        <div style="display: flex; gap: 10px; font-size: 0.75rem; color: #475569;">
+                            <span style="display: inline-flex; align-items: center; gap: 4px;"><span style="width: 8px; height: 8px; border-radius: 50%; background: #10b981;"></span> Turno base</span>
+                            <span style="display: inline-flex; align-items: center; gap: 4px;"><span style="width: 8px; height: 8px; border-radius: 50%; background: #f97316;"></span> Turno especial</span>
+                            <span style="display: inline-flex; align-items: center; gap: 4px;"><span style="width: 8px; height: 8px; border-radius: 50%; background: #ef4444;"></span> Ausencia / Baja</span>
+                            <span style="display: inline-flex; align-items: center; gap: 4px;"><span style="width: 8px; height: 8px; border-radius: 50%; background: #94a3b8;"></span> Libre</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Table Roster -->
+                <div style="background: white; border-radius: 12px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.04);">
+                    <div id="roster-table-container" style="overflow-x: auto;">
+                        <div style="padding: 40px; text-align: center; color: #94a3b8;">
+                            <i class="fas fa-spinner fa-spin" style="font-size: 2rem;"></i>
+                            <p style="margin: 10px 0 0 0;">Cargando cuadrante semanal...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- VIEW 2: FICHAS DE PERSONAL -->
+            <div id="cards-view-container" style="display: none;">
+                <!-- Filters -->
+                <div class="filter-group">
+                    <label>
+                        <input type="radio" name="staff-filter" value="active" checked>
+                        <span>Activos</span>
+                    </label>
+                    <label>
+                        <input type="radio" name="staff-filter" value="inactive">
+                        <span>Dados de Baja</span>
+                    </label>
+                    <label>
+                        <input type="radio" name="staff-filter" value="all">
+                        <span>Todos</span>
+                    </label>
+                </div>
+
+                <!-- Staff List -->
+                <div id="staff-list">
+                    <div style="padding: 40px; text-align: center; color: #94a3b8;">
+                        <i class="fas fa-spinner fa-spin" style="font-size: 2rem;"></i>
+                        <p style="margin: 10px 0 0 0;">Cargando personal...</p>
+                    </div>
                 </div>
             </div>
         </section>
@@ -645,6 +847,179 @@
                 <button type="submit" class="btn btn-accent" style="width: 100%; margin-top: 20px; padding: 14px; font-size: 1rem; font-weight: 600; border-radius: 10px; 
                     background: linear-gradient(135deg, #d4a03d 0%, #c9963a 100%); border: none; color: #1a1a2e;">
                     <i class="fas fa-save"></i> Guardar
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL: REGISTRAR AUSENCIA / VACACIONES POR RANGO -->
+    <div id="range-absence-modal" class="modal" style="display: none;">
+        <div class="modal-content glass" style="max-width: 520px; border-radius: 16px; overflow: hidden;">
+            <div style="background: linear-gradient(135deg, #f43f5e 0%, #e11d48 100%); padding: 18px 22px; color: white;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <h3 style="margin: 0; font-size: 1.25rem; font-weight: 700; color: white;">
+                            <i class="fas fa-umbrella-beach"></i> Registrar Ausencia o Vacaciones
+                        </h3>
+                        <p style="margin: 4px 0 0 0; font-size: 0.8rem; color: #ffe4e6;">Bloquea citas por rango de fechas en 1 clic</p>
+                    </div>
+                    <span class="close-modal" onclick="closeRangeAbsenceModal()" style="font-size: 1.6rem; color: white; cursor: pointer; opacity: 0.85;">&times;</span>
+                </div>
+            </div>
+
+            <form id="range-absence-form" onsubmit="saveRangeAbsence(event)" style="padding: 22px;">
+                <div class="form-group" style="margin-bottom: 14px;">
+                    <label style="font-size: 0.8rem; font-weight: 600; color: #475569; margin-bottom: 5px; display: block;">Empleado / Terapeuta *</label>
+                    <select id="absence-staff-id" required style="width: 100%; padding: 10px 12px; border: 1.5px solid #e2e8f0; border-radius: 8px; font-size: 0.9rem; background: white;">
+                        <!-- JS Render -->
+                    </select>
+                </div>
+
+                <div class="form-group" style="margin-bottom: 14px;">
+                    <label style="font-size: 0.8rem; font-weight: 600; color: #475569; margin-bottom: 5px; display: block;">Tipo de Ausencia *</label>
+                    <select id="absence-type" required onchange="handleAbsenceTypeChange()" style="width: 100%; padding: 10px 12px; border: 1.5px solid #e2e8f0; border-radius: 8px; font-size: 0.9rem; background: white;">
+                        <option value="Vacaciones">🏖️ Vacaciones (Temporal puntual)</option>
+                        <option value="Baja médica">🩺 Baja Médica (Incapacidad laboral)</option>
+                        <option value="Permiso">📋 Permiso / Asuntos propios</option>
+                        <option value="Día Libre Extra">⚪ Día libre especial</option>
+                        <option value="Otro">❓ Otro motivo</option>
+                    </select>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px;">
+                    <div class="form-group">
+                        <label style="font-size: 0.8rem; font-weight: 600; color: #475569; margin-bottom: 5px; display: block;">Fecha Inicio *</label>
+                        <input type="date" id="absence-start-date" required style="width: 100%; padding: 9px 12px; border: 1.5px solid #e2e8f0; border-radius: 8px; font-size: 0.85rem;">
+                    </div>
+                    <div class="form-group">
+                        <label style="font-size: 0.8rem; font-weight: 600; color: #475569; margin-bottom: 5px; display: block;">Fecha Fin *</label>
+                        <input type="date" id="absence-end-date" required style="width: 100%; padding: 9px 12px; border: 1.5px solid #e2e8f0; border-radius: 8px; font-size: 0.85rem;">
+                    </div>
+                </div>
+
+                <div id="absence-inactive-toggle-container" style="margin-bottom: 14px; background: #fff1f2; border: 1px solid #fecdd3; border-radius: 8px; padding: 10px 12px;">
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.82rem; color: #9f1239; font-weight: 600;">
+                        <input type="checkbox" id="absence-set-inactive" style="width: 16px; height: 16px; accent-color: #e11d48;">
+                        <span>Marcar terapeuta en estado general de "Baja" (Excluir de todas las salas hasta su reincorporación)</span>
+                    </label>
+                </div>
+
+                <div class="form-group" style="margin-bottom: 20px;">
+                    <label style="font-size: 0.8rem; font-weight: 600; color: #475569; margin-bottom: 5px; display: block;">Detalle o Motivo (Opcional)</label>
+                    <input type="text" id="absence-notes" placeholder="Ej: Vacaciones de verano, reposo médico..." style="width: 100%; padding: 9px 12px; border: 1.5px solid #e2e8f0; border-radius: 8px; font-size: 0.85rem;">
+                </div>
+
+                <button type="submit" class="btn btn-accent" style="width: 100%; padding: 12px; font-size: 0.95rem; font-weight: 700; border-radius: 10px; background: linear-gradient(135deg, #f43f5e 0%, #e11d48 100%); border: none; color: white;">
+                    <i class="fas fa-check"></i> Aplicar Ausencia al Rango
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL: ASIGNAR TURNO RÁPIDO POR RANGO / SEMANA -->
+    <div id="quick-schedule-modal" class="modal" style="display: none;">
+        <div class="modal-content glass" style="max-width: 580px; border-radius: 16px; overflow: hidden;">
+            <div style="background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%); padding: 18px 22px; color: white;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <h3 style="margin: 0; font-size: 1.25rem; font-weight: 700; color: white;">
+                            <i class="fas fa-bolt"></i> Asignar Turno Rápido
+                        </h3>
+                        <p style="margin: 4px 0 0 0; font-size: 0.8rem; color: #e0e7ff;">Aplica horarios partidos o especiales para una semana o rango</p>
+                    </div>
+                    <span class="close-modal" onclick="closeQuickScheduleModal()" style="font-size: 1.6rem; color: white; cursor: pointer; opacity: 0.85;">&times;</span>
+                </div>
+            </div>
+
+            <form id="quick-schedule-form" onsubmit="saveQuickSchedule(event)" style="padding: 22px;">
+                <div class="form-group" style="margin-bottom: 14px;">
+                    <label style="font-size: 0.8rem; font-weight: 600; color: #475569; margin-bottom: 5px; display: block;">Empleado / Terapeuta *</label>
+                    <select id="quick-sched-staff-id" required style="width: 100%; padding: 10px 12px; border: 1.5px solid #e2e8f0; border-radius: 8px; font-size: 0.9rem; background: white;">
+                        <!-- JS Render -->
+                    </select>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px;">
+                    <div class="form-group">
+                        <label style="font-size: 0.8rem; font-weight: 600; color: #475569; margin-bottom: 5px; display: block;">Fecha Desde *</label>
+                        <input type="date" id="quick-sched-start-date" required style="width: 100%; padding: 9px 12px; border: 1.5px solid #e2e8f0; border-radius: 8px; font-size: 0.85rem;">
+                    </div>
+                    <div class="form-group">
+                        <label style="font-size: 0.8rem; font-weight: 600; color: #475569; margin-bottom: 5px; display: block;">Fecha Hasta *</label>
+                        <input type="date" id="quick-sched-end-date" required style="width: 100%; padding: 9px 12px; border: 1.5px solid #e2e8f0; border-radius: 8px; font-size: 0.85rem;">
+                    </div>
+                </div>
+
+                <!-- Días aplicables -->
+                <div style="margin-bottom: 16px;">
+                    <label style="font-size: 0.8rem; font-weight: 600; color: #475569; margin-bottom: 6px; display: block;">Días de la semana a aplicar *</label>
+                    <div style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px;">
+                        <label style="display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 6px 2px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.75rem; font-weight: 600; cursor: pointer;">
+                            <input type="checkbox" name="quick-days" value="monday" checked style="accent-color: #6366f1;">
+                            <span>Lun</span>
+                        </label>
+                        <label style="display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 6px 2px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.75rem; font-weight: 600; cursor: pointer;">
+                            <input type="checkbox" name="quick-days" value="tuesday" checked style="accent-color: #6366f1;">
+                            <span>Mar</span>
+                        </label>
+                        <label style="display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 6px 2px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.75rem; font-weight: 600; cursor: pointer;">
+                            <input type="checkbox" name="quick-days" value="wednesday" checked style="accent-color: #6366f1;">
+                            <span>Mié</span>
+                        </label>
+                        <label style="display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 6px 2px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.75rem; font-weight: 600; cursor: pointer;">
+                            <input type="checkbox" name="quick-days" value="thursday" checked style="accent-color: #6366f1;">
+                            <span>Jue</span>
+                        </label>
+                        <label style="display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 6px 2px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.75rem; font-weight: 600; cursor: pointer;">
+                            <input type="checkbox" name="quick-days" value="friday" checked style="accent-color: #6366f1;">
+                            <span>Vie</span>
+                        </label>
+                        <label style="display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 6px 2px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.75rem; font-weight: 600; cursor: pointer;">
+                            <input type="checkbox" name="quick-days" value="saturday" style="accent-color: #6366f1;">
+                            <span>Sáb</span>
+                        </label>
+                        <label style="display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 6px 2px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.75rem; font-weight: 600; cursor: pointer;">
+                            <input type="checkbox" name="quick-days" value="sunday" style="accent-color: #6366f1;">
+                            <span>Dom</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Plantillas rápidas -->
+                <div style="margin-bottom: 14px;">
+                    <label style="font-size: 0.78rem; font-weight: 600; color: #64748b; margin-bottom: 5px; display: block;">⚡ Plantillas rápidas de turno:</label>
+                    <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+                        <button type="button" onclick="applyQuickShiftPreset('partido-estetica')" class="btn btn-outline btn-sm" style="font-size: 0.72rem; padding: 4px 8px; border-color: #cbd5e1;">
+                            Partido Estética (10-14 y 16:30-20:30)
+                        </button>
+                        <button type="button" onclick="applyQuickShiftPreset('partido-sabado')" class="btn btn-outline btn-sm" style="font-size: 0.72rem; padding: 4px 8px; border-color: #cbd5e1;">
+                            Partido Sábado (10-14 y 16-20)
+                        </button>
+                        <button type="button" onclick="applyQuickShiftPreset('manana')" class="btn btn-outline btn-sm" style="font-size: 0.72rem; padding: 4px 8px; border-color: #cbd5e1;">
+                            Mañana (10-14)
+                        </button>
+                        <button type="button" onclick="applyQuickShiftPreset('tarde')" class="btn btn-outline btn-sm" style="font-size: 0.72rem; padding: 4px 8px; border-color: #cbd5e1;">
+                            Tarde (16:30-20:30)
+                        </button>
+                        <button type="button" onclick="applyQuickShiftPreset('continuo')" class="btn btn-outline btn-sm" style="font-size: 0.72rem; padding: 4px 8px; border-color: #cbd5e1;">
+                            Continuo (10-18)
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Tramos del turno -->
+                <div style="background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 10px; padding: 14px; margin-bottom: 16px;">
+                    <label style="font-size: 0.8rem; font-weight: 700; color: #334155; margin-bottom: 8px; display: block;">Tramos Horarios de Trabajo:</label>
+                    <div id="quick-sched-shifts-container" style="display: flex; flex-direction: column; gap: 8px;">
+                        <!-- JS will populate or default to 10:00-14:00, 16:30-20:30 -->
+                    </div>
+                    <button type="button" onclick="addQuickShiftRow()" class="btn btn-outline btn-sm" style="margin-top: 10px; font-size: 0.75rem;">
+                        <i class="fas fa-plus"></i> Añadir otro tramo (Turno partido)
+                    </button>
+                </div>
+
+                <button type="submit" class="btn btn-accent" style="width: 100%; padding: 12px; font-size: 0.95rem; font-weight: 700; border-radius: 10px; background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%); border: none; color: white;">
+                    <i class="fas fa-save"></i> Guardar y Aplicar Turnos
                 </button>
             </form>
         </div>

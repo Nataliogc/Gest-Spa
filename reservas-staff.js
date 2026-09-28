@@ -88,7 +88,15 @@ async function handleStaffFieldsChange() {
 
                 let label = s.alias || s.nombre || s.name || 'Sin nombre';
                 if (isBusy) label += s._collision ? (" (Ocupado: " + s._collision + ")") : " (Ocupado)";
-                if (isOff) label += " (No trabaja)";
+                if (isOff) {
+                    if (s._offReason) {
+                        label += ` (${s._offReason})`;
+                    } else if (s._shift) {
+                        label += ` (Fuera de turno: ${s._shift})`;
+                    } else {
+                        label += " (No trabaja)";
+                    }
+                }
                 if (isExcluded) label += " (Seleccionado)";
 
                 const isSelected = (s.id === selectedVal) ? 'selected' : '';
@@ -289,12 +297,14 @@ window.getStaffScheduleForDate = async function (staff, date, preFetchedExceptio
     // Determine Final Status & Shifts
     let status = 'ok';
     let shifts = [];
+    let offReason = null;
 
     // Apply Base Schedule
     if (dayConfig && dayConfig.enabled && dayConfig.shifts) {
         shifts = dayConfig.shifts;
     } else {
         status = 'off'; // No base schedule
+        offReason = 'Día libre';
     }
 
     // Apply Exception Override
@@ -302,13 +312,15 @@ window.getStaffScheduleForDate = async function (staff, date, preFetchedExceptio
         if (exc.status === 'unavailable' || exc.status === 'off' || exc.status === 'vacation') {
             status = 'off';
             shifts = [];
+            offReason = exc.reason || 'No disponible / Vacaciones';
         } else if (exc.status === 'custom' && exc.custom_schedule) {
             status = 'ok';
             shifts = exc.custom_schedule.shifts || [];
+            offReason = null;
         }
     }
 
-    return { status, shifts };
+    return { status, shifts, offReason };
 };
 
 

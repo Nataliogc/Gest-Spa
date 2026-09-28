@@ -46,7 +46,7 @@ const WEEKDAYS = [
     { key: 'sunday', label: 'Domingo' }
 ];
 
-// Estado del calendario
+// Estado del calendario individual
 let calendarState = {
     staffId: null,
     staffName: '',
@@ -56,6 +56,27 @@ let calendarState = {
     seasonalSchedules: [],
     dayExceptions: {}
 };
+
+// Estado del cuadrante semanal y vistas
+let currentRosterDate = new Date();
+let rosterExceptions = {};
+let currentView = 'roster'; // 'roster' | 'cards'
+
+// Helper de fechas
+function getMonday(d) {
+    const date = new Date(d);
+    const day = date.getDay();
+    const diff = date.getDate() - day + (day === 0 ? -6 : 1);
+    date.setDate(diff);
+    date.setHours(0, 0, 0, 0);
+    return date;
+}
+
+function addDays(d, days) {
+    const res = new Date(d);
+    res.setDate(res.getDate() + days);
+    return res;
+}
 
 // ============================================================================
 // INICIALIZACIÓN
@@ -84,6 +105,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Configurar delegación para colapsar periodos estacionales
     setupSeasonalCollapsible();
+
+    // Cargar cuadrante semanal por defecto
+    await loadWeeklyRoster();
 
     console.log('[PERSONAL] Módulo inicializado correctamente');
 });
@@ -325,14 +349,26 @@ function renderStaffCard(staff) {
                     ` : ''}
                 </div>
                 
-                <div style="display: flex; flex-direction: column; gap: 8px;">
-                    <button onclick="editStaff('${staff.id}')" class="btn btn-outline btn-sm" 
-                        style="padding: 8px 12px; font-size: 0.8rem;">
-                        <i class="fas fa-edit"></i> Editar
+                <div style="display: flex; flex-direction: column; gap: 6px; min-width: 140px;">
+                    <button onclick="toggleStaffStatus('${staff.id}')" class="btn btn-outline btn-sm" 
+                        style="padding: 6px 10px; font-size: 0.78rem; font-weight: 600; ${isActive ? 'color: #991b1b; border-color: #fca5a5; background: #fff1f2;' : 'color: #065f46; border-color: #a7f3d0; background: #f0fdf4;'}">
+                        ${isActive ? '<i class="fas fa-user-slash"></i> Poner de Baja' : '<i class="fas fa-user-check"></i> Reactivar'}
+                    </button>
+                    <button onclick="openRangeAbsenceModal('${staff.id}')" class="btn btn-outline btn-sm" 
+                        style="padding: 6px 10px; font-size: 0.78rem; font-weight: 600; color: #e11d48; border-color: #fca5a5;">
+                        <i class="fas fa-umbrella-beach"></i> Ausencia / Vac.
+                    </button>
+                    <button onclick="openQuickScheduleModal('${staff.id}')" class="btn btn-outline btn-sm" 
+                        style="padding: 6px 10px; font-size: 0.78rem; font-weight: 600; color: #4f46e5; border-color: #c7d2fe;">
+                        <i class="fas fa-bolt"></i> Asignar Turno
                     </button>
                     <button onclick="openCalendarModal('${staff.id}')" class="btn btn-outline btn-sm" 
-                        style="padding: 8px 12px; font-size: 0.8rem; border-color: #6366f1; color: #6366f1;">
-                        <i class="fas fa-calendar-alt"></i> Calendario
+                        style="padding: 6px 10px; font-size: 0.78rem; border-color: #cbd5e1; color: #475569;">
+                        <i class="fas fa-calendar-alt"></i> Ver Mes
+                    </button>
+                    <button onclick="editStaff('${staff.id}')" class="btn btn-outline btn-sm" 
+                        style="padding: 6px 10px; font-size: 0.78rem; border-color: #cbd5e1; color: #475569;">
+                        <i class="fas fa-edit"></i> Editar Ficha
                     </button>
                 </div>
             </div>
@@ -1017,17 +1053,31 @@ function formatDate(date) {
 // MODAL DE DETALLE DE DÍA
 // ============================================================================
 
-function openDayDetail(dateStr) {
+async function openDayDetail(dateStr, staffId = null) {
+    if (staffId && staffId !== calendarState.staffId) {
+        const staff = allStaffList.find(s => s.id === staffId);
+        if (staff) {
+            calendarState.staffId = staff.id;
+            calendarState.staffName = staff.nombre || staff.name || 'Terapeuta';
+            calendarState.staffSchedule = staff.default_schedule || {};
+            calendarState.seasonalSchedules = staff.seasonal_schedules || [];
+            await loadStaffExceptions(staff.id);
+        }
+    }
+
     const date = new Date(dateStr + 'T00:00:00');
     const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
     const formattedDate = date.toLocaleDateString('es-ES', options);
 
-    document.getElementById('day-detail-date').textContent = formattedDate;
+    const titleEl = document.getElementById('day-detail-date');
+    if (titleEl) {
+        titleEl.textContent = `${calendarState.staffName ? calendarState.staffName + ' - ' : ''}${formattedDate}`;
+    }
     document.getElementById('day-detail-date-value').value = dateStr;
 
     // Get day of week for base schedule info
     const dayOfWeek = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'][date.getDay()];
-    const dayConfig = calendarState.staffSchedule[dayOfWeek];
+    const dayConfig = (calendarState.staffSchedule || {})[dayOfWeek];
 
     if (dayConfig?.enabled && dayConfig.shifts?.length > 0) {
         const shiftsText = dayConfig.shifts.map(s => `${s.start}-${s.end}`).join(', ');
@@ -1154,11 +1204,640 @@ async function saveDayAvailability(event) {
         }
 
         closeDayDetailModal();
-        renderCalendar();
+        if (document.getElementById('calendar-modal') && document.getElementById('calendar-modal').style.display !== 'none') {
+            renderCalendar();
+        }
+        if (currentView === 'roster') {
+            await loadWeeklyRoster();
+        }
 
     } catch (err) {
         console.error('[PERSONAL] Error guardando disponibilidad:', err);
         alert('Error al guardar: ' + err.message);
+    }
+}
+
+// ============================================================================
+// GESTIÓN DEL CUADRANTE SEMANAL (ROSTER)
+// ============================================================================
+
+function switchPersonalView(viewName) {
+    currentView = viewName;
+    const rosterContainer = document.getElementById('roster-view-container');
+    const cardsContainer = document.getElementById('cards-view-container');
+    const rosterBtn = document.getElementById('tab-btn-roster');
+    const cardsBtn = document.getElementById('tab-btn-cards');
+
+    if (viewName === 'roster') {
+        if (rosterContainer) rosterContainer.style.display = 'block';
+        if (cardsContainer) cardsContainer.style.display = 'none';
+        if (rosterBtn) rosterBtn.classList.add('active');
+        if (cardsBtn) cardsBtn.classList.remove('active');
+        loadWeeklyRoster();
+    } else {
+        if (rosterContainer) rosterContainer.style.display = 'none';
+        if (cardsContainer) cardsContainer.style.display = 'block';
+        if (rosterBtn) rosterBtn.classList.remove('active');
+        if (cardsBtn) cardsBtn.classList.add('active');
+        renderStaffList();
+    }
+}
+
+function navigateRosterWeek(direction) {
+    if (direction === 0) {
+        currentRosterDate = new Date();
+    } else {
+        currentRosterDate = addDays(currentRosterDate, direction * 7);
+    }
+    loadWeeklyRoster();
+}
+
+async function loadWeeklyRoster() {
+    const monday = getMonday(currentRosterDate);
+    const sunday = addDays(monday, 6);
+
+    const mondayStr = formatDate(monday);
+    const sundayStr = formatDate(sunday);
+
+    const options = { day: 'numeric', month: 'short' };
+    const mStr = monday.toLocaleDateString('es-ES', options);
+    const sStr = sunday.toLocaleDateString('es-ES', { ...options, year: 'numeric' });
+    const label = document.getElementById('roster-week-label');
+    if (label) label.textContent = `Semana del ${mStr} al ${sStr}`;
+
+    const tableContainer = document.getElementById('roster-table-container');
+    if (tableContainer) {
+        tableContainer.innerHTML = `
+            <div style="padding: 40px; text-align: center; color: #94a3b8;">
+                <i class="fas fa-spinner fa-spin" style="font-size: 2rem;"></i>
+                <p style="margin: 10px 0 0 0;">Cargando cuadrante semanal...</p>
+            </div>
+        `;
+    }
+
+    try {
+        const snapshot = await db.collection('spa_staff_availability')
+            .where('date', '>=', mondayStr)
+            .where('date', '<=', sundayStr)
+            .get();
+
+        rosterExceptions = {};
+        snapshot.forEach(doc => {
+            const data = doc.data();
+            if (!rosterExceptions[data.date]) rosterExceptions[data.date] = {};
+            rosterExceptions[data.date][data.staff_id] = { id: doc.id, ...data };
+        });
+
+        renderWeeklyRoster();
+    } catch (err) {
+        console.error('[PERSONAL] Error cargando cuadrante semanal:', err);
+        if (tableContainer) {
+            tableContainer.innerHTML = `
+                <div style="padding: 30px; text-align: center; color: #ef4444;">
+                    <i class="fas fa-exclamation-circle" style="font-size: 2rem;"></i>
+                    <p style="margin: 10px 0;">Error al cargar cuadrante semanal: ${err.message}</p>
+                </div>
+            `;
+        }
+    }
+}
+
+function renderWeeklyRoster() {
+    const tableContainer = document.getElementById('roster-table-container');
+    if (!tableContainer) return;
+
+    const monday = getMonday(currentRosterDate);
+    const days = [];
+    for (let i = 0; i < 7; i++) {
+        const d = addDays(monday, i);
+        days.push({
+            date: d,
+            dateStr: formatDate(d),
+            dayName: ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'][d.getDay()],
+            dayKey: ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'][d.getDay()],
+            isToday: formatDate(new Date()) === formatDate(d)
+        });
+    }
+
+    const roomFilter = document.getElementById('roster-room-filter')?.value || 'all';
+    let filteredStaff = allStaffList;
+    if (roomFilter !== 'all') {
+        filteredStaff = allStaffList.filter(s => {
+            const rooms = (s.assigned_rooms || s.salas || []).map(r => r.toLowerCase());
+            return rooms.includes(roomFilter.toLowerCase());
+        });
+    }
+
+    filteredStaff.sort((a, b) => {
+        const actA = (a.activo === true || a.status === 'active') ? 0 : 1;
+        const actB = (b.activo === true || b.status === 'active') ? 0 : 1;
+        if (actA !== actB) return actA - actB;
+        const nameA = a.nombre || a.name || '';
+        const nameB = b.nombre || b.name || '';
+        return nameA.localeCompare(nameB);
+    });
+
+    if (filteredStaff.length === 0) {
+        tableContainer.innerHTML = `
+            <div style="padding: 40px; text-align: center; color: #94a3b8;">
+                <p style="margin: 0; font-size: 1rem;">No hay personal asignado a esta sala</p>
+            </div>
+        `;
+        return;
+    }
+
+    let html = `
+        <table class="roster-table">
+            <thead>
+                <tr>
+                    <th style="min-width: 220px;">Terapeuta / Personal</th>
+                    ${days.map(d => `
+                        <th style="${d.isToday ? 'background: #eff6ff; color: #1d4ed8; border-bottom: 2px solid #3b82f6;' : ''}">
+                            <div style="font-size: 0.8rem; text-transform: uppercase;">${d.dayName}</div>
+                            <div style="font-size: 1.05rem; font-weight: 700;">${d.date.getDate()} ${d.date.toLocaleDateString('es-ES', { month: 'short' })}</div>
+                        </th>
+                    `).join('')}
+                </tr>
+            </thead>
+            <tbody>
+    `;
+
+    filteredStaff.forEach(staff => {
+        const isActive = staff.activo === true || staff.status === 'active';
+        const name = staff.nombre || staff.name || 'Sin nombre';
+        const rooms = staff.assigned_rooms || staff.salas || [];
+        const roomTags = rooms.slice(0, 3).map(r => {
+            const room = AVAILABLE_ROOMS.find(ar => ar.code === r.toLowerCase());
+            return room ? room.label : r;
+        }).join(', ');
+
+        html += `
+            <tr style="${!isActive ? 'opacity: 0.65; background: #fafafa;' : ''}">
+                <td>
+                    <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <div style="width: 34px; height: 34px; border-radius: 50%; background: linear-gradient(135deg, var(--accent) 0%, #c9963a 100%); color: white; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.85rem; flex-shrink: 0;">
+                                ${getInitials(name)}
+                            </div>
+                            <div>
+                                <div style="font-weight: 700; color: #1e293b; font-size: 0.9rem; line-height: 1.2;">${name}</div>
+                                <div style="font-size: 0.72rem; color: #64748b;">${roomTags || 'Sin sala'}</div>
+                            </div>
+                        </div>
+                        <button onclick="toggleStaffStatus('${staff.id}')" class="btn-status-toggle ${isActive ? 'status-active' : 'status-inactive'}" title="${isActive ? 'Click para poner de baja médica' : 'Click para reincorporar/activar'}">
+                            ${isActive ? '🟢 Activo' : '🔴 Baja'}
+                        </button>
+                    </div>
+                </td>
+        `;
+
+        days.forEach(d => {
+            const cellInfo = getRosterDayInfo(staff, d.dateStr, d.dayKey);
+            html += `
+                <td>
+                    <div class="roster-day-cell" onclick="openDayDetail('${d.dateStr}', '${staff.id}')" title="Click para ajustar horario de este día" style="background: ${cellInfo.bgColor}; border: 1.5px solid ${cellInfo.borderColor};">
+                        ${cellInfo.badgesHtml}
+                    </div>
+                </td>
+            `;
+        });
+
+        html += `</tr>`;
+    });
+
+    html += `
+            </tbody>
+        </table>
+    `;
+
+    tableContainer.innerHTML = html;
+}
+
+function getRosterDayInfo(staff, dateStr, dayKey) {
+    const isStaffActive = staff.activo === true || staff.status === 'active';
+    if (!isStaffActive) {
+        return {
+            bgColor: '#f8fafc',
+            borderColor: '#e2e8f0',
+            badgesHtml: `<span class="roster-absence-badge" style="background: #fee2e2; color: #991b1b;"><i class="fas fa-user-slash"></i> Baja</span>`
+        };
+    }
+
+    const exception = rosterExceptions[dateStr] ? rosterExceptions[dateStr][staff.id] : null;
+    if (exception) {
+        if (exception.status === 'unavailable' || exception.status === 'off' || exception.status === 'vacation') {
+            const reason = exception.reason || 'No disponible';
+            const icon = reason.toLowerCase().includes('vacacion') ? 'fa-umbrella-beach' : 'fa-ban';
+            return {
+                bgColor: '#fef2f2',
+                borderColor: '#fca5a5',
+                badgesHtml: `<span class="roster-absence-badge"><i class="fas ${icon}"></i> ${reason}</span>`
+            };
+        }
+        if (exception.status === 'custom') {
+            const shifts = exception.custom_schedule?.shifts || [];
+            const shiftsBadges = shifts.map(s => `<span class="roster-custom-shift-badge">⚡ ${s.start} - ${s.end}</span>`).join('');
+            return {
+                bgColor: '#fff7ed',
+                borderColor: '#fed7aa',
+                badgesHtml: shiftsBadges || `<span class="roster-off-badge">Sin turnos</span>`
+            };
+        }
+    }
+
+    let activeSchedule = staff.default_schedule || {};
+    if (staff.seasonal_schedules && Array.isArray(staff.seasonal_schedules)) {
+        const activePeriod = staff.seasonal_schedules.find(p => dateStr >= p.start && dateStr <= p.end);
+        if (activePeriod) {
+            activeSchedule = activePeriod.schedule || {};
+        }
+    }
+
+    const dayConfig = activeSchedule[dayKey];
+    if (dayConfig?.enabled && dayConfig.shifts?.length > 0) {
+        const shiftsBadges = dayConfig.shifts.map(s => `<span class="roster-shift-badge">${s.start} - ${s.end}</span>`).join('');
+        return {
+            bgColor: '#f0fdf4',
+            borderColor: '#bbf7d0',
+            badgesHtml: shiftsBadges
+        };
+    }
+
+    return {
+        bgColor: '#f8fafc',
+        borderColor: '#e2e8f0',
+        badgesHtml: `<span class="roster-off-badge">Descanso</span>`
+    };
+}
+
+// ============================================================================
+// ACCIÓN RÁPIDA: TOGGLE ACTIVO / BAJA
+// ============================================================================
+
+async function toggleStaffStatus(staffId) {
+    const staff = allStaffList.find(s => s.id === staffId);
+    if (!staff) return;
+
+    const currentActive = staff.activo === true || staff.status === 'active';
+    const newStatus = !currentActive;
+    const name = staff.nombre || staff.name || 'Terapeuta';
+
+    const confirmMsg = newStatus 
+        ? `¿Reactivar a ${name}?\nVolverá a estar disponible para citas en sus horarios habituales.`
+        : `¿Poner a ${name} de BAJA médica/temporal?\nNo estará disponible para asignar citas en ninguna sala hasta su reincorporación.`;
+
+    if (!confirm(confirmMsg)) return;
+
+    try {
+        await db.collection('spa_staff').doc(staffId).update({
+            activo: newStatus,
+            status: newStatus ? 'active' : 'inactive',
+            updated_at: firebase.firestore.FieldValue.serverTimestamp()
+        });
+
+        staff.activo = newStatus;
+        staff.status = newStatus ? 'active' : 'inactive';
+
+        if (currentView === 'roster') {
+            renderWeeklyRoster();
+        } else {
+            renderStaffList();
+        }
+    } catch (err) {
+        console.error('[PERSONAL] Error cambiando estado:', err);
+        alert('Error al actualizar estado: ' + err.message);
+    }
+}
+
+// ============================================================================
+// MODAL: REGISTRAR AUSENCIA / VACACIONES POR RANGO
+// ============================================================================
+
+function openRangeAbsenceModal(staffId = null) {
+    const modal = document.getElementById('range-absence-modal');
+    if (!modal) return;
+
+    const select = document.getElementById('absence-staff-id');
+    select.innerHTML = allStaffList.map(s => `
+        <option value="${s.id}" ${s.id === staffId ? 'selected' : ''}>
+            ${s.nombre || s.name} (${(s.activo === true || s.status === 'active') ? 'Activo' : 'Baja'})
+        </option>
+    `).join('');
+
+    const monday = getMonday(currentRosterDate);
+    const sunday = addDays(monday, 6);
+    document.getElementById('absence-start-date').value = formatDate(monday);
+    document.getElementById('absence-end-date').value = formatDate(sunday);
+    document.getElementById('absence-notes').value = '';
+    document.getElementById('absence-type').value = 'Vacaciones';
+    document.getElementById('absence-set-inactive').checked = false;
+
+    modal.style.display = 'flex';
+}
+
+function closeRangeAbsenceModal() {
+    const modal = document.getElementById('range-absence-modal');
+    if (modal) modal.style.display = 'none';
+}
+
+function handleAbsenceTypeChange() {
+    const type = document.getElementById('absence-type').value;
+    const inactiveCheckbox = document.getElementById('absence-set-inactive');
+    if (type === 'Baja médica') {
+        inactiveCheckbox.checked = true;
+    } else {
+        inactiveCheckbox.checked = false;
+    }
+}
+
+async function saveRangeAbsence(event) {
+    event.preventDefault();
+
+    const staffId = document.getElementById('absence-staff-id').value;
+    const type = document.getElementById('absence-type').value;
+    const startDateStr = document.getElementById('absence-start-date').value;
+    const endDateStr = document.getElementById('absence-end-date').value;
+    const notes = document.getElementById('absence-notes').value.trim();
+    const setInactive = document.getElementById('absence-set-inactive').checked;
+
+    if (!startDateStr || !endDateStr) {
+        alert('Por favor selecciona las fechas de inicio y fin');
+        return;
+    }
+
+    if (startDateStr > endDateStr) {
+        alert('La fecha de fin no puede ser anterior a la de inicio');
+        return;
+    }
+
+    const staff = allStaffList.find(s => s.id === staffId);
+    const staffName = staff ? (staff.nombre || staff.name) : 'Terapeuta';
+    const reason = notes ? `${type}: ${notes}` : type;
+
+    try {
+        const start = new Date(startDateStr + 'T00:00:00');
+        const end = new Date(endDateStr + 'T00:00:00');
+        const batch = db.batch();
+
+        let count = 0;
+        let curr = new Date(start);
+
+        const existingSnap = await db.collection('spa_staff_availability')
+            .where('staff_id', '==', staffId)
+            .where('date', '>=', startDateStr)
+            .where('date', '<=', endDateStr)
+            .get();
+
+        const existingMap = {};
+        existingSnap.forEach(d => {
+            existingMap[d.data().date] = d.id;
+        });
+
+        while (curr <= end) {
+            const dateStr = formatDate(curr);
+            const docId = existingMap[dateStr];
+
+            const docData = {
+                staff_id: staffId,
+                date: dateStr,
+                status: 'unavailable',
+                reason: reason,
+                updated_at: firebase.firestore.FieldValue.serverTimestamp()
+            };
+
+            if (docId) {
+                batch.update(db.collection('spa_staff_availability').doc(docId), docData);
+            } else {
+                docData.created_at = firebase.firestore.FieldValue.serverTimestamp();
+                const newDocRef = db.collection('spa_staff_availability').doc();
+                batch.set(newDocRef, docData);
+            }
+
+            count++;
+            curr.setDate(curr.getDate() + 1);
+        }
+
+        if (setInactive) {
+            batch.update(db.collection('spa_staff').doc(staffId), {
+                activo: false,
+                status: 'inactive',
+                updated_at: firebase.firestore.FieldValue.serverTimestamp()
+            });
+            if (staff) {
+                staff.activo = false;
+                staff.status = 'inactive';
+            }
+        }
+
+        await batch.commit();
+        alert(`✓ Se han registrado ${count} días de ausencia (${reason}) para ${staffName}.`);
+
+        closeRangeAbsenceModal();
+        if (currentView === 'roster') {
+            await loadWeeklyRoster();
+        } else {
+            renderStaffList();
+        }
+    } catch (err) {
+        console.error('[PERSONAL] Error guardando ausencia por rango:', err);
+        alert('Error al guardar ausencia: ' + err.message);
+    }
+}
+
+// ============================================================================
+// MODAL: ASIGNAR TURNO RÁPIDO POR RANGO / SEMANA
+// ============================================================================
+
+function openQuickScheduleModal(staffId = null) {
+    const modal = document.getElementById('quick-schedule-modal');
+    if (!modal) return;
+
+    const select = document.getElementById('quick-sched-staff-id');
+    select.innerHTML = allStaffList.map(s => `
+        <option value="${s.id}" ${s.id === staffId ? 'selected' : ''}>
+            ${s.nombre || s.name}
+        </option>
+    `).join('');
+
+    const monday = getMonday(currentRosterDate);
+    const sunday = addDays(monday, 6);
+    document.getElementById('quick-sched-start-date').value = formatDate(monday);
+    document.getElementById('quick-sched-end-date').value = formatDate(sunday);
+
+    setQuickShifts([
+        { start: '10:00', end: '14:00' },
+        { start: '16:30', end: '20:30' }
+    ]);
+
+    modal.style.display = 'flex';
+}
+
+function closeQuickScheduleModal() {
+    const modal = document.getElementById('quick-schedule-modal');
+    if (modal) modal.style.display = 'none';
+}
+
+function setQuickShifts(shifts) {
+    const container = document.getElementById('quick-sched-shifts-container');
+    if (!container) return;
+
+    container.innerHTML = shifts.map((sh, idx) => `
+        <div style="display: flex; gap: 8px; align-items: center;">
+            <span style="font-size: 0.75rem; color: #64748b; font-weight: 600; width: 60px;">Tramo ${idx + 1}:</span>
+            <input type="time" value="${sh.start}" class="quick-shift-start" style="padding: 7px 10px; border: 1.5px solid #cbd5e1; border-radius: 6px; font-size: 0.85rem;">
+            <span style="color: #94a3b8;">a</span>
+            <input type="time" value="${sh.end}" class="quick-shift-end" style="padding: 7px 10px; border: 1.5px solid #cbd5e1; border-radius: 6px; font-size: 0.85rem;">
+            ${idx > 0 ? `
+                <button type="button" onclick="this.parentElement.remove()" class="btn btn-outline btn-sm" style="color: #ef4444; border-color: #ef4444; padding: 4px 8px;">
+                    <i class="fas fa-times"></i>
+                </button>
+            ` : ''}
+        </div>
+    `).join('');
+}
+
+function addQuickShiftRow() {
+    const container = document.getElementById('quick-sched-shifts-container');
+    if (!container) return;
+
+    const count = container.children.length;
+    const row = document.createElement('div');
+    row.style.cssText = 'display: flex; gap: 8px; align-items: center;';
+    row.innerHTML = `
+        <span style="font-size: 0.75rem; color: #64748b; font-weight: 600; width: 60px;">Tramo ${count + 1}:</span>
+        <input type="time" value="16:30" class="quick-shift-start" style="padding: 7px 10px; border: 1.5px solid #cbd5e1; border-radius: 6px; font-size: 0.85rem;">
+        <span style="color: #94a3b8;">a</span>
+        <input type="time" value="20:30" class="quick-shift-end" style="padding: 7px 10px; border: 1.5px solid #cbd5e1; border-radius: 6px; font-size: 0.85rem;">
+        <button type="button" onclick="this.parentElement.remove()" class="btn btn-outline btn-sm" style="color: #ef4444; border-color: #ef4444; padding: 4px 8px;">
+            <i class="fas fa-times"></i>
+        </button>
+    `;
+    container.appendChild(row);
+}
+
+function applyQuickShiftPreset(preset) {
+    if (preset === 'partido-estetica') {
+        setQuickShifts([
+            { start: '10:00', end: '14:00' },
+            { start: '16:30', end: '20:30' }
+        ]);
+        setQuickDays(['tuesday', 'wednesday', 'thursday', 'friday']);
+    } else if (preset === 'partido-sabado') {
+        setQuickShifts([
+            { start: '10:00', end: '14:00' },
+            { start: '16:00', end: '20:00' }
+        ]);
+        setQuickDays(['saturday']);
+    } else if (preset === 'manana') {
+        setQuickShifts([{ start: '10:00', end: '14:00' }]);
+    } else if (preset === 'tarde') {
+        setQuickShifts([{ start: '16:30', end: '20:30' }]);
+    } else if (preset === 'continuo') {
+        setQuickShifts([{ start: '10:00', end: '18:00' }]);
+    }
+}
+
+function setQuickDays(activeDays) {
+    document.querySelectorAll('input[name="quick-days"]').forEach(cb => {
+        cb.checked = activeDays.includes(cb.value);
+    });
+}
+
+async function saveQuickSchedule(event) {
+    event.preventDefault();
+
+    const staffId = document.getElementById('quick-sched-staff-id').value;
+    const startDateStr = document.getElementById('quick-sched-start-date').value;
+    const endDateStr = document.getElementById('quick-sched-end-date').value;
+
+    const selectedDays = [];
+    document.querySelectorAll('input[name="quick-days"]:checked').forEach(cb => {
+        selectedDays.push(cb.value);
+    });
+
+    if (selectedDays.length === 0) {
+        alert('Selecciona al menos un día de la semana');
+        return;
+    }
+
+    const shifts = [];
+    const container = document.getElementById('quick-sched-shifts-container');
+    const starts = container.querySelectorAll('.quick-shift-start');
+    const ends = container.querySelectorAll('.quick-shift-end');
+
+    starts.forEach((s, idx) => {
+        if (s.value && ends[idx]?.value) {
+            shifts.push({ start: s.value, end: ends[idx].value });
+        }
+    });
+
+    if (shifts.length === 0) {
+        alert('Define al menos un tramo horario');
+        return;
+    }
+
+    const staff = allStaffList.find(s => s.id === staffId);
+    const staffName = staff ? (staff.nombre || staff.name) : 'Terapeuta';
+
+    try {
+        const start = new Date(startDateStr + 'T00:00:00');
+        const end = new Date(endDateStr + 'T00:00:00');
+        const batch = db.batch();
+        let appliedCount = 0;
+
+        const existingSnap = await db.collection('spa_staff_availability')
+            .where('staff_id', '==', staffId)
+            .where('date', '>=', startDateStr)
+            .where('date', '<=', endDateStr)
+            .get();
+
+        const existingMap = {};
+        existingSnap.forEach(d => {
+            existingMap[d.data().date] = d.id;
+        });
+
+        let curr = new Date(start);
+        const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+
+        while (curr <= end) {
+            const dayKey = dayNames[curr.getDay()];
+            if (selectedDays.includes(dayKey)) {
+                const dateStr = formatDate(curr);
+                const docId = existingMap[dateStr];
+
+                const docData = {
+                    staff_id: staffId,
+                    date: dateStr,
+                    status: 'custom',
+                    custom_schedule: { shifts: shifts },
+                    updated_at: firebase.firestore.FieldValue.serverTimestamp()
+                };
+
+                if (docId) {
+                    batch.update(db.collection('spa_staff_availability').doc(docId), docData);
+                } else {
+                    docData.created_at = firebase.firestore.FieldValue.serverTimestamp();
+                    const newDocRef = db.collection('spa_staff_availability').doc();
+                    batch.set(newDocRef, docData);
+                }
+                appliedCount++;
+            }
+            curr.setDate(curr.getDate() + 1);
+        }
+
+        await batch.commit();
+        const shiftsText = shifts.map(s => `${s.start}-${s.end}`).join(' y ');
+        alert(`✓ Horario (${shiftsText}) aplicado con éxito a ${appliedCount} días para ${staffName}.`);
+
+        closeQuickScheduleModal();
+        if (currentView === 'roster') {
+            await loadWeeklyRoster();
+        } else {
+            renderStaffList();
+        }
+    } catch (err) {
+        console.error('[PERSONAL] Error guardando turnos rápidos:', err);
+        alert('Error al guardar turnos: ' + err.message);
     }
 }
 
@@ -1181,3 +1860,19 @@ window.closeDayDetailModal = closeDayDetailModal;
 window.addCustomShift = addCustomShift;
 window.saveDayAvailability = saveDayAvailability;
 window.loadStaffList = loadStaffList;
+
+// Nuevas funciones del Cuadrante y Gestión Ágil
+window.switchPersonalView = switchPersonalView;
+window.navigateRosterWeek = navigateRosterWeek;
+window.loadWeeklyRoster = loadWeeklyRoster;
+window.renderWeeklyRoster = renderWeeklyRoster;
+window.toggleStaffStatus = toggleStaffStatus;
+window.openRangeAbsenceModal = openRangeAbsenceModal;
+window.closeRangeAbsenceModal = closeRangeAbsenceModal;
+window.handleAbsenceTypeChange = handleAbsenceTypeChange;
+window.saveRangeAbsence = saveRangeAbsence;
+window.openQuickScheduleModal = openQuickScheduleModal;
+window.closeQuickScheduleModal = closeQuickScheduleModal;
+window.applyQuickShiftPreset = applyQuickShiftPreset;
+window.addQuickShiftRow = addQuickShiftRow;
+window.saveQuickSchedule = saveQuickSchedule;

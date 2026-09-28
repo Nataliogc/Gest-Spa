@@ -2732,10 +2732,11 @@
                 // A. Check Schedule / Shift Availability
                 let isWorking = false;
                 let scheduleString = "";
+                let sched = null;
 
                 if (window.getStaffScheduleForDate) {
                     try {
-                        const sched = await window.getStaffScheduleForDate(staff, date, dailyExceptions);
+                        sched = await window.getStaffScheduleForDate(staff, date, dailyExceptions);
                         if (sched.status === 'ok' && sched.shifts && sched.shifts.length > 0) {
                             scheduleString = sched.shifts.map(s => `${s.start}-${s.end}`).join(', ');
 
@@ -2816,7 +2817,8 @@
                     ...staff,
                     _status: finalStatus,
                     _collision: collisionInfo,
-                    _shift: scheduleString
+                    _shift: scheduleString,
+                    _offReason: (!isWorking && sched && sched.offReason) ? sched.offReason : null
                 });
             }
 
