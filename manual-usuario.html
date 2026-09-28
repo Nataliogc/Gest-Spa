@@ -1,0 +1,758 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manual de Usuario | Gest-Spa & Zenith Manager</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --primary: #1e293b;
+            --primary-light: #334155;
+            --gold: #d4af37;
+            --gold-dark: #b89327;
+            --gold-light: #fef9e7;
+            --accent: #6366f1;
+            --success: #16a34a;
+            --warning: #f59e0b;
+            --danger: #dc2626;
+            --danger-light: #fee2e2;
+            --bg: #f8fafc;
+            --card: #ffffff;
+            --border: #e2e8f0;
+            --text: #0f172a;
+            --text-muted: #64748b;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Montserrat', sans-serif;
+            color: var(--text);
+            background: #f1f5f9;
+            line-height: 1.6;
+            font-size: 14px;
+        }
+
+        /* Container & Print setup */
+        .manual-wrapper {
+            max-width: 900px;
+            margin: 20px auto;
+            background: var(--card);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        .page {
+            padding: 45px 55px;
+            position: relative;
+        }
+
+        .page-break {
+            page-break-before: always;
+            break-before: page;
+            border-top: 1px dashed #cbd5e1;
+            margin-top: 20px;
+            padding-top: 40px;
+        }
+
+        @media print {
+            body {
+                background: white;
+            }
+            .manual-wrapper {
+                box-shadow: none;
+                margin: 0;
+                max-width: 100%;
+                border-radius: 0;
+            }
+            .page {
+                padding: 30px 40px;
+            }
+            .no-print {
+                display: none !important;
+            }
+            .page-break {
+                border-top: none;
+                margin-top: 0;
+                padding-top: 0;
+            }
+            @page {
+                size: A4;
+                margin: 15mm 15mm 15mm 15mm;
+            }
+        }
+
+        /* Top Action Bar (for browser viewing) */
+        .manual-actions-bar {
+            background: #1e293b;
+            color: white;
+            padding: 12px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+        }
+
+        .btn-print {
+            background: linear-gradient(135deg, #d4af37, #b89327);
+            color: #1e293b;
+            border: none;
+            padding: 8px 18px;
+            border-radius: 6px;
+            font-weight: 700;
+            font-size: 0.85rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s;
+        }
+        .btn-print:hover {
+            filter: brightness(1.1);
+            transform: translateY(-1px);
+        }
+
+        /* Cover Page */
+        .cover {
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            color: white;
+            text-align: center;
+            padding: 80px 40px;
+            border-radius: 12px 12px 0 0;
+            position: relative;
+        }
+        .cover::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 6px;
+            background: linear-gradient(90deg, #d4af37, #fef08a, #d4af37);
+        }
+        .cover-badge {
+            display: inline-block;
+            background: rgba(212, 175, 55, 0.2);
+            border: 1px solid #d4af37;
+            color: #fef08a;
+            padding: 6px 16px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 700;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            margin-bottom: 20px;
+        }
+        .cover-title {
+            font-size: 2.6rem;
+            font-weight: 900;
+            letter-spacing: -0.5px;
+            line-height: 1.15;
+            margin-bottom: 12px;
+            color: #ffffff;
+        }
+        .cover-title span {
+            color: #d4af37;
+        }
+        .cover-subtitle {
+            font-size: 1.15rem;
+            color: #94a3b8;
+            font-weight: 400;
+            max-width: 600px;
+            margin: 0 auto 35px auto;
+        }
+        .cover-meta {
+            display: flex;
+            justify-content: center;
+            gap: 25px;
+            font-size: 0.8rem;
+            color: #cbd5e1;
+            border-top: 1px solid rgba(255,255,255,0.1);
+            padding-top: 25px;
+            max-width: 500px;
+            margin: 0 auto;
+        }
+
+        /* Typography & Headings */
+        h1, h2, h3, h4 {
+            color: var(--primary);
+            font-weight: 800;
+        }
+        h2 {
+            font-size: 1.5rem;
+            border-bottom: 2px solid var(--border);
+            padding-bottom: 8px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        h2 i {
+            color: var(--gold);
+        }
+        h3 {
+            font-size: 1.1rem;
+            margin: 20px 0 10px 0;
+            color: #1e3a8a;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        p {
+            margin-bottom: 12px;
+            color: #334155;
+        }
+
+        /* Table of Contents */
+        .toc-card {
+            background: #f8fafc;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 24px;
+            margin-bottom: 30px;
+        }
+        .toc-list {
+            list-style: none;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px 20px;
+        }
+        .toc-item {
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: 600;
+            color: #1e293b;
+        }
+        .toc-number {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: #e2e8f0;
+            color: #475569;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.75rem;
+            font-weight: 800;
+            flex-shrink: 0;
+        }
+
+        /* Steps, Boxes & Cards */
+        .step-box {
+            background: #ffffff;
+            border: 1.5px solid var(--border);
+            border-radius: 10px;
+            padding: 16px 20px;
+            margin-bottom: 14px;
+            display: flex;
+            gap: 16px;
+            align-items: flex-start;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.03);
+        }
+        .step-number {
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            background: linear-gradient(135deg, #1e293b, #334155);
+            color: #ffffff;
+            font-weight: 800;
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            margin-top: 2px;
+        }
+        .step-content {
+            flex: 1;
+        }
+        .step-title {
+            font-weight: 700;
+            font-size: 0.95rem;
+            color: #0f172a;
+            margin-bottom: 4px;
+        }
+
+        /* Visual UI Mockup Box */
+        .ui-mockup {
+            background: #f8fafc;
+            border: 1.5px solid #cbd5e1;
+            border-radius: 10px;
+            padding: 14px;
+            margin: 15px 0 20px 0;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.02);
+        }
+        .ui-mockup-header {
+            font-size: 0.75rem;
+            font-weight: 800;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #e2e8f0;
+            padding-bottom: 6px;
+        }
+
+        /* Alert Callouts */
+        .alert-callout {
+            border-radius: 8px;
+            padding: 14px 18px;
+            margin: 16px 0;
+            display: flex;
+            gap: 14px;
+            align-items: flex-start;
+            font-size: 0.88rem;
+        }
+        .alert-warning {
+            background: #fffbeb;
+            border: 1.5px solid #fde047;
+            color: #854d0e;
+        }
+        .alert-danger {
+            background: #fef2f2;
+            border: 1.5px solid #fca5a5;
+            color: #991b1b;
+        }
+        .alert-success {
+            background: #f0fdf4;
+            border: 1.5px solid #86efac;
+            color: #166534;
+        }
+        .alert-info {
+            background: #eff6ff;
+            border: 1.5px solid #93c5fd;
+            color: #1e40af;
+        }
+        .alert-callout i {
+            font-size: 1.25rem;
+            margin-top: 2px;
+            flex-shrink: 0;
+        }
+
+        /* Badges */
+        .badge {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 5px;
+            font-weight: 700;
+            font-size: 0.72rem;
+            text-transform: uppercase;
+        }
+        .badge-red { background: #fee2e2; color: #dc2626; border: 1px solid #fca5a5; }
+        .badge-green { background: #dcfce7; color: #16a34a; border: 1px solid #86efac; }
+        .badge-blue { background: #dbeafe; color: #1e40af; border: 1px solid #93c5fd; }
+        .badge-amber { background: #fef3c7; color: #d97706; border: 1px solid #fcd34d; }
+
+        /* Troubleshooting Q&A Grid */
+        .qa-card {
+            background: white;
+            border: 1.5px solid #e2e8f0;
+            border-left: 5px solid #f59e0b;
+            border-radius: 8px;
+            padding: 14px 18px;
+            margin-bottom: 14px;
+        }
+        .qa-question {
+            font-weight: 800;
+            color: #0f172a;
+            font-size: 0.95rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 6px;
+        }
+        .qa-answer {
+            color: #334155;
+            font-size: 0.88rem;
+            line-height: 1.5;
+        }
+
+        /* Checklists */
+        .checklist-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 12px;
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            margin-bottom: 6px;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+        .checklist-item i {
+            color: #10b981;
+            font-size: 1rem;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Top Action Bar for Screen view -->
+    <div class="manual-actions-bar no-print">
+        <div style="display:flex; align-items:center; gap:12px;">
+            <i class="fas fa-book-reader" style="color:#d4af37; font-size:1.2rem;"></i>
+            <span style="font-weight:700; font-size:0.95rem;">Manual Oficial de Usuario | Gest-Spa & Zenith Manager</span>
+        </div>
+        <button class="btn-print" onclick="window.print()">
+            <i class="fas fa-print"></i> Imprimir / Guardar en PDF
+        </button>
+    </div>
+
+    <div class="manual-wrapper">
+
+        <!-- =================================================================== -->
+        <!-- PORTADA -->
+        <!-- =================================================================== -->
+        <div class="cover">
+            <div class="cover-badge"><i class="fas fa-certificate"></i> Manual Operativo de Procesos</div>
+            <h1 class="cover-title">GEST-SPA / <span>ZENITH</span></h1>
+            <p class="cover-subtitle">Guía práctica de uso diario, agendamiento de citas, gestión de personal, control de bonos y resolución de incidencias para el equipo de recepción y estética.</p>
+            <div class="cover-meta">
+                <span><i class="fas fa-users"></i> Para todo el personal</span>
+                <span><i class="fas fa-calendar-check"></i> Versión 2.0 (Actualizada)</span>
+                <span><i class="fas fa-shield-alt"></i> Procesos Controlados</span>
+            </div>
+        </div>
+
+        <div class="page">
+
+            <!-- =================================================================== -->
+            <!-- ÍNDICE DE CONTENIDOS -->
+            <!-- =================================================================== -->
+            <div class="toc-card">
+                <div style="font-weight:800; font-size:1.1rem; color:#1e293b; margin-bottom:14px; display:flex; align-items:center; gap:8px;">
+                    <i class="fas fa-list-ol" style="color:var(--gold);"></i> Índice de Contenidos del Manual
+                </div>
+                <ul class="toc-list">
+                    <li class="toc-item"><span class="toc-number">1</span> <span>Visión General de la Agenda</span></li>
+                    <li class="toc-item"><span class="toc-number">2</span> <span>Agendar Citas sin Errores</span></li>
+                    <li class="toc-item"><span class="toc-number">3</span> <span>Uso y Validación de Bonos Spa</span></li>
+                    <li class="toc-item"><span class="toc-number">4</span> <span>Eliminar Citas Duplicadas [🗑️]</span></li>
+                    <li class="toc-item"><span class="toc-number">5</span> <span>Horarios y Cuadrante Semanal</span></li>
+                    <li class="toc-item"><span class="toc-number">6</span> <span>Bajas, Vacaciones y Ausencias</span></li>
+                    <li class="toc-item"><span class="toc-number">7</span> <span>Asistente de Reasignación</span></li>
+                    <li class="toc-item"><span class="toc-number">8</span> <span>Solución de Problemas (FAQ)</span></li>
+                </ul>
+            </div>
+
+            <!-- =================================================================== -->
+            <!-- 1. VISIÓN GENERAL DE LA AGENDA -->
+            <!-- =================================================================== -->
+            <h2><i class="fas fa-calendar-alt"></i> 1. Visión General de la Agenda</h2>
+            <p>La pantalla de <b>Visión General</b> es el panel central de control diario. Muestra en una cuadrícula a cada terapeuta con sus huecos libres, citas programadas o días de descanso en los próximos 14 días.</p>
+
+            <div class="ui-mockup">
+                <div class="ui-mockup-header">
+                    <span><i class="fas fa-columns"></i> Cómo interpretar cada celda de la cuadrícula</span>
+                </div>
+                <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:10px; text-align:center;">
+                    <div style="background:#f0fdf4; border:1.5px solid #86efac; padding:10px; border-radius:8px;">
+                        <span class="badge badge-green">32 libres</span>
+                        <div style="font-size:0.75rem; color:#166534; font-weight:700; margin-top:4px;">Huecos Disponibles</div>
+                        <div style="font-size:0.7rem; color:#475569;">Pulsar para ver horas libres</div>
+                    </div>
+                    <div style="background:#eff6ff; border:1.5px solid #93c5fd; padding:10px; border-radius:8px;">
+                        <span class="badge badge-blue">4 citas</span>
+                        <div style="font-size:0.75rem; color:#1e40af; font-weight:700; margin-top:4px;">Citas Ocupadas</div>
+                        <div style="font-size:0.7rem; color:#475569;">Ocupación parcial normal</div>
+                    </div>
+                    <div style="background:#f1f5f9; border:1.5px solid #cbd5e1; padding:10px; border-radius:8px;">
+                        <span class="badge" style="background:#e2e8f0; color:#64748b;">Libre / Baja</span>
+                        <div style="font-size:0.75rem; color:#475569; font-weight:700; margin-top:4px;">Descanso / Permiso</div>
+                        <div style="font-size:0.7rem; color:#475569;">No trabaja este día</div>
+                    </div>
+                    <div style="background:#fee2e2; border:2px solid #ef4444; padding:10px; border-radius:8px;">
+                        <span class="badge badge-red">⚠️ 2 SIN CUBRIR</span>
+                        <div style="font-size:0.75rem; color:#b91c1c; font-weight:800; margin-top:4px;">¡Atención Máxima!</div>
+                        <div style="font-size:0.7rem; color:#991b1b;">Terapeuta ausente con citas</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="step-box">
+                <div class="step-number">1</div>
+                <div class="step-content">
+                    <div class="step-title">Ver el detalle de un terapeuta en un día:</div>
+                    <p style="margin:0; font-size:0.85rem;">Haz clic directamente sobre cualquier celda. Se abrirá el panel lateral con sus horarios de turno, las citas confirmadas y todos los bloques de huecos libres de 15/30 min.</p>
+                </div>
+            </div>
+
+            <div class="step-box">
+                <div class="step-number">2</div>
+                <div class="step-content">
+                    <div class="step-title">Ver el resumen global del día de todo el equipo:</div>
+                    <p style="margin:0; font-size:0.85rem;">Haz clic sobre la <b>cabecera del día</b> (ej. <i>Mar 29</i>). Se abrirá una vista de pantalla completa con una columna para cada compañera, ideal para el seguimiento matinal.</p>
+                </div>
+            </div>
+
+            <!-- =================================================================== -->
+            <!-- 2. AGENDAR CITAS SIN ERRORES -->
+            <!-- =================================================================== -->
+            <div class="page-break"></div>
+            <h2><i class="fas fa-plus-circle"></i> 2. Agendar Citas sin Errores</h2>
+            <p>El sistema cuenta con un motor inteligente que evita solapamientos y protege la disponibilidad real de cabinas y terapeutas.</p>
+
+            <div class="step-box">
+                <div class="step-number">1</div>
+                <div class="step-content">
+                    <div class="step-title">Seleccionar el hueco libre:</div>
+                    <p style="margin:0; font-size:0.85rem;">En el panel de Visión General, haz clic en el chip verde con la hora deseada (ej. <b>11:00</b>). Se abrirá el formulario rápido ya preconfigurado con esa hora y fecha.</p>
+                </div>
+            </div>
+
+            <div class="step-box">
+                <div class="step-number">2</div>
+                <div class="step-content">
+                    <div class="step-title">Rellenar los datos obligatorios:</div>
+                    <p style="margin:0; font-size:0.85rem;">Introduce el <b>Nombre completo</b>, <b>Teléfono móvil</b>, <b>Servicio</b> y la <b>Sala/Cabina</b>.</p>
+                </div>
+            </div>
+
+            <div class="step-box">
+                <div class="step-number">3</div>
+                <div class="step-content">
+                    <div class="step-title">Protección de Disponibilidad del Terapeuta:</div>
+                    <p style="margin:0; font-size:0.85rem;">En el desplegable de terapeutas, el sistema indica quién está disponible. Si alguien está ausente o fuera de turno saldrá indicado (ej. <i>Chon (Baja médica)</i> o <i>(Fuera de turno)</i>). El sistema <b>bloqueará la reserva</b> si se intenta agendar en un hueco sin terapeuta.</p>
+                </div>
+            </div>
+
+            <div class="alert-callout alert-warning">
+                <i class="fas fa-exclamation-triangle"></i>
+                <div>
+                    <b>Alerta de Cita Duplicada:</b> Si intentas guardar una cita para un cliente que ya tiene otra reserva a esa misma hora en otra sala o con otro profesional, el programa te avisará con una ventana naranja preguntando si deseas continuar o cancelar para evitar duplicidades accidentales.
+                </div>
+            </div>
+
+            <!-- =================================================================== -->
+            <!-- 3. USO Y VINCULACIÓN DE BONOS SPA -->
+            <!-- =================================================================== -->
+            <h2><i class="fas fa-ticket-alt"></i> 3. Uso y Validación de Bonos Spa</h2>
+            <p>Cuando un cliente acude a consumir una sesión de su bono o cupón, la cita debe quedar vinculada para que el saldo se descuente correctamente.</p>
+
+            <div class="step-box">
+                <div class="step-number">1</div>
+                <div class="step-content">
+                    <div class="step-title">Seleccionar Origen "Bono Spa":</div>
+                    <p style="margin:0; font-size:0.85rem;">Al crear o editar la reserva, en el campo <i>Origen</i> selecciona <b>Bono Spa</b> o <b>Bono Hotel</b>.</p>
+                </div>
+            </div>
+
+            <div class="step-box">
+                <div class="step-number">2</div>
+                <div class="step-content">
+                    <div class="step-title">Escribir el Código del Bono o Localizador:</div>
+                    <p style="margin:0; font-size:0.85rem;">Aparecerá el campo <b>"Número de Bono / Localizador"</b>. Escribe el código del cliente.</p>
+                </div>
+            </div>
+
+            <div class="step-box">
+                <div class="step-number">3</div>
+                <div class="step-content">
+                    <div class="step-title">Comprobación en Vivo de Sesiones:</div>
+                    <p style="margin:0; font-size:0.85rem;">El sistema consultará la base de datos de bonos y mostrará un recuadro verde informativo con las <b>sesiones restantes disponibles</b> y el <b>nombre del titular</b>.</p>
+                </div>
+            </div>
+
+            <!-- =================================================================== -->
+            <!-- 4. ELIMINAR CITAS DUPLICADAS [🗑️] -->
+            <!-- =================================================================== -->
+            <div class="page-break"></div>
+            <h2><i class="fas fa-trash-alt"></i> 4. Eliminar Citas Duplicadas en 1 Clic</h2>
+            <p>Si por error se genera una cita repetida o un cliente cancela, ya no es necesario abrir el formulario completo de edición ni arriesgarse a bloqueos.</p>
+
+            <div class="ui-mockup">
+                <div class="ui-mockup-header">
+                    <span><i class="fas fa-mouse-pointer"></i> Botón de papelera directo en cada tarjeta de cita</span>
+                </div>
+                <div style="background:white; border:1px solid #cbd5e1; border-left:4px solid #f59e0b; border-radius:8px; padding:12px; display:flex; justify-content:space-between; align-items:center;">
+                    <div>
+                        <div style="font-weight:800; color:#1e293b; font-size:0.95rem;">16:30 — 17:30 · Masaje Relajante (60 min)</div>
+                        <div style="font-size:0.8rem; color:#475569;"><i class="fas fa-user"></i> Cristina Coronado · 📞 612 34 56 78 · <i class="fas fa-door-open"></i> Cabina 2</div>
+                    </div>
+                    <div style="display:flex; gap:6px;">
+                        <div style="background:#fee2e2; border:1px solid #fca5a5; color:#dc2626; border-radius:6px; padding:6px 10px; font-weight:700; font-size:0.8rem;">
+                            <i class="fas fa-trash-alt"></i> Borrar
+                        </div>
+                        <div style="background:#f1f5f9; border:1px solid #cbd5e1; color:#475569; border-radius:6px; padding:6px 10px; font-weight:700; font-size:0.8rem;">
+                            <i class="fas fa-pencil-alt"></i> Editar
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="step-box">
+                <div class="step-number">1</div>
+                <div class="step-content">
+                    <div class="step-title">Pulsar el botón rojo de papelera [🗑️]:</div>
+                    <p style="margin:0; font-size:0.85rem;">En la tarjeta de la cita que deseas borrar, pulsa el icono de papelera.</p>
+                </div>
+            </div>
+
+            <div class="step-box">
+                <div class="step-number">2</div>
+                <div class="step-content">
+                    <div class="step-title">Confirmar el borrado:</div>
+                    <p style="margin:0; font-size:0.85rem;">Aparecerá un mensaje con el nombre del cliente y la sala. Pulsa <b>"Sí, eliminar"</b>. La cita se borrará de inmediato y la sala quedará libre en la agenda.</p>
+                </div>
+            </div>
+
+            <!-- =================================================================== -->
+            <!-- 5. HORARIOS Y CUADRANTE SEMANAL -->
+            <!-- =================================================================== -->
+            <h2><i class="fas fa-calendar-week"></i> 5. Horarios y Cuadrante Semanal</h2>
+            <p>En el menú <b>Personal</b> dispones del <b>Cuadrante Semanal</b> para organizar los turnos del equipo de forma muy ágil.</p>
+
+            <div class="step-box">
+                <div class="step-number">⚡</div>
+                <div class="step-content">
+                    <div class="step-title">Asignar Turno Rápido por Plantilla:</div>
+                    <p style="margin:0; font-size:0.85rem;">Pulsa el botón <b>"⚡ Asignar Turno Rápido"</b>. Selecciona a la profesional (ej. Mar), las fechas (ej. esta semana) y elige una plantilla:</p>
+                    <ul style="margin:6px 0 0 18px; font-size:0.8rem; color:#475569;">
+                        <li><b>Partido Estética:</b> 10:00 a 14:00 y 16:30 a 20:30 (mar-vie).</li>
+                        <li><b>Sábado Estética:</b> 10:00 a 14:00 y 16:00 a 20:00.</li>
+                        <li><b>Continuo:</b> 10:00 a 18:00.</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- =================================================================== -->
+            <!-- 6. BAJAS, VACACIONES Y AUSENCIAS -->
+            <!-- =================================================================== -->
+            <div class="page-break"></div>
+            <h2><i class="fas fa-user-injured"></i> 6. Bajas, Vacaciones y Ausencias</h2>
+            <p>Cuando un miembro del equipo no puede trabajar, debe registrarse inmediatamente en el sistema para que las citas queden protegidas.</p>
+
+            <div class="step-box">
+                <div class="step-number">🔴</div>
+                <div class="step-content">
+                    <div class="step-title">Baja Médica / Activo en 1 Clic:</div>
+                    <p style="margin:0; font-size:0.85rem;">Tanto en el cuadrante como en la lista de personal, cada profesional tiene un botón <b>[🟢 Activo / 🔴 Baja]</b>. Pulsando sobre él se conmuta su estado de baja al instante.</p>
+                </div>
+            </div>
+
+            <div class="step-box">
+                <div class="step-number">📅</div>
+                <div class="step-content">
+                    <div class="step-title">Registrar Vacaciones o Permisos por Rango:</div>
+                    <p style="margin:0; font-size:0.85rem;">Usa el botón <b>"📅 Ausencia / Vacaciones"</b>. Elige el nombre, selecciona la fecha de inicio y fin (ej. la semana completa de Mari) y pulsa Guardar.</p>
+                </div>
+            </div>
+
+            <!-- =================================================================== -->
+            <!-- 7. ASISTENTE DE REASIGNACIÓN DE CITAS -->
+            <!-- =================================================================== -->
+            <h2><i class="fas fa-exchange-alt"></i> 7. Asistente de Reasignación de Citas</h2>
+            <p><b>¿Qué ocurre si un terapeuta se da de baja y ya tenía citas cogidas?</b> El sistema activa automáticamente el Asistente de Reasignación para que ningún cliente quede desatendido.</p>
+
+            <div class="ui-mockup">
+                <div class="ui-mockup-header">
+                    <span><i class="fas fa-shield-alt"></i> Protocolo en 3 pasos con el Asistente</span>
+                </div>
+                <div style="display:flex; flex-direction:column; gap:10px;">
+                    <div style="background:#fee2e2; border:1px solid #f87171; border-radius:6px; padding:10px; font-size:0.85rem; color:#991b1b;">
+                        <b>Paso 1 · Alerta Automática:</b> Al marcar la baja o guardar la ausencia, el sistema te avisará: <i>"⚠️ Chon tiene 5 citas programadas. ¿Deseas reasignarlas ahora?"</i>. Pulsa <b>Aceptar</b>.
+                    </div>
+                    <div style="background:#fff7ed; border:1px solid #fdba74; border-radius:6px; padding:10px; font-size:0.85rem; color:#c2410c;">
+                        <b>Paso 2 · Reasignación en Bloque [⚡]:</b> Si una compañera cubre todo el turno (ej. Mar), elígela en el desplegable superior y pulsa <b>"Reasignar Todas"</b>. Todas las reservas cambiarán de terapeuta a la vez.
+                    </div>
+                    <div style="background:#f0fdf4; border:1px solid #86efac; border-radius:6px; padding:10px; font-size:0.85rem; color:#166534;">
+                        <b>Paso 3 · Contacto con el Cliente:</b> En cada tarjeta tienes botones directos de <b>Llamada 📞</b> y <b>WhatsApp 💬</b> para confirmar con el cliente cualquier cambio de profesional o de hora.
+                    </div>
+                </div>
+            </div>
+
+            <div class="alert-callout alert-danger">
+                <i class="fas fa-bell"></i>
+                <div>
+                    <b>Aviso en Cuadrícula "SIN CUBRIR":</b> Si queda alguna cita sin reasignar asignada a alguien que no trabaja, la celda de la agenda saldrá en rojo parpadeante con el texto <b>`⚠️ X SIN CUBRIR`</b>. ¡Revisar siempre a primera hora de la mañana!
+                </div>
+            </div>
+
+            <!-- =================================================================== -->
+            <!-- 8. SOLUCIÓN DE PROBLEMAS (FAQ) -->
+            <!-- =================================================================== -->
+            <div class="page-break"></div>
+            <h2><i class="fas fa-question-circle"></i> 8. Solución de Problemas Frecuentes</h2>
+
+            <div class="qa-card">
+                <div class="qa-question">
+                    <i class="fas fa-exclamation-circle" style="color:#d97706;"></i>
+                    "El programa dice 'Terapeuta NO disponible en este horario' y no me deja guardar"
+                </div>
+                <div class="qa-answer">
+                    <b>Causa:</b> Ese terapeuta está marcado como baja, de vacaciones o fuera de su turno asignado.<br>
+                    <b>Solución:</b> Elige a otro profesional que sí esté en turno en ese tramo horario, o bien revisa en la sección <i>Personal</i> si su turno horario está bien configurado.
+                </div>
+            </div>
+
+            <div class="qa-card">
+                <div class="qa-question">
+                    <i class="fas fa-exclamation-circle" style="color:#d97706;"></i>
+                    "Tengo una cita duplicada en la misma cabina o a la misma hora"
+                </div>
+                <div class="qa-answer">
+                    <b>Solución:</b> Abre el panel de la cita en Visión General y pulsa directamente el icono de papelera roja <b>[🗑️]</b>. Confirma el borrado y se eliminará la duplicidad en 1 segundo liberando la sala.
+                </div>
+            </div>
+
+            <div class="qa-card">
+                <div class="qa-question">
+                    <i class="fas fa-exclamation-circle" style="color:#d97706;"></i>
+                    "Un cliente viene con un bono pero la cita ya estaba creada"
+                </div>
+                <div class="qa-answer">
+                    <b>Solución:</b> Haz clic sobre la cita en Visión General para editarla. En <i>Origen</i> cambia a <b>Bono Spa</b>, escribe el número en la casilla <i>Número de Bono</i> (verás cómo el sistema confirma el saldo en verde) y pulsa <b>Actualizar Reserva</b>.
+                </div>
+            </div>
+
+            <div class="qa-card">
+                <div class="qa-question">
+                    <i class="fas fa-exclamation-circle" style="color:#d97706;"></i>
+                    "En Visión General me sale una celda en rojo con el texto 'SIN CUBRIR'"
+                </div>
+                <div class="qa-answer">
+                    <b>Causa:</b> Hay clientes citados con una terapeuta que figura de baja o día libre.<br>
+                    <b>Solución:</b> Haz clic sobre la celda roja, pulsa en la cita y cámbiala a la compañera que esté trabajando o llámale para acordar otra fecha.
+                </div>
+            </div>
+
+            <!-- =================================================================== -->
+            <!-- CHECKLIST DIARIO DE RECEPCIÓN -->
+            <!-- =================================================================== -->
+            <div style="background:#f8fafc; border:2px solid #e2e8f0; border-radius:10px; padding:20px; margin-top:25px;">
+                <div style="font-weight:800; font-size:1.05rem; color:#1e293b; margin-bottom:12px; display:flex; align-items:center; gap:8px;">
+                    <i class="fas fa-clipboard-check" style="color:#16a34a;"></i> Checklist Matinal de Recepción (3 minutos al inicio del turno)
+                </div>
+                <div class="checklist-item"><i class="fas fa-check-square"></i> 1. Abrir Visión General y verificar que NO haya celdas en rojo con "SIN CUBRIR".</div>
+                <div class="checklist-item"><i class="fas fa-check-square"></i> 2. Si hay alguna baja, abrir el Asistente de Reasignación y pasar las citas a quien cubra el turno.</div>
+                <div class="checklist-item"><i class="fas fa-check-square"></i> 3. Comprobar que los clientes con Bonos tienen el localizador introducido y sesiones disponibles.</div>
+                <div class="checklist-item"><i class="fas fa-check-square"></i> 4. Eliminar cualquier cita duplicada o bloqueada pulsando la papelera [🗑️].</div>
+            </div>
+
+            <div style="text-align:center; color:#94a3b8; font-size:0.75rem; margin-top:30px; border-top:1px solid #e2e8f0; padding-top:15px;">
+                Documento de Formación y Calidad · Gest-Spa & Zenith Manager · Plataforma Operativa
+            </div>
+
+        </div>
+    </div>
+
+</body>
+</html>
