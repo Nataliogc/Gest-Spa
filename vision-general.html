@@ -1762,6 +1762,14 @@
                          </div>
                     </div>
                     
+                    <!-- ROW: Bono / Cupón (Visible when Origen is bono, smartbox, wonderbox, ego, groupon) -->
+                    <div id="bono-group-container" style="display: none; grid-column: 1 / -1; margin-top: 5px; background: #ecfdf5; border: 1.5px solid #a7f3d0; border-radius: 8px; padding: 10px 14px;">
+                        <label style="font-size: 0.7rem; font-weight: 800; color: #065f46; text-transform: uppercase; display: flex; align-items: center; gap: 6px;">
+                            <i class="fas fa-ticket-alt"></i> Número de Bono / Localizador / Cupón
+                        </label>
+                        <input type="text" id="res-bono" class="vg-input" placeholder="Introduce el número o localizador del bono (ej: B-12345)..." style="background: white; border-color: #6ee7b7; font-weight: 700; color: #065f46; margin-top: 4px;">
+                    </div>
+                    
                     <!-- ROW 2: Client, Phone -->
                     <div style="display: flex; gap: 10px; grid-column: 1 / -1; margin-top:5px;">
                         <div class="form-group" style="flex: 2; margin-bottom: 0;">
@@ -1856,7 +1864,25 @@
         }
 
         function togglePaymentBlock() {
-            // Always visible as requested
+            const origin = document.getElementById('res-origin')?.value || 'particular';
+            const isVoucher = ['bono', 'smartbox', 'wonderbox', 'ego', 'groupon'].includes(origin);
+            const bonoContainer = document.getElementById('bono-group-container');
+            if (bonoContainer) {
+                bonoContainer.style.display = isVoucher ? 'block' : 'none';
+                if (isVoucher) {
+                    const bonoInput = document.getElementById('res-bono');
+                    if (bonoInput && !bonoInput.value) {
+                        bonoInput.focus();
+                    }
+                }
+            }
+
+            // Auto-adjust payment for vouchers/hotel
+            if (isVoucher || origin === 'hotel_inc') {
+                const total = parseFloat(document.getElementById('res-price-total').value) || 0;
+                document.getElementById('res-price-paid').value = total.toFixed(2);
+                document.getElementById('res-price-pending').value = '0.00';
+            }
         }
 
         // === HELPER FUNCTIONS FOR NEW FORM ===
@@ -2025,6 +2051,13 @@
 
                 if (data.pax) document.getElementById('res-pax').value = data.pax;
                 if (data.origen) document.getElementById('res-origin').value = data.origen;
+
+                // Bono / Localizador
+                const bonoVal = data.bono || data.num_bono || data.localizador || data.voucher || data.bono_id || '';
+                const bonoInput = document.getElementById('res-bono');
+                if (bonoInput) bonoInput.value = bonoVal;
+                togglePaymentBlock();
+
                 if (data.obs || data.observaciones) document.getElementById('res-obs').value = data.obs || data.observaciones;
 
                 // 6. Payment (Strict DB Read with robust fallbacks matching reservas.html)
@@ -2190,6 +2223,8 @@
             // Combine fields to payload
             const serviceName = document.getElementById('res-service').options[document.getElementById('res-service').selectedIndex]?.text || service;
 
+            const bonoVal = document.getElementById('res-bono')?.value.trim() || '';
+
             let payload = {
                 fecha: dateVal,
                 hora: time,
@@ -2204,6 +2239,10 @@
                 telefono: phone,
                 pax: parseInt(pax),
                 origen: origin,
+                bono: bonoVal,
+                localizador: bonoVal,
+                num_bono: bonoVal,
+                voucher: bonoVal,
                 precio: parseFloat(price),
                 precioTotal: parseFloat(price),
                 importe_pagado: parseFloat(paid),
