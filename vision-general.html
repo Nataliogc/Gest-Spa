@@ -1252,7 +1252,23 @@
                     }
 
                     if (data.schedule.status !== 'ok' || !data.schedule.shifts || data.schedule.shifts.length === 0) {
-                        tbodyHTML += `<td><div class="slot-cell slot-dayoff"><i class="fas fa-bed" style="font-size:0.6rem;"></i><span>Libre</span></div></td>`;
+                        const offReason = (data.schedule && data.schedule.offReason) ? data.schedule.offReason : 'Libre';
+                        if (data.bookings.length > 0) {
+                            tbodyHTML += `<td onclick="openDetail('${staff.id}', '${ds}')" style="cursor:pointer;" title="¡Atención! ${displayName} tiene ${data.bookings.length} cita(s) asignada(s) pero está en ${offReason}">
+                                <div class="slot-cell" style="background:#fee2e2; border:2px solid #ef4444; color:#b91c1c;">
+                                    <i class="fas fa-exclamation-triangle" style="font-size:0.75rem; color:#dc2626;"></i>
+                                    <span class="slot-count" style="font-weight:800; font-size:0.68rem; color:#b91c1c;">${data.bookings.length} SIN CUBRIR</span>
+                                </div>
+                            </td>`;
+                        } else {
+                            const shortLabel = offReason.toLowerCase().includes('baja') ? 'Baja' : (offReason.toLowerCase().includes('vacacion') ? 'Vacac.' : 'Libre');
+                            tbodyHTML += `<td onclick="openDetail('${staff.id}', '${ds}')" style="cursor:pointer;" title="${offReason}">
+                                <div class="slot-cell slot-dayoff">
+                                    <i class="fas fa-bed" style="font-size:0.6rem;"></i>
+                                    <span>${shortLabel}</span>
+                                </div>
+                            </td>`;
+                        }
                         return;
                     }
 
@@ -1343,12 +1359,28 @@
             let html = '';
 
             // Status
-            if (data.schedule.status !== 'ok') {
-                html += `<div style="text-align:center; padding:30px; color:#94a3b8;">
-                    <i class="fas fa-bed" style="font-size:2rem; margin-bottom:10px;"></i>
-                    <div style="font-weight:700;">Día de descanso</div>
-                    <div style="font-size:0.8rem; margin-top:4px;">${displayName} no trabaja este día.</div>
-                </div>`;
+            const isNotWorking = (data.schedule.status !== 'ok' || !data.schedule.shifts || data.schedule.shifts.length === 0);
+            const offReason = (data.schedule && data.schedule.offReason) ? data.schedule.offReason : 'Día libre';
+
+            if (isNotWorking) {
+                if (data.bookings.length > 0) {
+                    html += `<div style="background:#fef2f2; border:2px solid #ef4444; border-radius:10px; padding:14px; text-align:center; color:#991b1b; margin-bottom:15px; box-shadow:0 4px 12px rgba(239,68,68,0.15);">
+                        <i class="fas fa-exclamation-triangle" style="font-size:1.6rem; color:#dc2626; margin-bottom:6px;"></i>
+                        <div style="font-weight:900; font-size:1.05rem; color:#b91c1c;">¡ATENCIÓN! ${offReason.toUpperCase()}</div>
+                        <div style="font-size:0.85rem; margin-top:4px; font-weight:600; color:#7f1d1d;">
+                            ${displayName} no está trabajando hoy, pero tiene <b>${data.bookings.length} cita(s) asignadas</b>.
+                        </div>
+                        <div style="font-size:0.75rem; color:#991b1b; margin-top:6px;">
+                            Reasigna estas citas a otra compañera libre o edita la reserva para cambiar de fecha.
+                        </div>
+                    </div>`;
+                } else {
+                    html += `<div style="background:#fef2f2; border:1px solid #fecaca; border-radius:10px; padding:16px; text-align:center; color:#dc2626; margin-bottom:15px;">
+                        <i class="fas fa-bed" style="font-size:1.5rem; margin-bottom:6px;"></i>
+                        <div style="font-weight:800; font-size:1rem;">${offReason}</div>
+                        <div style="font-size:0.8rem; margin-top:4px;">${displayName} no trabaja este día.</div>
+                    </div>`;
+                }
             } else {
                 // Working hours
                 if (data.schedule.shifts && data.schedule.shifts.length > 0) {
@@ -1362,43 +1394,46 @@
                     });
                     html += `</div>`;
                 }
+            }
 
-                // Existing bookings
-                if (data.bookings.length > 0) {
-                    html += `<div class="vg-detail-section">
-                        <div class="vg-detail-section-title"><i class="fas fa-calendar-check"></i> CITAS (${data.bookings.length})</div>`;
-                    data.bookings.forEach(b => {
-                        const endMin = timeToMinutes(b.hora) + (parseInt(b.duracion) || 60);
-                        const moduleType = collectionToModuleType(b._collection);
-                        const roomLabel = collectionToRoomLabel(b._collection);
-                        const bookingUrl = `reservas.html?type=${moduleType}&fecha=${dateStr}`;
+            // Existing bookings (ALWAYS rendered if bookings exist)
+            if (data.bookings.length > 0) {
+                html += `<div class="vg-detail-section">
+                    <div class="vg-detail-section-title"><i class="fas fa-calendar-check"></i> CITAS (${data.bookings.length}) ${isNotWorking ? '<span style="color:#dc2626; font-size:0.75rem; font-weight:800; margin-left:6px;">[SIN CUBRIR]</span>' : ''}</div>`;
+                data.bookings.forEach(b => {
+                    const endMin = timeToMinutes(b.hora) + (parseInt(b.duracion) || 60);
+                    const moduleType = collectionToModuleType(b._collection);
+                    const roomLabel = collectionToRoomLabel(b._collection);
+                    const bookingUrl = `reservas.html?type=${moduleType}&fecha=${dateStr}`;
 
-                        // Color logic
-                        const sName = b.servicio || b.nombre_servicio || 'Servicio';
-                        const serviceColor = getServiceColor(sName);
-                        const borderColor = serviceColor;
-                        const bgColor = serviceColor + '20';
+                    // Color logic
+                    const sName = b.servicio || b.nombre_servicio || 'Servicio';
+                    const serviceColor = getServiceColor(sName);
+                    const borderColor = isNotWorking ? '#ef4444' : serviceColor;
+                    const bgColor = isNotWorking ? '#fef2f2' : serviceColor + '20';
 
-                        html += `<div class="detail-booking-item" style="background:${bgColor}; border-color:${borderColor}60; border-left-color:${borderColor}; display:flex; justify-content:space-between; align-items:center;" onclick="openEditReservation('${b.id}', '${b._collection}', '${staffId}', '${dateStr}')" title="Click para editar reserva">
-                            <div style="flex:1; padding-right:10px;">
-                                <div class="detail-booking-time" style="color:${borderColor}; filter: brightness(0.7);">${b.hora} — ${minutesToTime(endMin)}</div>
-                                <div class="detail-booking-service" style="color:${borderColor}; filter: brightness(0.6); font-weight:700;">${sName}</div>
-                                <div class="detail-booking-client" style="color:${borderColor}; filter: brightness(0.6);"><i class="fas fa-user" style="font-size:0.6rem;"></i> ${b.nombre || 'Cliente'} ${b.telefono ? '· ' + b.telefono : ''}</div>
-                                <div class="detail-booking-room" style="color:${borderColor}; filter: brightness(0.7); font-weight:600;"><i class="fas fa-door-open" style="font-size:0.5rem;"></i> ${roomLabel} ${(b.bono || b.localizador) ? '· <span style="color:#059669;"><i class="fas fa-ticket-alt"></i> Bono: ' + (b.bono || b.localizador) + '</span>' : ''}</div>
-                            </div>
-                            <div style="display:flex; gap:6px; align-items:center;" onclick="event.stopPropagation();">
-                                <button type="button" onclick="quickDeleteBooking('${b.id}', '${b._collection}', '${(b.nombre || 'Cliente').replace(/'/g, "\\'")}', '${b.hora}', '${roomLabel}', '${staffId}', '${dateStr}')" title="Eliminar cita" style="background:#fee2e2; border:1px solid #fca5a5; color:#dc2626; border-radius:6px; padding:6px 9px; cursor:pointer; font-size:0.75rem; transition:all 0.15s;" onmouseover="this.style.background='#fecaca'" onmouseout="this.style.background='#fee2e2'">
-                                    <i class="fas fa-trash-alt"></i>
-                                </button>
-                                <button type="button" onclick="openEditReservation('${b.id}', '${b._collection}', '${staffId}', '${dateStr}')" title="Editar cita" style="background:white; border:1px solid #cbd5e1; color:#475569; border-radius:6px; padding:6px 9px; cursor:pointer; font-size:0.75rem; transition:all 0.15s;" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='white'">
-                                    <i class="fas fa-pencil-alt"></i>
-                                </button>
-                            </div>
-                        </div>`;
-                    });
-                    html += `</div>`;
-                }
+                    html += `<div class="detail-booking-item" style="background:${bgColor}; border-color:${borderColor}80; border-left-color:${borderColor}; border-left-width:${isNotWorking ? '5px' : '4px'}; display:flex; justify-content:space-between; align-items:center;" onclick="openEditReservation('${b.id}', '${b._collection}', '${staffId}', '${dateStr}')" title="Click para editar o reasignar reserva">
+                        <div style="flex:1; padding-right:10px;">
+                            ${isNotWorking ? `<div style="display:inline-block; background:#fee2e2; border:1px solid #f87171; color:#b91c1c; padding:2px 7px; border-radius:4px; font-size:0.68rem; font-weight:800; margin-bottom:4px;"><i class="fas fa-exclamation-triangle"></i> CITA SIN CUBRIR (${offReason})</div>` : ''}
+                            <div class="detail-booking-time" style="color:${borderColor}; filter: brightness(0.7);">${b.hora} — ${minutesToTime(endMin)}</div>
+                            <div class="detail-booking-service" style="color:${borderColor}; filter: brightness(0.6); font-weight:700;">${sName}</div>
+                            <div class="detail-booking-client" style="color:${borderColor}; filter: brightness(0.6);"><i class="fas fa-user" style="font-size:0.6rem;"></i> ${b.nombre || 'Cliente'} ${b.telefono ? '· ' + b.telefono : ''}</div>
+                            <div class="detail-booking-room" style="color:${borderColor}; filter: brightness(0.7); font-weight:600;"><i class="fas fa-door-open" style="font-size:0.5rem;"></i> ${roomLabel} ${(b.bono || b.localizador) ? '· <span style="color:#059669;"><i class="fas fa-ticket-alt"></i> Bono: ' + (b.bono || b.localizador) + '</span>' : ''}</div>
+                        </div>
+                        <div style="display:flex; gap:6px; align-items:center;" onclick="event.stopPropagation();">
+                            <button type="button" onclick="quickDeleteBooking('${b.id}', '${b._collection}', '${(b.nombre || 'Cliente').replace(/'/g, "\\'")}', '${b.hora}', '${roomLabel}', '${staffId}', '${dateStr}')" title="Eliminar cita" style="background:#fee2e2; border:1px solid #fca5a5; color:#dc2626; border-radius:6px; padding:6px 9px; cursor:pointer; font-size:0.75rem; transition:all 0.15s;" onmouseover="this.style.background='#fecaca'" onmouseout="this.style.background='#fee2e2'">
+                                <i class="fas fa-trash-alt"></i>
+                            </button>
+                            <button type="button" onclick="openEditReservation('${b.id}', '${b._collection}', '${staffId}', '${dateStr}')" title="Editar cita" style="background:white; border:1px solid #cbd5e1; color:#475569; border-radius:6px; padding:6px 9px; cursor:pointer; font-size:0.75rem; transition:all 0.15s;" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='white'">
+                                <i class="fas fa-pencil-alt"></i>
+                            </button>
+                        </div>
+                    </div>`;
+                });
+                html += `</div>`;
+            }
 
+            if (!isNotWorking) {
                 // Free slots grouped by contiguous blocks, showing individual time chips
                 if (data.freeSlots.length > 0) {
                     const blocks = groupFreeSlots(data.freeSlots);
@@ -1529,10 +1564,17 @@
                 staffCards += `<div style="flex:1; overflow-y:auto; padding:12px;">`;
 
                 if (!isWorking) {
-                    staffCards += `<div style="text-align:center; padding:30px 10px; color:#94a3b8;">
-                        <i class="fas fa-bed" style="font-size:1.5rem; margin-bottom:8px;"></i>
-                        <div style="font-weight:700; font-size:0.85rem;">D\u00eda libre</div>
-                    </div>`;
+                    if (bookings.length > 0) {
+                        const offReason = (schedule && schedule.offReason) ? schedule.offReason : 'Día libre';
+                        staffCards += `<div style="background:#fee2e2; border:1.5px solid #ef4444; border-radius:8px; padding:8px 10px; text-align:center; color:#b91c1c; font-size:0.75rem; font-weight:800; margin-bottom:10px;">
+                            <i class="fas fa-exclamation-triangle"></i> ${offReason.toUpperCase()}: ${bookings.length} CITA(S) SIN CUBRIR
+                        </div>`;
+                    } else {
+                        staffCards += `<div style="text-align:center; padding:30px 10px; color:#94a3b8;">
+                            <i class="fas fa-bed" style="font-size:1.5rem; margin-bottom:8px;"></i>
+                            <div style="font-weight:700; font-size:0.85rem;">D\u00eda libre</div>
+                        </div>`;
+                    }
                 } else {
                     // Shifts info
                     if (schedule.shifts) {
@@ -1542,9 +1584,10 @@
                         });
                         staffCards += `</div>`;
                     }
+                }
 
-                    // Bookings
-                    if (bookings.length > 0) {
+                // Bookings (Always render if any exist)
+                if (bookings.length > 0) {
                         bookings.forEach(b => {
                             const endMin = timeToMinutes(b.hora) + (parseInt(b.duracion) || 60);
                             const roomLabel = collectionToRoomLabel(b._collection);
@@ -1577,6 +1620,7 @@
                         });
                     }
 
+                if (isWorking) {
                     // Free slots
                     if (freeSlots.length > 0) {
                         const blocks = groupFreeSlots(freeSlots);

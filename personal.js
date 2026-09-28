@@ -1499,9 +1499,25 @@ async function toggleStaffStatus(staffId) {
         staff.status = newStatus ? 'active' : 'inactive';
 
         if (currentView === 'roster') {
-            renderWeeklyRoster();
+            await loadWeeklyRoster();
         } else {
             renderStaffList();
+        }
+
+        // If newly set to inactive (Baja), check pending bookings for the next 30 days
+        if (!newStatus) {
+            const today = formatDate(new Date());
+            const futureDate = formatDate(addDays(new Date(), 30));
+            const bookings = await getBookingsForStaffInRange(staffId, today, futureDate);
+
+            if (bookings.length > 0) {
+                setTimeout(() => {
+                    const openAssistant = confirm(`⚠️ ¡Atención! ${name} tiene ${bookings.length} cita(s) programada(s) a partir de hoy.\n\n¿Deseas abrir el asistente de reasignación para pasarlas a otra compañera o gestionarlas ahora?`);
+                    if (openAssistant) {
+                        openReassignBookingsModal(staffId, bookings, 'Baja médica');
+                    }
+                }, 300);
+            }
         }
     } catch (err) {
         console.error('[PERSONAL] Error cambiando estado:', err);
@@ -1637,6 +1653,17 @@ async function saveRangeAbsence(event) {
             await loadWeeklyRoster();
         } else {
             renderStaffList();
+        }
+
+        // Check if staff has pending bookings during this absence period
+        const bookings = await getBookingsForStaffInRange(staffId, startDateStr, endDateStr);
+        if (bookings.length > 0) {
+            setTimeout(() => {
+                const openAssistant = confirm(`⚠️ ¡Atención! ${staffName} tiene ${bookings.length} cita(s) programada(s) durante este periodo de ausencia (${startDateStr} al ${endDateStr}).\n\n¿Deseas abrir el asistente de reasignación para pasarlas a otra compañera o gestionarlas ahora?`);
+                if (openAssistant) {
+                    openReassignBookingsModal(staffId, bookings, reason);
+                }
+            }, 300);
         }
     } catch (err) {
         console.error('[PERSONAL] Error guardando ausencia por rango:', err);
@@ -1842,6 +1869,308 @@ async function saveQuickSchedule(event) {
 }
 
 // ============================================================================
+// ASISTENTE DE REASIGNACIÓN DE CITAS (POR BAJA / AUSENCIA)
+// ============================================================================
+
+let currentReassignStaffId = null;
+let currentReassignBookings = [];
+
+async function getBookingsForStaffInRange(staffId, startDate, endDate) {
+    const collections = [
+        'reservas_cabina1', 'reservas_cabina2', 'reservas_cabina3',
+        'reservas_suite', 'reservas_vip', 'reservas_panacea',
+        'reservas_peluqueria', 'reservas_spa', 'reservas_cabinas',
+        'reservas_gimnasio', 'reservas_complementos'
+    ];
+
+    const staff = allStaffList.find(s => s.id === staffId);
+    const staffName = staff ? (staff.nombre || staff.name || '').toLowerCase().trim() : '';
+    const staffAlias = staff ? (staff.alias || '').toLowerCase().trim() : '';
+
+    const allBookings = [];
+    const promises = collections.map(async col => {
+        try {
+            const snap = await db.collection(col)
+                .where('fecha', '>=', startDate)
+                .where('fecha', '<=', endDate)
+                .get();
+
+            snap.forEach(doc => {
+                const d = doc.data();
+                if (d.status === 'anulada') return;
+
+                const bStaffId1 = d.staff_id || d.terapeuta_id;
+                const bStaffName1 = (d.staff_name || d.terapeuta || '').toLowerCase().trim();
+                const bStaffId2 = d.staff_id2 || d.terapeuta_id2;
+                const bStaffName2 = (d.staff_name2 || d.terapeuta2 || '').toLowerCase().trim();
+
+                const match1 = (bStaffId1 && bStaffId1 === staffId) || (staffName && (bStaffName1 === staffName || (staffAlias && bStaffName1 === staffAlias)));
+                const match2 = (bStaffId2 && bStaffId2 === staffId) || (staffName && (bStaffName2 === staffName || (staffAlias && bStaffName2 === staffAlias)));
+
+                if (match1 || match2) {
+                    allBookings.push({
+                        id: doc.id,
+                        _collection: col,
+                        ...d
+                    });
+                }
+            });
+        } catch (e) {
+            console.warn(`[REASSIGN] Error consultando citas en ${col}:`, e);
+        }
+    });
+
+    await Promise.all(promises);
+    allBookings.sort((a, b) => {
+        const dComp = (a.fecha || '').localeCompare(b.fecha || '');
+        if (dComp !== 0) return dComp;
+        return (a.hora || '').localeCompare(b.hora || '');
+    });
+    return allBookings;
+}
+
+function openReassignBookingsModal(staffId, bookings, reason = 'Baja médica') {
+    currentReassignStaffId = staffId;
+    currentReassignBookings = bookings || [];
+
+    const modal = document.getElementById('reassign-bookings-modal');
+    if (!modal) return;
+
+    const staff = allStaffList.find(s => s.id === staffId);
+    const staffName = staff ? (staff.nombre || staff.name) : 'Terapeuta';
+
+    document.getElementById('reassign-modal-title').textContent = `Asistente de Reasignación — ${staffName}`;
+    document.getElementById('reassign-modal-subtitle').textContent = `${staffName} está en ${reason}. Hay ${bookings.length} cita(s) asignadas que requieren atención.`;
+
+    // Active other staff list for target select
+    const otherActiveStaff = allStaffList.filter(s => s.id !== staffId && (s.activo === true || s.status === 'active'));
+    const targetSelect = document.getElementById('reassign-all-target-staff');
+    if (targetSelect) {
+        if (otherActiveStaff.length === 0) {
+            targetSelect.innerHTML = '<option value="">No hay otros terapeutas activos</option>';
+        } else {
+            targetSelect.innerHTML = otherActiveStaff.map(s => `
+                <option value="${s.id}">
+                    ${s.nombre || s.name} (${s.alias || 'Terapeuta'})
+                </option>
+            `).join('');
+        }
+    }
+
+    renderReassignBookingsList();
+    modal.style.display = 'flex';
+}
+
+function closeReassignBookingsModal() {
+    const modal = document.getElementById('reassign-bookings-modal');
+    if (modal) modal.style.display = 'none';
+    currentReassignStaffId = null;
+    currentReassignBookings = [];
+}
+
+function renderReassignBookingsList() {
+    const container = document.getElementById('reassign-bookings-list');
+    const summary = document.getElementById('reassign-modal-summary');
+    if (!container) return;
+
+    if (currentReassignBookings.length === 0) {
+        container.innerHTML = `
+            <div style="text-align: center; padding: 40px 20px; color: #16a34a;">
+                <i class="fas fa-check-circle" style="font-size: 2.5rem; margin-bottom: 12px; color: #22c55e;"></i>
+                <div style="font-weight: 800; font-size: 1.1rem; color: #15803d;">¡Todas las citas han sido gestionadas!</div>
+                <div style="font-size: 0.85rem; color: #4b5563; margin-top: 4px;">No quedan citas pendientes sin cubrir para este periodo.</div>
+            </div>
+        `;
+        if (summary) summary.textContent = '0 citas pendientes';
+        return;
+    }
+
+    if (summary) {
+        summary.textContent = `${currentReassignBookings.length} cita(s) pendiente(s) de reasignar`;
+    }
+
+    const otherActiveStaff = allStaffList.filter(s => s.id !== currentReassignStaffId && (s.activo === true || s.status === 'active'));
+
+    container.innerHTML = currentReassignBookings.map(b => {
+        const dateObj = new Date(b.fecha + 'T12:00:00');
+        const dateFormatted = !isNaN(dateObj.getTime()) 
+            ? dateObj.toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short' })
+            : b.fecha;
+
+        const dur = parseInt(b.duracion || 60);
+        const [h, m] = (b.hora || '10:00').split(':').map(Number);
+        const endMinutes = h * 60 + m + dur;
+        const endHourStr = `${String(Math.floor(endMinutes / 60)).padStart(2, '0')}:${String(endMinutes % 60).padStart(2, '0')}`;
+
+        const roomName = (b._collection || '').replace('reservas_', '').toUpperCase();
+        const clientName = b.nombre || b.cliente || 'Cliente';
+        const phone = b.telefono || b.tel || '';
+        const cleanPhone = phone.replace(/\D/g, '');
+        const waLink = cleanPhone ? `https://wa.me/34${cleanPhone.startsWith('34') ? cleanPhone.slice(2) : cleanPhone}` : '';
+
+        return `
+            <div id="reassign-card-${b.id}" style="background: white; border: 1.5px solid #fecaca; border-left: 5px solid #ef4444; border-radius: 12px; padding: 14px 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); display: flex; flex-direction: column; gap: 10px;">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 8px;">
+                    <div>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span style="background: #fee2e2; color: #991b1b; padding: 3px 8px; border-radius: 6px; font-weight: 800; font-size: 0.78rem;">
+                                <i class="fas fa-calendar-alt"></i> ${dateFormatted}
+                            </span>
+                            <span style="font-weight: 800; font-size: 0.95rem; color: #1e293b;">
+                                <i class="fas fa-clock" style="color: #64748b; font-size: 0.8rem;"></i> ${b.hora} — ${endHourStr} (${dur} min)
+                            </span>
+                            <span style="background: #f1f5f9; color: #475569; padding: 3px 8px; border-radius: 6px; font-weight: 700; font-size: 0.72rem;">
+                                <i class="fas fa-door-open"></i> ${roomName}
+                            </span>
+                        </div>
+                        <div style="margin-top: 6px; font-size: 0.95rem; font-weight: 800; color: #0f172a;">
+                            ${b.servicio || 'Servicio Spa'}
+                        </div>
+                    </div>
+
+                    <!-- Client and Contacts -->
+                    <div style="text-align: right;">
+                        <div style="font-weight: 700; font-size: 0.9rem; color: #1e293b;">
+                            <i class="fas fa-user" style="color: #64748b; font-size: 0.75rem;"></i> ${clientName}
+                        </div>
+                        ${phone ? `
+                            <div style="margin-top: 4px; display: flex; gap: 6px; justify-content: flex-end; align-items: center;">
+                                <a href="tel:${cleanPhone}" style="color: #0284c7; font-weight: 600; font-size: 0.75rem; text-decoration: none; background: #e0f2fe; padding: 2px 7px; border-radius: 4px;">
+                                    <i class="fas fa-phone-alt"></i> ${phone}
+                                </a>
+                                ${waLink ? `
+                                    <a href="${waLink}" target="_blank" style="color: #15803d; font-weight: 600; font-size: 0.75rem; text-decoration: none; background: #dcfce7; padding: 2px 7px; border-radius: 4px;">
+                                        <i class="fab fa-whatsapp"></i> WhatsApp
+                                    </a>
+                                ` : ''}
+                            </div>
+                        ` : '<span style="font-size: 0.75rem; color: #94a3b8;">Sin teléfono</span>'}
+                    </div>
+                </div>
+
+                <!-- Action Controls -->
+                <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px dashed #e2e8f0; padding-top: 10px; margin-top: 4px; flex-wrap: wrap; gap: 8px;">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span style="font-size: 0.78rem; font-weight: 700; color: #475569;">Reasignar a:</span>
+                        <select id="single-target-staff-${b.id}" style="padding: 5px 8px; border-radius: 6px; border: 1.5px solid #cbd5e1; font-size: 0.8rem; font-weight: 600;">
+                            ${otherActiveStaff.map(s => `<option value="${s.id}">${s.nombre || s.name}</option>`).join('')}
+                        </select>
+                        <button type="button" onclick="reassignSingleBooking('${b.id}', '${b._collection}')" class="btn btn-sm" style="background: #2563eb; color: white; border: none; padding: 6px 12px; border-radius: 6px; font-weight: 700; font-size: 0.78rem; cursor: pointer;">
+                            <i class="fas fa-check"></i> Reasignar
+                        </button>
+                    </div>
+
+                    <div style="display: flex; gap: 6px;">
+                        <button type="button" onclick="cancelBookingFromAssistant('${b.id}', '${b._collection}', '${clientName.replace(/'/g, "\\'")}', '${b.hora}')" class="btn btn-outline btn-sm" style="color: #dc2626; border-color: #fca5a5; font-size: 0.75rem; padding: 5px 10px;">
+                            <i class="fas fa-times"></i> Anular Cita
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+async function reassignSingleBooking(bookingId, collection) {
+    const select = document.getElementById(`single-target-staff-${bookingId}`);
+    if (!select || !select.value) {
+        alert('Selecciona un terapeuta de destino');
+        return;
+    }
+
+    const targetStaffId = select.value;
+    const targetStaff = allStaffList.find(s => s.id === targetStaffId);
+    if (!targetStaff) return;
+    const targetName = targetStaff.nombre || targetStaff.name || 'Terapeuta';
+
+    try {
+        await db.collection(collection).doc(bookingId).update({
+            terapeuta: targetName,
+            staff_name: targetName,
+            terapeuta_id: targetStaffId,
+            staff_id: targetStaffId,
+            updated_at: firebase.firestore.FieldValue.serverTimestamp()
+        });
+
+        // Remove from list
+        currentReassignBookings = currentReassignBookings.filter(b => b.id !== bookingId);
+        renderReassignBookingsList();
+
+        if (currentView === 'roster') {
+            await loadWeeklyRoster();
+        }
+    } catch (err) {
+        console.error('[REASSIGN] Error reasignando cita:', err);
+        alert('Error al reasignar cita: ' + err.message);
+    }
+}
+
+async function executeBatchReassign() {
+    const targetSelect = document.getElementById('reassign-all-target-staff');
+    if (!targetSelect || !targetSelect.value) {
+        alert('Selecciona una compañera para reasignar todas las citas');
+        return;
+    }
+
+    const targetStaffId = targetSelect.value;
+    const targetStaff = allStaffList.find(s => s.id === targetStaffId);
+    if (!targetStaff) return;
+    const targetName = targetStaff.nombre || targetStaff.name || 'Terapeuta';
+
+    if (currentReassignBookings.length === 0) return;
+
+    if (!confirm(`¿Reasignar TODAS las ${currentReassignBookings.length} citas a ${targetName}?`)) return;
+
+    try {
+        const batch = db.batch();
+        currentReassignBookings.forEach(b => {
+            const ref = db.collection(b._collection).doc(b.id);
+            batch.update(ref, {
+                terapeuta: targetName,
+                staff_name: targetName,
+                terapeuta_id: targetStaffId,
+                staff_id: targetStaffId,
+                updated_at: firebase.firestore.FieldValue.serverTimestamp()
+            });
+        });
+
+        await batch.commit();
+        alert(`✓ Se han reasignado con éxito todas las citas a ${targetName}.`);
+
+        currentReassignBookings = [];
+        renderReassignBookingsList();
+
+        if (currentView === 'roster') {
+            await loadWeeklyRoster();
+        }
+    } catch (err) {
+        console.error('[REASSIGN] Error en reasignación masiva:', err);
+        alert('Error al reasignar citas: ' + err.message);
+    }
+}
+
+async function cancelBookingFromAssistant(bookingId, collection, clientName, time) {
+    if (!confirm(`¿Anular la cita de las ${time} para ${clientName}?\nLa cita quedará registrada como cancelada y se liberará la sala.`)) return;
+
+    try {
+        await db.collection(collection).doc(bookingId).update({
+            status: 'anulada',
+            updated_at: firebase.firestore.FieldValue.serverTimestamp()
+        });
+
+        currentReassignBookings = currentReassignBookings.filter(b => b.id !== bookingId);
+        renderReassignBookingsList();
+
+        if (currentView === 'roster') {
+            await loadWeeklyRoster();
+        }
+    } catch (err) {
+        console.error('[REASSIGN] Error anulando cita:', err);
+        alert('Error al anular cita: ' + err.message);
+    }
+}
+
+// ============================================================================
 // EXPOSICIÓN GLOBAL
 // ============================================================================
 
@@ -1876,3 +2205,12 @@ window.closeQuickScheduleModal = closeQuickScheduleModal;
 window.applyQuickShiftPreset = applyQuickShiftPreset;
 window.addQuickShiftRow = addQuickShiftRow;
 window.saveQuickSchedule = saveQuickSchedule;
+
+// Asistente de Reasignación
+window.getBookingsForStaffInRange = getBookingsForStaffInRange;
+window.openReassignBookingsModal = openReassignBookingsModal;
+window.closeReassignBookingsModal = closeReassignBookingsModal;
+window.renderReassignBookingsList = renderReassignBookingsList;
+window.reassignSingleBooking = reassignSingleBooking;
+window.executeBatchReassign = executeBatchReassign;
+window.cancelBookingFromAssistant = cancelBookingFromAssistant;
