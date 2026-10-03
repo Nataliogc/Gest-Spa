@@ -151,6 +151,7 @@ function initBonos() {
                                 items[i].lastReservationDate = date || new Date().toISOString().split('T')[0];
                                 items[i].validations = items[i].validations || [];
                                 items[i].validations.push({
+                                    fecha_validacion: new Date().toISOString(),
                                     fecha: date || new Date().toISOString().split('T')[0],
                                     hora: time || '',
                                     pax: pax || 1,
@@ -241,9 +242,16 @@ function initBonos() {
     });
 
     // NEW: Check for pending reservations when window gains focus
-    window.addEventListener('focus', () => {
+    window.addEventListener('focus', async () => {
         console.log('[BONOS] Window focused, checking for pending reservations...');
-        processPendingVoucherReservations();
+        await processPendingVoucherReservations();
+        const code = window._mesachefVoucherToRefresh;
+        const modal = document.getElementById('voucher-modal');
+        if (code && modal && modal.style.display === 'flex' &&
+            document.getElementById('vm-title-code')?.textContent === code) {
+            window._mesachefVoucherToRefresh = null;
+            await openVoucherManagement(code);
+        }
     });
 
     // Load data from DB
@@ -858,6 +866,7 @@ async function openRestauranteFromVoucher(client, service, code, space, pax, pho
     });
 
     const finalUrl = `${basePath}?${params.toString()}`;
+    window._mesachefVoucherToRefresh = cleanBono;
     console.log(`[REDIRECT] Abriendo restaurante en Mesachef: ${finalUrl}`);
 
     const newWin = window.open(finalUrl, '_blank');
@@ -4257,7 +4266,7 @@ async function openVoucherManagement(code) {
                         const s = rawS.toLowerCase();
 
                         // Para Hotel, suele ser único item, así que es más seguro
-                        if (s === 'hotel' && ((h.origen || '').toLowerCase().includes('hotel') || h._col === 'reservas_restaurante')) {
+                        if (s === 'hotel' && ((h.origen || '').toLowerCase().includes('hotel') || hName.includes('alojamiento') || hName.includes('hotel'))) {
                             spaceMatch = true;
                         }
 

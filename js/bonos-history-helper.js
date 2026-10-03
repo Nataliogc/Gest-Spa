@@ -78,8 +78,9 @@ async function renderVoucherHistory(bonoCode, internalValidations = []) {
         results.forEach(({ snap, col }) => {
             if (!snap || typeof snap.forEach !== 'function') return;
             snap.forEach(doc => {
-                if (addedIds.has(doc.id)) return;
                 const d = doc.data();
+                const reservationKey = `${col}:${d.external_id || doc.id}`;
+                if (addedIds.has(reservationKey)) return;
 
                 // Filtrar anuladas y validar coincidencia si es por email
                 const isCancelled = d.status === 'anulada' || d.estado === 'anulada' || d.estado === 'cancelada';
@@ -88,7 +89,7 @@ async function renderVoucherHistory(bonoCode, internalValidations = []) {
                                         Array.from(codesToSearch).includes(d.campoBono) || 
                                         Array.from(codesToSearch).includes(d.referencia);
 
-                    if (matchesCode || d.origen === 'bono') {
+                    if (matchesCode) {
                         let fechaNorm = d.fecha;
                         if (d.fecha && typeof d.fecha.toDate === 'function') {
                             fechaNorm = d.fecha.toDate().toISOString().split('T')[0];
@@ -100,6 +101,7 @@ async function renderVoucherHistory(bonoCode, internalValidations = []) {
                             _col: col, 
                             id: doc.id 
                         });
+                        addedIds.add(reservationKey);
                         addedIds.add(doc.id);
                     }
                 }
@@ -133,7 +135,11 @@ async function renderVoucherHistory(bonoCode, internalValidations = []) {
             internalValidations.forEach(item => {
                 if (item.validations && Array.isArray(item.validations)) {
                     item.validations.forEach(val => {
-                        const d = new Date(val.fecha_validacion);
+                        // Mesachef callbacks are reservations, already queried above.
+                        // Do not count them again as manual hotel validations.
+                        if (val.source === 'mesachef' || val.external_id) return;
+                        const d = new Date(val.fecha_validacion || val.fecha);
+                        if (isNaN(d.getTime())) return;
                         const dateStr = d.toISOString().split('T')[0];
                         const timeStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
