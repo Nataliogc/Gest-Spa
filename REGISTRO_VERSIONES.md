@@ -8,7 +8,7 @@ Este documento mantiene el **control de versión única y global** para todo el 
 
 | Parámetro | Valor Actual |
 | :--- | :--- |
-| **Versión Global del Sistema** | **`v2.0.0`** |
+| **Versión Global del Sistema** | **`v2.0.2`** |
 | **Fecha de Última Actualización** | **27/10/2026** |
 | **Estado General** | Operativo en Producción |
 
@@ -47,6 +47,18 @@ Cualquier cambio en los siguientes módulos impacta en la versión global:
 ---
 
 ## 📝 Historial Unificado de Versiones
+
+### [v2.0.2] - 27/10/2026
+- **Tipo:** PATCH
+- **Archivos:** `.agent/working-criteria.md`, `agenda-salas.html`, `agenda-spa.html`, `agenda-terapeutas.html`, `bonos.html`, `catalogo.html`, `configuracion.html`, `disponibilidad-terapeutas.html`, `firebase-config.js`, `index.html`, `pedidos-wc.html`, `personal.html`, `reservas-salas.html`, `reservas-spa.html`, `reservas.html`, `vision-general.html`, `package.json`, `scripts/bump-version.js`, `version.json`
+- **Descripción:** Prueba de bump automático
+
+### [v2.0.1] - 27/10/2026
+- **Módulos Afectados**: Sistema / Scripts
+- **Tipo**: PATCH
+- **Detalle de Cambios**:
+  - Automatización del sistema de incremento de versiones
+
 
 ### [v2.0.0] - 27/10/2026
 - **Módulos Afectados**: Sistema Completo / Gobernanza

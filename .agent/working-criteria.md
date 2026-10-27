@@ -1,6 +1,6 @@
 # Criterio de Trabajo y Configuración de Zenith Manager
 
-Este documento define el criterio técnico y operativo para la gestión de **Items de Compra / Pack** en el sistema Zenith Manager.
+Este documento define el criterio técnico y operativo para la gestión del sistema Zenith Manager / Gest-Spa.
 
 ## 1. Alcance Técnico de Items de Compra / Pack
 La tabla de configuración en `configuracion.html` se considera completa y funcional. Contiene los siguientes campos obligatorios:
@@ -34,10 +34,17 @@ Cualquier modificación en el flujo de **Venta Directa / Reserva Local** debe se
 ## 5. Prioridad de Datos para Reservas Directas
 Para reservas locales/directas, la fuente de verdad es la colección `spa_item_master`. Solo si un item no existe en el maestro se podrá recurrir al catálogo comercial como fallback (excepto en Cabinas), aplicando filtros de espacio y PAX.
 
-## 6. Control de Versiones: Versión Única Global
-A partir de ahora, rige una **versión única para todo el sistema**:
-- Cada vez que se realice **cualquier modificación en cualquier módulo o archivo del sistema**, se incrementará el número de versión global y se actualizará su fecha de modificación en [REGISTRO_VERSIONES.md](file:///c:/Users/comun/Documents/GitHub/Gest-Spa/REGISTRO_VERSIONES.md).
-- En el registro se detallará la versión, la fecha, los módulos afectados y el resumen del cambio realizado.
+## 6. Control de Versiones: AUTOMÁTICO ANTE CUALQUIER MEJORA
+**PROTOCOLO OBLIGATORIO PARA EL ASISTENTE (IA):**
+Cada vez que se realice cualquier modificación, mejora o corrección en el sistema, es **obligatorio ejecutar de forma automática**:
+```bash
+node scripts/bump-version.js [patch|minor|major] "Resumen del cambio realizado" "Módulo(s) afectados"
+```
+Este comando se encarga de forma 100% automatizada de:
+1. Incrementar la versión global en `version.json`.
+2. Actualizar las variables `GEST_SPA_VERSION` y `GEST_SPA_UPDATE_DATE` en `firebase-config.js`.
+3. Actualizar la fecha y registrar la nueva versión en `REGISTRO_VERSIONES.md`.
+4. Actualizar el distintivo visual (`.global-version-badge`) junto al logotipo en todos los archivos HTML del sistema.
 
 ---
-*Este criterio ha sido validado y cerrado el 16/01/2026 y actualizado con el protocolo de versión global única el 27/10/2026.*
+*Este criterio ha sido validado y cerrado el 16/01/2026 y actualizado con el protocolo automatizado de versionado global el 27/10/2026.*
