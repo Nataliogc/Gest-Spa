@@ -277,6 +277,7 @@ window.changeDashboardDate = function (days) {
 // --- RENDER ---
 
 function renderDashboard() {
+
     const tbody = document.getElementById("dashboard-table-body");
     const thead = document.querySelector(".table-wrapper table thead");
     const titleEl = document.getElementById("dashboard-title");
@@ -489,6 +490,8 @@ function formatDateES(isoStr) {
     if (parts.length === 3) return `${parts[2]}/${parts[1]}/${parts[0]}`;
     return isoStr;
 }
+
+window.renderDashboard = renderDashboard;
 
 function getStatusIcon(status) {
     switch (status) {

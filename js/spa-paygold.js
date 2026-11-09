@@ -19,29 +19,31 @@
         if (!params) params = {};
         const clientName = (params.clientName || params.nombre || 'Estimado/a cliente').trim();
         const serviceName = (params.serviceName || params.servicio || 'Circuito Spa').trim();
-        const timeVal = params.timeVal || params.hora || '';
         const paymentUrl = params.paymentUrl || params.link || '';
         const amountVal = parseFloat(params.amount || params.pending || params.precio_total || 0).toFixed(2);
         const paxCount = parseInt(params.pax || 1, 10);
         const paxStr = paxCount > 1 ? ` (${paxCount} personas)` : '';
         const orderNumber = params.orderNumber || (params.loc ? `SPA-${String(params.loc).replace(/^RS-?/i, '')}` : '');
 
-        let dateVal = params.dateVal || params.fecha || '';
-        if (dateVal && dateVal.includes('-')) {
-            const p = dateVal.split('-');
-            if (p.length === 3) dateVal = `${p[2]}/${p[1]}/${p[0]}`;
+        let dateStr = params.dateVal || params.fecha || '';
+        if (dateStr && dateStr.includes('-')) {
+            const p = dateStr.split('-');
+            if (p.length === 3) dateStr = `${p[2]}/${p[1]}/${p[0]}`;
         }
+        const timeStr = (params.timeVal || params.hora || '').trim();
+        const dateLine = dateStr ? `📅 *Fecha:* ${dateStr}\n` : '';
+        const timeLine = timeStr ? `⏰ *Hora:* ${timeStr.replace(/h$/i, '')}h\n` : '';
 
         return `🌿 *CUMBRIA BIENESTAR — Spa & Hotel* 🌿\n\n` +
             `Estimado/a *${clientName}*,\n\n` +
             `Le confirmamos los detalles de su reserva para disfrutar de una experiencia única de relajación y bienestar:\n\n` +
             (orderNumber ? `🔖 *Nº Pedido / Reserva:* ${orderNumber}\n` : '') +
             `✨ *Servicio:* ${serviceName}${paxStr}\n` +
-            `📅 *Fecha:* ${dateVal}\n` +
-            `⏰ *Hora:* ${timeVal}h\n` +
+            dateLine +
+            timeLine +
             `💶 *Importe a abonar:* ${amountVal} €\n\n` +
             `💳 *Garantía de Reserva:*\n` +
-            `Para garantizar y formalizar su cita, es imprescindible completar el pago con un mínimo de *24 horas de antelación* al servicio mediante nuestra pasarela oficial y 100% segura de Redsys (disponible con Tarjeta o Bizum):\n` +
+            `Para garantizar y formalizar su cita, es imprescindible completar el pago con un mínimo de *24 horas de antelación* al servicio mediante nuestra pasarela oficial y 100% segura de Redsys (con Tarjeta bancaria):\n` +
             `👉 ${paymentUrl}\n\n` +
             `⚠️ *Política de Cancelación:* Con el fin de asegurar la disponibilidad de nuestras instalaciones y terapeutas exclusivos, en caso de no recibir el pago antes de 24 horas del servicio, la reserva podrá ser cancelada automáticamente para liberar el espacio a otros clientes.\n\n` +
             `Si necesita realizar cualquier consulta o ajuste en su cita, estamos a su total disposición.\n\n` +
@@ -51,6 +53,332 @@
 
     // Exponer generador de mensaje comercial globalmente
     window.buildPayGoldCommercialMessage = buildPayGoldCommercialMessage;
+
+    // Helper para parsear documentos REST de Firestore
+    function parseFirestoreDoc(doc) {
+        if (!doc || !doc.fields) return null;
+        const res = {};
+        for (const [key, valObj] of Object.entries(doc.fields)) {
+            if ('stringValue' in valObj) res[key] = valObj.stringValue;
+            else if ('integerValue' in valObj) res[key] = parseInt(valObj.integerValue, 10);
+            else if ('doubleValue' in valObj) res[key] = parseFloat(valObj.doubleValue);
+            else if ('booleanValue' in valObj) res[key] = valObj.booleanValue;
+            else if ('timestampValue' in valObj) res[key] = valObj.timestampValue;
+            else res[key] = valObj;
+        }
+        return res;
+    }
+
+    /**
+     * Aplica el éxito de un pago PayGold en la reserva (Firestore + Memoria local + UI)
+     */
+    window.applyPayGoldPaymentSuccess = async function (resId, paymentData) {
+        if (!resId || !paymentData) return;
+
+        // Localizar reserva en memoria
+        let res = null;
+        if (typeof currentData !== 'undefined' && Array.isArray(currentData)) {
+            res = currentData.find(r => r.id === resId || r.res_id === resId);
+        }
+        if (!res && window.state && Array.isArray(window.state.citas)) {
+            res = window.state.citas.find(r => r.id === resId || r.res_id === resId);
+        }
+
+        const paidAmount = parseFloat(paymentData.amountEuros || paymentData.amount || 0);
+        const authCode = String(paymentData.authCode || paymentData.autorizacion || '').trim();
+        const orderId = String(paymentData.orderId || '').trim();
+        const paidAt = paymentData.paidAt || new Date().toISOString();
+
+        const total = parseFloat(res?.precio_total || res?.precio || document.getElementById("res-precio-total")?.value || 0);
+        const existingPaid = (res?.payment && typeof res.payment.paid === 'number') ? res.payment.paid : (parseFloat(res?.paid_amount || res?.pagado || 0) || 0);
+        const newPaid = Math.max(existingPaid, paidAmount);
+        const isFullyPaid = (newPaid >= total - 0.05) || (total <= 0 && newPaid > 0);
+
+        const historyItem = {
+            fecha: paidAt,
+            importe: paidAmount,
+            metodo: 'TPV Redsys PayGold',
+            autorizacion: authCode,
+            orderId: orderId,
+            usuario: 'Redsys Online (Automático)',
+            timestamp: new Date().toISOString()
+        };
+
+        const existingHistory = (res?.payment && Array.isArray(res.payment.history)) ? res.payment.history : [];
+        const alreadyLogged = existingHistory.some(h => (h.orderId && h.orderId === orderId) || (authCode && h.autorizacion && h.autorizacion === authCode));
+        const newHistory = alreadyLogged ? existingHistory : [...existingHistory, historyItem];
+
+        const paymentUpdate = {
+            paid: newPaid,
+            history: newHistory,
+            status: isFullyPaid ? 'paid' : 'partial'
+        };
+
+        const updatePayload = {
+            payment: paymentUpdate,
+            pagado: isFullyPaid,
+            estado_pago: isFullyPaid ? 'pagado' : 'parcial',
+            service_payment_status: isFullyPaid ? 'paid' : 'partial',
+            paygold_status: 'COBRADO',
+            paygold_auth: authCode,
+            paygold_paid_at: paidAt,
+            updated_at: new Date().toISOString()
+        };
+
+        // Identificar colección de Firestore correspondiente
+        let targetColl = 'reservas_spa';
+        if (res && res._moduleCode && window.MODULES && window.MODULES[res._moduleCode]) {
+            targetColl = window.MODULES[res._moduleCode].collection;
+        } else if (res && res.collection) {
+            targetColl = res.collection;
+        } else if (res && res.moduleType && window.MODULES && window.MODULES[res.moduleType]) {
+            targetColl = window.MODULES[res.moduleType].collection;
+        } else if (window.currentModule && window.currentModule.collection) {
+            targetColl = window.currentModule.collection;
+        }
+
+        // 1. Guardar en Firestore del Spa
+        if (typeof db !== 'undefined' && db && resId) {
+            try {
+                await db.collection(targetColl).doc(resId).update(updatePayload);
+                console.log(`[PayGold AutoSync] ✅ Reserva ${resId} actualizada en Firestore como PAGADA (${targetColl}).`);
+            } catch (dbErr) {
+                console.warn(`[PayGold AutoSync] Error actualizando en Firestore para ${resId}:`, dbErr);
+            }
+        }
+
+        // 2. Actualizar memoria local
+        if (res) {
+            res.payment = paymentUpdate;
+            res.pagado = updatePayload.pagado;
+            res.estado_pago = updatePayload.estado_pago;
+            res.service_payment_status = updatePayload.service_payment_status;
+            res.paygold_status = 'COBRADO';
+            res.paygold_auth = authCode;
+            res.paygold_paid_at = paidAt;
+        }
+
+        // 3. Actualizar UI si la ficha de esta reserva está en pantalla
+        const openResId = document.getElementById("form-id")?.value;
+        if (openResId === resId || (res && res.id === openResId)) {
+            if (typeof window.updatePaymentControlBlock === 'function') {
+                window.updatePaymentControlBlock();
+            }
+            const banner = document.getElementById("pp-paygold-banner");
+            if (banner) {
+                banner.style.display = "block";
+                banner.style.background = "#ecfdf5";
+                banner.style.borderColor = "#10b981";
+                banner.innerHTML = `
+                    <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap;">
+                        <div style="display:flex; align-items:center; gap:8px;">
+                            <span style="font-size:1.3rem;">✅</span>
+                            <div>
+                                <div style="font-weight:800; color:#065f46; font-size:0.85rem;">
+                                    PAGO REDSYS RECIBIDO Y REGISTRADO AUTOMÁTICAMENTE
+                                </div>
+                                <div style="font-size:0.75rem; color:#047857; margin-top:2px;">
+                                    Importe abonado: <b>${paidAmount.toFixed(2)} €</b> | Pedido: <b>${orderId || res?.paygold_order || ''}</b> ${authCode ? `| Aut: <b style="font-family:monospace; background:#d1fae5; padding:1px 5px; border-radius:4px;">${authCode}</b>` : ''}
+                                </div>
+                            </div>
+                        </div>
+                        <span style="background:#047857; color:#fff; font-size:0.7rem; font-weight:800; padding:4px 10px; border-radius:6px; letter-spacing:0.5px;">
+                            COBRADO ONLINE
+                        </span>
+                    </div>
+                `;
+            }
+        }
+
+        // 4. Refrescar listados del Dashboard si aplica
+        if (typeof window.renderDashboard === 'function') {
+            window.renderDashboard();
+        }
+        const mainDate = document.getElementById("main-date-picker")?.value;
+        if (typeof window.loadReservas === 'function' && mainDate) {
+            window.loadReservas(mainDate);
+        }
+
+        // 5. Notificación emergente al usuario
+        if (typeof showToast === 'function') {
+            showToast(`🎉 ¡Pago Redsys de ${paidAmount.toFixed(2)}€ RECIBIDO y REGISTRADO automáticamente! (Aut: ${authCode})`, 'success');
+        }
+    };
+
+    /**
+     * Motor de Sincronización Automática en Segundo Plano (Auto-Sync)
+     * Monitorea las transacciones PayGold y detecta cobros completados por el cliente.
+     */
+    const PayGoldAutoSync = {
+        activeInterval: null,
+        isChecking: false,
+
+        start: function () {
+            if (this.activeInterval) return;
+            this.checkAllPending();
+            this.activeInterval = setInterval(() => {
+                this.checkAllPending();
+            }, 15000); // Chequeo periódico cada 15 segundos
+
+            // Chequeo inmediato al volver a enfocar la pestaña del navegador
+            document.addEventListener('visibilitychange', () => {
+                if (!document.hidden) {
+                    this.checkAllPending();
+                }
+            });
+        },
+
+        checkAllPending: async function () {
+            if (this.isChecking) return;
+            this.isChecking = true;
+
+            try {
+                // 1. Chequear reserva actualmente abierta en el modal si tiene enlace pendiente
+                const openResId = document.getElementById("form-id")?.value;
+                if (openResId && openResId !== 'NUEVA') {
+                    await this.checkReservationById(openResId);
+                }
+
+                // 2. Chequear todas las reservas en currentData que tengan enlace PayGold pendiente
+                if (typeof currentData !== 'undefined' && Array.isArray(currentData)) {
+                    const pendingList = currentData.filter(r =>
+                        (r.paygold_redsys_order || r.paygold_order || r.payment_link) &&
+                        r.paygold_status !== 'COBRADO' &&
+                        !r.pagado &&
+                        r.estado_pago !== 'pagado'
+                    );
+                    for (const r of pendingList) {
+                        await this.checkReservation(r);
+                    }
+                }
+
+                // 3. Chequear citas en dashboard (state.citas) si aplica
+                if (window.state && Array.isArray(window.state.citas)) {
+                    const pendingCitas = window.state.citas.filter(r =>
+                        (r.paygold_redsys_order || r.paygold_order || r.payment_link) &&
+                        r.paygold_status !== 'COBRADO' &&
+                        !r.pagado &&
+                        r.estado_pago !== 'pagado'
+                    );
+                    for (const r of pendingCitas) {
+                        await this.checkReservation(r);
+                    }
+                }
+            } catch (err) {
+                console.debug("[PayGold AutoSync] Error en ciclo de auto-verificación:", err);
+            } finally {
+                this.isChecking = false;
+            }
+        },
+
+        checkReservationById: async function (resId) {
+            const res = (typeof currentData !== 'undefined' && Array.isArray(currentData))
+                ? currentData.find(r => r.id === resId)
+                : (window.state && Array.isArray(window.state.citas) ? window.state.citas.find(r => r.id === resId) : null);
+
+            if (res) return this.checkReservation(res);
+
+            // Fallback si no está en lista pero hay código visual en modal
+            const orderDisp = document.getElementById('pp-paygold-order-display')?.textContent?.trim();
+            if (orderDisp) {
+                return this.checkByOrderId(orderDisp, resId, null);
+            }
+        },
+
+        checkReservation: async function (res) {
+            if (!res) return null;
+            if (res.paygold_status === 'COBRADO' || res.pagado || res.estado_pago === 'pagado') return null;
+
+            const redsysOrder = res.paygold_redsys_order ||
+                (window.PayGoldService ? window.PayGoldService.formatRedsysOrderId(res.id || res.res_id) : null);
+            if (!redsysOrder) return null;
+
+            return this.checkByOrderId(redsysOrder, res.id, res);
+        },
+
+        checkByOrderId: async function (orderId, resId, resObj) {
+            if (!orderId) return null;
+
+            let cleanOrder = String(orderId).trim().replace(/^SPA-?/i, '');
+            if (!cleanOrder.startsWith('0000SPA') && cleanOrder.length <= 5) {
+                cleanOrder = `0000SPA${cleanOrder}`;
+            }
+
+            try {
+                const url = `https://firestore.googleapis.com/v1/projects/gest-grupos-hotel/databases/(default)/documents/paygold_transactions/${cleanOrder}`;
+                const resp = await fetch(url);
+                if (!resp.ok) return null;
+
+                const rawDoc = await resp.json();
+                const data = parseFirestoreDoc(rawDoc);
+
+                if (data && (data.status === 'COBRADO' || data.status === 'AUTORIZADO')) {
+                    console.log(`[PayGold AutoSync] 🎉 ¡Cobro confirmado en Redsys para pedido ${cleanOrder}!`, data);
+                    await window.applyPayGoldPaymentSuccess(resId || data.referenceId, data);
+                    return data;
+                }
+                return data;
+            } catch (fetchErr) {
+                console.debug(`[PayGold AutoSync] Fallo de red consultando pedido ${cleanOrder}:`, fetchErr.message);
+                return null;
+            }
+        }
+    };
+
+    window.PayGoldAutoSync = PayGoldAutoSync;
+
+    /**
+     * Verificación manual bajo demanda con botón "Comprobar Pago Online"
+     */
+    window.verificarPagoPayGoldManual = async function () {
+        const resId = document.getElementById("form-id")?.value || window.currentEditingId;
+        if (!resId || resId === 'NUEVA') {
+            if (typeof showToast === 'function') showToast("Primero selecciona o guarda la reserva", "info");
+            return;
+        }
+
+        const btn = document.getElementById("btn-check-paygold-status");
+        const origHtml = btn ? btn.innerHTML : '';
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Comprobando...';
+        }
+
+        try {
+            let res = (typeof currentData !== 'undefined' && Array.isArray(currentData))
+                ? currentData.find(r => r.id === resId)
+                : (window.state && Array.isArray(window.state.citas) ? window.state.citas.find(r => r.id === resId) : null);
+
+            const redsysOrder = res?.paygold_redsys_order ||
+                (window.PayGoldService ? window.PayGoldService.formatRedsysOrderId(res?.id || resId) : null);
+
+            if (!redsysOrder) {
+                if (typeof showToast === 'function') showToast("Esta reserva no tiene un pedido PayGold asociado aún.", "info");
+                return;
+            }
+
+            const data = await PayGoldAutoSync.checkByOrderId(redsysOrder, resId, res);
+
+            if (data && (data.status === 'COBRADO' || data.status === 'AUTORIZADO')) {
+                // Ya se actualizó automáticamente en applyPayGoldPaymentSuccess
+            } else if (data && data.status === 'PENDIENTE') {
+                if (typeof showToast === 'function') {
+                    showToast(`⏳ Pago aún pendiente en Redsys. En cuanto el cliente introduzca su tarjeta y acepte en su banco, el sistema lo registrará automáticamente.`, 'info');
+                }
+            } else {
+                if (typeof showToast === 'function') {
+                    showToast(`Estado en Redsys: ${data?.status || 'Pendiente'}`, 'info');
+                }
+            }
+        } catch (e) {
+            if (typeof showToast === 'function') showToast("Error al verificar: " + e.message, "error");
+        } finally {
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = origHtml;
+            }
+        }
+    };
 
     // Helper para formatear fechas en el selector de caducidad (+24h, +48h, etc.)
     window.setPayGoldExpiryDays = function (days) {
@@ -219,7 +547,7 @@
                         
                         <div style="margin-bottom:10px;">
                             <span style="font-weight:700; font-size:0.72rem; color:#065f46; display:block; margin-bottom:4px;">Mensaje comercial listo para WhatsApp (con garantía 24h):</span>
-                            <div id="pg-modal-msg-preview" style="background:#fff; border:1px solid #cbd5e1; border-radius:8px; padding:8px 10px; font-size:0.72rem; color:#334155; white-space:pre-wrap; max-height:130px; overflow-y:auto; line-height:1.4;"></div>
+                            <div id="pg-modal-msg-preview" style="background:#fff; border:1px solid #cbd5e1; border-radius:8px; padding:8px 10px; font-size:0.72rem; color:#334155; white-space:pre-wrap; max-height:140px; overflow-y:auto; line-height:1.4;"></div>
                         </div>
 
                         <div style="display:flex; gap:8px; flex-wrap:wrap;">
@@ -292,13 +620,25 @@
                     </div>
                 </div>
                 <div style="margin-top: 8px; padding-top: 8px; border-top: 1px dashed #a7f3d0; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px; font-size:0.72rem;">
-                    <span><i class="fas fa-info-circle"></i> Al verificar el cobro en Redsys, marca la reserva como <b>PAGADA</b>:</span>
+                    <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                        <button type="button" class="btn btn-xs" id="btn-check-paygold-status" style="background:#2563eb; color:#fff; border:none; padding:4px 10px; border-radius:6px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:5px;" onclick="verificarPagoPayGoldManual()" title="Consultar en Redsys si el cliente ya completó el pago">
+                            <i class="fas fa-sync-alt"></i> Comprobar Pago Online
+                        </button>
+                        <span id="paygold-sync-status-indicator" style="font-size:0.72rem; color:#047857; font-weight:600;">
+                            <i class="fas fa-magic" style="color:#10b981;"></i> Auto-registro activo cada 15s
+                        </span>
+                    </div>
                     <button type="button" class="btn btn-xs" style="background:#047857; color:#fff; border:none; padding:4px 10px; border-radius:6px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:4px;" onclick="marcarPayGoldComoPagado()">
                         <i class="fas fa-check"></i> Marcar como Pagado
                     </button>
                 </div>
             </div>`;
             pagoBlock.insertAdjacentHTML('beforeend', bannerHtml);
+        }
+
+        // Arrancar motor de auto-sync si no ha arrancado ya
+        if (window.PayGoldAutoSync && typeof window.PayGoldAutoSync.start === 'function') {
+            window.PayGoldAutoSync.start();
         }
     }
 
@@ -313,26 +653,47 @@
             return;
         }
 
-        const total = parseFloat(document.getElementById("res-precio-total")?.value) || 0;
-        const clientName = document.getElementById("res-nombre")?.value || 'Cliente';
-        const tel = document.getElementById("res-tel")?.value || '';
-        const email = document.getElementById("res-email")?.value || '';
-        const loc = document.getElementById("res-id-display")?.textContent || resId;
-        const serviceName = document.getElementById("res-servicio")?.value || (window.currentModule ? window.currentModule.name : 'Circuito Spa');
+        const res = (typeof currentData !== 'undefined' && Array.isArray(currentData)) ? currentData.find(r => r.id === resId) : null;
+
+        const total = parseFloat(document.getElementById("res-precio-total")?.value) || (res ? parseFloat(res.precio_total || res.precio || 0) : 0);
+        const clientName = document.getElementById("res-nombre")?.value || res?.nombre || 'Cliente';
+        const tel = document.getElementById("res-tel")?.value || res?.tel || res?.telefono || '';
+        const email = document.getElementById("res-email")?.value || res?.email || '';
+        const loc = document.getElementById("res-id-display")?.textContent || res?.res_id || resId;
+        const serviceName = document.getElementById("res-servicio")?.value || res?.servicio || (window.currentModule ? window.currentModule.name : 'Circuito Spa');
+
+        // Extraer fecha y hora de forma robusta
+        const dateVal = document.getElementById("form-date")?.value 
+            || res?.fecha 
+            || document.getElementById("main-date-picker")?.value 
+            || '';
+
+        const timeVal = document.getElementById("form-time")?.value 
+            || res?.hora 
+            || '';
 
         // Formatear Nº Pedido SPA-XXXX
         const cleanCode = String(loc).replace(/[^A-Za-z0-9]/g, '').replace(/^RS/i, '').toUpperCase() || loc;
         const spaOrderNumber = `SPA-${cleanCode}`;
         currentPayGoldOrderId = spaOrderNumber;
 
-        // Buscar en datos actuales
-        const res = (typeof currentData !== 'undefined' && Array.isArray(currentData)) ? currentData.find(r => r.id === resId) : null;
         let paid = 0;
         if (res) {
             if (res.pagado === true || res.estado_pago === 'pagado') paid = total;
             else paid = parseFloat(res.payment?.paid || res.paid_amount || res.pagado || 0) || 0;
         }
         const pending = Math.max(0, total - paid);
+
+        // Guardar fecha y hora en el dataset del modal para uso garantizado
+        const modal = document.getElementById("paygold-spa-modal");
+        if (modal) {
+            modal.dataset.resId = resId;
+            modal.dataset.dateVal = dateVal;
+            modal.dataset.timeVal = timeVal;
+            modal.dataset.clientName = clientName;
+            modal.dataset.serviceName = serviceName;
+            modal.dataset.orderNumber = spaOrderNumber;
+        }
 
         // Actualizar Cabecera de la ficha en el modal
         const titleEl = document.getElementById("pg-modal-res-title");
@@ -372,7 +733,7 @@
         const customInput = document.getElementById("pg-modal-custom-amount");
         if (customInput) customInput.value = (pending > 0 ? pending : total).toFixed(2);
 
-        // Fecha de caducidad por defecto: +48 horas (o +24h según preferencia)
+        // Fecha de caducidad por defecto: +48 horas
         setPayGoldExpiryDays(2);
 
         // Móvil y Email
@@ -389,7 +750,6 @@
         document.getElementById("pg-modal-error").style.display = "none";
         document.getElementById("pg-modal-success").style.display = "none";
 
-        const modal = document.getElementById("paygold-spa-modal");
         if (modal) modal.style.display = "flex";
     };
 
@@ -399,18 +759,30 @@
     };
 
     window.submitPayGoldSpa = async function () {
-        const resId = document.getElementById("form-id")?.value || window.currentEditingId;
+        const modal = document.getElementById("paygold-spa-modal");
+        const resId = document.getElementById("form-id")?.value || modal?.dataset.resId || window.currentEditingId;
         const loc = document.getElementById("res-id-display")?.textContent || resId;
-        const clientName = document.getElementById("res-nombre")?.value || '';
-        const serviceName = document.getElementById("res-servicio")?.value || (window.currentModule ? window.currentModule.name : 'Circuito Spa');
-        const dateVal = document.getElementById("inputDate")?.value || '';
-        const timeVal = document.getElementById("selectTime")?.value || '';
-        const pax = document.getElementById("res-pax")?.value || 1;
+        const res = (typeof currentData !== 'undefined' && Array.isArray(currentData)) ? currentData.find(r => r.id === resId) : null;
+
+        const clientName = document.getElementById("res-nombre")?.value || modal?.dataset.clientName || res?.nombre || 'Cliente';
+        const serviceName = document.getElementById("res-servicio")?.value || modal?.dataset.serviceName || res?.servicio || (window.currentModule ? window.currentModule.name : 'Circuito Spa');
+        const pax = document.getElementById("res-pax")?.value || res?.pax || 1;
+
+        // Recuperar fecha y hora garantizadas
+        const dateVal = document.getElementById("form-date")?.value 
+            || modal?.dataset.dateVal 
+            || res?.fecha 
+            || document.getElementById("main-date-picker")?.value 
+            || '';
+
+        const timeVal = document.getElementById("form-time")?.value 
+            || modal?.dataset.timeVal 
+            || res?.hora 
+            || '';
 
         // Determinar importe según la opción seleccionada
         const selectedRadio = document.querySelector('input[name="pg-amount-radio"]:checked')?.value || 'total';
-        const res = (typeof currentData !== 'undefined' && Array.isArray(currentData)) ? currentData.find(r => r.id === resId) : null;
-        const total = parseFloat(document.getElementById("res-precio-total")?.value) || 0;
+        const total = parseFloat(document.getElementById("res-precio-total")?.value) || (res ? parseFloat(res.precio_total || res.precio || 0) : 0);
         let paid = 0;
         if (res && res.payment) paid = res.payment.paid || 0;
         const pending = Math.max(0, total - paid);
@@ -527,7 +899,8 @@
 
             const waBtn = document.getElementById("pg-modal-wa-btn");
             if (waBtn) {
-                waBtn.href = `https://wa.me/34${mobile}?text=${encodeURIComponent(msg)}`;
+                const targetPhone = mobile || (res?.tel || res?.telefono || document.getElementById("res-tel")?.value || "").replace(/\D/g, "");
+                waBtn.href = `https://wa.me/34${targetPhone}?text=${encodeURIComponent(msg)}`;
             }
 
             succBox.style.display = "block";
@@ -591,14 +964,24 @@
         const cleanCode = String(loc).replace(/[^A-Za-z0-9]/g, '').replace(/^RS/i, '').toUpperCase() || loc;
         const spaOrderDisplay = res?.paygold_order || `SPA-${cleanCode}`;
 
+        // Extraer fecha y hora
+        const dateVal = document.getElementById("form-date")?.value 
+            || res?.fecha 
+            || document.getElementById("main-date-picker")?.value 
+            || '';
+
+        const timeVal = document.getElementById("form-time")?.value 
+            || res?.hora 
+            || '';
+
         const msg = buildPayGoldCommercialMessage({
-            clientName: (res && res.nombre) || document.getElementById("res-nombre")?.value || 'Cliente',
-            serviceName: (res && res.servicio) || document.getElementById("res-servicio")?.value || 'Circuito Spa',
-            dateVal: (res && res.fecha) || document.getElementById("inputDate")?.value || '',
-            timeVal: (res && res.hora) || document.getElementById("selectTime")?.value || '',
+            clientName: document.getElementById("res-nombre")?.value || res?.nombre || 'Cliente',
+            serviceName: document.getElementById("res-servicio")?.value || res?.servicio || 'Circuito Spa',
+            dateVal: dateVal,
+            timeVal: timeVal,
             amount: pending > 0 ? pending : total,
             paymentUrl: link,
-            pax: (res && res.pax) || document.getElementById("res-pax")?.value || 1,
+            pax: document.getElementById("res-pax")?.value || res?.pax || 1,
             orderNumber: spaOrderDisplay
         });
 
@@ -654,9 +1037,17 @@
     };
 
     // Enganchar en el ciclo de vida de la página
-    document.addEventListener('DOMContentLoaded', setupPayGoldControls);
+    document.addEventListener('DOMContentLoaded', () => {
+        setupPayGoldControls();
+        if (window.PayGoldAutoSync && typeof window.PayGoldAutoSync.start === 'function') {
+            window.PayGoldAutoSync.start();
+        }
+    });
     if (document.readyState === 'complete' || document.readyState === 'interactive') {
         setupPayGoldControls();
+        if (window.PayGoldAutoSync && typeof window.PayGoldAutoSync.start === 'function') {
+            window.PayGoldAutoSync.start();
+        }
     }
 
     // Interceptar o extender updatePaymentControlBlock para reflejar enlaces activos
@@ -671,7 +1062,7 @@
         const resId = document.getElementById("form-id")?.value || window.currentEditingId;
         const res = (typeof currentData !== 'undefined' && Array.isArray(currentData) && resId) ? currentData.find(r => r.id === resId) : null;
 
-        const total = parseFloat(document.getElementById("res-precio-total")?.value) || 0;
+        const total = parseFloat(document.getElementById("res-precio-total")?.value) || (res ? parseFloat(res.precio_total || res.precio || 0) : 0);
         let paid = 0;
         if (res) {
             if (res.pagado === true || res.estado_pago === 'pagado') paid = total;
@@ -681,27 +1072,65 @@
 
         if (banner) {
             const payUrl = res?.payment_link || res?.paygold_link || res?.Enlace_TPV || (res && res.id === resId ? currentPayGoldUrl : '');
-            if (payUrl && pending > 0) {
+            const isCobrado = res?.paygold_status === 'COBRADO' || (res?.payment && res.payment.history && res.payment.history.some(h => String(h.metodo || '').includes('PayGold')));
+
+            if (isCobrado && (paid > 0 || res?.pagado)) {
                 banner.style.display = "block";
+                banner.style.background = "#ecfdf5";
+                banner.style.borderColor = "#10b981";
+                const authCode = res?.paygold_auth || (res?.payment?.history?.find(h => h.autorizacion)?.autorizacion) || '';
+                const orderNumber = res?.paygold_order || '';
+
+                banner.innerHTML = `
+                    <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap;">
+                        <div style="display:flex; align-items:center; gap:8px;">
+                            <span style="font-size:1.3rem;">✅</span>
+                            <div>
+                                <div style="font-weight:800; color:#065f46; font-size:0.85rem;">
+                                    PAGO REDSYS RECIBIDO Y REGISTRADO AUTOMÁTICAMENTE
+                                </div>
+                                <div style="font-size:0.75rem; color:#047857; margin-top:2px;">
+                                    Total abonado: <b>${paid.toFixed(2)} €</b> ${orderNumber ? `| Pedido: <b>${orderNumber}</b>` : ''} ${authCode ? `| Aut: <b style="font-family:monospace; background:#d1fae5; padding:1px 5px; border-radius:4px;">${authCode}</b>` : ''}
+                                </div>
+                            </div>
+                        </div>
+                        <span style="background:#047857; color:#fff; font-size:0.7rem; font-weight:800; padding:4px 10px; border-radius:6px; letter-spacing:0.5px;">
+                            COBRADO ONLINE
+                        </span>
+                    </div>
+                `;
+            } else if (payUrl && pending > 0) {
+                banner.style.display = "block";
+                banner.style.background = "#ecfdf5";
+                banner.style.borderColor = "#a7f3d0";
+
                 const loc = document.getElementById("res-id-display")?.textContent || (res ? (res.res_id || res.id) : '');
                 const cleanCode = String(loc).replace(/[^A-Za-z0-9]/g, '').replace(/^RS/i, '').toUpperCase() || loc;
                 const orderDisp = document.getElementById("pp-paygold-order-display");
-                if (orderDisp) orderDisp.textContent = res.paygold_order || `SPA-${cleanCode}`;
+                if (orderDisp) orderDisp.textContent = res?.paygold_order || `SPA-${cleanCode}`;
 
                 const waBtn = document.getElementById("pp-paygold-whatsapp-btn");
                 if (waBtn) {
-                    const cleanTel = (res.tel || res.telefono || document.getElementById("res-tel")?.value || "").replace(/\D/g, "");
+                    const cleanTel = (res?.tel || res?.telefono || document.getElementById("res-tel")?.value || "").replace(/\D/g, "");
+                    const dateVal = document.getElementById("form-date")?.value || res?.fecha || document.getElementById("main-date-picker")?.value || '';
+                    const timeVal = document.getElementById("form-time")?.value || res?.hora || '';
+
                     const msg = buildPayGoldCommercialMessage({
-                        clientName: res.nombre || document.getElementById("res-nombre")?.value || '',
-                        serviceName: res.servicio || document.getElementById("res-servicio")?.value || 'Circuito Spa',
-                        dateVal: res.fecha || document.getElementById("inputDate")?.value || '',
-                        timeVal: res.hora || document.getElementById("selectTime")?.value || '',
+                        clientName: res?.nombre || document.getElementById("res-nombre")?.value || '',
+                        serviceName: res?.servicio || document.getElementById("res-servicio")?.value || 'Circuito Spa',
+                        dateVal: dateVal,
+                        timeVal: timeVal,
                         amount: pending,
                         paymentUrl: payUrl,
-                        pax: res.pax || document.getElementById("res-pax")?.value || 1,
-                        orderNumber: res.paygold_order || `SPA-${cleanCode}`
+                        pax: res?.pax || document.getElementById("res-pax")?.value || 1,
+                        orderNumber: res?.paygold_order || `SPA-${cleanCode}`
                     });
                     waBtn.href = `https://wa.me/34${cleanTel}?text=${encodeURIComponent(msg)}`;
+                }
+
+                // Disparo de verificación automática silenciosa para esta reserva en segundo plano
+                if (window.PayGoldAutoSync && res) {
+                    window.PayGoldAutoSync.checkReservation(res);
                 }
             } else {
                 banner.style.display = "none";

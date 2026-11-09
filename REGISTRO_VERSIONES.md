@@ -8,7 +8,7 @@ Este documento mantiene el **control de versión única y global** para todo el 
 
 | Parámetro | Valor Actual |
 | :--- | :--- |
-| **Versión Global del Sistema** | **`v2.0.5`** |
+| **Versión Global del Sistema** | **`v2.0.6`** |
 | **Fecha de Última Actualización** | **09/11/2026** |
 | **Estado General** | Operativo en Producción |
 
@@ -47,6 +47,11 @@ Cualquier cambio en los siguientes módulos impacta en la versión global:
 ---
 
 ## 📝 Historial Unificado de Versiones
+
+### [v2.0.6] - 09/11/2026
+- **Tipo:** PATCH
+- **Archivos:** `js/dashboard.js`, `js/spa-paygold.js`
+- **Descripción:** Registro automatico en tiempo real de pagos Redsys PayGold sin intervencion manual
 
 ### [v2.0.5] - 09/11/2026
 - **Tipo:** PATCH
