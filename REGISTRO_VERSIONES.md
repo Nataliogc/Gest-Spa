@@ -8,8 +8,8 @@ Este documento mantiene el **control de versión única y global** para todo el 
 
 | Parámetro | Valor Actual |
 | :--- | :--- |
-| **Versión Global del Sistema** | **`v2.0.2`** |
-| **Fecha de Última Actualización** | **27/10/2026** |
+| **Versión Global del Sistema** | **`v2.0.3`** |
+| **Fecha de Última Actualización** | **09/11/2026** |
 | **Estado General** | Operativo en Producción |
 
 ---
@@ -47,6 +47,11 @@ Cualquier cambio en los siguientes módulos impacta en la versión global:
 ---
 
 ## 📝 Historial Unificado de Versiones
+
+### [v2.0.3] - 09/11/2026
+- **Tipo:** PATCH
+- **Archivos:** `disponibilidad.html`, `manifest.json`, `reservas-salas.html`, `reservas-spa.html`, `reservas.html`, `vision-general.html`, `favicon-32x32.png`, `favicon.ico`, `icon-192.png`, `icon-512.png`, `icon-lotus-192.png`, `icon-lotus-512.png`, `icon-zenith-192.png`, `icon-zenith-512.png`, `js/services/`, `js/spa-paygold.js`
+- **Descripción:** Integración oficial de pasarela Redsys PayGold Cumbria Spa & Hotel
 
 ### [v2.0.2] - 27/10/2026
 - **Tipo:** PATCH

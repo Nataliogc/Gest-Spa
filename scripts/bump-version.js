@@ -99,6 +99,22 @@ function run() {
     fs.writeFileSync(registroPath, registroContent, 'utf8');
     console.log(`[BUMP-VERSION] REGISTRO_VERSIONES.md actualizado.`);
 
+    // 4.1 Sincronizar version.json y package.json
+    const vJsonPath = path.join(rootDir, 'version.json');
+    if (fs.existsSync(vJsonPath)) {
+        fs.writeFileSync(vJsonPath, JSON.stringify({ version: `${major}.${minor}.${patch}`, lastUpdated: dateFormatted }, null, 2), 'utf8');
+    }
+    const pkgJsonPath = path.join(rootDir, 'package.json');
+    if (fs.existsSync(pkgJsonPath)) {
+        try {
+            const pkg = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8'));
+            pkg.version = `${major}.${minor}.${patch}`;
+            fs.writeFileSync(pkgJsonPath, JSON.stringify(pkg, null, 2), 'utf8');
+        } catch (e) {
+            console.warn('[BUMP-VERSION] Error actualizando package.json:', e);
+        }
+    }
+
     // 5. Actualizar todos los archivos .html que contienen global-version-badge
     const files = fs.readdirSync(rootDir);
     let countHtml = 0;
