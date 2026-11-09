@@ -9,10 +9,11 @@
     'use strict';
 
     let currentPayGoldUrl = '';
+    let currentPayGoldOrderId = '';
 
     /**
      * Construye el texto comercial oficial para WhatsApp / Email con el enlace PayGold.
-     * Incorpora la cláusula de garantía de reserva previa de 24 horas.
+     * Incorpora el número de pedido oficial (SPA-XXXX) y la cláusula de garantía de 24 horas.
      */
     function buildPayGoldCommercialMessage(params) {
         if (!params) params = {};
@@ -23,6 +24,7 @@
         const amountVal = parseFloat(params.amount || params.pending || params.precio_total || 0).toFixed(2);
         const paxCount = parseInt(params.pax || 1, 10);
         const paxStr = paxCount > 1 ? ` (${paxCount} personas)` : '';
+        const orderNumber = params.orderNumber || (params.loc ? `SPA-${String(params.loc).replace(/^RS-?/i, '')}` : '');
 
         let dateVal = params.dateVal || params.fecha || '';
         if (dateVal && dateVal.includes('-')) {
@@ -33,6 +35,7 @@
         return `🌿 *CUMBRIA BIENESTAR — Spa & Hotel* 🌿\n\n` +
             `Estimado/a *${clientName}*,\n\n` +
             `Le confirmamos los detalles de su reserva para disfrutar de una experiencia única de relajación y bienestar:\n\n` +
+            (orderNumber ? `🔖 *Nº Pedido / Reserva:* ${orderNumber}\n` : '') +
             `✨ *Servicio:* ${serviceName}${paxStr}\n` +
             `📅 *Fecha:* ${dateVal}\n` +
             `⏰ *Hora:* ${timeVal}h\n` +
@@ -49,100 +52,199 @@
     // Exponer generador de mensaje comercial globalmente
     window.buildPayGoldCommercialMessage = buildPayGoldCommercialMessage;
 
+    // Helper para formatear fechas en el selector de caducidad (+24h, +48h, etc.)
+    window.setPayGoldExpiryDays = function (days) {
+        const d = new Date(Date.now() + days * 86400000);
+        const dateInput = document.getElementById('pg-modal-expiry-date');
+        if (dateInput) {
+            dateInput.value = d.toISOString().split('T')[0];
+        }
+    };
+
+    // Helper para cambiar opción de importe (depósito, total, personalizado)
+    window.onPayGoldAmountOptionChange = function (option) {
+        const customBox = document.getElementById('pg-custom-amount-box');
+        const customInput = document.getElementById('pg-modal-custom-amount');
+        if (option === 'custom') {
+            if (customBox) customBox.style.display = 'block';
+            if (customInput) customInput.focus();
+        } else {
+            if (customBox) customBox.style.display = 'none';
+        }
+    };
+
     // Inyectar HTML del Modal PayGold en el body si no existe
     function injectPayGoldModal() {
         if (document.getElementById('paygold-spa-modal')) return;
 
         const modalHtml = `
-        <div id="paygold-spa-modal" class="modal" style="display:none; position:fixed; inset:0; background:rgba(15,23,42,0.7); z-index:999999; align-items:center; justify-content:center; backdrop-filter:blur(3px);">
-            <div style="background:#fff; border-radius:16px; width:95%; max-width:540px; padding:24px; box-shadow:0 25px 50px -12px rgba(0,0,0,0.25); position:relative; max-height:92vh; overflow-y:auto; border:1px solid #e2e8f0; font-family:inherit;">
-                <!-- Header -->
-                <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #f1f5f9; padding-bottom:14px; margin-bottom:18px;">
-                    <div style="display:flex; align-items:center; gap:10px;">
-                        <div style="width:38px; height:38px; border-radius:10px; background:#fef3c7; display:flex; align-items:center; justify-content:center; color:#d97706; font-size:1.2rem;">
-                            💳
+        <div id="paygold-spa-modal" class="modal" style="display:none; position:fixed; inset:0; background:rgba(15,23,42,0.75); z-index:999999; align-items:center; justify-content:center; backdrop-filter:blur(4px); padding:16px;">
+            <div style="background:#fff; border-radius:18px; width:100%; max-width:580px; box-shadow:0 25px 50px -12px rgba(0,0,0,0.35); position:relative; max-height:92vh; overflow-y:auto; border:1px solid #334155; font-family:inherit; padding:0;">
+                
+                <!-- Header Oscuro Premium estilo Nexus Groups -->
+                <div style="background:#0f172a; padding:18px 24px; border-radius:16px 16px 0 0; color:#fff; display:flex; justify-content:space-between; align-items:flex-start;">
+                    <div style="display:flex; align-items:center; gap:12px;">
+                        <div style="width:42px; height:42px; border-radius:12px; background:rgba(245,158,11,0.15); border:1px solid rgba(245,158,11,0.3); display:flex; align-items:center; justify-content:center; color:#f59e0b; font-size:1.3rem;">
+                            <i class="fas fa-bolt"></i>
                         </div>
                         <div>
-                            <h3 style="margin:0; font-size:1rem; font-weight:800; color:#1e293b;">Enlace PayGold Redsys</h3>
-                            <span style="font-size:0.75rem; color:#64748b; font-weight:600;">Cumbria Spa & Hotel · TPV Virtual Oficial</span>
+                            <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                                <h3 style="margin:0; font-size:1.05rem; font-weight:800; color:#fff; letter-spacing:-0.2px;">Generar Pasarela PayGold (Redsys)</h3>
+                                <span style="background:#064e3b; color:#34d399; font-size:0.65rem; font-weight:800; padding:2px 8px; border-radius:12px; letter-spacing:0.5px;">CUMBRIA SPA & HOTEL</span>
+                            </div>
+                            <div style="font-size:0.75rem; color:#94a3b8; margin-top:3px;">Crea un enlace de pago bancario seguro y envíalo al cliente por WhatsApp, SMS o Email al instante.</div>
                         </div>
                     </div>
-                    <button type="button" onclick="closePayGoldModalSpa()" style="background:none; border:none; font-size:1.4rem; color:#94a3b8; cursor:pointer; line-height:1;">&times;</button>
+                    <button type="button" onclick="closePayGoldModalSpa()" style="background:none; border:none; font-size:1.5rem; color:#94a3b8; cursor:pointer; line-height:1; margin-left:8px;" title="Cerrar">&times;</button>
                 </div>
 
-                <!-- Info Reserva -->
-                <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:10px 14px; margin-bottom:16px; font-size:0.8rem;">
-                    <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
-                        <span style="color:#64748b;">Cliente:</span>
-                        <strong id="pg-modal-client-name" style="color:#1e293b;">-</strong>
-                    </div>
-                    <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
-                        <span style="color:#64748b;">Servicio / Cita:</span>
-                        <strong id="pg-modal-service-name" style="color:#1e293b;">-</strong>
-                    </div>
-                    <div style="display:flex; justify-content:space-between;">
-                        <span style="color:#64748b;">Localizador:</span>
-                        <strong id="pg-modal-loc" style="color:#d97706;">-</strong>
-                    </div>
-                </div>
+                <!-- Cuerpo del Modal -->
+                <div style="padding:22px 24px;">
 
-                <!-- Formulario -->
-                <div style="margin-bottom:14px;">
-                    <label style="display:block; font-size:0.75rem; font-weight:700; color:#475569; text-transform:uppercase; margin-bottom:6px;">Importe a cobrar (€)</label>
-                    <div style="display:flex; align-items:center; background:#fff; border:2px solid #cbd5e1; border-radius:10px; padding:8px 12px;">
-                        <input type="number" id="pg-modal-amount" step="0.01" style="flex:1; border:none; background:transparent; font-size:1.3rem; font-weight:800; color:#1e293b; outline:none;" placeholder="0.00">
-                        <span style="font-size:1.1rem; font-weight:800; color:#64748b; margin-left:6px;">€</span>
-                    </div>
-                    <span id="pg-modal-pending-hint" style="font-size:0.72rem; color:#64748b; margin-top:4px; display:block;"></span>
-                </div>
-
-                <div style="margin-bottom:14px;">
-                    <label style="display:block; font-size:0.75rem; font-weight:700; color:#475569; text-transform:uppercase; margin-bottom:6px;">Teléfono del Cliente (WhatsApp / SMS)</label>
-                    <input type="tel" id="pg-modal-mobile" style="width:100%; padding:10px 12px; border:1px solid #cbd5e1; border-radius:10px; font-size:0.9rem; font-weight:600; color:#1e293b; box-sizing:border-box; outline:none;" placeholder="600 000 000">
-                </div>
-
-                <div style="margin-bottom:16px;">
-                    <label style="display:flex; align-items:center; gap:8px; font-size:0.76rem; color:#475569; cursor:pointer;">
-                        <input type="checkbox" id="pg-modal-send-sms" style="accent-color:#d97706; width:16px; height:16px;">
-                        <span>Enviar SMS directo al cliente desde Redsys al generar el enlace</span>
-                    </label>
-                </div>
-
-                <!-- Alertas y resultado -->
-                <div id="pg-modal-error" style="display:none; padding:10px 12px; border-radius:10px; background:#fef2f2; border:1px solid #fecaca; color:#b91c1c; font-size:0.78rem; font-weight:600; margin-bottom:14px;"></div>
-
-                <div id="pg-modal-success" style="display:none; padding:14px; border-radius:10px; background:#ecfdf5; border:1px solid #a7f3d0; color:#065f46; font-size:0.78rem; margin-bottom:16px;">
-                    <div style="font-weight:800; display:flex; align-items:center; gap:6px; margin-bottom:6px; font-size:0.85rem;">
-                        <span>✅</span> Enlace generado con éxito en Redsys
-                    </div>
-                    <div style="background:#fff; border:1px solid #a7f3d0; border-radius:8px; padding:8px 10px; word-break:break-all; font-family:monospace; font-size:0.74rem; color:#047857; margin-bottom:10px;" id="pg-modal-link-text"></div>
-                    
-                    <div style="margin-bottom:10px;">
-                        <span style="font-weight:700; font-size:0.72rem; color:#065f46; display:block; margin-bottom:4px;">Mensaje comercial para el cliente (con política de 24h):</span>
-                        <div id="pg-modal-msg-preview" style="background:#fff; border:1px solid #cbd5e1; border-radius:8px; padding:8px 10px; font-size:0.72rem; color:#334155; white-space:pre-wrap; max-height:130px; overflow-y:auto; line-height:1.4;"></div>
+                    <!-- Info Card: Reserva & Nº Pedido -->
+                    <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:14px 16px; margin-bottom:18px; display:flex; justify-content:space-between; align-items:center; gap:12px;">
+                        <div>
+                            <div style="font-size:0.65rem; font-weight:800; color:#64748b; text-transform:uppercase; letter-spacing:0.5px;">Reserva</div>
+                            <div id="pg-modal-res-title" style="font-size:0.95rem; font-weight:800; color:#0f172a; margin-top:2px;">RS-XXXX · Cliente</div>
+                            <div style="display:flex; align-items:center; gap:6px; margin-top:5px;">
+                                <span style="font-size:0.7rem; font-weight:700; color:#64748b;">Nº PEDIDO (LOCALIZADOR):</span>
+                                <span id="pg-modal-order-tag" style="background:#fef3c7; color:#92400e; font-family:monospace; font-weight:800; padding:2px 8px; border-radius:6px; font-size:0.76rem; border:1px solid #fde68a;">SPA-XXXX</span>
+                            </div>
+                        </div>
+                        <div style="text-align:right;">
+                            <div style="font-size:0.65rem; font-weight:800; color:#64748b; text-transform:uppercase; letter-spacing:0.5px;">Total / Pendiente</div>
+                            <div id="pg-modal-total-display" style="font-size:1.25rem; font-weight:800; color:#047857; margin-top:1px;">0.00 €</div>
+                            <div id="pg-modal-paid-display" style="font-size:0.72rem; color:#64748b;">Ya pagado: 0.00 €</div>
+                        </div>
                     </div>
 
-                    <div style="display:flex; gap:8px; flex-wrap:wrap;">
-                        <button type="button" class="btn" style="background:#047857; color:#fff; border:none; padding:6px 12px; border-radius:6px; font-size:0.75rem; font-weight:700; cursor:pointer;" onclick="copyPayGoldResultSpa()" title="Copiar URL del enlace de pago">
-                            🔗 Copiar Enlace
+                    <!-- 1. Sección Importe a Cobrar -->
+                    <div style="margin-bottom:18px;">
+                        <label style="display:block; font-size:0.75rem; font-weight:800; color:#334155; text-transform:uppercase; margin-bottom:8px; letter-spacing:0.4px;">Importe a cobrar</label>
+                        <div style="display:flex; flex-direction:column; gap:8px;">
+                            
+                            <!-- Opción 1: Depósito -->
+                            <label style="display:flex; align-items:center; justify-content:space-between; padding:10px 14px; border:1px solid #cbd5e1; border-radius:10px; cursor:pointer; background:#fff; transition:all 0.15s ease;" id="pg-lbl-deposit">
+                                <div style="display:flex; align-items:center; gap:10px;">
+                                    <input type="radio" name="pg-amount-radio" value="deposit" onchange="onPayGoldAmountOptionChange('deposit')" style="accent-color:#f59e0b; width:16px; height:16px;">
+                                    <div>
+                                        <div style="font-weight:700; font-size:0.85rem; color:#1e293b;" id="pg-deposit-label">Primer Depósito (30%)</div>
+                                        <div style="font-size:0.72rem; color:#64748b;" id="pg-deposit-desc">Garantía de reserva</div>
+                                    </div>
+                                </div>
+                                <strong id="pg-deposit-val" style="font-size:0.95rem; color:#1e293b;">0.00 €</strong>
+                            </label>
+
+                            <!-- Opción 2: Saldo Pendiente Total -->
+                            <label style="display:flex; align-items:center; justify-content:space-between; padding:10px 14px; border:2px solid #f59e0b; border-radius:10px; cursor:pointer; background:#fffbeb; transition:all 0.15s ease;" id="pg-lbl-total">
+                                <div style="display:flex; align-items:center; gap:10px;">
+                                    <input type="radio" name="pg-amount-radio" value="total" checked onchange="onPayGoldAmountOptionChange('total')" style="accent-color:#f59e0b; width:16px; height:16px;">
+                                    <div>
+                                        <div style="font-weight:800; font-size:0.85rem; color:#92400e;" id="pg-total-label">Saldo Pendiente Total</div>
+                                        <div style="font-size:0.72rem; color:#b45309;" id="pg-total-desc">Total restante por abonar</div>
+                                    </div>
+                                </div>
+                                <strong id="pg-total-val" style="font-size:1.05rem; color:#047857;">0.00 €</strong>
+                            </label>
+
+                            <!-- Opción 3: Personalizado -->
+                            <label style="display:flex; align-items:center; justify-content:space-between; padding:10px 14px; border:1px solid #cbd5e1; border-radius:10px; cursor:pointer; background:#fff; transition:all 0.15s ease;" id="pg-lbl-custom">
+                                <div style="display:flex; align-items:center; gap:10px;">
+                                    <input type="radio" name="pg-amount-radio" value="custom" onchange="onPayGoldAmountOptionChange('custom')" style="accent-color:#f59e0b; width:16px; height:16px;">
+                                    <div>
+                                        <div style="font-weight:700; font-size:0.85rem; color:#1e293b;">Importe Personalizado</div>
+                                        <div style="font-size:0.72rem; color:#64748b;">Introducir manualmente el importe a cobrar</div>
+                                    </div>
+                                </div>
+                            </label>
+
+                            <!-- Caja input si selecciona personalizado -->
+                            <div id="pg-custom-amount-box" style="display:none; padding:10px 14px; background:#f8fafc; border:1px solid #cbd5e1; border-radius:10px;">
+                                <div style="display:flex; align-items:center; background:#fff; border:2px solid #cbd5e1; border-radius:8px; padding:6px 12px;">
+                                    <input type="number" id="pg-modal-custom-amount" step="0.01" style="flex:1; border:none; background:transparent; font-size:1.15rem; font-weight:800; color:#1e293b; outline:none;" placeholder="0.00">
+                                    <span style="font-size:1.1rem; font-weight:800; color:#64748b; margin-left:6px;">€</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 2. Fecha Límite del Enlace (Caducidad) -->
+                    <div style="margin-bottom:18px;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                            <label style="font-size:0.75rem; font-weight:800; color:#334155; text-transform:uppercase; letter-spacing:0.4px;">Fecha límite del enlace (Caducidad)</label>
+                            <span style="font-size:0.65rem; color:#94a3b8; font-weight:700;">HASTA LAS 23:59H DE ESA FECHA</span>
+                        </div>
+                        <input type="date" id="pg-modal-expiry-date" style="width:100%; padding:9px 12px; border:1px solid #cbd5e1; border-radius:8px; font-size:0.88rem; font-weight:700; color:#1e293b; box-sizing:border-box; outline:none; margin-bottom:8px;">
+                        
+                        <!-- Botones rápidos de caducidad -->
+                        <div style="display:flex; gap:6px; flex-wrap:wrap;">
+                            <button type="button" class="btn btn-xs" onclick="setPayGoldExpiryDays(1)" style="background:#f1f5f9; border:1px solid #cbd5e1; color:#475569; padding:4px 10px; border-radius:6px; font-size:0.72rem; font-weight:700; cursor:pointer;">+24 horas</button>
+                            <button type="button" class="btn btn-xs" onclick="setPayGoldExpiryDays(2)" style="background:#f1f5f9; border:1px solid #cbd5e1; color:#475569; padding:4px 10px; border-radius:6px; font-size:0.72rem; font-weight:700; cursor:pointer;">+48 horas</button>
+                            <button type="button" class="btn btn-xs" onclick="setPayGoldExpiryDays(7)" style="background:#f1f5f9; border:1px solid #cbd5e1; color:#475569; padding:4px 10px; border-radius:6px; font-size:0.72rem; font-weight:700; cursor:pointer;">+7 días</button>
+                            <button type="button" class="btn btn-xs" onclick="setPayGoldExpiryDays(15)" style="background:#f1f5f9; border:1px solid #cbd5e1; color:#475569; padding:4px 10px; border-radius:6px; font-size:0.72rem; font-weight:700; cursor:pointer;">+15 días</button>
+                        </div>
+                    </div>
+
+                    <!-- 3. Envío Automático (Opcional) -->
+                    <div style="margin-bottom:18px;">
+                        <label style="display:block; font-size:0.75rem; font-weight:800; color:#334155; text-transform:uppercase; margin-bottom:8px; letter-spacing:0.4px;">Envío automático (Opcional)</label>
+                        
+                        <div style="display:flex; flex-direction:column; gap:8px;">
+                            <label style="display:flex; align-items:center; gap:8px; font-size:0.78rem; color:#475569; cursor:pointer;">
+                                <input type="checkbox" id="pg-modal-send-sms" style="accent-color:#d97706; width:16px; height:16px;">
+                                <span>Enviar enlace por SMS mediante Redsys al móvil del cliente</span>
+                            </label>
+                            <input type="tel" id="pg-modal-mobile" style="width:100%; padding:8px 12px; border:1px solid #cbd5e1; border-radius:8px; font-size:0.85rem; font-weight:600; color:#1e293b; box-sizing:border-box; outline:none;" placeholder="Móvil del cliente (ej. 600000000)">
+
+                            <label style="display:flex; align-items:center; gap:8px; font-size:0.78rem; color:#475569; cursor:pointer; margin-top:4px;">
+                                <input type="checkbox" id="pg-modal-send-email" style="accent-color:#d97706; width:16px; height:16px;">
+                                <span>Enviar enlace por Email mediante Redsys al correo del cliente</span>
+                            </label>
+                            <input type="email" id="pg-modal-email" style="width:100%; padding:8px 12px; border:1px solid #cbd5e1; border-radius:8px; font-size:0.85rem; font-weight:600; color:#1e293b; box-sizing:border-box; outline:none;" placeholder="Email del cliente (ej. cliente@email.com)">
+                        </div>
+
+                        <div style="font-size:0.72rem; color:#64748b; font-style:italic; margin-top:8px; line-height:1.4;">
+                            💡 Si no marcas ninguna opción, Redsys generará el enlace que quedará registrado en la reserva y podrás copiarlo para enviarlo por WhatsApp o compartirlo con el cliente.
+                        </div>
+                    </div>
+
+                    <!-- Mensajes de Error y Resultado -->
+                    <div id="pg-modal-error" style="display:none; padding:10px 12px; border-radius:10px; background:#fef2f2; border:1px solid #fecaca; color:#b91c1c; font-size:0.78rem; font-weight:600; margin-bottom:14px;"></div>
+
+                    <div id="pg-modal-success" style="display:none; padding:14px; border-radius:12px; background:#ecfdf5; border:1px solid #a7f3d0; color:#065f46; font-size:0.78rem; margin-bottom:16px;">
+                        <div style="font-weight:800; display:flex; align-items:center; gap:6px; margin-bottom:6px; font-size:0.85rem;">
+                            <span>✅</span> Enlace generado con éxito en Redsys
+                        </div>
+                        <div style="background:#fff; border:1px solid #a7f3d0; border-radius:8px; padding:8px 10px; word-break:break-all; font-family:monospace; font-size:0.74rem; color:#047857; margin-bottom:10px;" id="pg-modal-link-text"></div>
+                        
+                        <div style="margin-bottom:10px;">
+                            <span style="font-weight:700; font-size:0.72rem; color:#065f46; display:block; margin-bottom:4px;">Mensaje comercial listo para WhatsApp (con garantía 24h):</span>
+                            <div id="pg-modal-msg-preview" style="background:#fff; border:1px solid #cbd5e1; border-radius:8px; padding:8px 10px; font-size:0.72rem; color:#334155; white-space:pre-wrap; max-height:130px; overflow-y:auto; line-height:1.4;"></div>
+                        </div>
+
+                        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                            <button type="button" class="btn" style="background:#047857; color:#fff; border:none; padding:6px 12px; border-radius:6px; font-size:0.75rem; font-weight:700; cursor:pointer;" onclick="copyPayGoldResultSpa()" title="Copiar URL del enlace de pago">
+                                🔗 Copiar Enlace
+                            </button>
+                            <button type="button" class="btn" style="background:#065f46; color:#fff; border:none; padding:6px 12px; border-radius:6px; font-size:0.75rem; font-weight:700; cursor:pointer;" onclick="copyPayGoldMessageSpa()" title="Copiar texto comercial completo listo para enviar">
+                                📋 Copiar Mensaje
+                            </button>
+                            <a id="pg-modal-wa-btn" href="#" target="_blank" class="btn" style="background:#25d366; color:#fff; border:none; padding:6px 12px; border-radius:6px; font-size:0.75rem; font-weight:700; text-decoration:none; display:inline-flex; align-items:center; gap:5px;">
+                                <i class="fab fa-whatsapp"></i> Enviar por WhatsApp
+                            </a>
+                        </div>
+                    </div>
+
+                    <!-- Botonera Inferior -->
+                    <div style="display:flex; justify-content:space-between; align-items:center; border-top:1px solid #f1f5f9; padding-top:16px;">
+                        <button type="button" onclick="closePayGoldModalSpa()" class="btn" style="background:transparent; border:1px solid #cbd5e1; color:#64748b; padding:10px 20px; border-radius:10px; font-size:0.85rem; font-weight:800; text-transform:uppercase; cursor:pointer;">
+                            Cerrar
                         </button>
-                        <button type="button" class="btn" style="background:#065f46; color:#fff; border:none; padding:6px 12px; border-radius:6px; font-size:0.75rem; font-weight:700; cursor:pointer;" onclick="copyPayGoldMessageSpa()" title="Copiar texto comercial completo listo para enviar">
-                            📋 Copiar Mensaje
+                        <button type="button" id="pg-modal-generate-btn" onclick="submitPayGoldSpa()" class="btn" style="background:#f59e0b; color:#fff; border:none; padding:10px 24px; border-radius:10px; font-size:0.85rem; font-weight:800; text-transform:uppercase; cursor:pointer; display:inline-flex; align-items:center; gap:8px; box-shadow:0 4px 10px rgba(245,158,11,0.35);">
+                            <i class="fas fa-bolt"></i> Generar Enlace Redsys
                         </button>
-                        <a id="pg-modal-wa-btn" href="#" target="_blank" class="btn" style="background:#25d366; color:#fff; border:none; padding:6px 12px; border-radius:6px; font-size:0.75rem; font-weight:700; text-decoration:none; display:inline-flex; align-items:center; gap:5px;">
-                            <i class="fab fa-whatsapp"></i> Enviar por WhatsApp
-                        </a>
                     </div>
-                </div>
 
-                <!-- Botones de Acción -->
-                <div style="display:flex; justify-content:flex-end; gap:10px; border-top:1px solid #f1f5f9; padding-top:14px;">
-                    <button type="button" onclick="closePayGoldModalSpa()" class="btn" style="background:transparent; border:1px solid #cbd5e1; color:#64748b; padding:8px 16px; border-radius:8px; font-size:0.8rem; font-weight:700; cursor:pointer;">
-                        Cerrar
-                    </button>
-                    <button type="button" id="pg-modal-generate-btn" onclick="submitPayGoldSpa()" class="btn" style="background:#f59e0b; color:#fff; border:none; padding:8px 20px; border-radius:8px; font-size:0.8rem; font-weight:800; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 6px -1px rgba(245,158,11,0.3);">
-                        <i class="fas fa-bolt"></i> Generar Enlace Redsys
-                    </button>
                 </div>
             </div>
         </div>`;
@@ -214,8 +316,14 @@
         const total = parseFloat(document.getElementById("res-precio-total")?.value) || 0;
         const clientName = document.getElementById("res-nombre")?.value || 'Cliente';
         const tel = document.getElementById("res-tel")?.value || '';
+        const email = document.getElementById("res-email")?.value || '';
         const loc = document.getElementById("res-id-display")?.textContent || resId;
         const serviceName = document.getElementById("res-servicio")?.value || (window.currentModule ? window.currentModule.name : 'Circuito Spa');
+
+        // Formatear Nº Pedido SPA-XXXX
+        const cleanCode = String(loc).replace(/[^A-Za-z0-9]/g, '').replace(/^RS/i, '').toUpperCase() || loc;
+        const spaOrderNumber = `SPA-${cleanCode}`;
+        currentPayGoldOrderId = spaOrderNumber;
 
         // Buscar en datos actuales
         const res = (typeof currentData !== 'undefined' && Array.isArray(currentData)) ? currentData.find(r => r.id === resId) : null;
@@ -226,13 +334,57 @@
         }
         const pending = Math.max(0, total - paid);
 
-        document.getElementById("pg-modal-client-name").textContent = clientName;
-        document.getElementById("pg-modal-service-name").textContent = serviceName;
-        document.getElementById("pg-modal-loc").textContent = loc;
-        document.getElementById("pg-modal-amount").value = (pending > 0 ? pending : total).toFixed(2);
-        document.getElementById("pg-modal-pending-hint").textContent = `Saldo pendiente: ${pending.toFixed(2)} € (Total reserva: ${total.toFixed(2)} €)`;
-        document.getElementById("pg-modal-mobile").value = tel.replace(/\s/g, '');
-        document.getElementById("pg-modal-send-sms").checked = false;
+        // Actualizar Cabecera de la ficha en el modal
+        const titleEl = document.getElementById("pg-modal-res-title");
+        if (titleEl) titleEl.textContent = `${loc} · ${clientName}`;
+
+        const orderTagEl = document.getElementById("pg-modal-order-tag");
+        if (orderTagEl) orderTagEl.textContent = spaOrderNumber;
+
+        const totalDisp = document.getElementById("pg-modal-total-display");
+        if (totalDisp) totalDisp.textContent = `${(pending > 0 ? pending : total).toFixed(2)} €`;
+
+        const paidDisp = document.getElementById("pg-modal-paid-display");
+        if (paidDisp) paidDisp.textContent = `Ya pagado: ${paid.toFixed(2)} € (Total: ${total.toFixed(2)} €)`;
+
+        // Configurar opciones de importe
+        const depPercent = total >= 100 ? 30 : 50;
+        const depAmount = Math.round((pending > 0 ? pending : total) * (depPercent / 100) * 100) / 100;
+
+        const depLbl = document.getElementById("pg-deposit-label");
+        if (depLbl) depLbl.textContent = `Primer Depósito (${depPercent}%)`;
+        const depDesc = document.getElementById("pg-deposit-desc");
+        if (depDesc) depDesc.textContent = `${depPercent}% de garantía: ${depAmount.toFixed(2)} €`;
+        const depVal = document.getElementById("pg-deposit-val");
+        if (depVal) depVal.textContent = `${depAmount.toFixed(2)} €`;
+
+        const totalLbl = document.getElementById("pg-total-label");
+        if (totalLbl) totalLbl.textContent = `Saldo Pendiente Total (${(pending > 0 ? pending : total).toFixed(2)} €)`;
+        const totalVal = document.getElementById("pg-total-val");
+        if (totalVal) totalVal.textContent = `${(pending > 0 ? pending : total).toFixed(2)} €`;
+
+        // Preseleccionar opción 'total'
+        const radioTotal = document.querySelector('input[name="pg-amount-radio"][value="total"]');
+        if (radioTotal) radioTotal.checked = true;
+        const customBox = document.getElementById('pg-custom-amount-box');
+        if (customBox) customBox.style.display = 'none';
+
+        const customInput = document.getElementById("pg-modal-custom-amount");
+        if (customInput) customInput.value = (pending > 0 ? pending : total).toFixed(2);
+
+        // Fecha de caducidad por defecto: +48 horas (o +24h según preferencia)
+        setPayGoldExpiryDays(2);
+
+        // Móvil y Email
+        const mobileInput = document.getElementById("pg-modal-mobile");
+        if (mobileInput) mobileInput.value = tel.replace(/\s/g, '');
+        const emailInput = document.getElementById("pg-modal-email");
+        if (emailInput) emailInput.value = email;
+
+        const sendSmsBox = document.getElementById("pg-modal-send-sms");
+        if (sendSmsBox) sendSmsBox.checked = false;
+        const sendEmailBox = document.getElementById("pg-modal-send-email");
+        if (sendEmailBox) sendEmailBox.checked = false;
 
         document.getElementById("pg-modal-error").style.display = "none";
         document.getElementById("pg-modal-success").style.display = "none";
@@ -247,9 +399,6 @@
     };
 
     window.submitPayGoldSpa = async function () {
-        const amount = parseFloat(document.getElementById("pg-modal-amount").value);
-        const mobile = document.getElementById("pg-modal-mobile").value.replace(/\D/g, '');
-        const sendSms = document.getElementById("pg-modal-send-sms").checked;
         const resId = document.getElementById("form-id")?.value || window.currentEditingId;
         const loc = document.getElementById("res-id-display")?.textContent || resId;
         const clientName = document.getElementById("res-nombre")?.value || '';
@@ -257,6 +406,29 @@
         const dateVal = document.getElementById("inputDate")?.value || '';
         const timeVal = document.getElementById("selectTime")?.value || '';
         const pax = document.getElementById("res-pax")?.value || 1;
+
+        // Determinar importe según la opción seleccionada
+        const selectedRadio = document.querySelector('input[name="pg-amount-radio"]:checked')?.value || 'total';
+        const res = (typeof currentData !== 'undefined' && Array.isArray(currentData)) ? currentData.find(r => r.id === resId) : null;
+        const total = parseFloat(document.getElementById("res-precio-total")?.value) || 0;
+        let paid = 0;
+        if (res && res.payment) paid = res.payment.paid || 0;
+        const pending = Math.max(0, total - paid);
+        const basePending = pending > 0 ? pending : total;
+
+        let amount = basePending;
+        if (selectedRadio === 'deposit') {
+            const depPercent = total >= 100 ? 30 : 50;
+            amount = Math.round(basePending * (depPercent / 100) * 100) / 100;
+        } else if (selectedRadio === 'custom') {
+            amount = parseFloat(document.getElementById("pg-modal-custom-amount")?.value);
+        }
+
+        const mobile = (document.getElementById("pg-modal-mobile")?.value || '').replace(/\D/g, '');
+        const email = (document.getElementById("pg-modal-email")?.value || '').trim();
+        const sendSms = document.getElementById("pg-modal-send-sms")?.checked || false;
+        const sendEmail = document.getElementById("pg-modal-send-email")?.checked || false;
+        const expiryDate = document.getElementById("pg-modal-expiry-date")?.value || '';
 
         const errBox = document.getElementById("pg-modal-error");
         const succBox = document.getElementById("pg-modal-success");
@@ -277,6 +449,13 @@
             return;
         }
 
+        // Formato oficial de pedido:
+        // Visual: SPA-XXXX
+        // Redsys: 0000SPAXXXX (4 números iniciales para cumplir norma Redsys)
+        const cleanCode = String(loc).replace(/[^A-Za-z0-9]/g, '').replace(/^RS/i, '').toUpperCase() || loc;
+        const spaOrderDisplay = `SPA-${cleanCode}`;
+        const redsysOrderId = `0000SPA${cleanCode.slice(0, 5)}`;
+
         try {
             genBtn.disabled = true;
             genBtn.innerHTML = '<span class="fas fa-spinner fa-spin"></span> Contactando con Redsys...';
@@ -287,13 +466,17 @@
                 amount: amount,
                 groupId: loc || resId,
                 referenceId: resId,
-                concept: `Rva Spa ${loc} - ${clientName}`.slice(0, 50),
+                orderId: redsysOrderId,
+                concept: `Rva Spa ${spaOrderDisplay} - ${clientName}`.slice(0, 50),
                 customerMobile: sendSms ? mobile : "",
+                customerEmail: sendEmail ? email : "",
                 customerName: clientName,
+                expiryDate: expiryDate,
                 depositLabel: serviceName
             });
 
             currentPayGoldUrl = result.paymentUrl;
+            currentPayGoldOrderId = spaOrderDisplay;
 
             // Actualizar doc en Firestore si está disponible
             const targetColl = (window.currentModule && window.currentModule.collection) ? window.currentModule.collection : 'reservas_spa';
@@ -301,9 +484,11 @@
                 try {
                     await db.collection(targetColl).doc(resId).update({
                         payment_link: result.paymentUrl,
-                        paygold_order: result.orderId,
+                        paygold_order: spaOrderDisplay,
+                        paygold_redsys_order: result.orderId || redsysOrderId,
                         paygold_amount: amount,
                         paygold_status: "PENDIENTE",
+                        paygold_expiry: expiryDate,
                         paygold_created_at: new Date().toISOString()
                     });
                     // Actualizar memoria local si existe
@@ -311,9 +496,11 @@
                         const localRes = currentData.find(r => r.id === resId);
                         if (localRes) {
                             localRes.payment_link = result.paymentUrl;
-                            localRes.paygold_order = result.orderId;
+                            localRes.paygold_order = spaOrderDisplay;
+                            localRes.paygold_redsys_order = result.orderId || redsysOrderId;
                             localRes.paygold_amount = amount;
                             localRes.paygold_status = "PENDIENTE";
+                            localRes.paygold_expiry = expiryDate;
                         }
                     }
                 } catch (dbErr) {
@@ -331,7 +518,8 @@
                 timeVal,
                 amount,
                 paymentUrl: result.paymentUrl,
-                pax
+                pax,
+                orderNumber: spaOrderDisplay
             });
 
             const prevBox = document.getElementById("pg-modal-msg-preview");
@@ -375,7 +563,7 @@
         if (link && navigator.clipboard) {
             navigator.clipboard.writeText(link).then(() => {
                 if (typeof showToast === 'function') showToast("Enlace de pago copiado al portapapeles", "success");
-                else alert("Enlace copiado al portapapeles.");
+                else alert("Enlace copiado");
             }).catch(() => {
                 prompt("Copia el enlace de pago:", link);
             });
@@ -399,6 +587,9 @@
         let paid = 0;
         if (res && res.payment) paid = res.payment.paid || 0;
         const pending = Math.max(0, total - paid);
+        const loc = document.getElementById("res-id-display")?.textContent || (res ? (res.res_id || res.id) : '');
+        const cleanCode = String(loc).replace(/[^A-Za-z0-9]/g, '').replace(/^RS/i, '').toUpperCase() || loc;
+        const spaOrderDisplay = res?.paygold_order || `SPA-${cleanCode}`;
 
         const msg = buildPayGoldCommercialMessage({
             clientName: (res && res.nombre) || document.getElementById("res-nombre")?.value || 'Cliente',
@@ -407,7 +598,8 @@
             timeVal: (res && res.hora) || document.getElementById("selectTime")?.value || '',
             amount: pending > 0 ? pending : total,
             paymentUrl: link,
-            pax: (res && res.pax) || document.getElementById("res-pax")?.value || 1
+            pax: (res && res.pax) || document.getElementById("res-pax")?.value || 1,
+            orderNumber: spaOrderDisplay
         });
 
         if (navigator.clipboard) {
@@ -491,8 +683,11 @@
             const payUrl = res?.payment_link || res?.paygold_link || res?.Enlace_TPV || (res && res.id === resId ? currentPayGoldUrl : '');
             if (payUrl && pending > 0) {
                 banner.style.display = "block";
+                const loc = document.getElementById("res-id-display")?.textContent || (res ? (res.res_id || res.id) : '');
+                const cleanCode = String(loc).replace(/[^A-Za-z0-9]/g, '').replace(/^RS/i, '').toUpperCase() || loc;
                 const orderDisp = document.getElementById("pp-paygold-order-display");
-                if (orderDisp) orderDisp.textContent = res.paygold_order || res.paygold_order_id || "Redsys PayGold";
+                if (orderDisp) orderDisp.textContent = res.paygold_order || `SPA-${cleanCode}`;
+
                 const waBtn = document.getElementById("pp-paygold-whatsapp-btn");
                 if (waBtn) {
                     const cleanTel = (res.tel || res.telefono || document.getElementById("res-tel")?.value || "").replace(/\D/g, "");
@@ -503,7 +698,8 @@
                         timeVal: res.hora || document.getElementById("selectTime")?.value || '',
                         amount: pending,
                         paymentUrl: payUrl,
-                        pax: res.pax || document.getElementById("res-pax")?.value || 1
+                        pax: res.pax || document.getElementById("res-pax")?.value || 1,
+                        orderNumber: res.paygold_order || `SPA-${cleanCode}`
                     });
                     waBtn.href = `https://wa.me/34${cleanTel}?text=${encodeURIComponent(msg)}`;
                 }
