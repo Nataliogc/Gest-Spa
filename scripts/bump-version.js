@@ -115,6 +115,20 @@ function run() {
         }
     }
 
+    // 4.2 Sincronizar firebase-config.js
+    const fbConfigPath = path.join(rootDir, 'firebase-config.js');
+    if (fs.existsSync(fbConfigPath)) {
+        try {
+            let fbContent = fs.readFileSync(fbConfigPath, 'utf8');
+            fbContent = fbContent.replace(/window\.GEST_SPA_VERSION\s*=\s*['"][^'"]+['"];/, `window.GEST_SPA_VERSION = '${newVersionStr}';`);
+            fbContent = fbContent.replace(/window\.GEST_SPA_UPDATE_DATE\s*=\s*['"][^'"]+['"];/, `window.GEST_SPA_UPDATE_DATE = '${dateFormatted}';`);
+            fs.writeFileSync(fbConfigPath, fbContent, 'utf8');
+            console.log(`[BUMP-VERSION] firebase-config.js sincronizado a ${newVersionStr}.`);
+        } catch (e) {
+            console.warn('[BUMP-VERSION] Error actualizando firebase-config.js:', e);
+        }
+    }
+
     // 5. Actualizar todos los archivos .html que contienen global-version-badge
     const files = fs.readdirSync(rootDir);
     let countHtml = 0;

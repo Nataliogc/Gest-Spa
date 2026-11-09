@@ -393,6 +393,46 @@ function renderDashboard() {
         const balanceAmount = Math.max(0, (parseFloat(c.precio_total) || 0) - paid);
         const hasBalance = balanceAmount > 0.05 && !['hotel_inc', 'bono', 'smartbox', 'wonderbox', 'ego', 'groupon'].includes(c.origen);
 
+        // Payment Badge Logic for Panel
+        const origen = (c.origen || '').toLowerCase();
+        const isVoucherOrHotel = ['hotel_inc', 'bono', 'smartbox', 'wonderbox', 'ego', 'groupon'].includes(origen);
+        const totalPrice = parseFloat(c.precio_total || c.precio || 0);
+        const hasPayGold = !!(c.payment_link || c.paygold_link || c.paygold_order);
+
+        let paymentBadgeHtml = '';
+        if (isVoucherOrHotel) {
+            const vLabel = origen === 'hotel_inc' ? 'HOTEL INC.' : (origen ? origen.toUpperCase() : 'BONO');
+            paymentBadgeHtml = `
+                <span title="Incluido / Bono: ${c.origen || 'Bono'}" style="display:inline-flex; align-items:center; gap:3px; background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; padding:2px 6px; border-radius:6px; font-size:0.68rem; font-weight:700;">
+                    <i class="fas fa-ticket-alt"></i> ${vLabel}
+                </span>`;
+        } else if (!hasBalance && totalPrice > 0) {
+            paymentBadgeHtml = `
+                <span title="Total abonado: ${paid.toFixed(2)}€ (100% Pagado)" style="display:inline-flex; align-items:center; gap:3px; background:#ecfdf5; color:#047857; border:1px solid #a7f3d0; padding:2px 6px; border-radius:6px; font-size:0.68rem; font-weight:700;">
+                    <i class="fas fa-check-circle" style="color:#10b981;"></i> PAGADO
+                </span>`;
+        } else if (hasBalance) {
+            if (hasPayGold) {
+                paymentBadgeHtml = `
+                    <span title="Enlace Redsys PayGold generado - Pendiente de pago (${balanceAmount.toFixed(2)}€)" style="display:inline-flex; align-items:center; gap:3px; background:#fffbeb; color:#b45309; border:1px solid #fde68a; padding:2px 6px; border-radius:6px; font-size:0.68rem; font-weight:700; white-space:nowrap;">
+                        <i class="fas fa-credit-card" style="color:#d97706;"></i> PAYGOLD ${balanceAmount.toFixed(0)}€
+                    </span>`;
+            } else if (paid > 0) {
+                paymentBadgeHtml = `
+                    <span title="Pagado: ${paid.toFixed(2)}€ - Pendiente: ${balanceAmount.toFixed(2)}€" style="display:inline-flex; align-items:center; gap:3px; background:#fff7ed; color:#c2410c; border:1px solid #fed7aa; padding:2px 6px; border-radius:6px; font-size:0.68rem; font-weight:700; white-space:nowrap;">
+                        <i class="fas fa-adjust" style="color:#f97316;"></i> PARCIAL ${balanceAmount.toFixed(0)}€
+                    </span>`;
+            } else {
+                paymentBadgeHtml = `
+                    <span title="Pendiente de pago: ${balanceAmount.toFixed(2)}€" style="display:inline-flex; align-items:center; gap:3px; background:#fef2f2; color:#b91c1c; border:1px solid #fecaca; padding:2px 6px; border-radius:6px; font-size:0.68rem; font-weight:700; white-space:nowrap;">
+                        <i class="fas fa-clock" style="color:#ef4444;"></i> PENDIENTE ${balanceAmount.toFixed(0)}€
+                    </span>`;
+            }
+        }
+
+        const clientTel = c.tel || c.telefono || '';
+        const payUrl = c.payment_link || c.paygold_link || '';
+
         return `
             <tr style="${isNoShow ? 'opacity: 0.5;' : ''}">
                 <td style="font-size:0.8rem; color:#666;">${c.res_id || c.id.substr(0, 4)}</td>
@@ -402,14 +442,11 @@ function renderDashboard() {
                 <td>${serviceName}</td>
                 <td style="font-size:0.8rem; color:#64748b;">${roomName}</td>
                 ${!isGlobalSearch ? `<td>${c.terapeuta || '—'}</td>` : ''}
-                <td style="text-align: center;">
-                    ${statusIcon}
-                    ${hasBalance ? `
-                        <span title="Pendiente de Pago: ${balanceAmount}€" style="white-space:nowrap;">
-                            <i class="fas fa-coins" style="color: #eab308; margin-left: 6px; font-size: 0.9rem;"></i>
-                            <span style="font-size: 0.7rem; color: #b45309; font-weight: 700; vertical-align: middle;">${balanceAmount}€</span>
-                        </span>
-                    ` : ''}
+                <td style="text-align: center; white-space: nowrap;">
+                    <div style="display:inline-flex; align-items:center; justify-content:center; gap:6px;">
+                        ${statusIcon}
+                        ${paymentBadgeHtml}
+                    </div>
                 </td>
                 <td style="text-align:center;">
                     ${isConfirmed && !isNoShow && !c.attended ? `
@@ -424,12 +461,13 @@ function renderDashboard() {
                         <button class="btn-icon" title="Desmarcar No Show" onclick="unmarkNoShow('${c.id}', '${c.moduleType}')" style="color:#6b7280;">
                             <i class="fas fa-undo"></i>
                         </button>
-                    ` : `
-                        <button class="btn-icon" title="Enviar confirmación WhatsApp" onclick="sendWhatsAppConfirmation('${c.id}', '${c.telefono || ''}', '${c.nombre.replace(/'/g, "\\'")}', '${c.fecha}', '${c.hora}', '${c.moduleType}')" style="color:#25D366;">
-                            <i class="fab fa-whatsapp" style="font-size:1.2rem;"></i>
+                    ` : ''))}
+                    ${clientTel ? `
+                        <button class="btn-icon" title="${hasPayGold && hasBalance ? 'Enviar enlace PayGold por WhatsApp' : 'Enviar confirmación WhatsApp'}" onclick="sendWhatsAppConfirmation('${c.id}', '${clientTel}', '${(c.nombre || '').replace(/'/g, "\\'")}', '${c.fecha}', '${c.hora}', '${c.moduleType}', '${payUrl}', ${balanceAmount}, '${(c.servicio || serviceName || '').replace(/'/g, "\\'")}', ${c.pax || 1})" style="color:#25D366;">
+                            <i class="fab fa-whatsapp" style="font-size:1.1rem;"></i>
                             ${c.whatsappSent ? '<i class="fas fa-check-circle" style="font-size:0.6rem; color:green; vertical-align:top;"></i>' : ''}
                         </button>
-                    `))}
+                    ` : ''}
                     ${isConfirmed && !isNoShow && !c.attended ? `
                         <button class="btn-icon" title="Marcar No Show" onclick="markAsNoShow('${c.id}', '${c.moduleType}')" style="color:#94a3b8; margin-left:5px; font-size:0.8rem;">
                             <i class="fas fa-user-times"></i>
@@ -437,7 +475,7 @@ function renderDashboard() {
                     ` : ''}
                 </td>
                 <td>
-                    <button class="btn-icon" title="Ver detalles" onclick="goToReservationDetail('${c.id}', '${c.moduleType}')">
+                    <button class="btn-icon" title="Ver detalles y control de pago" onclick="goToReservationDetail('${c.id}', '${c.moduleType}')">
                         <i class="fas fa-eye"></i>
                     </button>
                 </td>
@@ -539,34 +577,44 @@ function goToReservationDetail(resId, moduleType) {
     window.location.href = `reservas.html?type=${type}&date=${cita.fecha}&res_id=${cita.id}`;
 }
 
-window.sendWhatsAppConfirmation = async function (id, telefono, cliente, fecha, hora, moduleType) {
+window.sendWhatsAppConfirmation = async function (id, telefono, cliente, fecha, hora, moduleType, payUrl, balanceAmount, serviceName, pax) {
     if (!telefono || telefono.length < 9) {
-        // Intentar buscar el cliente para conseguir el teléfono si no viene en la cita
         alert("No se detecta teléfono válido para este cliente.");
         return;
     }
 
-    // Formato fecha amigable
-    const dateObj = new Date(fecha);
-    const dateStr = dateObj.toLocaleDateString('es-ES', { day: 'numeric', month: 'long' });
+    let texto = "";
+    if (payUrl && balanceAmount > 0.05 && typeof window.buildPayGoldCommercialMessage === "function") {
+        texto = window.buildPayGoldCommercialMessage({
+            clientName: cliente,
+            serviceName: serviceName || "Circuito Spa",
+            dateVal: fecha,
+            timeVal: hora,
+            amount: balanceAmount,
+            paymentUrl: payUrl,
+            pax: pax || 1
+        });
+    } else {
+        const dateObj = new Date(fecha);
+        const dateStr = !isNaN(dateObj.getTime()) ? dateObj.toLocaleDateString("es-ES", { day: "numeric", month: "long" }) : fecha;
+        texto = `Hola ${cliente}, le recordamos su cita en Cumbria Bienestar el ${dateStr} a las ${hora}. Por favor confirme su asistencia. Gracias.`;
+    }
 
-    // Mensaje
-    const texto = `Hola ${cliente}, le recordamos su cita en Cumbria Bienestar el ${dateStr} a las ${hora}. Por favor confirme su asistencia. Gracias.`;
     const encodedText = encodeURIComponent(texto);
-
-    // Abrir WhatsApp
-    const url = `https://wa.me/${telefono.replace(/\s+/g, '')}?text=${encodedText}`;
-    window.open(url, '_blank');
+    const cleanTel = telefono.replace(/\D/g, "");
+    const url = `https://wa.me/34${cleanTel}?text=${encodedText}`;
+    window.open(url, "_blank");
 
     // Marcar como enviado en la base de datos visualmente
     try {
         const collectionMap = {
-            'spa': 'reservas_spa',
-            'suite': 'reservas_suite',
-            'panacea': 'reservas_panacea',
-            'peluqueria': 'reservas_peluqueria'
+            "spa": "reservas_spa",
+            "suite": "reservas_suite",
+            "panacea": "reservas_panacea",
+            "vip": "reservas_vip",
+            "peluqueria": "reservas_peluqueria"
         };
-        const col = collectionMap[moduleType] || 'reservas_spa';
+        const col = collectionMap[moduleType] || "reservas_spa";
         await db.collection(col).doc(id).update({ whatsappSent: true });
 
         // Actualizar estado local
