@@ -1,11 +1,11 @@
 {
-  "name": "Zenith Spa Disp",
+  "name": "Cumbria Bienestar - Disponibilidad",
   "short_name": "Spa Disp",
-  "description": "Agenda de Terapeutas - Zenith Spa",
-  "start_url": "disponibilidad.html?v=8",
+  "description": "Agenda de Terapeutas - Cumbria Bienestar",
+  "start_url": "disponibilidad.html?v=9",
   "display": "standalone",
   "background_color": "#ffffff",
-  "theme_color": "#d4af37",
+  "theme_color": "#ffffff",
   "icons": [
     {
       "src": "icon-192.png",
