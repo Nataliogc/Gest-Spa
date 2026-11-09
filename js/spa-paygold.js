@@ -206,126 +206,93 @@
     };
 
     /**
-     * Motor de Sincronización Automática en Segundo Plano (Auto-Sync)
-     * Monitorea las transacciones PayGold y detecta cobros completados por el cliente.
+     * SISTEMA REACTIVO EN TIEMPO REAL (onSnapshot) — CERO POLLING
+     * Escucha activamente la reserva en Firestore del proyecto Gest-Spa.
+     * En cuanto el webhook valida el pago y actualiza Firestore, la UI se actualiza al instante.
      */
+    let activeReservationUnsubscribe = null;
+    let currentListeningResId = null;
+
     const PayGoldAutoSync = {
-        activeInterval: null,
-        isChecking: false,
-
         start: function () {
-            if (this.activeInterval) return;
-            this.checkAllPending();
-            this.activeInterval = setInterval(() => {
-                this.checkAllPending();
-            }, 15000); // Chequeo periódico cada 15 segundos
-
-            // Chequeo inmediato al volver a enfocar la pestaña del navegador
-            document.addEventListener('visibilitychange', () => {
-                if (!document.hidden) {
-                    this.checkAllPending();
-                }
-            });
+            console.log("[PayGold RealTime] Sistema reactivo onSnapshot iniciado (Cero Polling).");
         },
 
-        checkAllPending: async function () {
-            if (this.isChecking) return;
-            this.isChecking = true;
+        listenActiveReservation: function (resId, targetColl = 'reservas_spa') {
+            if (!resId || resId === 'NUEVA' || !window.db) return;
+            if (currentListeningResId === resId && activeReservationUnsubscribe) return;
+
+            if (activeReservationUnsubscribe) {
+                activeReservationUnsubscribe();
+                activeReservationUnsubscribe = null;
+            }
+
+            currentListeningResId = resId;
 
             try {
-                // 1. Chequear reserva actualmente abierta en el modal si tiene enlace pendiente
-                const openResId = document.getElementById("form-id")?.value;
-                if (openResId && openResId !== 'NUEVA') {
-                    await this.checkReservationById(openResId);
-                }
+                activeReservationUnsubscribe = window.db.collection(targetColl).doc(resId).onSnapshot(docSnap => {
+                    if (!docSnap.exists) return;
+                    const data = docSnap.data();
 
-                // 2. Chequear todas las reservas en currentData que tengan enlace PayGold pendiente
-                if (typeof currentData !== 'undefined' && Array.isArray(currentData)) {
-                    const pendingList = currentData.filter(r =>
-                        (r.paygold_redsys_order || r.paygold_order || r.payment_link) &&
-                        r.paygold_status !== 'COBRADO' &&
-                        !r.pagado &&
-                        r.estado_pago !== 'pagado'
-                    );
-                    for (const r of pendingList) {
-                        await this.checkReservation(r);
-                    }
-                }
+                    const isCobrado = data.paygold_status === 'COBRADO' ||
+                                      data.paygold_status === 'PAGADO' ||
+                                      data.pagado === true ||
+                                      (data.payment && data.payment.status === 'paid');
 
-                // 3. Chequear citas en dashboard (state.citas) si aplica
-                if (window.state && Array.isArray(window.state.citas)) {
-                    const pendingCitas = window.state.citas.filter(r =>
-                        (r.paygold_redsys_order || r.paygold_order || r.payment_link) &&
-                        r.paygold_status !== 'COBRADO' &&
-                        !r.pagado &&
-                        r.estado_pago !== 'pagado'
-                    );
-                    for (const r of pendingCitas) {
-                        await this.checkReservation(r);
+                    if (isCobrado) {
+                        // Sincronizar en memoria local
+                        if (typeof currentData !== 'undefined' && Array.isArray(currentData)) {
+                            const idx = currentData.findIndex(r => r.id === resId || r.res_id === resId);
+                            if (idx >= 0) {
+                                currentData[idx] = { ...currentData[idx], ...data, id: resId };
+                            }
+                        }
+                        if (window.state && Array.isArray(window.state.citas)) {
+                            const cIdx = window.state.citas.findIndex(r => r.id === resId || r.res_id === resId);
+                            if (cIdx >= 0) {
+                                window.state.citas[cIdx] = { ...window.state.citas[cIdx], ...data, id: resId };
+                            }
+                        }
+
+                        // Actualizar bloque de pago en UI si está abierto
+                        const openResId = document.getElementById("form-id")?.value;
+                        if (openResId === resId && typeof window.updatePaymentControlBlock === 'function') {
+                            window.updatePaymentControlBlock();
+                        }
                     }
-                }
-            } catch (err) {
-                console.debug("[PayGold AutoSync] Error en ciclo de auto-verificación:", err);
-            } finally {
-                this.isChecking = false;
+                }, err => {
+                    console.debug("[PayGold RealTime] Listener Firestore aviso:", err.message);
+                });
+            } catch (listenErr) {
+                console.warn("[PayGold RealTime] Error vinculando listener:", listenErr);
             }
         },
 
-        checkReservationById: async function (resId) {
-            const res = (typeof currentData !== 'undefined' && Array.isArray(currentData))
-                ? currentData.find(r => r.id === resId)
-                : (window.state && Array.isArray(window.state.citas) ? window.state.citas.find(r => r.id === resId) : null);
-
-            if (res) return this.checkReservation(res);
-
-            // Fallback si no está en lista pero hay código visual en modal
-            const orderDisp = document.getElementById('pp-paygold-order-display')?.textContent?.trim();
-            if (orderDisp) {
-                return this.checkByOrderId(orderDisp, resId, null);
+        stopListening: function () {
+            if (activeReservationUnsubscribe) {
+                activeReservationUnsubscribe();
+                activeReservationUnsubscribe = null;
+                currentListeningResId = null;
             }
-        },
-
-        checkReservation: async function (res) {
-            if (!res) return null;
-            if (res.paygold_status === 'COBRADO' || res.pagado || res.estado_pago === 'pagado') return null;
-
-            const redsysOrder = res.paygold_redsys_order ||
-                (window.PayGoldService ? window.PayGoldService.formatRedsysOrderId(res.id || res.res_id) : null);
-            if (!redsysOrder) return null;
-
-            return this.checkByOrderId(redsysOrder, res.id, res);
         },
 
         checkByOrderId: async function (orderId, resId, resObj) {
-            if (!orderId) return null;
-
-            let cleanOrder = String(orderId).trim().replace(/^SPA-?/i, '');
-            if (!cleanOrder.startsWith('0000SPA') && cleanOrder.length <= 5) {
-                cleanOrder = `0000SPA${cleanOrder}`;
-            }
-
+            if (!resId || !window.db) return null;
             try {
-                const url = `https://firestore.googleapis.com/v1/projects/gest-grupos-hotel/databases/(default)/documents/paygold_transactions/${cleanOrder}`;
-                const resp = await fetch(url);
-                if (!resp.ok) return null;
-
-                const rawDoc = await resp.json();
-                const data = parseFirestoreDoc(rawDoc);
-
-                if (data && (data.status === 'COBRADO' || data.status === 'AUTORIZADO')) {
-                    console.log(`[PayGold AutoSync] 🎉 ¡Cobro confirmado en Redsys para pedido ${cleanOrder}!`, data);
-                    await window.applyPayGoldPaymentSuccess(resId || data.referenceId, data);
-                    return data;
+                const docSnap = await window.db.collection('reservas_spa').doc(resId).get();
+                if (docSnap.exists) {
+                    const data = docSnap.data();
+                    if (data.paygold_status === 'COBRADO' || data.paygold_status === 'PAGADO' || data.pagado) {
+                        return { status: 'COBRADO', ...data };
+                    }
                 }
-                return data;
-            } catch (fetchErr) {
-                console.debug(`[PayGold AutoSync] Fallo de red consultando pedido ${cleanOrder}:`, fetchErr.message);
-                return null;
-            }
+            } catch (_) {}
+            return { status: 'PENDIENTE' };
         }
     };
 
     window.PayGoldAutoSync = PayGoldAutoSync;
+    window.PayGoldRealTimeSync = PayGoldAutoSync;
 
     /**
      * Verificación manual bajo demanda con botón "Comprobar Pago Online"
@@ -1061,6 +1028,12 @@
         const btnPaygold = document.getElementById("btn-paygold-action");
         const resId = document.getElementById("form-id")?.value || window.currentEditingId;
         const res = (typeof currentData !== 'undefined' && Array.isArray(currentData) && resId) ? currentData.find(r => r.id === resId) : null;
+
+        // Activar escucha en tiempo real reactiva sobre esta reserva
+        if (resId && window.PayGoldAutoSync && typeof window.PayGoldAutoSync.listenActiveReservation === 'function') {
+            const targetColl = (res && res.collection) || (window.currentModule && window.currentModule.collection) || 'reservas_spa';
+            window.PayGoldAutoSync.listenActiveReservation(resId, targetColl);
+        }
 
         const total = parseFloat(document.getElementById("res-precio-total")?.value) || (res ? parseFloat(res.precio_total || res.precio || 0) : 0);
         let paid = 0;
