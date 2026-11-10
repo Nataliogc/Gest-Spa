@@ -115,11 +115,29 @@ async function handleStaffFieldsChange() {
 
         // Populate and set values
         staffSelect1.innerHTML = buildOptions(prev1, prev2);
-        if (prev1) staffSelect1.value = prev1;
+        if (prev1) {
+            staffSelect1.value = prev1;
+        }
+        // Auto-seleccionar primer terapeuta libre si no hay ninguno seleccionado previamente
+        if (!staffSelect1.value || staffSelect1.value === '') {
+            const firstFree = uniqueStaff.find(s => s._status === 'free');
+            if (firstFree) {
+                staffSelect1.value = firstFree.id;
+            }
+        }
 
         if (staffSelect2) {
-            staffSelect2.innerHTML = buildOptions(prev2, prev1);
-            if (prev2) staffSelect2.value = prev2;
+            staffSelect2.innerHTML = buildOptions(prev2, staffSelect1.value);
+            if (prev2) {
+                staffSelect2.value = prev2;
+            }
+            // Auto-seleccionar segundo terapeuta libre si no hay ninguno seleccionado previamente
+            if (!staffSelect2.value || staffSelect2.value === '') {
+                const secondFree = uniqueStaff.find(s => s._status === 'free' && s.id !== staffSelect1.value);
+                if (secondFree) {
+                    staffSelect2.value = secondFree.id;
+                }
+            }
         }
 
         // Add listeners for mutual exclusion
