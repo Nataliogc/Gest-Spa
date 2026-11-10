@@ -16,6 +16,20 @@
       "*.txt",
       "package.json",
       "package-lock.json"
+    ],
+    "predeploy": [
+      "node scripts/sync-manual.js"
+    ],
+    "headers": [
+      {
+        "source": "/manual-usuario.html",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache, max-age=0, must-revalidate"
+          }
+        ]
+      }
     ]
   }
 }

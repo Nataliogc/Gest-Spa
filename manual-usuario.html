@@ -421,9 +421,6 @@
         </div>
 
         <div style="display:flex; gap:8px; align-items:center;">
-            <a href="Manual_Usuario_Gest_Spa.pdf" download="Manual_Usuario_Gest_Spa.pdf" style="background:#334155; color:white; border:1px solid #475569; padding:8px 14px; border-radius:6px; font-weight:700; font-size:0.82rem; text-decoration:none; display:flex; align-items:center; gap:6px; transition:all 0.15s;" onmouseover="this.style.background='#475569'" onmouseout="this.style.background='#334155'">
-                <i class="fas fa-download"></i> Descargar PDF
-            </a>
             <button class="btn-print" onclick="window.print()">
                 <i class="fas fa-print"></i> Imprimir / Guardar en PDF
             </button>
@@ -441,7 +438,7 @@
             <p class="cover-subtitle">Guía práctica de uso diario, agendamiento de citas, gestión de personal, control de bonos y resolución de incidencias para el equipo de recepción y estética.</p>
             <div class="cover-meta">
                 <span><i class="fas fa-users"></i> Para todo el personal</span>
-                <span><i class="fas fa-calendar-check"></i> <span id="manual-dynamic-date">Actualizado 2026</span></span>
+                <span><i class="fas fa-calendar-check"></i> <span id="manual-dynamic-date">Actualizado el 10/11/2026 · v2.3.4</span></span>
                 <span><i class="fas fa-shield-alt"></i> Procesos Controlados</span>
             </div>
         </div>
@@ -452,28 +449,21 @@
             <!-- NOVEDADES Y ACTUALIZACIONES EN VIVO (CHANGELOG) -->
             <!-- =================================================================== -->
             <div id="section-novedades" style="background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); border: 2px solid #86efac; border-radius: 10px; padding: 18px 22px; margin-bottom: 25px; box-shadow: 0 4px 12px rgba(22,101,52,0.06);">
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; flex-wrap:wrap; gap:8px;">
-                    <div style="font-weight:800; font-size:1.05rem; color:#166534; display:flex; align-items:center; gap:8px;">
-                        <i class="fas fa-rocket" style="color:#22c55e;"></i> Últimas Novedades y Mejoras Implementadas
-                    </div>
-                    <span style="background:#22c55e; color:white; padding:3px 10px; border-radius:12px; font-size:0.72rem; font-weight:800; text-transform:uppercase;">
-                        Versión Dinámica
-                    </span>
-                </div>
-                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; font-size:0.83rem; color:#14532d;">
-                    <div style="background:white; padding:10px 12px; border-radius:8px; border:1px solid #bbf7d0;">
-                        <b>⚡ Asistente de Reasignación:</b> Alerta automática ante bajas médicas para reubicar todas las citas en 1 clic y contacto directo por WhatsApp.
-                    </div>
-                    <div style="background:white; padding:10px 12px; border-radius:8px; border:1px solid #bbf7d0;">
-                        <b>🗑️ Borrado Directo de Duplicados:</b> Botón de papelera en cada tarjeta para eliminar reservas duplicadas o erróneas en 1 segundo.
-                    </div>
-                    <div style="background:white; padding:10px 12px; border-radius:8px; border:1px solid #bbf7d0;">
-                        <b>🎫 Consulta en Vivo de Bonos:</b> Verificación instantánea del saldo de sesiones y titular al introducir el código en la cita.
-                    </div>
-                    <div style="background:white; padding:10px 12px; border-radius:8px; border:1px solid #bbf7d0;">
-                        <b>📅 Cuadrante Semanal Visual:</b> Control de turnos partidos, continuos y sábados con asignación rápida por plantilla.
-                    </div>
-                </div>
+                <!-- AUTO-RELEASES:START -->
+<h2>Novedades y mejoras</h2>
+<article class="manual-release" style="background:white;padding:12px;border-radius:8px;margin-top:10px"><b>v2.3.4 · 10/11/2026</b><p>Manual sincronizado automaticamente con las novedades y la version real; PDF desde el contenido actualizado y recarga sin cache</p></article>
+<article class="manual-release" style="background:white;padding:12px;border-radius:8px;margin-top:10px"><b>v2.3.3 · 10/11/2026</b><p>Correccion en selector de servicios: integracion completa de spa_services y spa_item_master para que Suite, Panacea, VIP, Cabinas y Peluqueria muestren siempre sus servicios</p></article>
+<article class="manual-release" style="background:white;padding:12px;border-radius:8px;margin-top:10px"><b>v2.3.2 · 10/11/2026</b><p>Rediseño visual de cuadraditos del planning: cabecera horaria con subdivisiones de 15 min, celdas táctiles con bordes y tarjetas de reserva con badges de hora y duración</p></article>
+<article class="manual-release" style="background:white;padding:12px;border-radius:8px;margin-top:10px"><b>v2.3.1 · 10/11/2026</b><p>Planning de Ocupacion: la ficha de reserva se abre directamente (sin panel lateral) y correccion del aviso de pax maximo segun la sala elegida</p></article>
+<article class="manual-release" style="background:white;padding:12px;border-radius:8px;margin-top:10px"><b>v2.3.0 · 10/11/2026</b><p>Nuevo Planning de Ocupacion: desplegables Salas (Cabinas, Suite, Panacea, VIP, Peluqueria) y Terapeutas, reserva en 1 clic, turnos y fechas pasadas oscurecidos y bloqueados</p></article>
+<article class="manual-release" style="background:white;padding:12px;border-radius:8px;margin-top:10px"><b>v2.2.2 · 10/11/2026</b><p>Apertura directa del formulario de reserva al pinchar casilla libre de agenda con sala en blanco (-- Seleccionar Sala --), selector completo de salas (Cabinas 1, 2, 3, Suite, Panacea, Sala VIP y Peluquería) y terapeuta, fecha y hora preseleccionados automáticamente sin bloqueos de turno pasado.</p></article>
+<article class="manual-release" style="background:white;padding:12px;border-radius:8px;margin-top:10px"><b>v2.2.1 · 10/11/2026</b><p>Limpieza estricta de bonos residuales en sessionStorage y corrección de precio y terapeuta en salas</p></article>
+<article class="manual-release" style="background:white;padding:12px;border-radius:8px;margin-top:10px"><b>v2.2.0 · 10/11/2026</b><p>Apertura directa de pantalla de reserva al hacer clic en casilla libre de la agenda de ocupación de terapeutas</p></article>
+<article class="manual-release" style="background:white;padding:12px;border-radius:8px;margin-top:10px"><b>v2.1.0 · 10/11/2026</b><p>Panel lateral integrado de reserva rápida (Drawer) para evitar ventanas duplicadas en puestos de trabajo</p></article>
+<article class="manual-release" style="background:white;padding:12px;border-radius:8px;margin-top:10px"><b>v2.0.6 · 09/11/2026</b><p>Registro automatico en tiempo real de pagos Redsys PayGold sin intervencion manual</p></article>
+<article class="manual-release" style="background:white;padding:12px;border-radius:8px;margin-top:10px"><b>v2.0.5 · 09/11/2026</b><p>Logo transparente Zenith (navegador y PWA), formato de pedido SPA-XXXX en Redsys y modal PayGold adaptado</p></article>
+<article class="manual-release" style="background:white;padding:12px;border-radius:8px;margin-top:10px"><b>v2.0.4 · 09/11/2026</b><p>Mejora comercial en mensaje PayGold (garantía 24h), badges de estado de pago en panel e indicadores visuales de cobro</p></article>
+<!-- AUTO-RELEASES:END -->
             </div>
 
             <!-- =================================================================== -->
@@ -549,6 +539,7 @@
             <!-- 2. AGENDAR CITAS SIN ERRORES -->
             <!-- =================================================================== -->
             <div class="page-break"></div>
+<div class="step-box"><div class="step-content"><div class="step-title">Planning de ocupación: salas y terapeutas</div><p>Selecciona la sala o el terapeuta en los desplegables del planning. Pulsa una casilla libre para abrir el formulario de reserva con la fecha y hora seleccionadas. Revisa la sala, el servicio, las personas y el terapeuta antes de guardar. Pulsa una reserva existente para abrir su ficha. Las horas pasadas y los periodos no disponibles aparecen oscurecidos.</p></div></div>
             <h2><i class="fas fa-plus-circle"></i> 2. Agendar Citas sin Errores</h2>
             <p>El sistema cuenta con un motor inteligente que evita solapamientos y protege la disponibilidad real de cabinas y terapeutas.</p>
 
@@ -798,21 +789,10 @@
 
     <!-- Script Interactivo y Dinámico -->
     <script>
-        // Fechador dinámico en tiempo real
-        document.addEventListener('DOMContentLoaded', () => {
-            const dateEl = document.getElementById('manual-dynamic-date');
-            if (dateEl) {
-                const now = new Date();
-                const options = { month: 'long', year: 'numeric' };
-                const dateStr = now.toLocaleDateString('es-ES', options);
-                dateEl.textContent = 'Actualizado en ' + dateStr.charAt(0).toUpperCase() + dateStr.slice(1);
-            }
-        });
-
         // Buscador interactivo en vivo
         function filterManualContent(query) {
             const cleanQuery = query.trim().toLowerCase();
-            const elements = document.querySelectorAll('.step-box, .qa-card, .ui-mockup, .checklist-item');
+            const elements = document.querySelectorAll('.step-box, .qa-card, .ui-mockup, .checklist-item, .manual-release');
 
             if (!cleanQuery) {
                 elements.forEach(el => {

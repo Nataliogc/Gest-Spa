@@ -163,3 +163,4 @@ function run() {
 }
 
 run();
+require('./sync-manual').syncManual();

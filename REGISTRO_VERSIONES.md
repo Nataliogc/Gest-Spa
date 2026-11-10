@@ -8,7 +8,7 @@ Este documento mantiene el **control de versión única y global** para todo el 
 
 | Parámetro | Valor Actual |
 | :--- | :--- |
-| **Versión Global del Sistema** | **`v2.3.3`** |
+| **Versión Global del Sistema** | **`v2.3.4`** |
 | **Fecha de Última Actualización** | **10/11/2026** |
 | **Estado General** | Operativo en Producción |
 
@@ -47,6 +47,11 @@ Cualquier cambio en los siguientes módulos impacta en la versión global:
 ---
 
 ## 📝 Historial Unificado de Versiones
+
+### [v2.3.4] - 10/11/2026
+- **Tipo:** PATCH
+- **Archivos:** `firebase.json`, `manual-usuario.html`, `package.json`, `scripts/bump-version.js`, `scripts/sync-manual.js`
+- **Descripción:** Manual sincronizado automaticamente con las novedades y la version real; PDF desde el contenido actualizado y recarga sin cache
 
 ### [v2.3.3] - 10/11/2026
 - **Tipo:** PATCH
