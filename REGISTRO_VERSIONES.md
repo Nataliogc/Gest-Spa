@@ -8,7 +8,7 @@ Este documento mantiene el **control de versión única y global** para todo el 
 
 | Parámetro | Valor Actual |
 | :--- | :--- |
-| **Versión Global del Sistema** | **`v2.3.11`** |
+| **Versión Global del Sistema** | **`v2.3.12`** |
 | **Fecha de Última Actualización** | **10/11/2026** |
 | **Estado General** | Operativo en Producción |
 
@@ -47,6 +47,11 @@ Cualquier cambio en los siguientes módulos impacta en la versión global:
 ---
 
 ## 📝 Historial Unificado de Versiones
+
+### [v2.3.12] - 10/11/2026
+- **Tipo:** PATCH
+- **Archivos:** Módulos del sistema
+- **Descripción:** Arqueo y Cierre de Caja del Dia con desglose efectivo, tarjeta, pasarela y tienda virtual
 
 ### [v2.3.11] - 10/11/2026
 - **Tipo:** PATCH
