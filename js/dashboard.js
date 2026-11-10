@@ -55,10 +55,11 @@ function initDashboard() {
         if (e.target === modal) closeModal();
     });
 
-    // Restaurar preferencia del panel lateral (mostrar / ocultar)
-    if (localStorage.getItem("dashboard_sidebar_hidden") === "true") {
-        window.toggleDashboardSidebar(false);
-    }
+    // Estado del panel lateral: POR DEFECTO MINIMIZADO
+    // Solo se expande si el usuario lo abrió explícitamente y quedó guardado como 'false'
+    const savedSidebarState = localStorage.getItem("dashboard_sidebar_hidden");
+    const shouldBeHidden = savedSidebarState !== "false";
+    window.toggleDashboardSidebar(!shouldBeHidden);
 }
 
 window.toggleDashboardSidebar = function (forceState) {
