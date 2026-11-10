@@ -610,32 +610,62 @@
     }
 
     // Funciones Globales
-    window.openPayGoldModalSpa = function () {
+    window.openPayGoldModalSpa = async function () {
         injectPayGoldModal();
 
-        const resId = document.getElementById("form-id")?.value || window.currentEditingId;
+        let resId = document.getElementById("form-id")?.value || window.currentEditingId;
         if (!resId || resId === 'NUEVA') {
-            if (typeof showToast === 'function') showToast("Primero guarda la reserva para generar el enlace PayGold", "info");
-            else alert("Primero guarda la reserva para generar el enlace PayGold");
-            return;
+            const clientName = (document.getElementById("res-nombre")?.value || document.getElementById("res-client")?.value || '').trim();
+            if (!clientName) {
+                if (typeof showToast === 'function') showToast("Por favor, introduce el nombre del cliente para generar la pasarela", "warning");
+                else alert("Por favor, introduce el nombre del cliente para generar la pasarela");
+                const nInput = document.getElementById("res-nombre") || document.getElementById("res-client");
+                if (nInput) nInput.focus();
+                return;
+            }
+
+            // Auto-guardar la reserva para asignar ID/localizador y abrir PayGold inmediatamente
+            window._openPayGoldAfterSave = true;
+            if (typeof window.handleFormSubmit === 'function') {
+                await window.handleFormSubmit();
+                return;
+            } else if (typeof window.submitBooking === 'function') {
+                await window.submitBooking();
+                return;
+            } else {
+                if (typeof showToast === 'function') showToast("Primero guarda la reserva para generar el enlace PayGold", "info");
+                else alert("Primero guarda la reserva para generar el enlace PayGold");
+                return;
+            }
         }
 
         const res = (typeof currentData !== 'undefined' && Array.isArray(currentData)) ? currentData.find(r => r.id === resId) : null;
 
-        const total = parseFloat(document.getElementById("res-precio-total")?.value) || (res ? parseFloat(res.precio_total || res.precio || 0) : 0);
-        const clientName = document.getElementById("res-nombre")?.value || res?.nombre || 'Cliente';
-        const tel = document.getElementById("res-tel")?.value || res?.tel || res?.telefono || '';
+        const total = parseFloat(document.getElementById("res-precio-total")?.value) 
+            || parseFloat(document.getElementById("res-price-total")?.value) 
+            || (res ? parseFloat(res.precio_total || res.precio || 0) : 0);
+        const clientName = document.getElementById("res-nombre")?.value 
+            || document.getElementById("res-client")?.value 
+            || res?.nombre || 'Cliente';
+        const tel = document.getElementById("res-tel")?.value 
+            || document.getElementById("res-phone")?.value 
+            || res?.tel || res?.telefono || '';
         const email = document.getElementById("res-email")?.value || res?.email || '';
         const loc = document.getElementById("res-id-display")?.textContent || res?.res_id || resId;
-        const serviceName = document.getElementById("res-servicio")?.value || res?.servicio || (window.currentModule ? window.currentModule.name : 'Circuito Spa');
+        const serviceName = document.getElementById("res-servicio")?.value 
+            || document.getElementById("res-servicio-search")?.value 
+            || res?.servicio 
+            || (window.currentModule ? window.currentModule.name : 'Circuito Spa');
 
         // Extraer fecha y hora de forma robusta
         const dateVal = document.getElementById("form-date")?.value 
+            || document.getElementById("res-date")?.value 
             || res?.fecha 
             || document.getElementById("main-date-picker")?.value 
             || '';
 
         const timeVal = document.getElementById("form-time")?.value 
+            || document.getElementById("res-time")?.value 
             || res?.hora 
             || '';
 
@@ -648,6 +678,8 @@
         if (res) {
             if (res.pagado === true || res.estado_pago === 'pagado') paid = total;
             else paid = parseFloat(res.payment?.paid || res.paid_amount || res.pagado || 0) || 0;
+        } else {
+            paid = parseFloat(document.getElementById("res-price-paid")?.value || 0);
         }
         const pending = Math.max(0, total - paid);
 
@@ -818,7 +850,9 @@
             currentPayGoldOrderId = spaOrderDisplay;
 
             // Actualizar doc en Firestore si está disponible
-            const targetColl = (window.currentModule && window.currentModule.collection) ? window.currentModule.collection : 'reservas_spa';
+            let targetColl = (window.currentModule && window.currentModule.collection) 
+                ? window.currentModule.collection 
+                : (window.currentEditingCollection || document.getElementById('res-room')?.value || 'reservas_spa');
             if (typeof db !== 'undefined' && db && resId) {
                 try {
                     await db.collection(targetColl).doc(resId).update({
@@ -1035,11 +1069,15 @@
             window.PayGoldAutoSync.listenActiveReservation(resId, targetColl);
         }
 
-        const total = parseFloat(document.getElementById("res-precio-total")?.value) || (res ? parseFloat(res.precio_total || res.precio || 0) : 0);
+        const total = parseFloat(document.getElementById("res-precio-total")?.value) 
+            || parseFloat(document.getElementById("res-price-total")?.value) 
+            || (res ? parseFloat(res.precio_total || res.precio || 0) : 0);
         let paid = 0;
         if (res) {
             if (res.pagado === true || res.estado_pago === 'pagado') paid = total;
             else paid = parseFloat(res.payment?.paid || res.paid_amount || res.pagado || 0) || 0;
+        } else {
+            paid = parseFloat(document.getElementById("res-price-paid")?.value || 0);
         }
         const pending = Math.max(0, total - paid);
 

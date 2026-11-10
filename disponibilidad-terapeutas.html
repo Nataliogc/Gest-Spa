@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="es">
 
 <head>
@@ -605,14 +605,23 @@
         async function loadCatalog() {
             try {
                 serviceColorMap = {};
+                allCatalogItems = [];
 
                 // 1. Generics / Legacy Services (Base priority)
                 const snap = await db.collection('spa_services').get();
                 snap.forEach(doc => {
                     const d = doc.data();
-                    const name = (d.nombre || d.name || '').toLowerCase().trim();
-                    if (name && d.color) {
-                        serviceColorMap[name] = d.color;
+                    const name = (d.nombre || d.name || '').trim();
+                    if (name) {
+                        if (d.color) serviceColorMap[name.toLowerCase()] = d.color;
+                        allCatalogItems.push({
+                            id: doc.id,
+                            ...d,
+                            name: name,
+                            duration: parseInt(d.duracion || d.duration || 60),
+                            price: parseFloat(d.precio || d.price || d.price_pax || 0),
+                            pax: parseInt(d.pax || d.pax_max || 1)
+                        });
                     }
                 });
 
@@ -620,13 +629,27 @@
                 const snapMaster = await db.collection('spa_item_master').get();
                 snapMaster.forEach(doc => {
                     const d = doc.data();
-                    const name = (d.name || d.nombre || '').toLowerCase().trim();
-                    if (name && d.color) {
-                        serviceColorMap[name] = d.color;
+                    const name = (d.name || d.nombre || '').trim();
+                    if (name) {
+                        if (d.color) serviceColorMap[name.toLowerCase()] = d.color;
+                        const itemObj = {
+                            id: doc.id,
+                            ...d,
+                            name: name,
+                            duration: parseInt(d.duration || d.duracion || 60),
+                            price: parseFloat(d.price || d.precio || d.price_pax || 0),
+                            pax: parseInt(d.pax || d.pax_max || 1)
+                        };
+                        const idx = allCatalogItems.findIndex(i => (i.name || '').toLowerCase() === name.toLowerCase());
+                        if (idx >= 0) {
+                            allCatalogItems[idx] = { ...allCatalogItems[idx], ...itemObj };
+                        } else {
+                            allCatalogItems.push(itemObj);
+                        }
                     }
                 });
 
-                console.log("Service Color Map loaded", Object.keys(serviceColorMap).length);
+                console.log("Catálogo e items maestros cargados:", allCatalogItems.length);
 
             } catch (e) { console.warn("Error loading catalog", e); }
         }
@@ -1210,7 +1233,7 @@
                     </div>
 
                      <!-- Payment Block -->
-                    <div style="border-left: 4px solid #f59e0b; padding: 15px; margin-top: 15px; background: #fffcf0; border-radius: 0 8px 8px 0;">
+                    <div id="pago-particular-block" style="border-left: 4px solid #f59e0b; padding: 15px; margin-top: 15px; background: #fffcf0; border-radius: 0 8px 8px 0;">
                         <h4 style="margin: 0 0 10px 0; font-size: 0.75rem; font-weight: 800; color: #92400e; display: flex; align-items: center; gap: 8px;">
                             <i class="fas fa-credit-card"></i> CONTROL DE PAGO
                         </h4>
@@ -1228,6 +1251,19 @@
                                  <input type="number" id="res-price-pending" value="${valPending.toFixed(2)}" readonly style="width: 100%; border: none; text-align: center; font-weight: bold; color: #ef4444; background:transparent;">
                              </div>
                         </div>
+                        <div style="display: flex; gap: 8px; align-items: center; justify-content: space-between; margin-top: 10px;">
+                            <div id="pp-status-badge">
+                                <span class="badge" style="background: ${valPending <= 0 && valTotal > 0 ? '#22c55e' : (valPaid > 0 ? '#f59e0b' : '#ef4444')}; color: white; padding: 4px 8px; border-radius: 4px; font-size: 0.7rem; font-weight: 700;">
+                                    ${valPending <= 0 && valTotal > 0 ? 'PAGADO' : (valPaid > 0 ? 'PARCIAL' : 'PENDIENTE')}
+                                </span>
+                            </div>
+                            <button type="button" class="btn" id="btn-paygold-action"
+                                style="background: #f59e0b; color: white; border: none; padding: 7px 14px; font-size: 0.78rem; font-weight: 700; border-radius: 6px; display: ${valPending > 0 ? 'inline-flex' : 'none'}; align-items: center; gap: 6px; cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.1);"
+                                onclick="openPayGoldModalSpa()" title="Generar enlace de pago seguro Redsys PayGold para esta reserva">
+                                <i class="fas fa-link"></i> 💳 Enlace PayGold
+                            </button>
+                        </div>
+                        <div id="pp-paygold-banner" style="display:none; margin-top: 10px;"></div>
                     </div>
 
                     <div style="display:flex; gap:10px; margin-top:15px;">
@@ -1252,7 +1288,24 @@
             const total = parseFloat(document.getElementById('res-price-total').value) || 0;
             const paid = parseFloat(document.getElementById('res-price-paid').value) || 0;
             const pending = Math.max(0, total - paid);
-            document.getElementById('res-price-pending').value = pending.toFixed(2);
+            const pendingInput = document.getElementById('res-price-pending');
+            if (pendingInput) pendingInput.value = pending.toFixed(2);
+
+            const badge = document.getElementById("pp-status-badge");
+            if (badge) {
+                if (pending <= 0 && total > 0) {
+                    badge.innerHTML = `<span class="badge" style="background: #22c55e; color: white; padding: 4px 8px; border-radius: 4px; font-size: 0.7rem; font-weight: 700;">PAGADO</span>`;
+                } else if (paid > 0) {
+                    badge.innerHTML = `<span class="badge" style="background: #f59e0b; color: white; padding: 4px 8px; border-radius: 4px; font-size: 0.7rem; font-weight: 700;">PARCIAL</span>`;
+                } else {
+                    badge.innerHTML = `<span class="badge" style="background: #ef4444; color: white; padding: 4px 8px; border-radius: 4px; font-size: 0.7rem; font-weight: 700;">PENDIENTE</span>`;
+                }
+            }
+
+            const btnPaygold = document.getElementById("btn-paygold-action");
+            if (btnPaygold) {
+                btnPaygold.style.display = (pending > 0) ? "inline-flex" : "none";
+            }
         }
 
         // Service Dropdown
@@ -1278,9 +1331,13 @@
                 const name = item.name || item.nombre;
                 const dur = item.duration || item.duracion || 60;
                 const price = item.price_pax || item.price || item.precio || 0;
+                const pax = item.pax || item.pax_max || 1;
                 const space = (item.allowedSpaces || [])[0] || item.space || '';
                 // Encode quotes
-                html += `<div class="dropdown-item" onclick="selectService('${name.replace(/'/g, "\\'")}', ${dur}, ${price}, '${space}')">${name} <span style="opacity:0.6; font-size:0.7em;">(${dur}m · ${price}€)</span></div>`;
+                html += `<div class="dropdown-item" onclick="selectService('${name.replace(/'/g, "\\'")}', ${dur}, ${price}, '${space}', ${pax})">
+                    <strong>${name}</strong> 
+                    <span style="opacity:0.75; font-size:0.75em; margin-left:6px;">(${dur}' · ${parseFloat(price).toFixed(2)}€${pax > 1 ? ' · ' + pax + ' pax' : ''})</span>
+                </div>`;
             });
             resultsDiv.innerHTML = html;
         }
@@ -1291,18 +1348,26 @@
             if (el) el.classList.remove('show');
         }
 
-        function selectService(name, dur, price, space) {
+        function selectService(name, dur, price, space, pax) {
             document.getElementById('res-servicio-search').value = name;
 
-            // logic helpers
+            // logic helpers: configure time, price and pax directly from database
             if (dur) document.getElementById('res-duration').value = dur;
-            if (price) {
-                document.getElementById('res-price-total').value = price;
+            if (pax) document.getElementById('res-pax').value = pax;
+            if (price !== undefined && price !== null) {
+                document.getElementById('res-price-total').value = parseFloat(price).toFixed(2);
                 updatePendingCalc();
+            }
+            if (space) {
+                const roomSel = document.getElementById('res-room');
+                if (roomSel) {
+                    const matchOpt = Array.from(roomSel.options).find(o => o.value.includes(space.toLowerCase()) || space.toLowerCase().includes(o.text.toLowerCase()));
+                    if (matchOpt) roomSel.value = matchOpt.value;
+                }
             }
             // Add to hidden select for compatibility
             const sel = document.getElementById('res-service');
-            sel.innerHTML = `<option value="${name}" selected>${name}</option>`;
+            if (sel) sel.innerHTML = `<option value="${name}" selected>${name}</option>`;
 
             hideServiceDropdown();
         }
@@ -1367,8 +1432,20 @@
                     // Create
                     payload.status = 'confirmada';
                     payload.created_at = new Date();
-                    await db.collection(room).add(payload);
+                    const newDoc = await db.collection(room).add(payload);
+                    window.currentEditingId = newDoc.id;
+                    window.currentEditingCollection = room;
+                    payload.id = newDoc.id;
                     Swal.fire('Guardado', 'Reserva creada', 'success');
+                }
+
+                if (window._openPayGoldAfterSave) {
+                    window._openPayGoldAfterSave = false;
+                    loadView();
+                    if (typeof window.openPayGoldModalSpa === 'function') {
+                        window.openPayGoldModalSpa();
+                    }
+                    return;
                 }
 
                 window.closeDetailPanel();
@@ -1487,6 +1564,9 @@
         }
 
     </script>
+    <!-- PayGold Redsys Cumbria Integration -->
+    <script src="js/services/paygoldService.js"></script>
+    <script src="js/spa-paygold.js"></script>
 </body>
 
 </html>

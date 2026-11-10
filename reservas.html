@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="es">
 
 <head>
@@ -3022,13 +3022,7 @@
 
                     let fixedTotal = parseFloat(serviceData.precio || serviceData.price || serviceData.price_pax || 0);
 
-                    // Fallback: Divide Total by Pax to show Unit Price
-                    pricePaxInput.value = (fixedTotal / catalogPax).toFixed(2);
-                    document.getElementById("res-precio-total").value = fixedTotal.toFixed(2);
-                    document.getElementById("res-total-text").textContent = fixedTotal.toFixed(2) + " €";
-                    return;
-
-                    // Fallback: Divide Total by Pax
+                    // Dividir Total entre Pax para mostrar precio unitario
                     pricePaxInput.value = (fixedTotal / catalogPax).toFixed(2);
                     document.getElementById("res-precio-total").value = fixedTotal.toFixed(2);
                     document.getElementById("res-total-text").textContent = fixedTotal.toFixed(2) + " €";
@@ -3127,7 +3121,7 @@
                 });
             }
 
-            if (isFixedPricing && typeof window.updatePaymentControlBlock === 'function') {
+            if (typeof window.updatePaymentControlBlock === 'function') {
                 window.updatePaymentControlBlock();
             }
         }

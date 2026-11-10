@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="es">
 
 <head>
@@ -3178,13 +3178,7 @@
 
                     let fixedTotal = parseFloat(serviceData.precio || serviceData.price || serviceData.price_pax || 0);
 
-                    // Fallback: Divide Total by Pax to show Unit Price
-                    pricePaxInput.value = (fixedTotal / catalogPax).toFixed(2);
-                    document.getElementById("res-precio-total").value = fixedTotal.toFixed(2);
-                    document.getElementById("res-total-text").textContent = fixedTotal.toFixed(2) + " €";
-                    return;
-
-                    // Fallback: Divide Total by Pax
+                    // Dividir Total entre Pax para mostrar precio unitario
                     pricePaxInput.value = (fixedTotal / catalogPax).toFixed(2);
                     document.getElementById("res-precio-total").value = fixedTotal.toFixed(2);
                     document.getElementById("res-total-text").textContent = fixedTotal.toFixed(2) + " €";
@@ -3283,7 +3277,7 @@
                 });
             }
 
-            if (isFixedPricing && typeof window.updatePaymentControlBlock === 'function') {
+            if (typeof window.updatePaymentControlBlock === 'function') {
                 window.updatePaymentControlBlock();
             }
         }
@@ -5851,6 +5845,7 @@
 
                 // Remote DB
                 try {
+                    let savedId = id;
                     if (id.length > 10) {
                         // Check for Collection Move (Room Change)
                         if (originalColl && originalColl !== targetColl) {
@@ -5865,6 +5860,11 @@
                         }
                     } else {
                         const docRef = await db.collection(targetColl).add(payload);
+                        savedId = docRef.id;
+                        payload.id = savedId;
+                        if (typeof currentData !== 'undefined' && Array.isArray(currentData)) {
+                            currentData.push(payload);
+                        }
                         if (window.apiLocal) await apiLocal.markSynced('reservas', payload.res_id, docRef.id);
                     }
                     if (window.updateGlobalSyncStatus) updateGlobalSyncStatus('synced');
@@ -5872,7 +5872,7 @@
 
                     // Sync reservation details to Mesachef
                     if (window.syncReservationToMesachef) {
-                        await window.syncReservationToMesachef(id, payload);
+                        await window.syncReservationToMesachef(savedId, payload);
                     }
                 } catch (fsErr) {
                     console.warn("Offline save:", fsErr);
@@ -5881,6 +5881,21 @@
 
                 if (payload.origen === 'bono' && payload.bono) {
                     updateVoucherSessions(payload.bono, sesionesConsumidas, payload.servicio).catch(console.warn);
+                }
+
+                if (window._openPayGoldAfterSave) {
+                    window._openPayGoldAfterSave = false;
+                    document.getElementById("form-id").value = savedId;
+                    const dispEl = document.getElementById("res-id-display");
+                    if (dispEl) dispEl.textContent = payload.res_id || savedId;
+                    isSavingReservation = false;
+                    btn.disabled = false;
+                    btn.innerHTML = originalText;
+                    await loadReservas(date);
+                    if (typeof window.openPayGoldModalSpa === 'function') {
+                        window.openPayGoldModalSpa();
+                    }
+                    return;
                 }
 
                 closeModal();
