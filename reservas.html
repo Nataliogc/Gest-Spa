@@ -9,6 +9,11 @@
     <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
     <link rel="shortcut icon" href="favicon.ico">
     <link rel="stylesheet" href="styles.css">
+    <script>
+        if (new URLSearchParams(window.location.search).get('modal') === '1') {
+            document.documentElement.classList.add('is-modal-only');
+        }
+    </script>
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&display=swap"
         rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
@@ -480,7 +485,7 @@
         <!-- LEFT: Cumbria Logo -->
         <div style="display: flex; align-items: center; gap: 15px;">
             <img src="logo-spa.jpg" alt="Cumbria Bienestar" style="height: 65px; width: auto; object-fit: contain;">
-            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.4 (10/11/2026)">v2.3.4</span>
+            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.5 (10/11/2026)">v2.3.5</span>
         </div>
 
         <ul class="nav-links" style="flex:1;">
@@ -3341,6 +3346,31 @@
             return colors[(space || "").toLowerCase()] || '#94a3b8';
         }
 
+        window._autoOpenedEditId = null;
+        window.autoOpenBookingFromUrl = function (targetId, foundRes = null) {
+            if (!targetId || window._autoOpenedEditId === targetId) return;
+            const res = foundRes || (currentData ? currentData.find(r => r.id === targetId) : null);
+            if (!res) return;
+            window._autoOpenedEditId = targetId;
+
+            if (typeof editBooking === 'function') {
+                editBooking(targetId, res);
+            }
+            const modal = document.getElementById("booking-modal");
+            if (modal) modal.style.display = "flex";
+
+            // En modo embebido o modal-only jamás hacemos scroll de fondo
+            const isModalOnly = document.body.classList.contains('is-modal-only') || window.location.search.includes('modal=1');
+            if (!isModalOnly) {
+                setTimeout(() => {
+                    const card = document.querySelector(`.booking-card[data-id="${targetId}"]`);
+                    if (card) {
+                        card.style.boxShadow = "0 0 0 4px #fbbf24";
+                        setTimeout(() => card.style.boxShadow = "", 3000);
+                    }
+                }, 300);
+            }
+        };
 
         let loadReservasInstance = 0;
 
@@ -3453,22 +3483,11 @@
 
                         if (window.updateGlobalSyncStatus) updateGlobalSyncStatus('synced');
 
-                        // Check URL auto-open logic
+                        // Check URL auto-open logic (sin re-centrados triples)
                         const urlParams = new URLSearchParams(window.location.search);
-                        const targetId = urlParams.get('id');
-                        if (targetId) {
-                            const foundRes = currentData.find(r => r.id === targetId);
-                            if (foundRes && typeof editBooking === 'function') {
-                                editBooking(targetId, foundRes);
-                                setTimeout(() => {
-                                    const card = document.querySelector(`.booking-card[data-id="${targetId}"]`);
-                                    if (card) {
-                                        card.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                                        card.style.boxShadow = "0 0 0 4px #fbbf24";
-                                        setTimeout(() => card.style.boxShadow = "", 3000);
-                                    }
-                                }, 500);
-                            }
+                        const targetId = urlParams.get('id') || urlParams.get('res_id');
+                        if (targetId && typeof window.autoOpenBookingFromUrl === 'function') {
+                            window.autoOpenBookingFromUrl(targetId, currentData.find(r => r.id === targetId));
                         }
 
                     } catch (err) {
@@ -3572,22 +3591,11 @@
 
                         if (window.updateGlobalSyncStatus) updateGlobalSyncStatus('synced');
 
-                        // Check URL auto-open logic for Cabinas
+                        // Check URL auto-open logic for Cabinas (sin re-centrados triples)
                         const urlParams = new URLSearchParams(window.location.search);
                         const targetId = urlParams.get('id') || urlParams.get('res_id');
-                        if (targetId) {
-                            const foundRes = currentData.find(r => r.id === targetId);
-                            if (foundRes && typeof editBooking === 'function') {
-                                editBooking(targetId, foundRes);
-                                setTimeout(() => {
-                                    const card = document.querySelector(`.booking-card[data-id="${targetId}"]`);
-                                    if (card) {
-                                        card.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                                        card.style.boxShadow = "0 0 0 4px #fbbf24";
-                                        setTimeout(() => card.style.boxShadow = "", 3000);
-                                    }
-                                }, 500);
-                            }
+                        if (targetId && typeof window.autoOpenBookingFromUrl === 'function') {
+                            window.autoOpenBookingFromUrl(targetId, currentData.find(r => r.id === targetId));
                         }
 
                     } catch (err) {
@@ -3723,28 +3731,9 @@
                         }
                     }
                 } else {
-                    const targetId = urlParams.get('id');
-                    if (targetId) {
-                        const res = currentData.find(r => r.id === targetId);
-                        if (res) {
-                            console.log("Auto-opening booking ID from URL:", targetId);
-                            // 1. Open Details
-                            if (typeof editBooking === 'function') {
-                                editBooking(targetId);
-                                const modal = document.getElementById("booking-modal");
-                                if (modal) modal.style.display = "block";
-                            }
-
-                            // 2. Highlight/Scroll
-                            setTimeout(() => {
-                                const card = document.querySelector(`.booking-card[data-id="${targetId}"]`);
-                                if (card) {
-                                    card.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                                    card.style.boxShadow = "0 0 0 4px #fbbf24";
-                                    setTimeout(() => card.style.boxShadow = "", 3000);
-                                }
-                            }, 500);
-                        }
+                    const targetId = urlParams.get('id') || urlParams.get('res_id');
+                    if (targetId && typeof window.autoOpenBookingFromUrl === 'function') {
+                        window.autoOpenBookingFromUrl(targetId, currentData.find(r => r.id === targetId));
                     }
                 }
             } catch (err) {
@@ -5131,6 +5120,7 @@
         function closeModal(fromUserCancel = false) {
             document.getElementById("booking-modal").style.display = "none";
             window.currentEditingId = null; // Clear global ID
+            window._autoOpenedEditId = null;
 
             // Clear Overbooking Globals
             window._spaOverbookingModeBase = null;
@@ -5937,8 +5927,9 @@
                 }
             }
 
-            // Scroll to current time
-            if (isToday) {
+            // Scroll to current time (desactivado en modo modal o embebido para evitar saltos y vibraciones)
+            const isModalOnlyTimeline = document.body.classList.contains('is-modal-only') || window.location.search.includes('modal=1');
+            if (isToday && !isModalOnlyTimeline) {
                 setTimeout(() => {
                     const anchor = document.getElementById(`timeline-anchor-${containerId}`);
                     if (anchor) {
@@ -8020,6 +8011,10 @@
             const isEmbedded = (window.self !== window.top) || urlParams.get('embedded') === '1';
             if (isEmbedded) {
                 document.body.classList.add('is-embedded');
+            }
+            if (isEmbedded && urlParams.get('modal') === '1') {
+                document.documentElement.classList.add('is-modal-only');
+                document.body.classList.add('is-modal-only');
             }
 
             const action = urlParams.get('action');

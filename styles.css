@@ -1191,13 +1191,28 @@ body.is-modal-only .modal {
     inset: 0 !important;
     width: 100vw !important;
     height: 100vh !important;
-    display: flex !important;
     align-items: center !important;
     justify-content: center !important;
     background: rgba(15, 23, 42, 0.45) !important;
     backdrop-filter: none !important;
     margin: 0 !important;
     padding: 0 !important;
+    transform: none !important;
+    animation: none !important;
+    transition: none !important;
+}
+
+body.is-modal-only .modal[style*="display: flex"],
+body.is-modal-only .modal[style*="display:flex"],
+body.is-modal-only .modal[style*="display: block"],
+body.is-modal-only .modal[style*="display:block"] {
+    display: flex !important;
+}
+
+body.is-modal-only .modal[style*="display: none"],
+body.is-modal-only .modal[style*="display:none"],
+body.is-modal-only .modal:not([style*="display: flex"]):not([style*="display:flex"]):not([style*="display: block"]):not([style*="display:block"]) {
+    display: none !important;
 }
 
 body.is-modal-only .modal-content {

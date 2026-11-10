@@ -438,7 +438,7 @@
             <p class="cover-subtitle">Guía práctica de uso diario, agendamiento de citas, gestión de personal, control de bonos y resolución de incidencias para el equipo de recepción y estética.</p>
             <div class="cover-meta">
                 <span><i class="fas fa-users"></i> Para todo el personal</span>
-                <span><i class="fas fa-calendar-check"></i> <span id="manual-dynamic-date">Actualizado el 10/11/2026 · v2.3.4</span></span>
+                <span><i class="fas fa-calendar-check"></i> <span id="manual-dynamic-date">Actualizado el 10/11/2026 · v2.3.5</span></span>
                 <span><i class="fas fa-shield-alt"></i> Procesos Controlados</span>
             </div>
         </div>
@@ -451,6 +451,7 @@
             <div id="section-novedades" style="background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); border: 2px solid #86efac; border-radius: 10px; padding: 18px 22px; margin-bottom: 25px; box-shadow: 0 4px 12px rgba(22,101,52,0.06);">
                 <!-- AUTO-RELEASES:START -->
 <h2>Novedades y mejoras</h2>
+<article class="manual-release" style="background:white;padding:12px;border-radius:8px;margin-top:10px"><b>v2.3.5 · 10/11/2026</b><p>Planning de salas: respetar horarios de apertura, domingos y fechas de cierre; excluir cierres de horas libres e impedir reservas desde franjas cerradas</p></article>
 <article class="manual-release" style="background:white;padding:12px;border-radius:8px;margin-top:10px"><b>v2.3.4 · 10/11/2026</b><p>Manual sincronizado automaticamente con las novedades y la version real; PDF desde el contenido actualizado y recarga sin cache</p></article>
 <article class="manual-release" style="background:white;padding:12px;border-radius:8px;margin-top:10px"><b>v2.3.3 · 10/11/2026</b><p>Correccion en selector de servicios: integracion completa de spa_services y spa_item_master para que Suite, Panacea, VIP, Cabinas y Peluqueria muestren siempre sus servicios</p></article>
 <article class="manual-release" style="background:white;padding:12px;border-radius:8px;margin-top:10px"><b>v2.3.2 · 10/11/2026</b><p>Rediseño visual de cuadraditos del planning: cabecera horaria con subdivisiones de 15 min, celdas táctiles con bordes y tarjetas de reserva con badges de hora y duración</p></article>
@@ -462,7 +463,6 @@
 <article class="manual-release" style="background:white;padding:12px;border-radius:8px;margin-top:10px"><b>v2.1.0 · 10/11/2026</b><p>Panel lateral integrado de reserva rápida (Drawer) para evitar ventanas duplicadas en puestos de trabajo</p></article>
 <article class="manual-release" style="background:white;padding:12px;border-radius:8px;margin-top:10px"><b>v2.0.6 · 09/11/2026</b><p>Registro automatico en tiempo real de pagos Redsys PayGold sin intervencion manual</p></article>
 <article class="manual-release" style="background:white;padding:12px;border-radius:8px;margin-top:10px"><b>v2.0.5 · 09/11/2026</b><p>Logo transparente Zenith (navegador y PWA), formato de pedido SPA-XXXX en Redsys y modal PayGold adaptado</p></article>
-<article class="manual-release" style="background:white;padding:12px;border-radius:8px;margin-top:10px"><b>v2.0.4 · 09/11/2026</b><p>Mejora comercial en mensaje PayGold (garantía 24h), badges de estado de pago en panel e indicadores visuales de cobro</p></article>
 <!-- AUTO-RELEASES:END -->
             </div>
 
@@ -539,7 +539,7 @@
             <!-- 2. AGENDAR CITAS SIN ERRORES -->
             <!-- =================================================================== -->
             <div class="page-break"></div>
-<div class="step-box"><div class="step-content"><div class="step-title">Planning de ocupación: salas y terapeutas</div><p>Selecciona la sala o el terapeuta en los desplegables del planning. Pulsa una casilla libre para abrir el formulario de reserva con la fecha y hora seleccionadas. Revisa la sala, el servicio, las personas y el terapeuta antes de guardar. Pulsa una reserva existente para abrir su ficha. Las horas pasadas y los periodos no disponibles aparecen oscurecidos.</p></div></div>
+<div class="step-box"><div class="step-content"><div class="step-title">Planning de ocupación: salas y terapeutas</div><p>Selecciona la sala o el terapeuta en los desplegables del planning. Pulsa una casilla libre para abrir el formulario de reserva con la fecha y hora seleccionadas. Revisa la sala, el servicio, las personas y el terapeuta antes de guardar. Pulsa una reserva existente para abrir su ficha. Las horas pasadas y los periodos no disponibles aparecen oscurecidos. El planning respeta el horario de apertura configurado, incluidos los domingos, los descansos entre turnos y las fechas de cierre. Las franjas cerradas muestran un candado, no permiten iniciar reservas y no suman horas libres. Las reservas existentes durante un cierre siguen visibles para su revisión.</p></div></div>
             <h2><i class="fas fa-plus-circle"></i> 2. Agendar Citas sin Errores</h2>
             <p>El sistema cuenta con un motor inteligente que evita solapamientos y protege la disponibilidad real de cabinas y terapeutas.</p>
 

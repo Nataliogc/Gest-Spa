@@ -502,7 +502,7 @@
     <div class="sidebar">
         <div style="display: flex; align-items: center; gap: 15px;">
             <img src="logo-spa.jpg" alt="Cumbria Bienestar" style="height: 65px; width: auto; object-fit: contain;">
-            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.4 (10/11/2026)">v2.3.4</span>
+            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.5 (10/11/2026)">v2.3.5</span>
         </div>
 
         <ul class="nav-links" style="flex:1;">
@@ -621,6 +621,7 @@
     <script src="firebase-config.js?v=4"></script>
     <script src="reservas-staff.js?v=4"></script>
     <script src="js/app-core.js"></script>
+    <script src="js/room-opening.js?v=2.3.5"></script>
 
     <script>
         // =====================================================================
@@ -654,6 +655,18 @@
         let lastBookings = [];
         let currentStaffList = [];
         let isRendering = false;
+        let roomOpeningConfig = null;
+
+        async function loadRoomOpening() {
+            roomOpeningConfig = null;
+            const docs = await Promise.all([
+                db.collection("spa_config").doc("staff_base_schedule").get(),
+                db.collection("spa_config").doc("general").get(),
+                db.collection("spa_config").doc("settings").get()
+            ]);
+            const [hours, general, settings] = docs.map(doc => doc.exists ? doc.data() : {});
+            roomOpeningConfig = { hours, closedDates: settings.closedDates ?? general.closedDates ?? [] };
+        }
 
         const TIME_SLOTS = [];
         for (let t = DAY_START; t < DAY_END; t += SLOT_MIN) TIME_SLOTS.push(t);
@@ -805,7 +818,8 @@
                 const [dayBookings, dayExceptions, allStaff] = await Promise.all([
                     window.getAllBookingsForDate(currentDate),
                     window.getDayExceptionsForDate(currentDate),
-                    window.getActiveStaff()
+                    window.getActiveStaff(),
+                    loadRoomOpening()
                 ]);
                 lastBookings = dayBookings.filter(isActive);
 
@@ -813,6 +827,7 @@
                 await renderTherapists(allStaff || [], lastBookings, dayExceptions);
             } catch (e) {
                 console.error('Error rendering planning:', e);
+                document.getElementById('stats-salas').textContent = 'Disponibilidad no comprobada';
                 document.getElementById('grid-salas').innerHTML = `<div class="po-loading" style="color:#ef4444;">Error: ${esc(e.message)}</div>`;
             } finally {
                 isRendering = false;
@@ -892,12 +907,12 @@
                 nBookings += list.filter(b => !isBlock(b)).length;
                 const states = TIME_SLOTS.map(t => {
                     const past = isSlotPast(currentDate, t);
-                    const block = list.find(b => isBlock(b) && t >= bStart(b) && t < bEnd(b));
+                    const block = list.find(b => isBlock(b) && t < bEnd(b) && t + SLOT_MIN > bStart(b));
                     const here = list.filter(b => !isBlock(b) && t >= bStart(b) && t < bEnd(b));
-                    totalSlots++;
+                    const closure = roomClosureReason(currentDate, t, SLOT_MIN, roomOpeningConfig);
+                    if (!closure && !block) totalSlots++;
 
                     if (block) {
-                        busySlots++;
                         return {
                             key: 'blk:' + block.id,
                             cls: 'c-block',
@@ -906,8 +921,8 @@
                         };
                     }
                     if (here.length) {
-                        if (here.length >= room.capacity) busySlots++;
-                        const partial = here.length < room.capacity;
+                        if (!closure && here.length >= room.capacity) busySlots++;
+                        const partial = !closure && here.length < room.capacity;
                         if (partial && !past) freeFuture++;
                         const ids = here.map(b => b.id).sort().join(',');
                         const blockEnd = Math.max(...here.map(bEnd));
@@ -934,6 +949,10 @@
                                 <div class="bk-l2">${esc(svcTxt)}</div>
                             </div>`
                         };
+                    }
+                    if (closure) {
+                        return { key: 'closed:' + closure, cls: 'c-block', title: closure,
+                            inner: '<div class="slot-box blk"><i class="fas fa-lock"></i> ' + esc(closure) + '</div>' };
                     }
                     if (past) {
                         return {
@@ -1062,6 +1081,11 @@
 
         // === ACCIONES ===
         function newBooking({ time, room = '', staffId = '', staffName = '' }) {
+            const closure = roomOpeningConfig ? roomClosureReason(currentDate, toMin(time), SLOT_MIN, roomOpeningConfig) : 'No se ha podido comprobar el horario';
+            if (closure) {
+                Swal.fire({ icon: 'warning', title: 'Sala cerrada', text: closure });
+                return;
+            }
             // Seguridad: nunca permitir reservar turnos pasados
             if (isSlotPast(currentDate, toMin(time))) {
                 Swal.fire({ icon: 'warning', title: 'Turno pasado', text: 'No se pueden crear reservas en fechas u horas pasadas.', timer: 2500, showConfirmButton: false });
