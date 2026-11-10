@@ -167,8 +167,30 @@ async function handleStaffFieldsChange() {
         }
 
     } catch (err) {
-        console.error('[STAFF] Error al poblar select de personal:', err);
-        staffSelect1.innerHTML = '<option value="">Error al cargar</option>';
+        console.error('[STAFF] Error al poblar select de personal, usando lista de respaldo:', err);
+        try {
+            const fallbackStaff = await (typeof window.getActiveStaff === 'function' ? window.getActiveStaff() : (window.allStaff || []));
+            let html = '<option value="">Seleccionar...</option>';
+            (fallbackStaff || []).forEach(s => {
+                const label = s.alias || s.nombre || s.name || 'Sin nombre';
+                const isSelected = (s.id === prev1) ? 'selected' : '';
+                html += `<option value="${s.id}" ${isSelected}>${label}</option>`;
+            });
+            staffSelect1.innerHTML = html;
+            if (prev1) staffSelect1.value = prev1;
+            if (staffSelect2) {
+                let html2 = '<option value="">Seleccionar...</option>';
+                (fallbackStaff || []).forEach(s => {
+                    const label = s.alias || s.nombre || s.name || 'Sin nombre';
+                    const isSelected = (s.id === prev2) ? 'selected' : '';
+                    html2 += `<option value="${s.id}" ${isSelected}>${label}</option>`;
+                });
+                staffSelect2.innerHTML = html2;
+                if (prev2) staffSelect2.value = prev2;
+            }
+        } catch (eFallback) {
+            staffSelect1.innerHTML = '<option value="">Seleccionar...</option>';
+        }
     }
 }
 

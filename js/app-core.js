@@ -427,43 +427,85 @@ window.createPackReservations = async function (parentData, childItems) {
  * Cancels a pack (parent + all children).
  * @param {string} parentId - ID of the parent reservation.
  */
-window.cancelPackReservation = async function (parentId) {
+window.cancelPackReservation = async function (parentId, specificChildId = null) {
     if (!parentId) throw new Error("Missing parentId");
 
-    // 1. Get parent
-    const parentDoc = await db.collection("spa_reservas_packs").doc(parentId).get();
-    if (!parentDoc.exists) throw new Error("Parent reservation not found.");
+    const ALL_COLS = [
+        "reservas_spa", "reservas_suite", "reservas_panacea", "reservas_vip",
+        "reservas_peluqueria", "reservas_cabinas", "reservas_cabina1", "reservas_cabina2", "reservas_cabina3",
+        "spa_reservas", "reservas_gimnasio", "reservas_complementos"
+    ];
 
-    const parentData = parentDoc.data();
-    const childIds = parentData.childs || [];
+    // 1. Get parent doc if exists
+    let parentDoc = null;
+    let childIds = [];
+    try {
+        parentDoc = await db.collection("spa_reservas_packs").doc(parentId).get();
+        if (parentDoc.exists) {
+            const parentData = parentDoc.data();
+            childIds = Array.isArray(parentData.childs) ? [...parentData.childs] : [];
+        }
+    } catch (e) {
+        console.warn("[PACK CANCEL] Error fetching parent doc:", e);
+    }
+
+    if (specificChildId && !childIds.includes(specificChildId)) {
+        childIds.push(specificChildId);
+    }
 
     const batch = db.batch();
+    const nowIso = new Date().toISOString();
+    const updatedIds = new Set();
 
-    // 2. Cancel all children
+    // 2. Cancel all children by explicit ID across all collections
     for (const childId of childIds) {
-        // Children can be in different collections, we need to find them
-        // Best approach: query all possible collections (or store collection in parent)
-        for (const col of ["spa_reservas", "reservas_gimnasio", "reservas_complementos"]) {
-            const childRef = db.collection(col).doc(childId);
-            const childDoc = await childRef.get();
-            if (childDoc.exists) {
-                batch.update(childRef, {
-                    status: 'anulada',
-                    cancelled_at: new Date().toISOString()
-                });
-                break;
+        for (const col of ALL_COLS) {
+            try {
+                const childRef = db.collection(col).doc(childId);
+                const childDoc = await childRef.get();
+                if (childDoc.exists) {
+                    batch.update(childRef, {
+                        status: 'anulada',
+                        cancelled_at: nowIso
+                    });
+                    updatedIds.add(childId);
+                    break;
+                }
+            } catch (colErr) {
+                console.warn(`[PACK CANCEL] Col check error on ${col}/${childId}:`, colErr);
             }
         }
     }
 
-    // 3. Cancel parent
-    batch.update(db.collection("spa_reservas_packs").doc(parentId), {
-        status: 'anulada',
-        cancelled_at: new Date().toISOString()
-    });
+    // 3. Fallback: Search all collections for any doc where parent_id == parentId
+    for (const col of ALL_COLS) {
+        try {
+            const snap = await db.collection(col).where("parent_id", "==", parentId).get();
+            snap.forEach(doc => {
+                if (!updatedIds.has(doc.id)) {
+                    batch.update(doc.ref, {
+                        status: 'anulada',
+                        cancelled_at: nowIso
+                    });
+                    updatedIds.add(doc.id);
+                }
+            });
+        } catch (queryErr) {
+            console.warn(`[PACK CANCEL] Query error on ${col}:`, queryErr);
+        }
+    }
+
+    // 4. Cancel parent doc
+    if (parentDoc && parentDoc.exists) {
+        batch.update(db.collection("spa_reservas_packs").doc(parentId), {
+            status: 'anulada',
+            cancelled_at: nowIso
+        });
+    }
 
     await batch.commit();
-    console.log(`[PACK] Cancelled parent ${parentId} and ${childIds.length} children.`);
+    console.log(`[PACK] Cancelled parent ${parentId} and ${updatedIds.size} children.`);
+    return { parentId, cancelledCount: updatedIds.size };
 };
 
 function formatDateToISO(dateStr) {

@@ -480,7 +480,7 @@
         <!-- LEFT: Cumbria Logo -->
         <div style="display: flex; align-items: center; gap: 15px;">
             <img src="logo-spa.jpg" alt="Cumbria Bienestar" style="height: 65px; width: auto; object-fit: contain;">
-            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.24 (10/11/2026)">v2.3.24</span>
+            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.25 (11/11/2026)">v2.3.25</span>
         </div>
 
         <ul class="nav-links" style="flex:1;">
@@ -3375,7 +3375,7 @@
             const packPax = packData?.pax || serviceData?.pax || (displayItems.some(i => i.terapeutas > 1) ? 2 : 1);
             if (packCount) {
                 const paxBadge = packPax > 1 ? ' · 2 Pax' : ' · 1 Pax';
-                packCount.textContent = `(${displayItems.length} servicios${paxBadge})`;
+                packCount.textContent = `(${displayItems.length} ${displayItems.length === 1 ? 'servicio' : 'servicios'}${paxBadge})`;
             }
 
             // Auto-ajustar número de personas si es un pack de pareja
@@ -3422,6 +3422,7 @@
                     duracion: duration,
                     hora: suggestedTime,
                     fecha: baseDate,
+                    active: true,
                     index: index,
                     terapeutas: item.terapeutas
                 });
@@ -3434,7 +3435,10 @@
                     : `<span style="background:#f1f5f9; color:#475569; padding:2px 6px; border-radius:4px; font-size:0.65rem;"><i class="fas fa-minus-circle"></i> Sin terapeuta</span>`;
 
                 html += `
-                    <div class="pack-item-row" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 7px 10px; margin-bottom: 6px; background: #ffffff; border-radius: 8px; border-left: 4px solid ${spaceBadgeColor}; box-shadow: 0 1px 3px rgba(0,0,0,0.06);">
+                    <div class="pack-item-row" id="pack-row-${index}" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 10px; margin-bottom: 6px; background: #ffffff; border-radius: 8px; border-left: 4px solid ${spaceBadgeColor}; box-shadow: 0 1px 3px rgba(0,0,0,0.06); transition: opacity 0.2s, background 0.2s;">
+                        <div style="display: flex; align-items: center; gap: 8px; flex-shrink: 0;">
+                            <input type="checkbox" id="pack-active-${index}" checked title="Incluir este servicio en la reserva" onchange="togglePackItemActive(${index}, this.checked)" style="width: 17px; height: 17px; accent-color: #059669; cursor: pointer;">
+                        </div>
                         <div style="flex: 1; min-width: 0;">
                             <div style="font-weight: 700; font-size: 0.8rem; color: #1e293b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
                                 <span style="color:#d97706; margin-right:4px;">${index + 1}.</span> ${item.nombre}
@@ -3447,13 +3451,23 @@
                                 ${therapistBadge}
                             </div>
                         </div>
-                        <div style="display: flex; align-items: center; gap: 4px; flex-shrink: 0;">
-                            <label style="font-size: 0.65rem; color: #64748b; font-weight: 700;">Hora:</label>
-                            <input type="time" 
-                                   id="pack-time-${index}" 
-                                   value="${suggestedTime}" 
-                                   onchange="updatePackItemTime(${index}, this.value)"
-                                   style="padding: 4px 6px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.78rem; font-weight: 700; width: 85px; color: #1e293b; background: #fff;">
+                        <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0; flex-wrap: wrap;">
+                            <div style="display: flex; align-items: center; gap: 3px;">
+                                <label style="font-size: 0.65rem; color: #64748b; font-weight: 700;">Fecha:</label>
+                                <input type="date" 
+                                       id="pack-date-${index}" 
+                                       value="${baseDate}" 
+                                       onchange="updatePackItemDate(${index}, this.value)"
+                                       style="padding: 3px 5px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.74rem; font-weight: 600; width: 110px; color: #1e293b; background: #fff;">
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 3px;">
+                                <label style="font-size: 0.65rem; color: #64748b; font-weight: 700;">Hora:</label>
+                                <input type="time" 
+                                       id="pack-time-${index}" 
+                                       value="${suggestedTime}" 
+                                       onchange="updatePackItemTime(${index}, this.value)"
+                                       style="padding: 3px 5px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.78rem; font-weight: 700; width: 80px; color: #1e293b; background: #fff;">
+                            </div>
                         </div>
                     </div>
                 `;
@@ -3489,6 +3503,25 @@
             if (window._packItems && window._packItems[index]) {
                 window._packItems[index].hora = newTime;
                 console.log(`[PACK] Item ${index} time updated to ${newTime}`);
+            }
+        };
+
+        window.updatePackItemDate = function (index, newDate) {
+            if (window._packItems && window._packItems[index]) {
+                window._packItems[index].fecha = newDate;
+                console.log(`[PACK] Item ${index} date updated to ${newDate}`);
+            }
+        };
+
+        window.togglePackItemActive = function (index, isActive) {
+            if (window._packItems && window._packItems[index]) {
+                window._packItems[index].active = !!isActive;
+                const row = document.getElementById(`pack-row-${index}`);
+                if (row) {
+                    row.style.opacity = isActive ? "1" : "0.45";
+                    row.style.background = isActive ? "#ffffff" : "#f1f5f9";
+                }
+                console.log(`[PACK] Item ${index} active: ${isActive}`);
             }
         };
 
@@ -4888,42 +4921,68 @@
             }
 
             // ========== PACK CANCELLATION RULES ==========
-            // 1. Handle Pack CHILDREN deletion (Offer to delete Parent)
+            // 1. Handle Pack CHILDREN deletion (Offer to delete Parent or only this service)
             if (resData.parent_id || resData.is_pack_element) {
                 Swal.fire({
                     icon: 'warning',
                     title: 'Servicio de Pack',
-                    html: `Este servicio pertenece a un Pack.<br>¿Deseas <b>anular todo el pack</b> (incluyendo todos los servicios vinculados)?`,
+                    html: `Este servicio pertenece a un Pack.<br>¿Deseas <b>anular todo el pack</b> o <b>solo este servicio</b>?`,
                     showCancelButton: true,
+                    showDenyButton: true,
                     confirmButtonColor: '#d33',
-                    cancelButtonColor: '#3085d6',
-                    confirmButtonText: 'Sí, anular el Pack completo',
-                    cancelButtonText: 'Cancelar'
+                    denyButtonColor: '#f59e0b',
+                    cancelButtonColor: '#64748b',
+                    confirmButtonText: 'Sí, anular todo el Pack',
+                    denyButtonText: 'Anular solo este servicio',
+                    cancelButtonText: 'Cerrar'
                 }).then(async (result) => {
                     if (result.isConfirmed) {
                         try {
-                            // If we have parent_id, use it. If not, we can't do much (orphan).
-                            const date = document.getElementById("main-date-picker").value;
-                            if (resData.parent_id) {
-                                await window.cancelPackReservation(resData.parent_id);
-                                showToast("Pack anulado correctamente", "success");
-                                closeModal();
-                                loadReservas(date);
-                            } else {
-                                // Orphan child - allow force delete
-                                if (confirm("Error: No se encuentra el ID del pack padre. ¿Borrar solo esta reserva (puede dejar inconsistencias)?")) {
-                                    /* Fix: Use correct collection if available */
-                                    const targetColl = resData.collection || (resData._moduleCode ? MODULES[resData._moduleCode].collection : currentModule.collection);
+                            const date = document.getElementById("main-date-picker")?.value || resData.fecha;
+                            const targetColl = resData.collection || (resData._moduleCode ? MODULES[resData._moduleCode].collection : currentModule.collection);
 
-                                    await db.collection(targetColl).doc(id).delete();
-                                    showToast("Reserva huérfana eliminada", "success");
-                                    closeModal();
-                                    loadReservas(date);
-                                }
+                            // Cancelar inmediatamente la reserva actual en su colección
+                            await db.collection(targetColl).doc(id).update({
+                                status: 'anulada',
+                                cancelled_at: new Date().toISOString()
+                            });
+
+                            if (resData.parent_id) {
+                                await window.cancelPackReservation(resData.parent_id, id);
                             }
+                            showToast("Pack completo anulado", "success");
+                            if (window.parent && window.parent !== window) {
+                                try {
+                                    window.parent.postMessage({ type: 'GEST_SPA_CLOSE_DRAWER', refresh: true }, '*');
+                                } catch (eMsg) {}
+                            }
+                            closeModal(true);
+                            await loadReservas(date);
                         } catch (e) {
                             console.error("Error cancelling pack:", e);
                             Swal.fire('Error', 'No se pudo anular el pack: ' + e.message, 'error');
+                        }
+                    } else if (result.isDenied) {
+                        try {
+                            const date = document.getElementById("main-date-picker")?.value || resData.fecha;
+                            const targetColl = resData.collection || (resData._moduleCode ? MODULES[resData._moduleCode].collection : currentModule.collection);
+
+                            await db.collection(targetColl).doc(id).update({
+                                status: 'anulada',
+                                cancelled_at: new Date().toISOString()
+                            });
+
+                            showToast("Servicio anulado correctamente", "success");
+                            if (window.parent && window.parent !== window) {
+                                try {
+                                    window.parent.postMessage({ type: 'GEST_SPA_CLOSE_DRAWER', refresh: true }, '*');
+                                } catch (eMsg) {}
+                            }
+                            closeModal(true);
+                            await loadReservas(date);
+                        } catch (e) {
+                            console.error("Error cancelling single service:", e);
+                            Swal.fire('Error', 'No se pudo anular el servicio: ' + e.message, 'error');
                         }
                     }
                 });
@@ -5571,14 +5630,33 @@
 
                 // If this is a pack
                 if (window._packItems && window._packItems.length > 0 && !id) {
+                    const activeItems = window._packItems.filter(item => item.active !== false);
+                    if (activeItems.length === 0) {
+                        alert("Debe seleccionar al menos un servicio del pack para reservar.");
+                        isSavingReservation = false;
+                        btn.disabled = false;
+                        btn.innerHTML = originalText;
+                        return;
+                    }
                     const parentData = { ...payload };
                     try {
                         btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creando Pack...';
-                        const result = await window.createPackReservations(parentData, window._packItems);
-                        showToast(`Pack creado: ${result.childIds.length} reservas`, "success");
+                        const result = await window.createPackReservations(parentData, activeItems);
+                        showToast(`Pack creado: ${result.childIds.length} reserva(s)`, "success");
                         if (payload.origen === 'bono' && payload.bono) updateVoucherSessions(payload.bono, 1, svcName).catch(console.warn);
                         window._packItems = null; isSavingReservation = false; btn.disabled = false; btn.innerHTML = originalText;
-                        closeModal(); clearPendingVoucher(); await loadReservas(date); return;
+                        if (window.parent && window.parent !== window) {
+                            try {
+                                window.parent.postMessage({
+                                    type: 'GEST_SPA_RESERVATION_SUCCESS',
+                                    cliente: payload.nombre,
+                                    fecha: payload.fecha,
+                                    isPack: true,
+                                    count: result.childIds.length
+                                }, '*');
+                            } catch (eMsg) {}
+                        }
+                        closeModal(true); clearPendingVoucher(); await loadReservas(date); return;
                     } catch (packErr) {
                         console.error("[PACK] Error:", packErr); alert("Error Pack: " + packErr.message); isSavingReservation = false; btn.disabled = false; btn.innerHTML = originalText; return;
                     }

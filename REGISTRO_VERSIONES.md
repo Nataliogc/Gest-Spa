@@ -8,8 +8,8 @@ Este documento mantiene el **control de versión única y global** para todo el 
 
 | Parámetro | Valor Actual |
 | :--- | :--- |
-| **Versión Global del Sistema** | **`v2.3.24`** |
-| **Fecha de Última Actualización** | **10/11/2026** |
+| **Versión Global del Sistema** | **`v2.3.25`** |
+| **Fecha de Última Actualización** | **11/11/2026** |
 | **Estado General** | Operativo en Producción |
 
 ---
@@ -47,6 +47,11 @@ Cualquier cambio en los siguientes módulos impacta en la versión global:
 ---
 
 ## 📝 Historial Unificado de Versiones
+
+### [v2.3.25] - 11/11/2026
+- **Tipo:** PATCH
+- **Archivos:** `js/app-core.js`, `reservas-salas.html`, `reservas-spa.html`, `reservas-staff.js`, `reservas.html`
+- **Descripción:** Fix pack cancellation across all collections and enable independent per-service pack scheduling
 
 ### [v2.3.24] - 10/11/2026
 - **Tipo:** PATCH
