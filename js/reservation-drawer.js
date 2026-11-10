@@ -121,9 +121,18 @@
 
             if (typeof showToast === 'function') {
                 showToast(`✅ Reserva confirmada para ${servicio}${voucherCode ? ` (Bono #${voucherCode})` : ''}`, 'success', 4500);
+            } else if (typeof Swal !== 'undefined') {
+                Swal.fire({
+                    toast: true,
+                    position: 'top-end',
+                    icon: 'success',
+                    title: `✅ Reserva confirmada (${servicio})`,
+                    showConfirmButton: false,
+                    timer: 4000
+                });
             }
 
-            // Actualizar vista de bonos automáticamente
+            // Actualizar vista de bonos automáticamente si estaba abierta la ficha
             if (voucherCode) {
                 const voucherModal = document.getElementById('voucher-modal');
                 if (voucherModal && voucherModal.style.display === 'flex' && typeof openVoucherManagement === 'function') {
@@ -132,6 +141,12 @@
                 } else if (typeof loadBonos === 'function') {
                     setTimeout(() => loadBonos(), 300);
                 }
+            }
+
+            // Actualizar cuadrante de agenda automáticamente si estamos en la vista de agenda
+            if (typeof renderGrid === 'function') {
+                console.log('[DRAWER] Refrescando cuadrante de agenda en tiempo real...');
+                setTimeout(() => renderGrid(), 350);
             }
         } else if (event.data.type === 'GEST_SPA_CLOSE_DRAWER') {
             window.closeReservationDrawer();

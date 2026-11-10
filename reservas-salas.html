@@ -480,7 +480,7 @@
         <!-- LEFT: Cumbria Logo -->
         <div style="display: flex; align-items: center; gap: 15px;">
             <img src="logo-spa.jpg" alt="Cumbria Bienestar" style="height: 65px; width: auto; object-fit: contain;">
-            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.1.0 (10/11/2026)">v2.1.0</span>
+            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.2.0 (10/11/2026)">v2.2.0</span>
         </div>
 
         <ul class="nav-links" style="flex:1;">
@@ -738,7 +738,7 @@
                             <span id="res-id-display"
                                 style="font-size: 0.75rem; font-weight: 700; color: #cbd5e1; background: #f1f5f9; padding: 2px 6px; border-radius: 4px;"></span>
                             <button type="button" class="btn btn-sm btn-outline"
-                                style="border-radius: 4px; padding: 2px 8px; font-size: 0.7rem;" onclick="closeModal()">
+                                style="border-radius: 4px; padding: 2px 8px; font-size: 0.7rem;" onclick="closeModal(true)">
                                 <i class="fas fa-times"></i> SALIR
                             </button>
                         </div>
@@ -1056,7 +1056,7 @@
                     <div style="display: flex; gap: 10px; align-items: center;">
                         <button type="button" class="btn btn-outline"
                             style="height: 40px; border-color: rgba(255,255,255,0.2); color: #cbd5e1; border-radius: 6px; font-weight: 600; font-size: 0.8rem; padding: 0 20px;"
-                            onclick="closeModal()">CERRAR</button>
+                            onclick="closeModal(true)">CERRAR</button>
 
                         <!-- Dynamic Action Buttons (Hidden by default) -->
                         <button type="button" id="btn-cancelar" class="btn btn-outline"
@@ -5405,7 +5405,7 @@
             } catch (err) { alert(err.message); }
         }
 
-        function closeModal() {
+        function closeModal(fromUserCancel = false) {
             document.getElementById("booking-modal").style.display = "none";
             window.currentEditingId = null; // Clear global ID
 
@@ -5413,6 +5413,13 @@
             window._spaOverbookingModeBase = null;
             window._spaOverbookingMode = null;
             window._spaReceptionist = null;
+
+            // Si el usuario canceló manualmente y estamos dentro del Drawer, cerrar Drawer
+            if (fromUserCancel && window.parent && window.parent !== window) {
+                try {
+                    window.parent.postMessage({ type: 'GEST_SPA_CLOSE_DRAWER' }, '*');
+                } catch (eMsg) {}
+            }
 
             // Clean URL params (id, res_id) to prevent reload-reopen
             const url = new URL(window.location);
@@ -7138,13 +7145,21 @@
                 updateDateDisplay(picker.value);
             }
 
-            // HANDLE VOUCHER REDIRECTION
+            // HANDLE NEW RESERVATION ACTION (Desde Bono o desde Casilla Libre de la Agenda)
             if (action === 'new') {
                 const client = urlParams.get('client');
                 const service = urlParams.get('service');
                 const voucher = urlParams.get('voucher');
+                const timeParam = urlParams.get('time') || urlParams.get('hora');
+                const staffParam = urlParams.get('staff_id') || urlParams.get('staff') || urlParams.get('terapeuta');
+                const staffNameParam = urlParams.get('staff_name');
+                const roomParam = urlParams.get('room') || urlParams.get('sala');
 
-                // Store in session for pre-fill
+                if (timeParam) {
+                    selectedTime = timeParam;
+                }
+
+                // Store in session for pre-fill if coming from voucher
                 if (client || service || voucher) {
                     const pendingData = {
                         cliente: client || "",
@@ -7153,16 +7168,63 @@
                         pax_por_sesion: 2 // Default or inferred?
                     };
                     sessionStorage.setItem('pendingVoucherBooking', JSON.stringify(pendingData));
-
-                    // Trigger Modal Open (give a moment for scripts to Init)
-                    setTimeout(() => {
-                        if (typeof showBookingForm === 'function') {
-                            showBookingForm(null, true); // true = isNew
-                        } else {
-                            console.error("showBookingForm not defined yet");
-                        }
-                    }, 500);
                 }
+
+                // Trigger Modal Open (give a moment for dynamic modules & staff to Init)
+                setTimeout(async () => {
+                    if (timeParam) {
+                        selectedTime = timeParam;
+                    }
+
+                    // Sincronizar sala si se indicó en la URL
+                    if (roomParam && window.MODULES) {
+                        const roomLower = roomParam.toLowerCase().trim();
+                        const foundModKey = Object.keys(window.MODULES).find(k => 
+                            k.toLowerCase() === roomLower || 
+                            (window.MODULES[k].name && window.MODULES[k].name.toLowerCase() === roomLower)
+                        );
+                        if (foundModKey && window.MODULES[foundModKey]) {
+                            window.currentModule = window.MODULES[foundModKey];
+                            currentModule = window.MODULES[foundModKey];
+                            const headerEl = document.querySelector('h2');
+                            if (headerEl) headerEl.textContent = currentModule.name;
+                        }
+                    }
+
+                    if (typeof showBookingForm === 'function') {
+                        await showBookingForm(null, true); // true = isNew
+
+                        // Preseleccionar sala en el desplegable si existe
+                        if (roomParam) {
+                            const salaSel = document.getElementById("res-sala");
+                            if (salaSel) {
+                                for (let opt of salaSel.options) {
+                                    if (opt.value.toLowerCase() === roomParam.toLowerCase() || 
+                                        opt.textContent.toLowerCase().trim() === roomParam.toLowerCase().trim()) {
+                                        salaSel.value = opt.value;
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+
+                        // Preseleccionar terapeuta si vino indicado
+                        if (staffParam || staffNameParam) {
+                            const staffSel = document.getElementById("res-staff") || document.getElementById("res-staff-1");
+                            if (staffSel) {
+                                for (let opt of staffSel.options) {
+                                    if ((staffParam && opt.value === staffParam) || 
+                                        (staffNameParam && opt.textContent.toLowerCase().includes(staffNameParam.toLowerCase()))) {
+                                        staffSel.value = opt.value;
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    } else {
+                        console.error("showBookingForm not defined yet");
+                    }
+                }, 550);
             }
         });
 
