@@ -451,10 +451,18 @@ function renderDashboard() {
         const origen = (c.origen || '').toLowerCase();
         const isVoucherOrHotel = ['hotel_inc', 'bono', 'smartbox', 'wonderbox', 'ego', 'groupon'].includes(origen);
 
-        if (estadoPagoLower === 'pendiente') {
-            // Si el estado es explícitamente pendiente, el pagado proviene de abonos reales registrados
-            paid = parseFloat(c.payment?.paid || c.paid_amount || c.importe_pagado || (typeof c.pagado === 'number' ? c.pagado : 0) || 0);
-        } else if (c.pagado === true || estadoPagoLower === 'pagado') {
+        const hasRealPayment = (c.payment && typeof c.payment.paid === 'number' && c.payment.paid > 0);
+        const isPayGoldPaid = (c.paygold_status === 'COBRADO' || c.paygold_status === 'PAGADO' || !!c.paygold_auth);
+
+        if (hasRealPayment) {
+            paid = parseFloat(c.payment.paid);
+        } else if (isPayGoldPaid) {
+            paid = parseFloat(c.paygold_amount || c.precio_total || totalPrice);
+        } else if (estadoPagoLower === 'pagado') {
+            paid = totalPrice;
+        } else if (estadoPagoLower === 'pendiente') {
+            paid = parseFloat(c.payment?.paid || c.paid_amount || c.importe_pagado || 0) || 0;
+        } else if (c.pagado === true && !['particular', 'venta_local'].includes(origen)) {
             paid = totalPrice;
         } else {
             const possiblePaid = [

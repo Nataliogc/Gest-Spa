@@ -8,7 +8,7 @@ Este documento mantiene el **control de versión única y global** para todo el 
 
 | Parámetro | Valor Actual |
 | :--- | :--- |
-| **Versión Global del Sistema** | **`v2.3.20`** |
+| **Versión Global del Sistema** | **`v2.3.21`** |
 | **Fecha de Última Actualización** | **10/11/2026** |
 | **Estado General** | Operativo en Producción |
 
@@ -47,6 +47,11 @@ Cualquier cambio en los siguientes módulos impacta en la versión global:
 ---
 
 ## 📝 Historial Unificado de Versiones
+
+### [v2.3.21] - 10/11/2026
+- **Tipo:** PATCH
+- **Archivos:** `disponibilidad-terapeutas.html`, `index.html`, `js/dashboard.js`, `js/service-pricing.js`, `js/spa-paygold.js`, `reservas-salas.html`, `reservas-spa.html`, `reservas.html`, `vision-general.html`
+- **Descripción:** PayGold: correccion residual error modal, consistencia estado pagado particular, cache-busters v2.3.21 y activacion packs en salas
 
 ### [v2.3.20] - 10/11/2026
 - **Tipo:** PATCH

@@ -939,8 +939,15 @@
 
         } catch (err) {
             console.error("[PayGold] Error Redsys:", err);
-            errBox.textContent = "Error Redsys: " + (err.message || err);
-            errBox.style.display = "block";
+            // Si el enlace ya fue generado con éxito, evitar que un fallo secundario oculte el éxito
+            if (currentPayGoldUrl || (succBox && succBox.style.display === "block")) {
+                console.warn("[PayGold] Error secundario tras generación exitosa:", err);
+                errBox.style.display = "none";
+            } else {
+                errBox.textContent = "Error Redsys: " + (err.message || err);
+                errBox.style.display = "block";
+                if (succBox) succBox.style.display = "none";
+            }
         } finally {
             genBtn.disabled = false;
             genBtn.innerHTML = '<i class="fas fa-bolt"></i> Generar Enlace Redsys';

@@ -480,7 +480,7 @@
         <!-- LEFT: Cumbria Logo -->
         <div style="display: flex; align-items: center; gap: 15px;">
             <img src="logo-spa.jpg" alt="Cumbria Bienestar" style="height: 65px; width: auto; object-fit: contain;">
-            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.20 (10/11/2026)">v2.3.20</span>
+            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.21 (10/11/2026)">v2.3.21</span>
         </div>
 
         <ul class="nav-links" style="flex:1;">
@@ -1270,8 +1270,8 @@
     <!-- Dexie loaded by db-local.js -->
     <!-- <script src="https://unpkg.com/dexie@latest/dist/dexie.js"></script> -->
     <script src="js/app-core.js"></script>
-    <script src="js/spa-packs-registry.js?v=2.3.19"></script>
-    <script src="js/service-pricing.js?v=2.3.19"></script>
+    <script src="js/spa-packs-registry.js?v=2.3.21"></script>
+    <script src="js/service-pricing.js?v=2.3.21"></script>
 
     <script>
         const db = firebase.firestore();
@@ -2592,13 +2592,33 @@
             if (!sel || !searchInp) return;
 
             searchInp.value = val;
+
+            // Asegurar que la opción exista en el select oculto
+            let opt = Array.from(sel.options).find(o => o.value === val);
+            if (!opt) {
+                const cachedOpt = (window._allServiceOptions || []).find(o => o.value === val);
+                opt = document.createElement("option");
+                opt.value = val;
+                opt.textContent = val;
+                if (cachedOpt && cachedOpt.dataset) {
+                    Object.assign(opt.dataset, cachedOpt.dataset);
+                }
+                sel.appendChild(opt);
+            }
             sel.value = val;
             results.style.display = 'none';
 
-            // Trigger standard onchange events
-            if (sel.onchange) {
-                sel.onchange();
+            // Trigger standard onchange events and dispatchEvent
+            if (typeof sel.onchange === 'function') {
+                try { sel.onchange(); } catch (e) { console.warn("[ServiceSelect] Error onchange:", e); }
             }
+            sel.dispatchEvent(new Event('change', { bubbles: true }));
+
+            // Forzar actualización inmediata de pack, precio y duración
+            if (typeof updatePackInfo === 'function') updatePackInfo();
+            if (typeof updatePriceAutomation === 'function') updatePriceAutomation();
+            if (typeof syncServiceDuration === 'function') syncServiceDuration();
+            if (typeof updateStaffSelectorsVisibility === 'function') updateStaffSelectorsVisibility();
         }
 
         function filterServiceOptions(query) {
@@ -2835,12 +2855,13 @@
 
         async function updatePriceAutomation() {
             if (window._isInitializingEdit) return;
-            const svcName = document.getElementById("res-servicio")?.value;
+            const svcSelect = document.getElementById("res-servicio");
+            const searchInp = document.getElementById("res-servicio-search");
+            const svcName = svcSelect?.value || searchInp?.value || "";
             const pricePaxInput = document.getElementById("res-precio-pax");
             const paxInput = document.getElementById("res-pax");
             const origen = document.getElementById("res-origen")?.value;
 
-            // Find service data - IMPROVED CHECK (Master -> Current)
             // Find service data - IMPROVED CHECK (Master -> Current)
             // Debug Log
             console.log(`[PRICING] Searching for service: "${svcName}"`);
@@ -3140,10 +3161,22 @@
             if (resId && currentData) {
                 const res = currentData.find(r => r.id === resId);
                 if (res) {
-                    if (res.pagado === true || res.estado_pago === 'pagado') {
+                    const estadoPagoLower = String(res.estado_pago || '').toLowerCase().trim();
+                    const hasRealPayment = (res.payment && typeof res.payment.paid === 'number' && res.payment.paid > 0);
+                    const isPayGoldPaid = (res.paygold_status === 'COBRADO' || res.paygold_status === 'PAGADO' || !!res.paygold_auth);
+
+                    if (hasRealPayment) {
+                        paid = parseFloat(res.payment.paid);
+                    } else if (isPayGoldPaid) {
+                        paid = parseFloat(res.paygold_amount || res.precio_total || total);
+                    } else if (estadoPagoLower === 'pagado') {
+                        paid = total;
+                    } else if (estadoPagoLower === 'pendiente') {
+                        paid = parseFloat(res.payment?.paid || res.paid_amount || res.importe_pagado || 0) || 0;
+                    } else if (res.pagado === true && res.origen !== 'particular') {
                         paid = total;
                     } else {
-                        paid = parseFloat(res.payment?.paid || res.paid_amount || res.pagado || 0) || 0;
+                        paid = parseFloat(res.payment?.paid || res.paid_amount || res.importe_pagado || 0) || 0;
                     }
                 }
             }
@@ -3244,7 +3277,8 @@
 
         function updatePackInfo() {
             const svcSelect = document.getElementById("res-servicio");
-            const svcName = svcSelect?.value;
+            const searchInp = document.getElementById("res-servicio-search");
+            const svcName = svcSelect?.value || searchInp?.value || "";
             const packContainer = document.getElementById("pack-includes-container");
             const packSchedule = document.getElementById("pack-items-schedule");
             const packCount = document.getElementById("pack-item-count");
@@ -3906,12 +3940,21 @@
                         // Robust check for paid amount
                         let paid = 0;
                         const estadoPagoLower = String(res.estado_pago || '').toLowerCase().trim();
-                        if (estadoPagoLower === 'pendiente') {
-                            paid = parseFloat(res.payment?.paid || res.paid_amount || res.importe_pagado || (typeof res.pagado === 'number' ? res.pagado : 0) || 0);
-                        } else if (res.pagado === true || estadoPagoLower === 'pagado') {
+                        const hasRealPayment = (res.payment && typeof res.payment.paid === 'number' && res.payment.paid > 0);
+                        const isPayGoldPaid = (res.paygold_status === 'COBRADO' || res.paygold_status === 'PAGADO' || !!res.paygold_auth);
+
+                        if (hasRealPayment) {
+                            paid = parseFloat(res.payment.paid);
+                        } else if (isPayGoldPaid) {
+                            paid = parseFloat(res.paygold_amount || res.precio_total || total);
+                        } else if (estadoPagoLower === 'pagado') {
+                            paid = total;
+                        } else if (estadoPagoLower === 'pendiente') {
+                            paid = parseFloat(res.payment?.paid || res.paid_amount || res.importe_pagado || 0) || 0;
+                        } else if (res.pagado === true && res.origen !== 'particular') {
                             paid = total;
                         } else {
-                            paid = parseFloat(res.payment?.paid || res.paid_amount || res.importe_pagado || (typeof res.pagado === 'number' ? res.pagado : 0) || 0);
+                            paid = parseFloat(res.payment?.paid || res.paid_amount || res.importe_pagado || 0) || 0;
                         }
 
                         const pending = Math.max(0, total - paid);
@@ -6946,8 +6989,8 @@
         style="position: fixed; top: 20px; right: 20px; z-index: 99999; display: flex; flex-direction: column; align-items: flex-end;">
     </div>
     <!-- PayGold Redsys Cumbria Integration -->
-    <script src="js/services/paygoldService.js"></script>
-    <script src="js/spa-paygold.js"></script>
+    <script src="js/services/paygoldService.js?v=2.3.21"></script>
+    <script src="js/spa-paygold.js?v=2.3.21"></script>
 </body>
 
 </html>

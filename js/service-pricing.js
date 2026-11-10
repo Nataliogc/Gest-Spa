@@ -59,8 +59,13 @@
         if (packInfo) {
             merged.isPack = true;
             merged.packData = packInfo;
-            if (!merged.pax || merged.pax <= 1) merged.pax = packInfo.pax;
-            if (!merged.secuencia && packInfo.secuencia) merged.secuencia = packInfo.secuencia;
+            if (!merged.pax || merged.pax <= 1) merged.pax = packInfo.pax || 2;
+            if (!merged.secuencia || !Array.isArray(merged.secuencia) || merged.secuencia.length === 0) {
+                merged.secuencia = packInfo.secuencia;
+            }
+            if (!merged.resolvedPrice || merged.resolvedPrice <= 0) {
+                merged.resolvedPrice = packInfo.precio;
+            }
         }
 
         return merged;
