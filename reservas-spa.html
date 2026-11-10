@@ -480,7 +480,7 @@
         <!-- LEFT: Cumbria Logo -->
         <div style="display: flex; align-items: center; gap: 15px;">
             <img src="logo-spa.jpg" alt="Cumbria Bienestar" style="height: 65px; width: auto; object-fit: contain;">
-            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.0.6 (09/11/2026)">v2.0.6</span>
+            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.1.0 (10/11/2026)">v2.1.0</span>
         </div>
 
         <ul class="nav-links" style="flex:1;">
@@ -5405,6 +5405,23 @@
                 }
 
                 closeModal();
+
+                // Notificar al Drawer padre si está embebido
+                if (window.parent && window.parent !== window) {
+                    try {
+                        window.parent.postMessage({
+                            type: 'GEST_SPA_RESERVATION_SUCCESS',
+                            voucher: payload.bono,
+                            servicio: payload.servicio,
+                            cliente: payload.cliente,
+                            fecha: date,
+                            hora: payload.hora || ''
+                        }, '*');
+                    } catch (eMsg) {
+                        console.warn("[EMBEDDED] Error notificando a ventana padre:", eMsg);
+                    }
+                }
+
                 // AUTO-CLOSE if window.opener... (same logic as before)
                 if (window.opener && !window.opener.closed && payload.origen === 'bono') {
                     setTimeout(() => window.close(), 500);
@@ -6203,10 +6220,13 @@
 
         // Initialize Date Display
         document.addEventListener('DOMContentLoaded', () => {
-            const picker = document.getElementById('main-date-picker');
-
-            // Check for URL parameters
             const urlParams = new URLSearchParams(window.location.search);
+            const isEmbedded = (window.self !== window.top) || urlParams.get('embedded') === '1';
+            if (isEmbedded) {
+                document.body.classList.add('is-embedded');
+            }
+
+            const picker = document.getElementById('main-date-picker');
             const dateParam = urlParams.get('fecha') || urlParams.get('date'); // Support both
             const action = urlParams.get('action');
 

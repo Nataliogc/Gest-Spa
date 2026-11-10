@@ -869,10 +869,13 @@ async function openRestauranteFromVoucher(client, service, code, space, pax, pho
     window._mesachefVoucherToRefresh = cleanBono;
     console.log(`[REDIRECT] Abriendo restaurante en Mesachef: ${finalUrl}`);
 
-    const newWin = window.open(finalUrl, '_blank');
+    // Reutilizar ventana única de Mesachef para no acumular pestañas/ventanas
+    const newWin = window.open(finalUrl, 'GestSpa_Mesachef');
     if (!newWin || newWin.closed || typeof newWin.closed === 'undefined') {
         // Bloqueador de ventanas emergentes activado en el navegador
         showToast(`⚠️ El navegador bloqueó la apertura de Mesachef. <a href="${finalUrl}" target="_blank" style="color:#fff;text-decoration:underline;font-weight:bold;margin-left:8px;">Haz clic aquí para abrirlo</a>`, 'warning', 15000);
+    } else {
+        newWin.focus();
     }
 }
 
@@ -1042,12 +1045,24 @@ async function goToReservation(client, service, code, space, pax, skipPaymentChe
         return;
     }
 
-    let url = `reservas.html?type=${type}&action=new&client=${encodeURIComponent(client)}&service=${encodeURIComponent(service)}&voucher=${code}`;
+    let url = `reservas.html?type=${type}&action=new&client=${encodeURIComponent(client)}&service=${encodeURIComponent(service)}&voucher=${code}&embedded=1`;
 
-    // fallback legacy Mesachef check removed as it is superseded by openRestauranteFromVoucher logic above
+    // Opción A: Abrir en Drawer / Panel lateral integrado sin salir de la pantalla
+    if (typeof openReservationDrawer === 'function') {
+        openReservationDrawer(url, {
+            client: client,
+            service: service,
+            code: code,
+            space: space,
+            type: type,
+            pax: pax
+        });
+        return;
+    }
 
-    // Open in new tab to preserve context
-    window.open(url, '_blank');
+    // Fallback: Reutilizar ventana única nombrada para no generar ventanas duplicadas
+    const win = window.open(url, 'GestSpa_VentanaReservas');
+    if (win) win.focus();
 }
 
 async function loadMasterItems() {

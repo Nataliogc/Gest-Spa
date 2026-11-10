@@ -338,8 +338,13 @@ Observaciones: ${res.observaciones || '-'}
                     `;
                 }
 
+                const escapedSvc = (res.servicio || '').replace(/'/g, "\\'");
                 return `
-                    <a href="reservas.html?date=${res.fecha}&id=${res.id}&type=${moduleTypeForLink}" target="_blank" style="text-decoration:none; display:flex; justify-content:space-between; align-items:center; padding: 10px 0; border-bottom: 1px solid #f1f5f9; cursor:pointer;" title="Ver en Calendario">
+                    <a href="reservas.html?date=${res.fecha}&id=${res.id}&type=${moduleTypeForLink}&embedded=1" 
+                       onclick="if (typeof openReservationDrawer === 'function') { openReservationDrawer('reservas.html?date=${res.fecha}&id=${res.id}&type=${moduleTypeForLink}&embedded=1', { service: '${escapedSvc}', code: '${code}' }); return false; }"
+                       target="GestSpa_VentanaReservas" 
+                       style="text-decoration:none; display:flex; justify-content:space-between; align-items:center; padding: 10px 0; border-bottom: 1px solid #f1f5f9; cursor:pointer;" 
+                       title="Ver en Calendario">
                         <div style="flex: 1;">
                             <div style="display:flex; align-items:center; gap: 8px;">
                                 <span style="background:${typeColor}; color:white; font-size:0.65rem; padding: 2px 6px; border-radius:4px; font-weight:700;">${typeLabel}</span>

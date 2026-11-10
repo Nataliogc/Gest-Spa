@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="es">
 
 <head>
@@ -28,7 +28,7 @@
         <!-- LEFT: Cumbria Logo -->
         <div style="display: flex; align-items: center; gap: 15px;">
             <img src="logo-spa.jpg" alt="Cumbria Bienestar" style="height: 65px; width: auto; object-fit: contain;">
-            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.0.6 (09/11/2026)">v2.0.6</span>
+            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.1.0 (10/11/2026)">v2.1.0</span>
         </div>
 
         <ul class="nav-links" style="flex:1;">
@@ -708,6 +708,35 @@
         </div>
     </div>
 
+    <!-- DRAWER DE RESERVA RÁPIDA (OPCIÓN A: SIN SALIR DE LA PANTALLA) -->
+    <div id="reservation-drawer-backdrop" class="drawer-backdrop" style="display: none;" onclick="closeReservationDrawer()"></div>
+    <div id="reservation-drawer" class="reservation-drawer" style="display: none;">
+        <div class="drawer-header">
+            <div class="drawer-title-area">
+                <div class="drawer-icon"><i class="fas fa-calendar-check"></i></div>
+                <div>
+                    <h3 id="drawer-title" style="margin: 0; font-size: 1.05rem; font-weight: 700; color: #1e293b;">Reserva Rápida</h3>
+                    <div id="drawer-subtitle" style="font-size: 0.8rem; color: #64748b;">Selecciona el turno deseado en el calendario</div>
+                </div>
+            </div>
+            <div class="drawer-actions">
+                <button type="button" class="btn-drawer-tool" onclick="toggleDrawerFullscreen()" title="Pantalla completa / Tamaño normal">
+                    <i id="drawer-expand-icon" class="fas fa-expand"></i>
+                </button>
+                <button type="button" class="btn-drawer-tool btn-drawer-close" onclick="closeReservationDrawer()" title="Cerrar panel (Esc)">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        </div>
+        <div class="drawer-body">
+            <div id="drawer-loading-indicator" class="drawer-loader">
+                <div class="spinner"></div>
+                <p>Cargando cuadrante de reservas...</p>
+            </div>
+            <iframe id="reservation-drawer-iframe" src="" style="width: 100%; height: 100%; border: none;" allow="clipboard-read; clipboard-write"></iframe>
+        </div>
+    </div>
+
     <!-- Scripts -->
     <script src="firebase-config.js"></script>
     <script src="https://unpkg.com/dexie@latest/dist/dexie.js"></script>
@@ -720,6 +749,7 @@
     <script src="js/bono-pdf.js"></script>
     <script src="js/spa-payment-control.js"></script>
 
+    <script src="js/reservation-drawer.js?v=20261110"></script>
     <script src="js/bonos.js?v=mesachef_history_v2"></script>
     <script src="js/bonos-history-helper.js?v=mesachef_history_v2"></script>
 </body>

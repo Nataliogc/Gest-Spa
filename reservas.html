@@ -480,7 +480,7 @@
         <!-- LEFT: Cumbria Logo -->
         <div style="display: flex; align-items: center; gap: 15px;">
             <img src="logo-spa.jpg" alt="Cumbria Bienestar" style="height: 65px; width: auto; object-fit: contain;">
-            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.0.6 (09/11/2026)">v2.0.6</span>
+            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.1.0 (10/11/2026)">v2.1.0</span>
         </div>
 
         <ul class="nav-links" style="flex:1;">
@@ -5684,6 +5684,23 @@
                 }
 
                 closeModal();
+
+                // Notificar al Drawer padre si está embebido
+                if (window.parent && window.parent !== window) {
+                    try {
+                        window.parent.postMessage({
+                            type: 'GEST_SPA_RESERVATION_SUCCESS',
+                            voucher: payload.bono,
+                            servicio: payload.servicio,
+                            cliente: payload.cliente,
+                            fecha: date,
+                            hora: payload.hora || ''
+                        }, '*');
+                    } catch (eMsg) {
+                        console.warn("[EMBEDDED] Error notificando a ventana padre:", eMsg);
+                    }
+                }
+
                 // AUTO-CLOSE if window.opener... (same logic as before)
                 if (window.opener && !window.opener.closed && payload.origen === 'bono') {
                     setTimeout(() => window.close(), 500);
@@ -8062,6 +8079,11 @@
         document.addEventListener("DOMContentLoaded", () => {
             // AUTO-CAPTURE URL PARAMS FOR VOUCHER BOOKING
             const urlParams = new URLSearchParams(window.location.search);
+            const isEmbedded = (window.self !== window.top) || urlParams.get('embedded') === '1';
+            if (isEmbedded) {
+                document.body.classList.add('is-embedded');
+            }
+
             const action = urlParams.get('action');
             const voucher = urlParams.get('voucher');
             const client = urlParams.get('client');
@@ -8083,14 +8105,20 @@
                 console.log("Voucher Booking Pending:", bookingData);
 
                 // Clean URL
-                const newUrl = window.location.protocol + "//" + window.location.host + window.location.pathname + "?type=" + (urlParams.get('type') || 'spa');
+                const newUrl = window.location.protocol + "//" + window.location.host + window.location.pathname + "?type=" + (urlParams.get('type') || 'spa') + (isEmbedded ? '&embedded=1' : '');
                 window.history.replaceState({ path: newUrl }, '', newUrl);
 
                 // Show notice
                 const notice = document.createElement("div");
                 notice.id = "v-booking-notice";
-                notice.style = "position:fixed; top:80px; left:50%; transform:translateX(-50%); background:#ecfdf5; color:#065f46; padding:10px 20px; border-radius:30px; box-shadow:0 4px 12px rgba(0,0,0,0.1); z-index:9999; font-weight:600; display:flex; align-items:center; gap:10px;";
-                notice.innerHTML = `<i class="fas fa-ticket-alt"></i> Reservando con Bono: ${voucher}`;
+                const noticeTop = isEmbedded ? '15px' : '80px';
+                notice.style = `position:fixed; top:${noticeTop}; left:50%; transform:translateX(-50%); background:#ecfdf5; color:#065f46; padding:10px 20px; border-radius:30px; box-shadow:0 4px 12px rgba(0,0,0,0.1); z-index:9999; font-weight:600; display:flex; align-items:center; gap:10px;`;
+                
+                const closeBtnHtml = isEmbedded 
+                    ? `<button type="button" onclick="window.parent.postMessage({ type: 'GEST_SPA_CLOSE_DRAWER' }, '*');" style="background:#059669; color:#fff; border:none; border-radius:12px; padding:3px 10px; font-size:0.75rem; cursor:pointer; margin-left:8px;" title="Cancelar y volver a Bonos"><i class="fas fa-times"></i> Volver</button>`
+                    : '';
+                
+                notice.innerHTML = `<i class="fas fa-ticket-alt"></i> Reservando con Bono: ${voucher} ${closeBtnHtml}`;
                 document.body.appendChild(notice);
 
                 setTimeout(() => {
