@@ -8,7 +8,7 @@ Este documento mantiene el **control de versión única y global** para todo el 
 
 | Parámetro | Valor Actual |
 | :--- | :--- |
-| **Versión Global del Sistema** | **`v2.2.2`** |
+| **Versión Global del Sistema** | **`v2.3.0`** |
 | **Fecha de Última Actualización** | **10/11/2026** |
 | **Estado General** | Operativo en Producción |
 
@@ -47,6 +47,11 @@ Cualquier cambio en los siguientes módulos impacta en la versión global:
 ---
 
 ## 📝 Historial Unificado de Versiones
+
+### [v2.3.0] - 10/11/2026
+- **Tipo:** MINOR
+- **Archivos:** `agenda-salas.html`, `agenda-terapeutas.html`, `reservas-salas.html`
+- **Descripción:** Nuevo Planning de Ocupacion: desplegables Salas (Cabinas, Suite, Panacea, VIP, Peluqueria) y Terapeutas, reserva en 1 clic, turnos y fechas pasadas oscurecidos y bloqueados
 
 ### [v2.2.2] - 10/11/2026
 - **Tipo:** MINOR
