@@ -486,7 +486,7 @@
         <!-- LEFT: Cumbria Logo -->
         <div style="display: flex; align-items: center; gap: 15px;">
             <img src="logo-spa.jpg" alt="Cumbria Bienestar" style="height: 65px; width: auto; object-fit: contain;">
-            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.21 (10/11/2026)">v2.3.21</span>
+            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.22 (10/11/2026)">v2.3.22</span>
         </div>
 
         <ul class="nav-links" style="flex:1;">
@@ -860,6 +860,11 @@
                                     <select id="res-servicio" style="display: none;"
                                         onchange="updatePackInfo(); updatePriceAutomation(); updateStaffSelectorsVisibility(); syncServiceDuration();">
                                     </select>
+                                    <!-- ADVERTENCIA SALA / SERVICIO INCOMPATIBLE -->
+                                    <div id="service-room-compatibility-warning" style="display: none; margin-top: 6px; padding: 6px 10px; background: #fef2f2; border: 1px solid #fecaca; border-radius: 6px; font-size: 0.72rem; color: #991b1b; align-items: center; justify-content: space-between; gap: 8px;">
+                                        <div id="service-room-compatibility-text" style="font-weight: 600; flex: 1;"></div>
+                                        <button type="button" id="btn-fix-room-compatibility" style="background: #dc2626; color: white; border: none; padding: 4px 10px; border-radius: 4px; font-size: 0.7rem; font-weight: 700; cursor: pointer; white-space: nowrap;">Cambiar Sala</button>
+                                    </div>
                                 </div>
                             </div>
                             <!-- STAFF SELECTOR (Smaller) -->
@@ -2764,6 +2769,94 @@
             if (typeof updatePriceAutomation === 'function') updatePriceAutomation();
             if (typeof syncServiceDuration === 'function') syncServiceDuration();
             if (typeof updateStaffSelectorsVisibility === 'function') updateStaffSelectorsVisibility();
+            if (typeof checkServiceRoomCompatibility === 'function') checkServiceRoomCompatibility(val);
+        }
+
+        /**
+         * Comprueba si el servicio seleccionado es compatible con la sala activa en el modal.
+         * Si no es compatible (ej. un ritual que requiere Panacea/Suite seleccionado en Cabina Chon),
+         * muestra un banner de advertencia con un botón para cambiar automáticamente a la sala requerida.
+         */
+        function checkServiceRoomCompatibility(serviceName) {
+            const warningDiv = document.getElementById("service-room-compatibility-warning");
+            const warningText = document.getElementById("service-room-compatibility-text");
+            const fixBtn = document.getElementById("btn-fix-room-compatibility");
+            if (!warningDiv || !warningText) return;
+
+            if (!serviceName) {
+                warningDiv.style.display = "none";
+                return;
+            }
+
+            const currentRoomSel = document.getElementById("res-sala");
+            const currentRoomVal = (currentRoomSel && currentRoomSel.value) ? currentRoomSel.value.toLowerCase() : (currentModule?.code || '');
+            const currentRoomName = currentRoomSel?.selectedOptions?.[0]?.text || currentRoomVal.toUpperCase();
+
+            // Obtener espacios requeridos del pack o servicio
+            const cleanName = serviceName.replace(/^PACK\s*[-–—:]\s*/i, '').trim();
+            const packData = (typeof window.getPackFullData === 'function')
+                ? window.getPackFullData(cleanName, currentServices || [], window.masterItems || [])
+                : null;
+
+            let requiredSpaces = [];
+            if (packData && Array.isArray(packData.secuencia) && packData.secuencia.length > 0) {
+                requiredSpaces = [...new Set(packData.secuencia.map(s => (s.espacio || 'panacea').toLowerCase()))];
+            } else {
+                const item = (currentServices || []).find(s => (s.nombre || s.name || '').toLowerCase() === serviceName.toLowerCase()) ||
+                             (window.masterItems || []).find(m => (m.name || m.nombre || '').toLowerCase() === serviceName.toLowerCase());
+                if (item) {
+                    const raw = item.allowedSpaces || (item.espacio ? [item.espacio] : []);
+                    requiredSpaces = (Array.isArray(raw) ? raw : [raw]).map(s => String(s).toLowerCase());
+                }
+            }
+
+            // Si el nombre contiene "Ritual" o "Asian Journey" o "Panacea" y no tiene espacios explícitos
+            const sLower = serviceName.toLowerCase();
+            if (requiredSpaces.length === 0) {
+                if (sLower.includes('asian journey') || sLower.includes('indian ritual') || sLower.includes('chocolaterapia') || sLower.includes('cítrico') || sLower.includes('citrico')) {
+                    requiredSpaces = ['panacea', 'suite'];
+                }
+            }
+
+            if (requiredSpaces.length === 0) {
+                warningDiv.style.display = "none";
+                return;
+            }
+
+            // Normalizar salas de cabinas
+            const isCurrentCabina = ['cabina', 'cabina1', 'cabina2', 'cabina3', 'chon', 'cabinas'].includes(currentRoomVal) || currentModule?.code === 'cabinas';
+
+            const isCompatible = requiredSpaces.some(sp => {
+                if (sp === currentRoomVal) return true;
+                if (isCurrentCabina && (sp.includes('cabina') || sp === 'cabinas')) return true;
+                if (currentRoomVal.includes(sp)) return true;
+                return false;
+            });
+
+            if (!isCompatible) {
+                const targetSpace = requiredSpaces[0].toUpperCase();
+                warningText.innerHTML = `<i class="fas fa-exclamation-triangle" style="margin-right:4px;"></i> Este servicio no se puede realizar en <strong>${currentRoomName}</strong>. Requiere sala <strong>${targetSpace}</strong>.`;
+                if (fixBtn) {
+                    fixBtn.textContent = `Cambiar a ${targetSpace}`;
+                    fixBtn.onclick = function() {
+                        if (currentRoomSel) {
+                            let matchOpt = Array.from(currentRoomSel.options).find(o => 
+                                o.value.toLowerCase().includes(requiredSpaces[0]) || o.text.toLowerCase().includes(requiredSpaces[0])
+                            );
+                            if (matchOpt) {
+                                currentRoomSel.value = matchOpt.value;
+                                currentRoomSel.dispatchEvent(new Event('change', { bubbles: true }));
+                                checkServiceRoomCompatibility(serviceName);
+                            } else {
+                                window.location.href = `reservas-salas.html?type=${requiredSpaces[0]}`;
+                            }
+                        }
+                    };
+                }
+                warningDiv.style.display = "flex";
+            } else {
+                warningDiv.style.display = "none";
+            }
         }
 
         function filterServiceOptions(query) {
@@ -2806,49 +2899,89 @@
         });
 
         /**
-         * Controla la visibilidad del segundo selector de terapeuta basado en la configuración del servicio
+         * Controla la visibilidad del selector de terapeutas (1 y 2) según los requerimientos reales del servicio o pack
          */
         function updateStaffSelectorsVisibility() {
             const serviceSelect = document.getElementById('res-servicio');
             const staff2Container = document.getElementById('staff-2-container');
             const bookingStaff2 = document.getElementById('booking-staff-2');
-
-            if (!serviceSelect || !staff2Container) return;
-
-            // Si el contenedor está oculto por lógica del módulo (ej. SPA), no hacemos nada
             const staffSelectorGroup = document.getElementById('staff-selector-group');
-            if (staffSelectorGroup && staffSelectorGroup.style.display === 'none') {
-                staff2Container.style.display = 'none';
-                if (bookingStaff2) bookingStaff2.value = '';
-                return;
+            const bookingStaff = document.getElementById('booking-staff');
+            const labelStaff1 = document.getElementById('label-staff-1');
+
+            if (!serviceSelect) return;
+
+            const selectedService = (serviceSelect.value || '').trim();
+            const pax = parseInt(document.getElementById("res-pax")?.value) || 1;
+
+            // 1. Determinar terapeutas requeridos
+            let requiredTherapists = 1;
+            const cleanName = selectedService.replace(/^PACK\s*[-–—:]\s*/i, '').trim();
+            const packData = (typeof window.getPackFullData === 'function')
+                ? window.getPackFullData(cleanName, currentServices || [], window.masterItems || [])
+                : null;
+
+            if (packData && Array.isArray(packData.secuencia) && packData.secuencia.length > 0) {
+                const counts = packData.secuencia.map(s => {
+                    if (s.terapeutas !== undefined) return parseInt(s.terapeutas) || 0;
+                    return s.requires_therapist !== false ? 1 : 0;
+                });
+                requiredTherapists = Math.max(0, ...counts);
+            } else if (window._packItems && Array.isArray(window._packItems) && window._packItems.length > 0) {
+                const counts = window._packItems.map(s => {
+                    if (s.terapeutas !== undefined) return parseInt(s.terapeutas) || 0;
+                    return s.requires_therapist !== false ? 1 : 0;
+                });
+                requiredTherapists = Math.max(0, ...counts);
+            } else if (selectedService) {
+                const sLower = selectedService.toLowerCase();
+                if (sLower.includes('suite spa') && !sLower.includes('masaje')) {
+                    requiredTherapists = 0;
+                } else if (window.masterItems) {
+                    const item = window.masterItems.find(i => (i.name || i.nombre || '').toLowerCase() === selectedService.toLowerCase());
+                    if (item && item.required_therapists !== undefined) {
+                        requiredTherapists = parseInt(item.required_therapists) || 0;
+                    } else if (item && item.pax === 2 && (item.category || "").includes('masaje')) {
+                        requiredTherapists = 2;
+                    }
+                }
             }
 
-            const selectedService = serviceSelect.value;
-            let requiredTherapists = 1;
-
-            if (selectedService && window.masterItems) {
-                const item = window.masterItems.find(i => i.name === selectedService);
-                if (item && item.required_therapists) {
-                    requiredTherapists = parseInt(item.required_therapists);
-                } else if (item && item.pax === 2 && (item.category || "").includes('masaje')) {
+            // Si es un servicio para 2 PAX con masajes o tratamiento compartido, requiere 2 terapeutas
+            if (pax >= 2 && requiredTherapists === 1) {
+                const sLower = selectedService.toLowerCase();
+                if (sLower.includes('pareja') || sLower.includes('para dos') || sLower.includes('dúo') || sLower.includes('duo') || sLower.includes('masaje')) {
                     requiredTherapists = 2;
                 }
             }
 
-            const labelStaff1 = document.getElementById('label-staff-1');
+            // 2. Aplicar visibilidad
+            if (requiredTherapists === 0) {
+                // Pack o servicio sin terapeuta (ej. Suite Spa, Aventura para dos, Tiempo para dos)
+                if (staffSelectorGroup) staffSelectorGroup.style.display = 'none';
+                if (staff2Container) staff2Container.style.display = 'none';
+                if (bookingStaff) { bookingStaff.required = false; bookingStaff.value = ''; }
+                if (bookingStaff2) { bookingStaff2.value = ''; }
+                return;
+            }
+
+            // Requiere al menos 1 terapeuta
+            if (staffSelectorGroup) {
+                staffSelectorGroup.style.display = 'block';
+                if (bookingStaff) bookingStaff.required = true;
+            }
 
             if (requiredTherapists >= 2) {
-                staff2Container.style.display = 'block';
+                if (staff2Container) staff2Container.style.display = 'block';
                 if (labelStaff1) labelStaff1.textContent = 'Terapeuta 1';
 
                 // Asegurar que el selector 2 tenga opciones
-                const staff1 = document.getElementById('booking-staff');
-                if (staff1 && bookingStaff2 && bookingStaff2.options.length <= 1) {
-                    bookingStaff2.innerHTML = staff1.innerHTML;
+                if (bookingStaff && bookingStaff2 && bookingStaff2.options.length <= 1) {
+                    bookingStaff2.innerHTML = bookingStaff.innerHTML;
                     bookingStaff2.value = '';
                 }
             } else {
-                staff2Container.style.display = 'none';
+                if (staff2Container) staff2Container.style.display = 'none';
                 if (bookingStaff2) bookingStaff2.value = '';
                 if (labelStaff1) labelStaff1.textContent = 'Terapeuta';
             }
@@ -3632,8 +3765,8 @@
 
             if (hasRestaurant || hasHotel || hasCava) {
                 html += `<div style="margin-top: 8px; padding: 6px 10px; background: #fefce8; border: 1px solid #fef08a; border-radius: 6px; display: flex; flex-direction: column; gap: 3px; font-size: 0.72rem; color: #854d0e;">`;
-                if (hasRestaurant) html += `<div><i class="fas fa-utensils" style="color:#d97706; margin-right:5px;"></i> <strong>Restaurante:</strong> Incluye servicio de comida/menú en Restaurante Guadiana (gestión directa fuera de agenda SPA).</div>`;
-                if (hasHotel) html += `<div><i class="fas fa-hotel" style="color:#2563eb; margin-right:5px;"></i> <strong>Hotel:</strong> Incluye alojamiento en Hotel Guadiana.</div>`;
+                if (hasRestaurant) html += `<div><i class="fas fa-utensils" style="color:#d97706; margin-right:5px;"></i> <strong>Restaurante:</strong> Incluye servicio de comida/menú en Restaurante Cumbria (gestión directa fuera de agenda SPA).</div>`;
+                if (hasHotel) html += `<div><i class="fas fa-hotel" style="color:#2563eb; margin-right:5px;"></i> <strong>Hotel:</strong> Incluye alojamiento en Hotel Cumbria.</div>`;
                 if (hasCava) html += `<div><i class="fas fa-wine-bottle" style="color:#7c3aed; margin-right:5px;"></i> <strong>Detalle:</strong> Incluye botella de Cava.</div>`;
                 html += `</div>`;
             }
@@ -5669,18 +5802,74 @@
                 btn.disabled = true;
                 btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Guardando...';
 
-                // --- VALIDACIÓN DE PERSONAL (FLEXIBLE) ---
-                // Logic: Hide staff for "Suite Spa" basic service, keep for others (Massages) if module requires it
-                let requiresStaffForThisBooking = currentModule.requiresStaff;
-                if (currentModule.code === 'suite' && svcName && svcName.toLowerCase().includes('suite spa')) {
-                    requiresStaffForThisBooking = false;
+                // --- VALIDACIÓN DE SALA Y SERVICIO (COMPATIBILIDAD) ---
+                const currentRoomVal = (roomSel && roomSel.value) ? roomSel.value.toLowerCase() : (currentModule?.code || '');
+                const currentRoomName = roomSel?.selectedOptions?.[0]?.text || currentRoomVal.toUpperCase();
+
+                const cleanSvc = (svcName || '').replace(/^PACK\s*[-–—:]\s*/i, '').trim();
+                const packDataForSave = (typeof window.getPackFullData === 'function')
+                    ? window.getPackFullData(cleanSvc, currentServices || [], window.masterItems || [])
+                    : null;
+
+                let reqSpacesForSave = [];
+                if (packDataForSave && Array.isArray(packDataForSave.secuencia) && packDataForSave.secuencia.length > 0) {
+                    reqSpacesForSave = [...new Set(packDataForSave.secuencia.map(s => (s.espacio || 'panacea').toLowerCase()))];
+                } else if (itemConfig && itemConfig.allowedSpaces) {
+                    reqSpacesForSave = itemConfig.allowedSpaces.map(s => String(s).toLowerCase());
+                } else if (svcName.toLowerCase().includes('asian journey') || svcName.toLowerCase().includes('indian ritual')) {
+                    reqSpacesForSave = ['panacea', 'suite'];
                 }
-                if (itemConfig && itemConfig.required_therapists === 0) {
+
+                const isCurrentCabina = ['cabina', 'cabina1', 'cabina2', 'cabina3', 'chon', 'cabinas'].includes(currentRoomVal) || currentModule?.code === 'cabinas';
+                const isRoomMatch = reqSpacesForSave.length === 0 || reqSpacesForSave.some(sp => sp === currentRoomVal || (isCurrentCabina && sp.includes('cabina')) || currentRoomVal.includes(sp));
+
+                if (!isRoomMatch && !isForced) {
+                    const targetSpace = reqSpacesForSave[0].toUpperCase();
+                    alert(`⛔ Este servicio no se puede realizar en la sala ${currentRoomName}.\nRequiere sala ${targetSpace}. Cambia la sala antes de guardar.`);
+                    isSavingReservation = false; btn.disabled = false; btn.innerHTML = originalText; return;
+                }
+
+                // --- VALIDACIÓN DE PERSONAL (FLEXIBLE) ---
+                let requiresStaffForThisBooking = currentModule.requiresStaff;
+                let requiredTherapistsCount = 1;
+
+                if (packDataForSave && Array.isArray(packDataForSave.secuencia) && packDataForSave.secuencia.length > 0) {
+                    const counts = packDataForSave.secuencia.map(s => {
+                        if (s.terapeutas !== undefined) return parseInt(s.terapeutas) || 0;
+                        return s.requires_therapist !== false ? 1 : 0;
+                    });
+                    requiredTherapistsCount = Math.max(0, ...counts);
+                    if (requiredTherapistsCount === 0) {
+                        requiresStaffForThisBooking = false;
+                    }
+                } else if (window._packItems && Array.isArray(window._packItems) && window._packItems.length > 0) {
+                    const counts = window._packItems.map(s => {
+                        if (s.terapeutas !== undefined) return parseInt(s.terapeutas) || 0;
+                        return s.requires_therapist !== false ? 1 : 0;
+                    });
+                    requiredTherapistsCount = Math.max(0, ...counts);
+                    if (requiredTherapistsCount === 0) {
+                        requiresStaffForThisBooking = false;
+                    }
+                } else if (svcName && svcName.toLowerCase().includes('suite spa') && !svcName.toLowerCase().includes('masaje')) {
                     requiresStaffForThisBooking = false;
+                    requiredTherapistsCount = 0;
+                } else if (itemConfig && itemConfig.required_therapists !== undefined) {
+                    requiredTherapistsCount = parseInt(itemConfig.required_therapists) || 0;
+                    if (requiredTherapistsCount === 0) {
+                        requiresStaffForThisBooking = false;
+                    }
+                }
+
+                const pax = parseInt(document.getElementById("res-pax").value) || 1;
+                if (pax >= 2 && requiredTherapistsCount === 1) {
+                    const sLower = svcName.toLowerCase();
+                    if (sLower.includes('pareja') || sLower.includes('para dos') || sLower.includes('dúo') || sLower.includes('duo') || sLower.includes('masaje')) {
+                        requiredTherapistsCount = 2;
+                    }
                 }
 
                 if (requiresStaffForThisBooking && !isAgendaLess) {
-                    const pax = parseInt(document.getElementById("res-pax").value) || 1;
                     const staffId = document.getElementById("booking-staff")?.value;
                     const staffId2 = document.getElementById("booking-staff-2")?.value;
 
@@ -5694,8 +5883,8 @@
                         }
                     }
 
-                    // For 2 PAX, require 2nd staff
-                    if (pax > 1 && !staffId2) {
+                    // For 2 PAX, require 2nd staff ONLY if service actually demands 2 therapists
+                    if (pax > 1 && requiredTherapistsCount >= 2 && !staffId2) {
                         if (isLocalSaleFlow && !isForced) {
                             revealConflictWarning("Falta asignar el segundo terapeuta para 2 pax.", formDate, formTime, 60, currentModule.code);
                             isSavingReservation = false; btn.disabled = false; btn.innerHTML = originalText; return;
@@ -5710,7 +5899,6 @@
                 let id = document.getElementById("form-id").value || window.currentEditingId;
                 let date = document.getElementById("form-date").value;
                 let time = document.getElementById("form-time").value;
-                const pax = parseInt(document.getElementById("res-pax").value) || 0;
                 const sesionesConsumidas = parseInt(document.getElementById("res-sesiones")?.value) || 1;
                 const duration = parseInt(document.getElementById("inputDuration")?.value || 60);
 
@@ -6792,6 +6980,30 @@
             const changeEvent = new Event('change', { bubbles: true });
             timeField.dispatchEvent(changeEvent);
 
+            // Refrescar disponibilidad de terapeutas y auto-asignar el personal libre disponible
+            if (typeof window.handleStaffFieldsChange === 'function') {
+                window.handleStaffFieldsChange().then(() => {
+                    const staff1 = document.getElementById('booking-staff');
+                    const staff2 = document.getElementById('booking-staff-2');
+                    if (staff1 && (!staff1.value || staff1.value === '') && staff1.options.length > 1) {
+                        for (let i = 1; i < staff1.options.length; i++) {
+                            if (!staff1.options[i].disabled) {
+                                staff1.selectedIndex = i;
+                                break;
+                            }
+                        }
+                    }
+                    if (staff2 && (!staff2.value || staff2.value === '') && staff2.options.length > 1) {
+                        for (let i = 1; i < staff2.options.length; i++) {
+                            if (!staff2.options[i].disabled && staff2.options[i].value !== staff1?.value) {
+                                staff2.selectedIndex = i;
+                                break;
+                            }
+                        }
+                    }
+                }).catch(e => console.warn('[ALTERNATIVE] Error auto-assigning staff:', e));
+            }
+
             // Hide conflict warning
             const conflictContainer = document.getElementById('conflict-warning-container');
             if (conflictContainer) {
@@ -6799,7 +7011,7 @@
             }
 
             // Show success message
-            showToast(`✓ Hora cambiada a ${time}`, 'success');
+            showToast(`✓ Hora cambiada a ${time} (Disponibilidad actualizada)`, 'success');
 
             console.log('[ALTERNATIVE] Time field updated to:', timeField.value);
         };

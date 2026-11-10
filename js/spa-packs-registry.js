@@ -1,7 +1,7 @@
 /**
  * spa-packs-registry.js
  * Registro Unificado de Packs, Secuencias y Tratamientos Multicabina
- * Cumbia Spa & Hotel Guadiana
+ * Cumbria Spa & Hotel
  */
 
 (function (root) {

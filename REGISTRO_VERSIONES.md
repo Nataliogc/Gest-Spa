@@ -8,7 +8,7 @@ Este documento mantiene el **control de versión única y global** para todo el 
 
 | Parámetro | Valor Actual |
 | :--- | :--- |
-| **Versión Global del Sistema** | **`v2.3.21`** |
+| **Versión Global del Sistema** | **`v2.3.22`** |
 | **Fecha de Última Actualización** | **10/11/2026** |
 | **Estado General** | Operativo en Producción |
 
@@ -47,6 +47,11 @@ Cualquier cambio en los siguientes módulos impacta en la versión global:
 ---
 
 ## 📝 Historial Unificado de Versiones
+
+### [v2.3.22] - 10/11/2026
+- **Tipo:** PATCH
+- **Archivos:** `index.html`, `js/dashboard.js`, `js/spa-packs-registry.js`, `reservas-salas.html`, `reservas-spa.html`, `reservas.html`
+- **Descripción:** Fix reservas-spa syntax, unify daily cash stats, enable 2 therapists in couples packs, zero-therapist packs validation, and room-service compatibility check
 
 ### [v2.3.21] - 10/11/2026
 - **Tipo:** PATCH

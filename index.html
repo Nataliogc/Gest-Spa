@@ -39,7 +39,7 @@
     <div class="sidebar">
         <div style="display: flex; align-items: center; gap: 15px;">
             <img src="logo-spa.jpg" alt="Cumbria Bienestar" style="height: 65px; width: auto; object-fit: contain;">
-            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.21 (10/11/2026)">v2.3.21</span>
+            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.22 (10/11/2026)">v2.3.22</span>
         </div>
 
         <ul class="nav-links" style="flex:1;">
@@ -283,28 +283,60 @@
                         </div>
 
                         <!-- Stats Vertical Stack -->
-                        <div style="display: grid; grid-template-columns: 1fr; gap: 12px;">
-                            <div class="stat-card stat-premium compact">
-                                <div class="stat-icon icon-gold"><i class="fas fa-cash-register"></i></div>
-                                <div>
-                                    <h3>Ventas Local</h3>
-                                    <p id="stat-ventas-local" class="stat-value">0.00 €</p>
+                        <div style="display: grid; grid-template-columns: 1fr; gap: 10px;">
+                            
+                            <!-- 1. CAJA DEL DÍA (TOTAL ARQUEO) -->
+                            <div class="stat-card stat-premium compact" onclick="openCajaModal()" style="cursor: pointer; background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%); border: 1px solid #fde68a;" title="Abrir Arqueo y Desglose completo de Caja del Día">
+                                <div class="stat-icon icon-gold" style="background: rgba(217, 119, 6, 0.15); color: #d97706;"><i class="fas fa-cash-register"></i></div>
+                                <div style="flex: 1;">
+                                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                                        <h3 style="color: #92400e; font-weight: 800; margin: 0; font-size: 0.72rem; text-transform: uppercase;">Caja del Día</h3>
+                                        <i class="fas fa-external-link-alt" style="font-size: 0.65rem; color: #b45309;"></i>
+                                    </div>
+                                    <p id="stat-caja-total" class="stat-value" style="color: #92400e; font-size: 1.25rem; font-weight: 800; margin-top: 2px;">0,00 €</p>
                                 </div>
                             </div>
-                            <div class="stat-card stat-premium compact">
-                                <div class="stat-icon icon-blue"><i class="fas fa-globe"></i></div>
+
+                            <!-- 2. EFECTIVO -->
+                            <div class="stat-card stat-premium compact" onclick="openCajaModal(); filterCajaTable('efectivo');" style="cursor: pointer;" title="Cobros del día en efectivo">
+                                <div class="stat-icon icon-gold"><i class="fas fa-money-bill-wave"></i></div>
                                 <div>
-                                    <h3>Ventas Online</h3>
-                                    <p id="stat-ventas-online" class="stat-value">0.00 €</p>
+                                    <h3>Efectivo</h3>
+                                    <p id="stat-caja-efectivo" class="stat-value" style="color: #d97706;">0,00 €</p>
                                 </div>
                             </div>
-                            <div class="stat-card stat-premium compact" title="Total cobrado mediante pasarela Redsys PayGold">
-                                <div class="stat-icon icon-green"><i class="fas fa-credit-card"></i></div>
+
+                            <!-- 3. TARJETA (TPV) -->
+                            <div class="stat-card stat-premium compact" onclick="openCajaModal(); filterCajaTable('tarjeta');" style="cursor: pointer;" title="Cobros del día con tarjeta / TPV físico">
+                                <div class="stat-icon icon-blue"><i class="fas fa-credit-card"></i></div>
+                                <div>
+                                    <h3>Tarjeta (TPV)</h3>
+                                    <p id="stat-caja-tarjeta" class="stat-value" style="color: #2563eb;">0,00 €</p>
+                                </div>
+                            </div>
+
+                            <!-- 4. PASARELA DE PAGO (PayGold / Redsys) -->
+                            <div class="stat-card stat-premium compact" onclick="openCajaModal(); filterCajaTable('pasarela');" style="cursor: pointer;" title="Cobros mediante pasarela Redsys PayGold">
+                                <div class="stat-icon icon-green"><i class="fas fa-link"></i></div>
                                 <div>
                                     <h3>Pagos Pasarela</h3>
-                                    <p id="stat-pagos-pasarela" class="stat-value" style="color: #10b981;">0.00 €</p>
+                                    <p id="stat-pagos-pasarela" class="stat-value" style="color: #059669;">0,00 €</p>
                                 </div>
                             </div>
+
+                            <!-- 5. TIENDA VIRTUAL (WooCommerce / Online) -->
+                            <div class="stat-card stat-premium compact" onclick="openCajaModal(); filterCajaTable('tienda_virtual');" style="cursor: pointer;" title="Ventas online de la tienda virtual">
+                                <div class="stat-icon icon-purple"><i class="fas fa-shopping-cart"></i></div>
+                                <div>
+                                    <h3>Tienda Virtual</h3>
+                                    <p id="stat-ventas-online" class="stat-value" style="color: #7c3aed;">0,00 €</p>
+                                </div>
+                            </div>
+
+                            <!-- Elemento de compatibilidad para scripts que busquen stat-ventas-local -->
+                            <span id="stat-ventas-local" style="display: none;">0,00 €</span>
+
+                            <!-- 6. OCUPACIÓN SUITE / PANACEA -->
                             <div class="stat-card stat-premium compact">
                                 <div class="stat-icon icon-purple"><i class="fas fa-bed"></i></div>
                                 <div>
@@ -312,6 +344,8 @@
                                     <p id="stat-ocup-suite-panacea" class="stat-value" style="color: #6366f1;">0%</p>
                                 </div>
                             </div>
+
+                            <!-- 7. OCUPACIÓN CIRCUITO SPA -->
                             <div class="stat-card stat-premium compact">
                                 <div class="stat-icon icon-purple" style="background: #ecfdf5; color: #10b981;"><i
                                         class="fas fa-water"></i></div>
