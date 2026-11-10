@@ -480,7 +480,7 @@
         <!-- LEFT: Cumbria Logo -->
         <div style="display: flex; align-items: center; gap: 15px;">
             <img src="logo-spa.jpg" alt="Cumbria Bienestar" style="height: 65px; width: auto; object-fit: contain;">
-            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.2.0 (10/11/2026)">v2.2.0</span>
+            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.2.1 (10/11/2026)">v2.2.1</span>
         </div>
 
         <ul class="nav-links" style="flex:1;">
@@ -2336,17 +2336,16 @@
             const roomSel = document.getElementById("res-sala");
             // Use selected room code OR current module code as fallback
             const roomCodeRaw = (roomSel && roomSel.value) ? roomSel.value : currentModule.code;
-            const roomCode = roomCodeRaw.toLowerCase();
-            const salaActual = roomCode.startsWith('cabina') ? 'cabina' : roomCode;
+            const roomCode = (roomCodeRaw || 'cabinas').toLowerCase().trim();
+            const isDedicatedNonCabina = ['suite', 'panacea', 'vip', 'peluqueria', 'spa', 'restaurante', 'gimnasio'].includes(roomCode);
+            const isCabina = roomCode.startsWith('cabina') || !isDedicatedNonCabina;
+            const salaActual = isCabina ? 'cabina' : roomCode;
 
             // Determine Origin / Flow
             const origenVal = document.getElementById("res-origen")?.value || 'particular';
             const isLocalFlow = (origenVal === 'particular' || origenVal === 'hotel_no_inc' || origenVal === 'venta_local');
 
             let servicesToShow = [];
-
-            // --- 1. FLOW DECISION LOGIC ---
-            const isCabina = roomCode.startsWith('cabina');
 
             if (isCabina) {
                 // --- CABINA DEFINITIVE LOGIC (STRICT MASTER + ORIGIN INDEPENDENT) ---
@@ -3047,10 +3046,15 @@
             let serviceData = (window.masterItems || []).find(s => s.name === svcName);
             if (!serviceData) {
                 // Try fuzzy match or trimming
-                serviceData = (window.masterItems || []).find(s => s.name.trim() === svcName.trim());
+                serviceData = (window.masterItems || []).find(s => (s.name || '').trim().toLowerCase() === (svcName || '').trim().toLowerCase());
             }
-            if (!serviceData) {
-                serviceData = currentServices.find(s => s.nombre === svcName);
+            if (!serviceData && typeof currentServices !== 'undefined' && currentServices) {
+                serviceData = currentServices.find(s => (s.nombre || s.name || '').trim().toLowerCase() === (svcName || '').trim().toLowerCase());
+            }
+            if (!serviceData && svcName) {
+                // Fuzzy match: ignore duration e.g. "Masaje Relax - 60'" vs "Masaje Relax"
+                const cleanSvc = svcName.toLowerCase().replace(/[-–]\s*\d+\s*['m].*$/, '').trim();
+                serviceData = (window.masterItems || []).find(s => (s.name || '').toLowerCase().includes(cleanSvc));
             }
 
             if (serviceData) {
@@ -3085,12 +3089,18 @@
                 if (dateTimeGroup) dateTimeGroup.style.display = "flex";
                 if (staffGroup) {
                     // Logic: Hide staff for "Suite Spa" basic service, keep for others (Massages) if module requires it
-                    let showStaff = currentModule.requiresStaff;
+                    let showStaff = currentModule.requiresStaff !== false;
                     if (currentModule.code === 'suite' && svcName && svcName.toLowerCase().includes('suite spa')) {
                         showStaff = false;
                     }
                     if (serviceData && parseInt(serviceData.required_therapists) === 0) {
                         showStaff = false;
+                    }
+
+                    // Si el servicio es masaje, facial, estética, ritual o tratamiento, SIEMPRE mostrar selector de terapeuta
+                    const sLower = (svcName || '').toLowerCase();
+                    if (sLower.includes('masaje') || sLower.includes('facial') || sLower.includes('relax') || sLower.includes('envoltura') || sLower.includes('ritual') || sLower.includes('tratamiento')) {
+                        showStaff = true;
                     }
 
                     staffGroup.style.display = showStaff ? "block" : "none";
@@ -3099,7 +3109,6 @@
                     const bookingStaff = document.getElementById("booking-staff");
                     if (bookingStaff) {
                         bookingStaff.required = showStaff;
-                        if (!showStaff) bookingStaff.value = "";
                     }
                 }
                 const saveBtn = document.getElementById("btn-save-booking");
@@ -4569,44 +4578,6 @@
             populateServices();
             renderComplementos();
 
-            // AUTO-FILL FROM PENDING VOUCHER (Mesa Chef / Bonos)
-            const pcVoucher = sessionStorage.getItem('pendingVoucherBooking');
-            if (pcVoucher) {
-                try {
-                    const pv = JSON.parse(pcVoucher);
-                    console.log("[AUTO-FILL] Filling form with voucher data:", pv);
-
-                    document.getElementById("res-nombre").value = pv.cliente || '';
-                    document.getElementById("res-origen").value = 'bono'; // Set Type to "Spa (Nº Bono)"
-
-                    const bField = document.getElementById("res-bono");
-                    if (bField) {
-                        bField.value = pv.bono || '';
-                        // Trigger visual validation immediately
-                        triggerBalanceCheck();
-                    }
-
-                    if (pv.telefono) document.getElementById("res-tel").value = pv.telefono;
-
-                    // Try to match service name roughly
-                    if (pv.producto) {
-                        const svcInput = document.getElementById("res-servicio");
-                        if (svcInput) {
-                            // Try exact match first
-                            let match = currentServices.find(s => (s.nombre || '').toLowerCase() === pv.producto.toLowerCase());
-                            if (!match) {
-                                // Try partial match
-                                match = currentServices.find(s => (s.nombre || '').toLowerCase().includes(pv.producto.toLowerCase()));
-                            }
-                            if (match) svcInput.value = match.nombre;
-                        }
-                    }
-
-                } catch (e) {
-                    console.error("Error auto-filling voucher:", e);
-                }
-            }
-
             // Default service logic
             const resService = document.getElementById("res-servicio");
             if (resService) {
@@ -4712,11 +4683,27 @@
                 }
             }
 
-            // AUTO-RELLENAR SI HAY BONO PENDIENTE
-            const pending = sessionStorage.getItem('pendingVoucherBooking');
-            if (pending) {
+            // AUTO-RELLENAR SI HAY BONO PENDIENTE (SOLO SI LA URL CONTIENE UN BONO EXPLÍCITO)
+            const currentUrlParams = new URLSearchParams(window.location.search);
+            const hasExplicitVoucher = !!(currentUrlParams.get('voucher') || window._isExplicitVoucherBooking);
+            const pending = hasExplicitVoucher ? sessionStorage.getItem('pendingVoucherBooking') : null;
+
+            // Si hay un bono residual en memoria pero la reserva actual NO es de bono, limpiarlo de inmediato
+            if (!hasExplicitVoucher && sessionStorage.getItem('pendingVoucherBooking')) {
+                console.log("[CLEANUP] Eliminando bono residual de sessionStorage para no contaminar reserva directa");
+                sessionStorage.removeItem('pendingVoucherBooking');
+                const staleNotice = document.getElementById("bono-saldo-notice");
+                if (staleNotice) {
+                    staleNotice.innerHTML = "";
+                    staleNotice.style.display = "none";
+                }
+                const staleBanner = document.getElementById("v-booking-notice");
+                if (staleBanner) staleBanner.remove();
+            }
+
+            if (hasExplicitVoucher && pending) {
                 const data = JSON.parse(pending);
-                document.getElementById("res-nombre").value = data.cliente;
+                document.getElementById("res-nombre").value = data.cliente || '';
                 document.getElementById("res-origen").value = "bono";
                 document.getElementById("res-bono").value = data.bono || "";
 
@@ -4767,6 +4754,10 @@
                 document.getElementById("res-sesiones").value = Math.ceil(pax / paxPerSession);
 
                 toggleRoomField(); // Update fields visibility based on new origin
+
+                // Consumir de memoria para no dejar rastro
+                sessionStorage.removeItem('pendingVoucherBooking');
+                window._isExplicitVoucherBooking = false;
             }
 
             toggleRoomField();
@@ -5413,6 +5404,20 @@
             window._spaOverbookingModeBase = null;
             window._spaOverbookingMode = null;
             window._spaReceptionist = null;
+
+            // Limpiar SIEMPRE cualquier bono residual en memoria al salir o cerrar
+            clearPendingVoucher();
+            sessionStorage.removeItem('pendingVoucherBooking');
+            sessionStorage.removeItem('pendingVoucherBookingData');
+            window._isExplicitVoucherBooking = false;
+
+            const bonoNotice = document.getElementById("bono-saldo-notice");
+            if (bonoNotice) {
+                bonoNotice.innerHTML = "";
+                bonoNotice.style.display = "none";
+            }
+            const vNotice = document.getElementById("v-booking-notice");
+            if (vNotice) vNotice.remove();
 
             // Si el usuario canceló manualmente y estamos dentro del Drawer, cerrar Drawer
             if (fromUserCancel && window.parent && window.parent !== window) {

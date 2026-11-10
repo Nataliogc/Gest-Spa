@@ -8,7 +8,7 @@ Este documento mantiene el **control de versión única y global** para todo el 
 
 | Parámetro | Valor Actual |
 | :--- | :--- |
-| **Versión Global del Sistema** | **`v2.2.0`** |
+| **Versión Global del Sistema** | **`v2.2.1`** |
 | **Fecha de Última Actualización** | **10/11/2026** |
 | **Estado General** | Operativo en Producción |
 
@@ -47,6 +47,11 @@ Cualquier cambio en los siguientes módulos impacta en la versión global:
 ---
 
 ## 📝 Historial Unificado de Versiones
+
+### [v2.2.1] - 10/11/2026
+- **Tipo:** PATCH
+- **Archivos:** `reservas-salas.html`, `reservas-spa.html`, `reservas.html`
+- **Descripción:** Limpieza estricta de bonos residuales en sessionStorage y corrección de precio y terapeuta en salas
 
 ### [v2.2.0] - 10/11/2026
 - **Tipo:** MINOR
