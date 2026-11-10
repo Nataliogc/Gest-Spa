@@ -480,7 +480,7 @@
         <!-- LEFT: Cumbria Logo -->
         <div style="display: flex; align-items: center; gap: 15px;">
             <img src="logo-spa.jpg" alt="Cumbria Bienestar" style="height: 65px; width: auto; object-fit: contain;">
-            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.18 (10/11/2026)">v2.3.18</span>
+            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.19 (10/11/2026)">v2.3.19</span>
         </div>
 
         <ul class="nav-links" style="flex:1;">
@@ -1270,6 +1270,8 @@
     <!-- Dexie loaded by db-local.js -->
     <!-- <script src="https://unpkg.com/dexie@latest/dist/dexie.js"></script> -->
     <script src="js/app-core.js"></script>
+    <script src="js/spa-packs-registry.js?v=2.3.19"></script>
+    <script src="js/service-pricing.js?v=2.3.19"></script>
 
     <script>
         const db = firebase.firestore();
@@ -3241,7 +3243,8 @@
 
 
         function updatePackInfo() {
-            const svcName = document.getElementById("res-servicio")?.value;
+            const svcSelect = document.getElementById("res-servicio");
+            const svcName = svcSelect?.value;
             const packContainer = document.getElementById("pack-includes-container");
             const packSchedule = document.getElementById("pack-items-schedule");
             const packCount = document.getElementById("pack-item-count");
@@ -3249,99 +3252,201 @@
 
             if (!packContainer || !packSchedule) return;
 
-            // SKIP PACK LOGIC FOR SPA AND PELUQUERIA (use simple single-service bookings)
-            // SKIP PACK LOGIC FOR PELUQUERIA (use simple single-service bookings)
-            // Removed 'spa' from exclusion to allow generic packs in Spa module
-            if (currentModule.code === 'peluqueria') {
+            // SKIP PACK LOGIC SOLO PARA PELUQUERIA (en spa y salas siempre permitidos)
+            if (currentModule && currentModule.code === 'peluqueria') {
                 packContainer.style.display = "none";
                 window._packItems = null;
                 return;
             }
 
-            // Find service data
-            const serviceData = currentServices.find(s => s.nombre === svcName);
-
-            // Check if it has breakdown items
-            const items = serviceData?.items_incluidos || serviceData?.desglosados || [];
-
-            // Prevent single-item "packs" where the item IS the service itself (Self-Reference Loop)
-            if (!serviceData || items.length === 0 || (items.length === 1 && items[0].trim().toLowerCase() === svcName.trim().toLowerCase())) {
+            if (!svcName) {
                 packContainer.style.display = "none";
                 window._packItems = null;
                 return;
             }
 
-            // Show pack container
+            // Resolver pack con registro unificado
+            const cleanName = svcName.replace(/^PACK\s*[-–—:]\s*/i, '').trim();
+            let packData = (typeof window.getPackFullData === 'function')
+                ? window.getPackFullData(cleanName, currentServices || [], window.masterItems || [])
+                : null;
+
+            // Fallback: buscar en currentServices
+            const serviceData = (currentServices || []).find(s => {
+                const sn = (s.nombre || s.name || '').trim();
+                return sn === svcName || sn === cleanName || sn.toLowerCase() === cleanName.toLowerCase();
+            });
+
+            // Fallback: buscar en dataset de la opción seleccionada
+            const selectedOpt = svcSelect.selectedOptions ? svcSelect.selectedOptions[0] : null;
+            let optSecuencia = null;
+            let optItems = null;
+            if (selectedOpt) {
+                try { if (selectedOpt.dataset.secuencia) optSecuencia = JSON.parse(selectedOpt.dataset.secuencia); } catch (e) {}
+                try { if (selectedOpt.dataset.items) optItems = JSON.parse(selectedOpt.dataset.items); } catch (e) {}
+            }
+
+            const secuencia = packData?.secuencia || optSecuencia || serviceData?.secuencia || [];
+            const itemsRaw = packData?.items || optItems || serviceData?.items_incluidos || serviceData?.desglosados || [];
+
+            const isPack = (packData && packData.isPack) ||
+                (secuencia && secuencia.length > 0) ||
+                (itemsRaw && itemsRaw.length > 1) ||
+                (serviceData?.categoria && serviceData.categoria.toLowerCase().includes('pack')) ||
+                svcName.toUpperCase().startsWith('PACK');
+
+            if (!isPack || (secuencia.length === 0 && itemsRaw.length === 0)) {
+                packContainer.style.display = "none";
+                window._packItems = null;
+                return;
+            }
+
+            // Normalizar elementos a mostrar
+            let displayItems = [];
+            if (secuencia && secuencia.length > 0) {
+                displayItems = secuencia.map((f, idx) => ({
+                    orden: f.orden || idx + 1,
+                    nombre: f.nombre || f.name || `Tratamiento ${idx + 1}`,
+                    espacio: f.espacio || f.space || 'panacea',
+                    duracion: parseInt(f.duracion || f.duration) || 30,
+                    requires_therapist: f.requires_therapist !== false,
+                    terapeutas: f.terapeutas !== undefined ? f.terapeutas : (f.requires_therapist ? 1 : 0)
+                }));
+            } else if (itemsRaw && itemsRaw.length > 0) {
+                displayItems = itemsRaw.map((it, idx) => {
+                    const itName = typeof it === 'string' ? it.trim() : (it.nombre || it.name || `Tratamiento ${idx + 1}`);
+                    const itMaster = (window.masterItems || []).find(m => (m.name || m.nombre || '').toLowerCase() === itName.toLowerCase()) || {};
+                    const sp = it.espacio || itMaster.space || itMaster.allowedSpaces?.[0] || 'spa';
+                    const dur = parseInt(it.duracion || itMaster.duracion || itMaster.duration) || 60;
+                    return {
+                        orden: idx + 1,
+                        nombre: itName,
+                        espacio: sp,
+                        duracion: dur,
+                        requires_therapist: sp !== 'spa',
+                        terapeutas: sp !== 'spa' ? 1 : 0
+                    };
+                });
+            }
+
+            // Evitar loop si solo hay 1 item y se llama exactamente igual que el servicio
+            if (displayItems.length === 1 && displayItems[0].nombre.trim().toLowerCase() === cleanName.toLowerCase()) {
+                packContainer.style.display = "none";
+                window._packItems = null;
+                return;
+            }
+
+            // Mostrar contenedor de pack
             packContainer.style.display = "block";
-            packCount.textContent = `${items.length} elementos`;
+            const packPax = packData?.pax || serviceData?.pax || (displayItems.some(i => i.terapeutas > 1) ? 2 : 1);
+            if (packCount) {
+                const paxBadge = packPax > 1 ? ' · 2 Pax' : ' · 1 Pax';
+                packCount.textContent = `(${displayItems.length} servicios${paxBadge})`;
+            }
 
-            // Get base time from form
-            const baseTime = document.getElementById("form-time")?.value || "10:00";
-            const baseDate = document.getElementById("form-date")?.value || new Date().toISOString().split('T')[0];
+            // Auto-ajustar número de personas si es un pack de pareja
+            const paxField = document.getElementById("res-pax");
+            if (paxField && packPax > 1 && (!paxField.value || parseInt(paxField.value) < packPax)) {
+                paxField.value = packPax;
+            }
 
-            // Build schedule UI
+            // Hora base y fecha base
+            const timeInput = document.getElementById("res-hora") || document.getElementById("form-time");
+            const baseTime = (timeInput && timeInput.value) ? timeInput.value : "10:00";
+            const dateInput = document.getElementById("res-fecha") || document.getElementById("form-date");
+            const baseDate = (dateInput && dateInput.value) ? dateInput.value : new Date().toISOString().split('T')[0];
+
+            // Construir desglose interactivo
             let html = '';
             let cumulativeMinutes = 0;
             const packItemsData = [];
 
-            items.forEach((itemName, index) => {
-                // Try to get item config from master
-                const itemConfig = (window.masterItems || []).find(i =>
-                    i.name.toLowerCase().trim() === itemName.toLowerCase().trim()
-                ) || {};
+            // Sala actual donde se crea la reserva para contextualizar
+            const currentRoomSel = document.getElementById("res-sala");
+            const activeRoomCode = (currentRoomSel && currentRoomSel.value) ? currentRoomSel.value.toLowerCase() : (currentModule?.code || '');
 
-                const duration = itemConfig.duracion || itemConfig.duration || 60;
-                const space = itemConfig.space || itemConfig.allowedSpaces?.[0] || "spa";
-                const spaceLabel = space.toUpperCase();
+            displayItems.forEach((item, index) => {
+                let assignedSpace = (item.espacio || 'spa').toLowerCase();
 
-                // Calculate suggested time
+                // Si el tratamiento es de sala múltiple (panacea/vip/suite) y el operador está en una de ellas,
+                // adaptar visualmente la sala preferente
+                if (['panacea', 'vip', 'suite'].includes(assignedSpace) && ['panacea', 'vip', 'suite', 'cabina1', 'cabina2', 'cabina3'].includes(activeRoomCode)) {
+                    assignedSpace = activeRoomCode;
+                }
+
+                const duration = item.duracion || 60;
                 const [baseH, baseM] = baseTime.split(':').map(Number);
-                const totalMinutes = baseH * 60 + baseM + cumulativeMinutes;
+                const totalMinutes = (isNaN(baseH) ? 10 : baseH) * 60 + (isNaN(baseM) ? 0 : baseM) + cumulativeMinutes;
                 const suggestedH = Math.floor(totalMinutes / 60) % 24;
                 const suggestedM = totalMinutes % 60;
                 const suggestedTime = `${String(suggestedH).padStart(2, '0')}:${String(suggestedM).padStart(2, '0')}`;
 
                 packItemsData.push({
-                    name: itemName,
-                    space: space,
-                    collection: getCollectionForSpace(space),
+                    name: item.nombre,
+                    space: assignedSpace,
+                    collection: getCollectionForSpace(assignedSpace),
                     duracion: duration,
                     hora: suggestedTime,
                     fecha: baseDate,
-                    index: index
+                    index: index,
+                    terapeutas: item.terapeutas
                 });
 
+                const spaceBadgeColor = getSpaceColor(assignedSpace);
+                const therapistBadge = item.terapeutas > 1 
+                    ? `<span style="background:#fee2e2; color:#991b1b; padding:2px 6px; border-radius:4px; font-weight:700; font-size:0.65rem;"><i class="fas fa-user-friends"></i> 2 Terapeutas</span>`
+                    : item.terapeutas === 1
+                    ? `<span style="background:#fef3c7; color:#92400e; padding:2px 6px; border-radius:4px; font-weight:600; font-size:0.65rem;"><i class="fas fa-user"></i> 1 Terapeuta</span>`
+                    : `<span style="background:#f1f5f9; color:#475569; padding:2px 6px; border-radius:4px; font-size:0.65rem;"><i class="fas fa-minus-circle"></i> Sin terapeuta</span>`;
+
                 html += `
-                    <div class="pack-item-row" style="display: flex; align-items: center; gap: 10px; padding: 8px 10px; background: #fff; border-radius: 8px; border-left: 4px solid ${getSpaceColor(space)};">
-                        <div style="flex: 1;">
-                            <strong style="font-size: 0.8rem; color: #1e293b;">${index + 1}. ${itemName}</strong>
-                            <div style="font-size: 0.65rem; color: #64748b;">
-                                <i class="fas fa-map-marker-alt"></i> ${spaceLabel} · 
-                                <i class="fas fa-clock"></i> ${duration}'
+                    <div class="pack-item-row" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 7px 10px; margin-bottom: 6px; background: #ffffff; border-radius: 8px; border-left: 4px solid ${spaceBadgeColor}; box-shadow: 0 1px 3px rgba(0,0,0,0.06);">
+                        <div style="flex: 1; min-width: 0;">
+                            <div style="font-weight: 700; font-size: 0.8rem; color: #1e293b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                                <span style="color:#d97706; margin-right:4px;">${index + 1}.</span> ${item.nombre}
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 6px; margin-top: 3px; font-size: 0.7rem; color: #64748b; flex-wrap: wrap;">
+                                <span style="background:${spaceBadgeColor}15; color:${spaceBadgeColor}; padding:1px 6px; border-radius:4px; font-weight:800; border:1px solid ${spaceBadgeColor}30;">
+                                    <i class="fas fa-map-marker-alt"></i> ${assignedSpace.toUpperCase()}
+                                </span>
+                                <span><i class="fas fa-clock" style="color:#94a3b8;"></i> ${duration}'</span>
+                                ${therapistBadge}
                             </div>
                         </div>
-                        <div style="display: flex; align-items: center; gap: 5px;">
-                            <label style="font-size: 0.65rem; color: #64748b;">Hora:</label>
+                        <div style="display: flex; align-items: center; gap: 4px; flex-shrink: 0;">
+                            <label style="font-size: 0.65rem; color: #64748b; font-weight: 700;">Hora:</label>
                             <input type="time" 
                                    id="pack-time-${index}" 
                                    value="${suggestedTime}" 
                                    onchange="updatePackItemTime(${index}, this.value)"
-                                   style="padding: 4px 8px; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 0.8rem; width: 90px;">
+                                   style="padding: 4px 6px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.78rem; font-weight: 700; width: 85px; color: #1e293b; background: #fff;">
                         </div>
                     </div>
                 `;
 
-                cumulativeMinutes += duration + 15; // 15 min buffer between items
+                cumulativeMinutes += duration + 15; // 15 min transición entre fases
             });
+
+            // Extras externos (Restaurante, Hotel, Cava)
+            const hasRestaurant = packData?.includes_restaurant || displayItems.some(i => i.nombre.toLowerCase().includes('restaurante') || i.nombre.toLowerCase().includes('menu') || i.nombre.toLowerCase().includes('comida'));
+            const hasHotel = packData?.includes_hotel;
+            const hasCava = packData?.includes_cava;
+
+            if (hasRestaurant || hasHotel || hasCava) {
+                html += `<div style="margin-top: 8px; padding: 6px 10px; background: #fefce8; border: 1px solid #fef08a; border-radius: 6px; display: flex; flex-direction: column; gap: 3px; font-size: 0.72rem; color: #854d0e;">`;
+                if (hasRestaurant) html += `<div><i class="fas fa-utensils" style="color:#d97706; margin-right:5px;"></i> <strong>Restaurante:</strong> Incluye servicio de comida/menú en Restaurante Guadiana (gestión directa fuera de agenda SPA).</div>`;
+                if (hasHotel) html += `<div><i class="fas fa-hotel" style="color:#2563eb; margin-right:5px;"></i> <strong>Hotel:</strong> Incluye alojamiento en Hotel Guadiana.</div>`;
+                if (hasCava) html += `<div><i class="fas fa-wine-bottle" style="color:#7c3aed; margin-right:5px;"></i> <strong>Detalle:</strong> Incluye botella de Cava.</div>`;
+                html += `</div>`;
+            }
 
             packSchedule.innerHTML = html;
             window._packItems = packItemsData;
 
-            // Show restaurant reminder if any item includes "menu" or "comida"
-            const hasFood = items.some(i => i.toLowerCase().includes('menu') || i.toLowerCase().includes('comida') || i.toLowerCase().includes('restaurante'));
             if (packReminder) {
-                packReminder.style.display = hasFood ? "block" : "none";
+                packReminder.style.display = hasRestaurant ? "block" : "none";
             }
+        }
         }
 
         /**

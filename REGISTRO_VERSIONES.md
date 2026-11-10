@@ -8,7 +8,7 @@ Este documento mantiene el **control de versión única y global** para todo el 
 
 | Parámetro | Valor Actual |
 | :--- | :--- |
-| **Versión Global del Sistema** | **`v2.3.18`** |
+| **Versión Global del Sistema** | **`v2.3.19`** |
 | **Fecha de Última Actualización** | **10/11/2026** |
 | **Estado General** | Operativo en Producción |
 
@@ -47,6 +47,11 @@ Cualquier cambio en los siguientes módulos impacta en la versión global:
 ---
 
 ## 📝 Historial Unificado de Versiones
+
+### [v2.3.19] - 10/11/2026
+- **Tipo:** PATCH
+- **Archivos:** `js/service-pricing.js`, `reservas-salas.html`, `reservas-spa.html`, `reservas.html`, `scripts/test-room-opening.js`, `js/spa-packs-registry.js`, `scripts/test-all-packs.js`
+- **Descripción:** Desglose automatico de servicios, secuencias y tarifas para todos los packs del sistema
 
 ### [v2.3.18] - 10/11/2026
 - **Tipo:** PATCH

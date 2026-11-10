@@ -21,6 +21,7 @@ const render = html.slice(html.indexOf('function renderRooms('), html.indexOf('/
 const elements = { 'grid-salas': {}, 'stats-salas': {} };
 let cells;
 const ctx = vm.createContext({
+    window: {},
     ROOMS: [{ code: 'suite', name: 'Suite', capacity: 2 }], TIME_SLOTS: [825, 840, 855], SLOT_MIN: 15,
     currentDate: date, roomOpeningConfig: config, roomClosureReason,
     roomCodeOf: b => b.room, isBlock: b => !!b.isBlock, bStart: b => b.start, bEnd: b => b.end,
