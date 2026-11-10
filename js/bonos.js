@@ -1025,15 +1025,15 @@ async function goToReservation(client, service, code, space, pax, skipPaymentChe
         }
     }
 
-    // Corrección final (Legacy Override) - Mantener por seguridad
-    if (type === 'spa' && (serviceNorm.includes('masaje') || serviceNorm.includes('tratamiento') || serviceNorm.includes('ritual') || serviceNorm.includes('facial'))) {
-        type = 'panacea';
-        debugMsg += `Legacy Override: Forced to Panacea\n`;
+    // Corrección final: si el nombre del servicio contiene masaje/tratamiento/facial/ritual etc., nunca es circuito SPA
+    if (type === 'spa' && (serviceNorm.includes('masaje') || serviceNorm.includes('tratamiento') || serviceNorm.includes('ritual') || serviceNorm.includes('facial') || serviceNorm.includes('corporal') || serviceNorm.includes('envoltura'))) {
+        type = 'cabinas';
+        debugMsg += `Legacy Override: Forced to Cabinas / Ocupación\n`;
     }
 
     debugMsg += `FINAL TYPE: ${type}`;
 
-    // Si es hotel/restaurante, redirigir al proyecto independiente (Mesachef)
+    // Si es hotel/restaurante, redirigir al proyecto independiente (Mesachef) sin cambios
     if (type === 'hotel' || type === 'restaurante' || type === 'rest' || (type || '').toLowerCase().includes('restaurante') || (type || '').toLowerCase() === 'rest') {
         // Find voucher object to get phone number
         const voucherObj = state.bonos.find(b => b.bono === code || b.codigo === code);
@@ -1045,7 +1045,17 @@ async function goToReservation(client, service, code, space, pax, skipPaymentChe
         return;
     }
 
-    let url = `reservas.html?type=${type}&action=new&client=${encodeURIComponent(client)}&service=${encodeURIComponent(service)}&voucher=${code}&embedded=1`;
+    // Salas gestionadas en Ocupación: Cabinas (1, 2, 3), Suite, Panacea, VIP, Peluquería
+    // Excepto Circuito SPA, Restaurante y Hotel, que funcionan como hasta ahora
+    const isSpaCircuit = (type === 'spa');
+
+    let url;
+    if (isSpaCircuit) {
+        url = `reservas-spa.html?action=new&client=${encodeURIComponent(client)}&service=${encodeURIComponent(service)}&voucher=${encodeURIComponent(code)}&pax=${encodeURIComponent(pax || 1)}&embedded=1`;
+    } else {
+        // Módulo de Ocupación para ver disponibilidad y sala
+        url = `agenda-salas.html?action=new&client=${encodeURIComponent(client)}&service=${encodeURIComponent(service)}&voucher=${encodeURIComponent(code)}&space=${encodeURIComponent(space || type)}&pax=${encodeURIComponent(pax || 1)}&embedded=1`;
+    }
 
     // Opción A: Abrir en Drawer / Panel lateral integrado sin salir de la pantalla
     if (typeof openReservationDrawer === 'function') {
@@ -1054,8 +1064,9 @@ async function goToReservation(client, service, code, space, pax, skipPaymentChe
             service: service,
             code: code,
             space: space,
-            type: type,
-            pax: pax
+            type: isSpaCircuit ? 'spa' : 'ocupacion',
+            pax: pax,
+            isOcupacion: !isSpaCircuit
         });
         return;
     }

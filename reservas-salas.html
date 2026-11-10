@@ -485,7 +485,7 @@
         <!-- LEFT: Cumbria Logo -->
         <div style="display: flex; align-items: center; gap: 15px;">
             <img src="logo-spa.jpg" alt="Cumbria Bienestar" style="height: 65px; width: auto; object-fit: contain;">
-            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.6 (10/11/2026)">v2.3.6</span>
+            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.7 (10/11/2026)">v2.3.7</span>
         </div>
 
         <ul class="nav-links" style="flex:1;">
@@ -2302,6 +2302,19 @@
                         roomMap.set(k, { code: k, name: displayName });
                     }
                 });
+            }
+
+            // Una opción por nombre normalizado; conservar el código de una reserva existente.
+            const roomNames = new Map();
+            const normalizeRoomName = name => name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+            const preferredCode = preselectCode || (isNewAction ? null : contextCode);
+            for (const [code, room] of roomMap) {
+                const key = normalizeRoomName(room.name);
+                if (!roomNames.has(key)) roomNames.set(key, code);
+                else if (code === preferredCode) {
+                    roomMap.delete(roomNames.get(key));
+                    roomNames.set(key, code);
+                } else roomMap.delete(code);
             }
 
             // Construir elementos <option>
@@ -4463,7 +4476,7 @@
             if (habField) habField.value = "";
             const bonoFieldReset = document.getElementById("res-bono");
             if (bonoFieldReset) bonoFieldReset.value = "";
-            const isCabin = currentModule.code === 'cabina1' || currentModule.code === 'cabina2' || currentModule.code === 'cabina3';
+            const isCabin = currentModule.code === 'cabinas' || currentModule.code === 'cabina1' || currentModule.code === 'cabina2' || currentModule.code === 'cabina3';
             document.getElementById("res-pax").value = isCabin ? 1 : 2;
             document.getElementById("res-precio-pax").value = 0;
             document.getElementById("res-total-text").textContent = "0.00 €";
@@ -7074,19 +7087,13 @@
             if (dateParam) {
                 picker.value = dateParam;
                 // Wait slight for date picker to be ready if needed
-                setTimeout(() => handleDateChange(dateParam), 100);
+                if (action !== 'new') setTimeout(() => handleDateChange(dateParam), 100);
             } else if (picker && picker.value) {
                 updateDateDisplay(picker.value);
             }
 
-            // HANDLE NEW RESERVATION ACTION (Desde Bono o desde Casilla Libre de la Agenda)
-            if (action === 'new') {
-                setTimeout(async () => {
-                    if (typeof window.openNewReservationFromUrl === 'function') {
-                        await window.openNewReservationFromUrl();
-                    }
-                }, 150);
-            }
+            // La apertura desde URL se realiza tras cargar configuración, servicios y reservas.
+
         });
 
         // Definición global del manejador de nueva reserva para apertura directa de modal

@@ -8,7 +8,7 @@ Este documento mantiene el **control de versión única y global** para todo el 
 
 | Parámetro | Valor Actual |
 | :--- | :--- |
-| **Versión Global del Sistema** | **`v2.3.6`** |
+| **Versión Global del Sistema** | **`v2.3.7`** |
 | **Fecha de Última Actualización** | **10/11/2026** |
 | **Estado General** | Operativo en Producción |
 
@@ -47,6 +47,11 @@ Cualquier cambio en los siguientes módulos impacta en la versión global:
 ---
 
 ## 📝 Historial Unificado de Versiones
+
+### [v2.3.7] - 10/11/2026
+- **Tipo:** PATCH
+- **Archivos:** `js/bonos.js`, `js/reservation-drawer.js`, `manual-usuario.html`, `reservas-salas.html`, `scripts/sync-manual.js`, `scripts/test-reservation-selectors.js`, `templates/manual-paygold.html`
+- **Descripción:** Reservas: evitar apertura antes de cargar servicios, eliminar salas duplicadas del selector y ajustar PAX inicial de cabinas; manual con guia detallada de PayGold
 
 ### [v2.3.6] - 10/11/2026
 - **Tipo:** PATCH

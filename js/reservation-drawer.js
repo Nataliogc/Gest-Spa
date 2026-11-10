@@ -26,9 +26,10 @@
         window._activeDrawerVoucher = currentVoucherCode;
 
         // Configurar Títulos
+        const isOcupacion = !!(info.isOcupacion || url.includes('agenda-salas.html'));
         if (titleEl) {
             const svc = info.service ? decodeURIComponent(info.service) : 'Reserva de Servicio';
-            titleEl.textContent = `Reserva Rápida: ${svc}`;
+            titleEl.textContent = isOcupacion ? `Ocupación Salas: ${svc}` : `Reserva Rápida: ${svc}`;
         }
         if (subtitleEl) {
             const client = info.client ? decodeURIComponent(info.client) : '';
@@ -36,8 +37,28 @@
             const parts = [];
             if (code) parts.push(`Bono: ${code}`);
             if (client) parts.push(`Cliente: ${client}`);
-            if (info.type) parts.push(`Módulo: ${info.type.toUpperCase()}`);
+            if (isOcupacion) {
+                parts.push(`Módulo: OCUPACIÓN (SALAS)`);
+            } else if (info.type) {
+                parts.push(`Módulo: ${info.type.toUpperCase()}`);
+            }
             subtitleEl.textContent = parts.join(' • ') || 'Selecciona turno y hora en el cuadrante';
+        }
+
+        // En Ocupación Salas, maximizar a pantalla completa para ver todas las salas y terapeutas cómodamente
+        const expandIcon = document.getElementById('drawer-expand-icon');
+        if (isOcupacion) {
+            drawer.classList.add('drawer-fullscreen');
+            if (expandIcon) {
+                expandIcon.classList.remove('fa-expand');
+                expandIcon.classList.add('fa-compress');
+            }
+        } else {
+            drawer.classList.remove('drawer-fullscreen');
+            if (expandIcon) {
+                expandIcon.classList.remove('fa-compress');
+                expandIcon.classList.add('fa-expand');
+            }
         }
 
         // Mostrar indicador de carga

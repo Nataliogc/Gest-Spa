@@ -16,10 +16,13 @@ function syncManual(root = path.resolve(__dirname, '..')) {
     const file = path.join(root, 'manual-usuario.html');
     let html = fs.readFileSync(file, 'utf8');
     if (!html.includes('<!-- AUTO-RELEASES:START -->') || !html.includes('<!-- AUTO-RELEASES:END -->')) throw new Error('Faltan los marcadores del manual');
-    const cards = entries.map(entry => `<article class="manual-release" style="background:white;padding:12px;border-radius:8px;margin-top:10px"><b>v${escape(entry.number)} · ${escape(entry.date.trim())}</b><p>${escape(entry.description.trim())}</p></article>`).join('\n');
+    const cards = entries.map(entry => `<article class="manual-release" style="background:white;padding:12px;border-radius:8px;margin-top:10px"><b>v${escape(entry.number)} · ${escape(entry.date.trim())}</b><p>${escape(entry.description.trim())}</p>${["2.0.3", "2.0.4", "2.0.5", "2.0.6"].includes(entry.number) ? '<p><a href="#guia-paygold">Cómo utilizar PayGold: pasos, estados de pago y resolución de incidencias</a></p>' : ""}</article>`).join('\n');
     html = html.replace(/<!-- AUTO-RELEASES:START -->[\s\S]*?<!-- AUTO-RELEASES:END -->/, `<!-- AUTO-RELEASES:START -->\n<h2>Historial completo de actualizaciones</h2>\n${cards}\n<!-- AUTO-RELEASES:END -->`)
         .replace(/(<span id="manual-dynamic-date">)[^<]*(<\/span>)/, `$1Actualizado el ${version.lastUpdated} · v${version.version}$2`);
     html = html.replace(/(<meta name="manual-version" content=")[^"]*(">)/, '$1' + version.version + '$2');
+    const guide = fs.readFileSync(path.join(root, 'templates/manual-paygold.html'), 'utf8');
+    if (!html.includes('<!-- AUTO-GUIDES:START -->')) throw new Error('Falta el bloque de guías del manual');
+    html = html.replace(/<!-- AUTO-GUIDES:START -->[\s\S]*?<!-- AUTO-GUIDES:END -->/, '<!-- AUTO-GUIDES:START -->\n' + guide + '\n<!-- AUTO-GUIDES:END -->');
     fs.writeFileSync(file, html, 'utf8');
     console.log(`[MANUAL] Sincronizado con v${version.version}`);
 }

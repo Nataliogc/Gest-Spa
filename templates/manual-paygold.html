@@ -1,0 +1,28 @@
+<section id="guia-paygold" class="manual-guide">
+    <h2>Redsys PayGold: cobrar una reserva mediante enlace</h2>
+    <p><b>Para qué sirve:</b> permite preparar un enlace de pago asociado a la reserva de Cumbria y compartirlo con el cliente. Generar o enviar el enlace no significa que el cliente haya pagado.</p>
+    <h3>Pasos para recepción</h3>
+    <ol>
+        <li><b>Guarda y abre la reserva.</b> Revisa cliente, móvil, correo, servicio, fecha, hora, precio total y cantidades ya cobradas.</li>
+        <li><b>Pulsa «Enlace PayGold»</b> en el bloque de control de pago de la ficha.</li>
+        <li><b>Selecciona el importe.</b> Revisa el saldo pendiente y elige la opción de importe que corresponda. Si utilizas un importe personalizado, comprueba que coincide con la cantidad acordada con el cliente.</li>
+        <li><b>Revisa la caducidad del enlace.</b> El formulario propone una fecha inicial; ajústala según la cita. La caducidad del enlace y el requisito comunicado de pagar con 24 horas de antelación son datos diferentes.</li>
+        <li><b>Elige cómo enviarlo.</b> Marca SMS o Email para solicitar ese envío a través de Redsys. Si no marcas ninguna opción, se genera el enlace para que lo compartas tú.</li>
+        <li><b>Pulsa «Generar Enlace Redsys»</b> y espera el resultado. Si aparece un error, revisa el mensaje antes de volver a intentarlo.</li>
+        <li><b>Comparte el resultado.</b> Utiliza «Copiar Enlace», «Copiar Mensaje» o «Enviar por WhatsApp». Revisa destinatario, importe y fecha antes de enviar. Copiar el texto no lo envía al cliente.</li>
+        <li><b>Comprueba el cobro.</b> La ficha escucha los cambios de pago registrados y actualiza su estado. Revisa el importe pagado y el saldo pendiente antes de dar el servicio por abonado.</li>
+    </ol>
+    <h3>Cómo interpretar los estados</h3>
+    <ul>
+        <li><b>Pendiente:</b> todavía no consta el cobro en la aplicación. No equivale a un pago rechazado.</li>
+        <li><b>Parcial:</b> consta un importe abonado, pero queda saldo por pagar.</li>
+        <li><b>Cobrado / Pagado:</b> revisa también el importe y el saldo. El cobro de un enlace puede corresponder solo a parte del total de la reserva.</li>
+    </ul>
+    <h3>Si el cliente dice que ha pagado y sigue pendiente</h3>
+    <p>Abre la reserva y utiliza «Comprobar Pago Online». En la implementación actual, esta acción consulta el estado guardado en la aplicación; no constituye una consulta directa al banco. Si sigue pendiente, verifica la operación bancaria por el procedimiento habitual antes de pedir otro pago o registrar uno manualmente.</p>
+    <p><b>«Marcar como Pagado»</b> abre el registro manual de cobro con Tarjeta preseleccionada. Utilízalo solo después de verificar el cobro y comprobar que no está ya registrado, para evitar duplicidades.</p>
+    <h3>Ejemplo práctico</h3>
+    <p>Una reserva cuesta 80 € y ya tiene 20 € abonados. El saldo pendiente es 60 €. Revisa esas cantidades antes de generar el enlace. Tras el pago, comprueba que la ficha refleja el total efectivamente cobrado y el saldo restante; no des por finalizado el cobro solo porque el enlace se haya creado correctamente.</p>
+    <h3>Garantía de la cita y cancelaciones</h3>
+    <p>El mensaje preparado para el cliente solicita el pago al menos 24 horas antes del servicio y advierte de una posible cancelación. Ese texto, por sí solo, no confirma que exista una cancelación automática programada. Si no consta el pago al acercarse la cita, revisa la reserva y aplica el procedimiento autorizado por el hotel.</p>
+</section>
