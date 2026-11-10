@@ -8,7 +8,7 @@ Este documento mantiene el **control de versión única y global** para todo el 
 
 | Parámetro | Valor Actual |
 | :--- | :--- |
-| **Versión Global del Sistema** | **`v2.3.19`** |
+| **Versión Global del Sistema** | **`v2.3.20`** |
 | **Fecha de Última Actualización** | **10/11/2026** |
 | **Estado General** | Operativo en Producción |
 
@@ -47,6 +47,11 @@ Cualquier cambio en los siguientes módulos impacta en la versión global:
 ---
 
 ## 📝 Historial Unificado de Versiones
+
+### [v2.3.20] - 10/11/2026
+- **Tipo:** PATCH
+- **Archivos:** `js/spa-packs-registry.js`, `scripts/test-all-packs.js`
+- **Descripción:** Ajuste de tarifas y desgloses de packs segun catalogo oficial
 
 ### [v2.3.19] - 10/11/2026
 - **Tipo:** PATCH

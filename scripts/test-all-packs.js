@@ -53,6 +53,7 @@ console.log('\n--- TEST ESPECÍFICO: PACK - Cuento para dos ---');
 const cuentoData = packRegistry.getPackFullData('PACK - Cuento para dos');
 assert.ok(cuentoData, 'Debe resolver Cuento para dos');
 assert.equal(cuentoData.pax, 2, 'Cuento para dos debe ser para 2 pax');
+assert.equal(cuentoData.precio, 135, 'Cuento para dos debe costar 135€ según catálogo');
 assert.equal(cuentoData.includes_restaurant, true, 'Cuento para dos incluye restaurante');
 assert.equal(cuentoData.secuencia.length, 2, 'Cuento para dos tiene 2 fases (Spa + Masaje)');
 assert.equal(cuentoData.secuencia[0].nombre, 'Circuito Spa');
@@ -60,12 +61,12 @@ assert.equal(cuentoData.secuencia[0].duracion, 60);
 assert.equal(cuentoData.secuencia[1].nombre, 'Masaje Cráneo-Facial');
 assert.equal(cuentoData.secuencia[1].duracion, 30);
 assert.equal(cuentoData.secuencia[1].terapeutas, 2);
-console.log('  ✓ Secuencia de Cuento para dos verificada con éxito');
+console.log('  ✓ Secuencia y precio (135€) de Cuento para dos verificados con éxito');
 
 // 3. Probar resolveServicePricing con "PACK - Cuento para dos"
 const pricingResult = servicePricing.resolveServicePricing('PACK - Cuento para dos', [], []);
 assert.ok(pricingResult, 'resolveServicePricing debe resolver el precio');
-assert.ok(pricingResult.resolvedPrice > 0, `Precio debe ser > 0, obtenido: ${pricingResult.resolvedPrice}`);
+assert.equal(pricingResult.resolvedPrice, 135, `Precio debe ser 135€, obtenido: ${pricingResult.resolvedPrice}`);
 assert.equal(pricingResult.pax, 2);
 assert.equal(pricingResult.isPack, true);
 console.log(`  ✓ Tarifa resuelta: ${pricingResult.resolvedPrice} € para ${pricingResult.pax} pax`);
