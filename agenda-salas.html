@@ -507,7 +507,7 @@
     <div class="sidebar">
         <div style="display: flex; align-items: center; gap: 15px;">
             <img src="logo-spa.jpg" alt="Cumbria Bienestar" style="height: 65px; width: auto; object-fit: contain;">
-            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.7 (10/11/2026)">v2.3.7</span>
+            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.8 (10/11/2026)">v2.3.8</span>
         </div>
 
         <ul class="nav-links" style="flex:1;">
@@ -690,6 +690,36 @@
         document.addEventListener('DOMContentLoaded', async () => {
             const urlParams = new URLSearchParams(window.location.search);
             if (urlParams.has('fecha')) currentDate = urlParams.get('fecha');
+            else if (urlParams.has('date')) currentDate = urlParams.get('date');
+
+            const isEmbedded = (window.self !== window.top) || urlParams.get('embedded') === '1';
+            if (isEmbedded) {
+                document.body.classList.add('is-embedded');
+            }
+
+            // Capturar datos de Bono si venimos de reservar desde el módulo de Bonos
+            const voucher = urlParams.get('voucher');
+            const client = urlParams.get('client');
+            const service = urlParams.get('service');
+            const space = urlParams.get('space');
+            const pax = urlParams.get('pax');
+
+            if (voucher) {
+                window.currentVoucherBooking = {
+                    voucher: voucher,
+                    client: client || '',
+                    service: service || '',
+                    space: space || '',
+                    pax: pax || '1'
+                };
+                sessionStorage.setItem('pendingVoucherBooking', JSON.stringify({
+                    cliente: client || '',
+                    producto: service || '',
+                    bono: voucher,
+                    pax_por_sesion: pax || '1'
+                }));
+                renderVoucherBookingBanner();
+            }
 
             // Recordar desplegables abiertos/cerrados
             ['sec-salas', 'sec-terapeutas'].forEach(id => {
@@ -710,6 +740,57 @@
                 if (!drawerOpen && !document.hidden) renderGrid(true);
             }, 60000);
         });
+
+        function renderVoucherBookingBanner() {
+            const vb = window.currentVoucherBooking;
+            if (!vb || !vb.voucher) return;
+            let banner = document.getElementById('po-voucher-banner');
+            if (!banner) {
+                banner = document.createElement('div');
+                banner.id = 'po-voucher-banner';
+                banner.style.cssText = "background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%); border: 1.5px solid #10b981; border-radius: 10px; padding: 12px 18px; margin: 0 0 16px 0; display: flex; align-items: center; justify-content: space-between; gap: 14px; box-shadow: 0 4px 12px rgba(16,185,129,0.12); flex-wrap: wrap;";
+                const cont = document.querySelector('.po-container');
+                if (cont) cont.insertBefore(banner, cont.firstChild);
+            }
+            const clientTxt = vb.client ? ` · Cliente: <strong>${esc(vb.client)}</strong>` : '';
+            const paxTxt = vb.pax ? ` (${esc(String(vb.pax))} pax)` : '';
+            const spaceTxt = vb.space ? ` [Sala recomendada: <strong style="text-transform:uppercase;">${esc(vb.space)}</strong>]` : '';
+            banner.innerHTML = `
+                <div style="display: flex; align-items: center; gap: 12px; color: #065f46; font-size: 0.9rem;">
+                    <span style="background: #059669; color: #ffffff; padding: 5px 12px; border-radius: 6px; font-weight: 700; font-size: 0.8rem; letter-spacing: 0.5px; white-space: nowrap;">
+                        <i class="fas fa-ticket-alt"></i> BONO ${esc(vb.voucher)}
+                    </span>
+                    <div>
+                        <span>Reservando: <strong>${esc(vb.service || 'Servicio')}</strong>${paxTxt}${clientTxt}${spaceTxt}</span>
+                        <div style="font-size: 0.78rem; color: #047857; margin-top: 3px;">
+                            <i class="fas fa-hand-pointer"></i> Haz clic en una casilla libre para asignar sala, fecha y turno a este servicio.
+                        </div>
+                    </div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <button type="button" onclick="cancelVoucherBooking()" 
+                        style="background: #ffffff; border: 1px solid #cbd5e1; border-radius: 6px; padding: 7px 14px; font-size: 0.8rem; color: #334155; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
+                        <i class="fas fa-times" style="color: #ef4444;"></i> Salir sin reservar
+                    </button>
+                </div>
+            `;
+        }
+
+        function cancelVoucherBooking() {
+            cancelVoucherBookingStateOnly();
+            if (window.parent && window.parent !== window) {
+                window.parent.postMessage({ type: 'GEST_SPA_CLOSE_DRAWER' }, '*');
+            } else {
+                window.location.href = 'bonos.html';
+            }
+        }
+
+        function cancelVoucherBookingStateOnly() {
+            window.currentVoucherBooking = null;
+            sessionStorage.removeItem('pendingVoucherBooking');
+            const b = document.getElementById('po-voucher-banner');
+            if (b) b.remove();
+        }
 
         function updateDateDisplay() {
             const d = new Date(currentDate + 'T12:00:00');
@@ -977,7 +1058,11 @@
                     };
                 });
 
-                html += `<tr><td class="row-name"><div class="row-name-inner"><div class="row-avatar" style="background:${room.color};"><i class="fas fa-door-closed"></i></div><div>${esc(room.name)}${room.capacity > 1 ? `<div class="row-sub">Capacidad ${room.capacity}</div>` : ''}</div></div></td>${buildCells(states)}</tr>`;
+                const vb = window.currentVoucherBooking;
+                const isRec = vb && vb.space && (room.code === vb.space.toLowerCase() || room.name.toLowerCase().includes(vb.space.toLowerCase()));
+                const recBadge = isRec ? `<span style="background:#fef3c7; color:#92400e; border:1px solid #fcd34d; padding:2px 6px; border-radius:4px; font-size:0.65rem; margin-left:6px; font-weight:700;"><i class="fas fa-star"></i> Bono</span>` : '';
+
+                html += `<tr><td class="row-name"><div class="row-name-inner"><div class="row-avatar" style="background:${room.color};"><i class="fas fa-door-closed"></i></div><div>${esc(room.name)}${recBadge}${room.capacity > 1 ? `<div class="row-sub">Capacidad ${room.capacity}</div>` : ''}</div></div></td>${buildCells(states)}</tr>`;
             });
             html += '</tbody></table>';
             document.getElementById('grid-salas').innerHTML = html;
@@ -1097,8 +1182,21 @@
                 renderGrid(true);
                 return;
             }
-            const url = `reservas-salas.html?type=cabinas&action=new&date=${currentDate}&time=${time}` +
-                `&room=${encodeURIComponent(room)}&staff_id=${encodeURIComponent(staffId)}&staff_name=${encodeURIComponent(staffName)}&embedded=1&modal=1`;
+
+            let targetType = 'cabinas';
+            const rLow = (room || '').toLowerCase();
+            if (['suite', 'panacea', 'vip', 'peluqueria'].includes(rLow)) {
+                targetType = rLow;
+            }
+
+            let voucherParams = '';
+            const vb = window.currentVoucherBooking;
+            if (vb && vb.voucher) {
+                voucherParams = `&client=${encodeURIComponent(vb.client || '')}&service=${encodeURIComponent(vb.service || '')}&voucher=${encodeURIComponent(vb.voucher)}&pax=${encodeURIComponent(vb.pax || '1')}`;
+            }
+
+            const url = `reservas-salas.html?type=${targetType}&action=new&date=${currentDate}&time=${time}` +
+                `&room=${encodeURIComponent(room)}&staff_id=${encodeURIComponent(staffId)}&staff_name=${encodeURIComponent(staffName)}${voucherParams}&embedded=1&modal=1`;
             openQuickForm(url);
         }
 
@@ -1151,6 +1249,18 @@
             if (!frame || event.source !== frame.contentWindow) return;
             if (d.type === 'GEST_SPA_RESERVATION_SUCCESS') {
                 closeQuickForm(true);
+                // Si había un bono en curso, adjuntar datos del bono para la ventana padre
+                if (window.currentVoucherBooking && window.currentVoucherBooking.voucher) {
+                    d.voucher = d.voucher || window.currentVoucherBooking.voucher;
+                    d.servicio = d.servicio || window.currentVoucherBooking.service;
+                    d.cliente = d.cliente || window.currentVoucherBooking.client;
+                    // Limpiar bono activo una vez guardado
+                    cancelVoucherBookingStateOnly();
+                }
+                // Propagar a la ventana superior (p.ej. drawer en bonos.html)
+                if (window.parent && window.parent !== window) {
+                    window.parent.postMessage(d, '*');
+                }
                 Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: `Reserva guardada${d.cliente ? ' · ' + d.cliente : ''}`, showConfirmButton: false, timer: 3000 });
             } else if (d.type === 'GEST_SPA_CLOSE_DRAWER') {
                 closeQuickForm(true);
