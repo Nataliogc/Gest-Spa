@@ -8,7 +8,7 @@ Este documento mantiene el **control de versión única y global** para todo el 
 
 | Parámetro | Valor Actual |
 | :--- | :--- |
-| **Versión Global del Sistema** | **`v2.3.5`** |
+| **Versión Global del Sistema** | **`v2.3.6`** |
 | **Fecha de Última Actualización** | **10/11/2026** |
 | **Estado General** | Operativo en Producción |
 
@@ -47,6 +47,11 @@ Cualquier cambio en los siguientes módulos impacta en la versión global:
 ---
 
 ## 📝 Historial Unificado de Versiones
+
+### [v2.3.6] - 10/11/2026
+- **Tipo:** PATCH
+- **Archivos:** `manual-usuario.html`, `scripts/sync-manual.js`, `js/manual-status.js`
+- **Descripción:** Manual con todo el historial registrado, barra de carga por etapas reales y comprobacion de version publicada con aviso de error y reintento
 
 ### [v2.3.5] - 10/11/2026
 - **Tipo:** PATCH
