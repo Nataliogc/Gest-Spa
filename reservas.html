@@ -485,7 +485,7 @@
         <!-- LEFT: Cumbria Logo -->
         <div style="display: flex; align-items: center; gap: 15px;">
             <img src="logo-spa.jpg" alt="Cumbria Bienestar" style="height: 65px; width: auto; object-fit: contain;">
-            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.15 (10/11/2026)">v2.3.15</span>
+            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.16 (10/11/2026)">v2.3.16</span>
         </div>
 
         <ul class="nav-links" style="flex:1;">
@@ -3959,17 +3959,25 @@
                         ${isNoShow ? '<span class="badge badge-warning" style="background: #f59e0b; color: white;">NO SHOW</span>' : (isAnulada ? '<span class="badge badge-anulada">ANULADA</span>' : `<span class="badge ${badgeClass}">${badgeText}</span>`)}
                         ${(() => {
                         // Payment pending indicator (Consolidated Logic)
-                        const total = parseFloat(res.precio_total) || 0;
+                        const rawTotal = res.precio_total ?? res.precio ?? res.total ?? res.importe ?? res.payment?.total;
+                        let total = parseFloat(rawTotal);
+                        if (isNaN(total)) {
+                            const pPax = parseFloat(res.precio_pax || 0);
+                            const paxCount = parseInt(res.pax || 1, 10);
+                            total = (pPax > 0 && paxCount > 0) ? (pPax * paxCount) : 0;
+                        }
                         const isAnulada = res.status === 'anulada';
                         const isNoShow = res.no_show === true || res.status === 'no_show';
 
                         // Robust check for paid amount
                         let paid = 0;
-                        if (res.pagado === true || res.estado_pago === 'pagado') {
+                        const estadoPagoLower = String(res.estado_pago || '').toLowerCase().trim();
+                        if (estadoPagoLower === 'pendiente') {
+                            paid = parseFloat(res.payment?.paid || res.paid_amount || res.importe_pagado || (typeof res.pagado === 'number' ? res.pagado : 0) || 0);
+                        } else if (res.pagado === true || estadoPagoLower === 'pagado') {
                             paid = total;
                         } else {
-                            // Try all possible fields where paid amount might be stored
-                            paid = parseFloat(res.payment?.paid || res.paid_amount || res.pagado || 0) || 0;
+                            paid = parseFloat(res.payment?.paid || res.paid_amount || res.importe_pagado || (typeof res.pagado === 'number' ? res.pagado : 0) || 0);
                         }
 
                         const pending = Math.max(0, total - paid);

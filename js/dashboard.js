@@ -435,21 +435,39 @@ function renderDashboard() {
         const isNoShow = c.no_show === true || c.status === 'no_show';
         const statusIcon = getStatusIcon(isNoShow ? 'no_show' : c.status);
 
-        // Robust check for paid amount / balance
-        let paid = 0;
-        if (c.pagado === true || c.estado_pago === 'pagado') {
-            paid = parseFloat(c.precio_total || 0);
-        } else {
-            paid = parseFloat(c.payment?.paid || c.paid_amount || c.pagado || 0) || 0;
+        // Robust check for total price (handle precio_total, precio, importe, total, precio_pax * pax)
+        const rawTotal = c.precio_total ?? c.precio ?? c.total ?? c.importe ?? c.precioTotal ?? c.payment?.total;
+        let totalPrice = parseFloat(rawTotal);
+        if (isNaN(totalPrice)) {
+            const pPax = parseFloat(c.precio_pax || 0);
+            const paxCount = parseInt(c.pax || 1, 10);
+            totalPrice = (pPax > 0 && paxCount > 0) ? (pPax * paxCount) : 0;
         }
 
-        const balanceAmount = Math.max(0, (parseFloat(c.precio_total) || 0) - paid);
-        const hasBalance = balanceAmount > 0.05 && !['hotel_inc', 'bono', 'smartbox', 'wonderbox', 'ego', 'groupon'].includes(c.origen);
-
-        // Payment Badge Logic for Panel
+        // Robust check for paid amount / balance
+        let paid = 0;
+        const estadoPagoLower = String(c.estado_pago || '').toLowerCase().trim();
         const origen = (c.origen || '').toLowerCase();
         const isVoucherOrHotel = ['hotel_inc', 'bono', 'smartbox', 'wonderbox', 'ego', 'groupon'].includes(origen);
-        const totalPrice = parseFloat(c.precio_total || c.precio || 0);
+
+        if (estadoPagoLower === 'pendiente') {
+            // Si el estado es explícitamente pendiente, el pagado proviene de abonos reales registrados
+            paid = parseFloat(c.payment?.paid || c.paid_amount || c.importe_pagado || (typeof c.pagado === 'number' ? c.pagado : 0) || 0);
+        } else if (c.pagado === true || estadoPagoLower === 'pagado') {
+            paid = totalPrice;
+        } else {
+            const possiblePaid = [
+                c.payment?.paid,
+                c.paid_amount,
+                c.importe_pagado,
+                (typeof c.pagado === 'number' ? c.pagado : null)
+            ];
+            const foundPaid = possiblePaid.find(v => v !== null && v !== undefined && !isNaN(parseFloat(v)));
+            paid = foundPaid !== undefined ? parseFloat(foundPaid) : 0;
+        }
+
+        const balanceAmount = Math.max(0, totalPrice - paid);
+        const hasBalance = balanceAmount > 0.05 && !isVoucherOrHotel;
         const hasPayGold = !!(c.payment_link || c.paygold_link || c.paygold_order);
 
         let paymentBadgeHtml = '';
