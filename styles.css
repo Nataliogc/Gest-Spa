@@ -1167,10 +1167,15 @@ body.is-embedded #v-booking-notice {
 html.is-modal-only,
 body.is-modal-only {
     background: transparent !important;
+    overflow: hidden !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
 }
 
 body.is-modal-only .main-content {
-    visibility: hidden !important;
+    display: none !important;
 }
 
 /* Los modales y avisos sí deben verse aunque el contenedor esté oculto */
@@ -1182,7 +1187,24 @@ body.is-modal-only .toast {
 }
 
 body.is-modal-only .modal {
+    position: fixed !important;
+    inset: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
     background: rgba(15, 23, 42, 0.45) !important;
     backdrop-filter: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+body.is-modal-only .modal-content {
+    margin: auto !important;
+    position: relative !important;
+    transform: none !important;
+    animation: none !important;
+    transition: none !important;
 }
 

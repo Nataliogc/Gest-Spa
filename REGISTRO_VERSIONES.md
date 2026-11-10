@@ -8,7 +8,7 @@ Este documento mantiene el **control de versión única y global** para todo el 
 
 | Parámetro | Valor Actual |
 | :--- | :--- |
-| **Versión Global del Sistema** | **`v2.3.2`** |
+| **Versión Global del Sistema** | **`v2.3.3`** |
 | **Fecha de Última Actualización** | **10/11/2026** |
 | **Estado General** | Operativo en Producción |
 
@@ -47,6 +47,11 @@ Cualquier cambio en los siguientes módulos impacta en la versión global:
 ---
 
 ## 📝 Historial Unificado de Versiones
+
+### [v2.3.3] - 10/11/2026
+- **Tipo:** PATCH
+- **Archivos:** `reservas-salas.html`, `reservas.html`
+- **Descripción:** Correccion en selector de servicios: integracion completa de spa_services y spa_item_master para que Suite, Panacea, VIP, Cabinas y Peluqueria muestren siempre sus servicios
 
 ### [v2.3.2] - 10/11/2026
 - **Tipo:** PATCH

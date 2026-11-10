@@ -480,7 +480,7 @@
         <!-- LEFT: Cumbria Logo -->
         <div style="display: flex; align-items: center; gap: 15px;">
             <img src="logo-spa.jpg" alt="Cumbria Bienestar" style="height: 65px; width: auto; object-fit: contain;">
-            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.2 (10/11/2026)">v2.3.2</span>
+            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.3 (10/11/2026)">v2.3.3</span>
         </div>
 
         <ul class="nav-links" style="flex:1;">
@@ -2219,10 +2219,15 @@
                     await loadMasterItems();
                 }
 
-                // Cargar todos los servicios para el selector dinámico
-                const allServicesSnapshot = await db.collection("spa_services").where("active", "==", true).get();
+                // Cargar todos los servicios para el selector dinámico (spa_services)
+                const allServicesSnapshot = await db.collection("spa_services").get();
                 const all = [];
-                allServicesSnapshot.forEach(doc => all.push(doc.data()));
+                allServicesSnapshot.forEach(doc => {
+                    const data = doc.data();
+                    if (data && data.active !== false) {
+                        all.push({ id: doc.id, ...data });
+                    }
+                });
                 currentServices = all;
                 window.currentServices = currentServices; // Expose for app-core.js
 
@@ -2336,280 +2341,176 @@
             // --- 0. PREPARATION ---
             // Determine Room Code & Normalization
             const roomSel = document.getElementById("res-sala");
-            // Use selected room code OR current module code as fallback
-            const roomCodeRaw = (roomSel && roomSel.value) ? roomSel.value : currentModule.code;
-            const roomCode = (roomCodeRaw || 'cabinas').toLowerCase().trim();
-            const isDedicatedNonCabina = ['suite', 'panacea', 'vip', 'peluqueria', 'spa', 'restaurante', 'gimnasio'].includes(roomCode);
-            const isCabina = roomCode.startsWith('cabina') || !isDedicatedNonCabina;
+            const roomCodeRaw = (roomSel && roomSel.value) ? roomSel.value : (currentModule ? currentModule.code : '');
+            const roomCode = (roomCodeRaw || '').toLowerCase().trim();
+            const isCabina = roomCode.startsWith('cabina');
             const salaActual = isCabina ? 'cabina' : roomCode;
 
-            // Determine Origin / Flow
-            const origenVal = document.getElementById("res-origen")?.value || 'particular';
-            const isLocalFlow = (origenVal === 'particular' || origenVal === 'hotel_no_inc' || origenVal === 'venta_local');
+            // Pool of items: combine BOTH currentServices (from spa_services) and window.masterItems (spa_item_master)
+            const masterList = window.masterItems || [];
+            const catalogList = currentServices || [];
 
+            const combinedMap = new Map();
+
+            // 1. Add from catalog spa_services
+            catalogList.forEach(s => {
+                const name = (s.nombre || s.name || '').trim();
+                if (!name) return;
+                const nameKey = name.toLowerCase();
+                const rawSpaces = s.allowedSpaces || (s.espacio ? [s.espacio] : []);
+                const spaces = Array.isArray(rawSpaces) ? rawSpaces.map(x => String(x).toLowerCase().trim()) : [];
+                const isPack = (s.items_incluidos && s.items_incluidos.length > 1) || (s.categoria && s.categoria.includes('pack')) || nameKey.includes('pack');
+
+                combinedMap.set(nameKey, {
+                    nombre: isPack ? ("PACK - " + name.replace(/^PACK\s*-\s*/i, '')) : name,
+                    precio: parseFloat(s.precio || s.price || 0) || 0,
+                    pax_max: parseInt(s.pax || s.pax_max) || (isPack ? 2 : 1),
+                    duracion: parseInt(s.duracion || s.duration) || 0,
+                    espacio: s.espacio || '',
+                    allowedSpaces: spaces,
+                    categoria: s.categoria || s.category || '',
+                    items_incluidos: s.items_incluidos || null,
+                    source: isPack ? 'catalog_pack' : 'catalog'
+                });
+            });
+
+            // 2. Add from spa_item_master (enrich or add)
+            masterList.forEach(m => {
+                const name = (m.name || m.nombre || '').trim();
+                if (!name) return;
+                const nameKey = name.toLowerCase();
+                const rawSpaces = m.allowedSpaces || m.espacios || (m.space ? [m.space] : []);
+                const spaces = Array.isArray(rawSpaces) ? rawSpaces.map(x => String(x).toLowerCase().trim()) : [];
+
+                if (!combinedMap.has(nameKey)) {
+                    combinedMap.set(nameKey, {
+                        nombre: name,
+                        precio: parseFloat(m.price_pax || m.price || m.precio || 0) || 0,
+                        pax_max: parseInt(m.pax_max || m.pax) || 1,
+                        duracion: parseInt(m.duration || m.duracion) || 0,
+                        espacio: m.space || '',
+                        allowedSpaces: spaces,
+                        categoria: m.category || m.categoria || '',
+                        items_incluidos: m.items_incluidos || null,
+                        source: 'master'
+                    });
+                } else {
+                    const existing = combinedMap.get(nameKey);
+                    spaces.forEach(sp => {
+                        if (!existing.allowedSpaces.includes(sp)) existing.allowedSpaces.push(sp);
+                    });
+                }
+            });
+
+            const allItems = Array.from(combinedMap.values());
             let servicesToShow = [];
 
-            if (isCabina) {
-                // --- CABINA DEFINITIVE LOGIC (STRICT MASTER + ORIGIN INDEPENDENT) ---
-                console.log(`[CABINA] Definitive Logic Applied: Room=${roomCode}, SalaActual=${salaActual}`);
-                const sourceItems = window.masterItems || [];
-
-                servicesToShow = sourceItems.filter(item => {
-                    // Rule 1: Compatible Space (cabinaX or cabina)
-                    // Rule 1: Compatible Space (cabinaX or cabina)
-                    const rawSpaces = item.allowedSpaces || item.espacios || (item.space ? [item.space] : []);
-                    const spaces = Array.isArray(rawSpaces) ? rawSpaces.map(s => {
-                        let clean = s.toLowerCase().trim();
-                        // Normalize aliases
-                        if (clean === 'cabinauno') return 'cabina1';
-                        if (clean === 'cabinados') return 'cabina2';
-                        if (clean === 'cabinatres') return 'cabina3';
-                        if (clean === 'panacea (cabinas)') return 'cabina';
-                        return clean;
-                    }) : [];
-
-                    // Also normalize current room code just in case
-                    const normalizedRoomCode = roomCode.toLowerCase().replace('uno', '1').replace('dos', '2').replace('tres', '3');
-
-                    const matchesRoom = spaces.includes(normalizedRoomCode) || spaces.includes(salaActual) || spaces.includes('cabina');
-
-                    // Rule 2: Active Agenda (Relaxed - if it has duration and is in a cabina, it's valid)
-                    // Old Strict: const hasAgenda = (item.agenda_required === true || item.agenda === true);
-                    const hasAgenda = (item.agenda_required !== false && (parseInt(item.duration) > 0 || item.agenda === true));
-
-                    // Debug for specific items verification
-                    if (item.name.toLowerCase().includes("cereza") || item.name.toLowerCase().includes("bambú")) {
-                        console.log(`[CABINA-FILTER] ${item.name}: SpaceMatch=${matchesRoom}, AgendaMatch=${hasAgenda}, NormRoom=${normalizedRoomCode}, Spaces=[${spaces.join(', ')}]`);
-                    }
-
-                    return matchesRoom && hasAgenda;
-                }).map(item => {
-                    const precio = item.price_pax || item.price || 0;
-                    // DEBUG: Log price fields for troubleshooting
-                    if (item.name && item.name.toLowerCase().includes('envoltura')) {
-                        console.log(`[DEBUG-PRICE] Item: "${item.name}"`, {
-                            price_pax: item.price_pax,
-                            price: item.price,
-                            precio_final: precio,
-                            all_fields: Object.keys(item)
-                        });
-                    }
-                    return {
-                        nombre: item.name,
-                        precio: precio,
-                        pax_max: item.pax_max || 1,
-                        espacio: item.space || '',
-                        categoria: item.category || item.categoria || '',
-                        source: 'master_cabina'
-                    };
+            // FILTER BY SELECTED ROOM
+            if (!roomCode || roomCode === '' || roomCode === 'cabinas') {
+                // Sin sala o selector en blanco: todos los tratamientos agendables
+                servicesToShow = allItems.filter(item => {
+                    const cat = (item.categoria || '').toLowerCase();
+                    return !['restaurante', 'hotel', 'gimnasio'].includes(cat);
                 });
+            } else if (roomCode === 'suite') {
+                // SUITE SPA:
+                servicesToShow = allItems.filter(item => {
+                    const spaces = item.allowedSpaces || [];
+                    const esp = (item.espacio || '').toLowerCase();
+                    const cat = (item.categoria || '').toLowerCase();
+                    const name = item.nombre.toLowerCase();
 
-                console.log(`[CABINA] Found ${servicesToShow.length} valid services in Master.`);
+                    const matchesSpace = spaces.some(s => s.includes('suite')) || esp.includes('suite');
+                    const matchesCat = cat.includes('suite');
+                    const matchesName = name.includes('suite');
+                    const isCoupleOrPack = name.includes('pareja') || name.includes('duo') || cat.includes('ritual') || item.source === 'catalog_pack';
 
-            } else if (['suite', 'panacea', 'vip'].includes(salaActual)) {
-                // --- SUITE/PANACEA DEFINITIVE LOGIC (STRICT MASTER + ORIGIN INDEPENDENT) ---
-                console.log(`[SUITE/PANACEA] Definitive Logic Applied: Room=${roomCode}`);
-                const sourceItems = window.masterItems || [];
-
-                servicesToShow = sourceItems.filter(item => {
-                    // Rule 1: Compatible Space
-                    const rawSpaces = item.allowedSpaces || item.espacios || (item.space ? [item.space] : []);
-                    const spaces = Array.isArray(rawSpaces) ? rawSpaces.map(s => s.toLowerCase().trim()) : [];
-
-                    // Improved Matching: Allow "Sala VIP" to match "vip" code
-                    const matchesRoom = spaces.includes(roomCode) || spaces.includes(salaActual) ||
-                        (roomCode === 'vip' && spaces.some(s => s.includes('vip'))) ||
-                        (roomCode === 'suite' && spaces.some(s => s.includes('suite')));
-
-                    // Rule 2: Agendable OR Duration > 0 (Suite/Panacea often have rituals)
-                    const hasAgenda = (item.agenda_required !== false);
-                    const hasDuration = (parseInt(item.duration) || 0) > 0;
-
-                    return matchesRoom && (hasAgenda || hasDuration);
-                }).map(item => ({
-                    nombre: item.name,
-                    precio: item.price_pax || item.price || 0,
-                    pax_max: item.pax_max || 2,
-                    espacio: item.space || '',
-                    categoria: item.category || item.categoria || '',
-                    source: 'master_suite_panacea'
-                }));
-
-                console.log(`[SUITE/PANACEA] Found ${servicesToShow.length} valid services in Master.`);
-
-            } else if (isLocalFlow) {
-                // --- STANDARD DIRECT FLOW (NON-CABINA: SPA, SUITE, PANACEA, VIP...) ---
-                const sourceItems = window.masterItems || [];
-                const catalogItems = currentServices || [];
-
-                // 1. Filter Master Items
-                const masterFiltered = sourceItems.filter(item => {
-                    const rawSpaces = item.allowedSpaces || item.espacios || (item.space ? [item.space] : []);
-                    const spaces = Array.isArray(rawSpaces) ? rawSpaces.map(s => s.toLowerCase().trim()) : [];
-
-                    // User Rule: Visible if assigned to room AND (duration > 0 OR Agenda == Sí)
-                    const matchesSpace = spaces.includes(salaActual) || spaces.includes(roomCode);
-                    const hasAgenda = item.agenda_required !== false;
-                    const hasDuration = (parseInt(item.duration) || 0) > 0;
-
-                    // SPECIAL STRICT FILTER FOR PELUQUERIA: Only visualizes hair/nails/beauty
-                    if (roomCode === 'peluqueria') {
-                        const cat = (item.category || item.categoria || "").toLowerCase();
-                        const name = (item.name || "").toLowerCase();
-
-                        const isAllowedCat = ['peluqueria', 'peluquería', 'estetica', 'estética', 'manicura', 'pedicura', 'depilacion', 'depilación', 'maquillaje', 'uñas', 'unas', 'pestañas', 'cejas'].some(k => cat.includes(k));
-                        const isAllowedName = ['corte', 'peinado', 'tinte', 'mechas', 'mecha', 'tussore', 'alisado', 'moldeado', 'reflector', 'maquillaje', 'uñas', 'unas', 'manicura', 'pedicura', 'cejas', 'pestañas', 'depilacion', 'depilación'].some(k => name.includes(k));
-
-                        // Basic bypass: if it's explicitly allowed, it stays. Otherwise, if it's a known non-pelu category, exclude.
-                        const isExcludedCat = ['masaje', 'ritual', 'spa', 'restaurante', 'hotel'].some(k => cat.includes(k));
-                        const isExcludedName = ['masaje', 'ritual', 'circuito'].some(k => name.includes(k));
-
-                        if (!isAllowedCat && !isAllowedName) return false;
-                        if (isExcludedName && !isAllowedCat) return false; // Avoid 'Masaje Cráneo-Facial' if not in Estética cat
-                    }
-
-                    return matchesSpace && (hasAgenda || hasDuration);
-                }).map(item => ({
-                    nombre: item.name,
-                    precio: item.price_pax || item.price || item.precio || 0,
-                    pax_max: item.pax_max || item.pax || 1,
-                    espacio: item.space || '',
-                    categoria: item.category || item.categoria || '',
-                    source: 'master'
-                }));
-
-                // 2. Filter Catalog Items (Fallback for non-sync items)
-                const catalogFiltered = catalogItems.filter(s => {
-                    const cat = (s.categoria || "").toLowerCase();
-                    const name = (s.nombre || "").toLowerCase();
-
-                    // Logic fix: Don't exclude peluqueria if we are IN peluqueria
-                    const EXCLUDED_CATEGORIES = (roomCode === 'peluqueria') ? ['restaurante', 'hotel'] : ['peluqueria', 'restaurante', 'hotel'];
-                    if (EXCLUDED_CATEGORIES.includes(cat)) return false;
-
-                    // STRICT FILTER FOR PELUQUERIA
-                    if (roomCode === 'peluqueria') {
-                        const cat = (s.categoria || "").toLowerCase();
-                        const name = (s.nombre || "").toLowerCase();
-
-                        const isAllowedCat = ['peluqueria', 'peluquería', 'estetica', 'estética', 'manicura', 'pedicura', 'depilacion', 'depilación', 'maquillaje', 'uñas', 'unas', 'pestañas', 'cejas'].some(k => cat.includes(k));
-                        const isAllowedName = ['corte', 'peinado', 'tinte', 'mechas', 'mecha', 'alisado', 'moldeado', 'maquillaje', 'uñas', 'unas', 'manicura', 'pedicura', 'cejas', 'pestañas', 'depilacion', 'depilación'].some(k => name.includes(k));
-
-                        const isExcludedName = ['masaje', 'ritual', 'circuito'].some(k => name.includes(k));
-
-                        if (!isAllowedCat && !isAllowedName) return false;
-                        if (isExcludedName && !isAllowedCat) return false;
-                    }
-
-                    const rawSpaces = s.allowedSpaces || (s.espacio ? [s.espacio] : []);
-                    const spaces = rawSpaces.map(x => x.toLowerCase().trim());
-                    const matchesSpace = spaces.includes(salaActual) || spaces.includes(roomCode);
-
-                    // Avoid duplicates with master
-                    const isAlreadyInMaster = masterFiltered.some(m => m.nombre === s.nombre);
-
-                    // Exclusive for non-cabina: Visible if assigned to room
-                    return matchesSpace && !isAlreadyInMaster;
-                }).map(s => ({
-                    nombre: s.nombre,
-                    precio: s.precio || 0,
-                    pax_max: s.pax || 1,
-                    espacio: s.espacio || '',
-                    categoria: s.categoria || '',
-                    source: 'catalog'
-                }));
-
-                // 3. Filter Packs (Globally visible multiservices)
-                const packsFiltered = catalogItems.filter(s => {
-                    const isPack = (s.items_incluidos && s.items_incluidos.length > 1) || (s.categoria && s.categoria.includes('pack')) || (s.nombre || '').toLowerCase().includes('pack');
-                    if (!isPack) return false;
-
-                    // Specific exclusions even for packs
-                    const cat = (s.categoria || "").toLowerCase();
-                    const EXCLUDED_CATEGORIES = (roomCode === 'peluqueria') ? ['restaurante', 'hotel'] : ['restaurante', 'hotel'];
-                    if (EXCLUDED_CATEGORIES.includes(cat)) return false;
-
-                    // Avoid duplicates with master/catalog
-                    const isAlreadyInMaster = masterFiltered.some(m => m.nombre === s.nombre);
-                    const isAlreadyInCatalog = catalogFiltered.some(c => c.nombre === s.nombre);
-
-                    return !isAlreadyInMaster && !isAlreadyInCatalog;
-                }).map(s => {
-                    // Auto-detect PAX for packs if not specified
-                    const name = (s.nombre || '').toLowerCase();
-                    let pax = s.pax || 2;
-                    if (name.includes('pareja') || name.includes('duo') || name.includes('dos personas') || name.includes('para dos') || name.includes('cuento para dos')) {
-                        pax = 2;
-                    }
-
-                    return {
-                        nombre: "PACK - " + s.nombre, // Prefix per user request
-                        precio: s.precio || 0,
-                        pax_max: pax,
-                        espacio: 'PACK',
-                        categoria: 'pack',
-                        source: 'catalog_pack',
-                        items_incluidos: s.items_incluidos // Store for display
-                    };
+                    return matchesSpace || matchesCat || matchesName || isCoupleOrPack;
                 });
+                // Fallback seguro: si la BD no tuviera etiquetados de suite, permitir masajes/tratamientos
+                if (servicesToShow.length === 0) {
+                    servicesToShow = allItems.filter(item => {
+                        const cat = (item.categoria || '').toLowerCase();
+                        return !['restaurante', 'hotel', 'peluqueria'].includes(cat);
+                    });
+                }
+            } else if (roomCode === 'panacea') {
+                // PANACEA:
+                servicesToShow = allItems.filter(item => {
+                    const spaces = item.allowedSpaces || [];
+                    const esp = (item.espacio || '').toLowerCase();
+                    const cat = (item.categoria || '').toLowerCase();
+                    const name = item.nombre.toLowerCase();
 
-                // RE-SCAN SINGLE SERVICES for 2 pax detection (e.g. "Cuento para dos" as single item)
-                catalogFiltered.forEach(s => {
-                    const name = (s.nombre || '').toLowerCase();
-                    if (s.pax_max === 1 && (name.includes('pareja') || name.includes('duo') || name.includes('dos personas') || name.includes('para dos') || name.includes('cuento para dos'))) {
-                        s.pax_max = 2;
-                    }
+                    const matchesSpace = spaces.some(s => s.includes('panacea') || s.includes('cabina')) || esp.includes('panacea') || esp.includes('cabina');
+                    const matchesCat = cat.includes('panacea') || cat.includes('masaje') || cat.includes('facial') || cat.includes('corporal') || cat.includes('ritual');
+                    const matchesName = name.includes('panacea');
+
+                    return matchesSpace || matchesCat || matchesName || item.source === 'catalog_pack';
                 });
+            } else if (roomCode === 'vip') {
+                // SALA VIP:
+                servicesToShow = allItems.filter(item => {
+                    const spaces = item.allowedSpaces || [];
+                    const esp = (item.espacio || '').toLowerCase();
+                    const cat = (item.categoria || '').toLowerCase();
+                    const name = item.nombre.toLowerCase();
 
-                servicesToShow = [...masterFiltered, ...catalogFiltered, ...packsFiltered];
+                    const matchesSpace = spaces.some(s => s.includes('vip')) || esp.includes('vip');
+                    const matchesCat = cat.includes('vip') || cat.includes('ritual');
+                    const matchesName = name.includes('vip');
+                    const isCoupleOrPack = name.includes('pareja') || name.includes('duo') || item.source === 'catalog_pack';
 
+                    return matchesSpace || matchesCat || matchesName || isCoupleOrPack;
+                });
+            } else if (roomCode === 'peluqueria') {
+                // PELUQUERÍA:
+                servicesToShow = allItems.filter(item => {
+                    const spaces = item.allowedSpaces || [];
+                    const esp = (item.espacio || '').toLowerCase();
+                    const cat = (item.categoria || '').toLowerCase();
+                    const name = item.nombre.toLowerCase();
+
+                    const isPeluCat = ['peluqueria', 'peluquería', 'estetica', 'estética', 'manicura', 'pedicura', 'depilacion', 'depilación', 'maquillaje', 'uñas', 'unas', 'pestañas', 'cejas'].some(k => cat.includes(k));
+                    const isPeluName = ['corte', 'peinado', 'tinte', 'mechas', 'mecha', 'alisado', 'moldeado', 'maquillaje', 'uñas', 'unas', 'manicura', 'pedicura', 'cejas', 'pestañas', 'depilacion', 'depilación', 'peluqu'].some(k => name.includes(k));
+                    const isPeluSpace = spaces.some(s => s.includes('peluqu')) || esp.includes('peluqu');
+
+                    return isPeluSpace || isPeluCat || isPeluName;
+                });
+            } else if (isCabina) {
+                // CABINAS (Cabina 1, 2, 3):
+                const normRoom = roomCode.replace('uno', '1').replace('dos', '2').replace('tres', '3');
+                servicesToShow = allItems.filter(item => {
+                    const spaces = item.allowedSpaces || [];
+                    const esp = (item.espacio || '').toLowerCase();
+                    const cat = (item.categoria || '').toLowerCase();
+
+                    if (['peluqueria', 'peluquería', 'restaurante', 'hotel'].includes(cat)) return false;
+
+                    const matchesSpace = spaces.includes(normRoom) || spaces.includes('cabina') || spaces.some(s => s.includes('cabina')) || esp.includes('cabina') || esp.includes('panacea');
+                    const isCabinaCat = cat.includes('masaje') || cat.includes('facial') || cat.includes('corporal') || cat.includes('tratamiento') || cat.includes('ritual') || cat.includes('belleza');
+                    const isDefaultCabina = spaces.length === 0 && (isCabinaCat || cat === '' || cat === 'general');
+
+                    return matchesSpace || isCabinaCat || isDefaultCabina || item.source === 'catalog_pack';
+                });
             } else {
-                // --- LEGACY FLOW (NON-CABINA: BONOS, HOTEL, SMARTBOX...) ---
-                const legacyCatalog = (currentServices || []).filter(s => {
-                    const cat = (s.categoria || "").toLowerCase();
-                    const name = (s.nombre || "").toLowerCase();
-
-                    if (roomCode === 'peluqueria') {
-                        // In Peluquería, ONLY allow Pelu/Estética
-                        const isAllowedCat = ['peluqueria', 'peluquería', 'estetica', 'estética', 'manicura', 'pedicura', 'depilacion', 'depilación', 'maquillaje', 'uñas', 'unas', 'pestañas', 'cejas'].some(k => cat.includes(k));
-                        const isAllowedName = ['corte', 'peinado', 'tinte', 'mechas', 'mecha', 'alisado', 'moldeado', 'maquillaje', 'uñas', 'unas', 'manicura', 'pedicura', 'cejas', 'pestañas', 'depilacion', 'depilación'].some(k => name.includes(k));
-
-                        const isExcludedName = ['masaje', 'ritual', 'circuito'].some(k => name.includes(k));
-
-                        if (!isAllowedCat && !isAllowedName) return false;
-                        if (isExcludedName && !isAllowedCat) return false;
-                        return true;
-                    } else {
-                        // Standard legacy: Exclude non-spa
-                        const EXCLUDED_CATEGORIES = ['peluqueria', 'restaurante', 'hotel'];
-                        if (EXCLUDED_CATEGORIES.includes(cat)) return false;
-                    }
-
-                    const sAllowed = (Array.isArray(s.allowedSpaces) ? s.allowedSpaces : []).map(x => x.toLowerCase());
-                    const isExplicitlyAllowed = sAllowed.includes(salaActual) || sAllowed.includes(roomCode);
-
-                    // INCLUDE PACKS even if not explicitly allowed in this room
-                    const isPack = (s.items_incluidos && s.items_incluidos.length > 1) || (s.categoria && s.categoria.includes('pack'));
-
-                    return isExplicitlyAllowed || isPack;
-                }).map(s => ({
-                    nombre: s.nombre,
-                    precio: s.precio || 0,
-                    pax_max: s.pax || 1,
-                    espacio: s.espacio || '',
-                    categoria: s.categoria || '',
-                    source: 'catalog_legacy'
-                }));
-
-                servicesToShow = legacyCatalog;
+                servicesToShow = allItems.filter(item => {
+                    const spaces = item.allowedSpaces || [];
+                    const esp = (item.espacio || '').toLowerCase();
+                    return spaces.some(s => s.includes(roomCode)) || esp.includes(roomCode);
+                });
             }
 
+            // Fallback global de seguridad: si tras el filtrado quedara vacío pero hay servicios en catálogo, mostrar el catálogo general
+            if (servicesToShow.length === 0 && allItems.length > 0) {
+                console.warn(`[POPULATE-SERVICES] Filtro estricto vacío para sala=${roomCode}, aplicando fallback general.`);
+                servicesToShow = allItems.filter(item => !['restaurante', 'hotel'].includes((item.categoria || '').toLowerCase()));
+            }
 
             // --- SORT ALPHABETICALLY ---
             servicesToShow.sort((a, b) => a.nombre.localeCompare(b.nombre));
 
             // --- RENDER ---
-            // Special handling: Force placeholder for Particular flow initially
             const placeholder = document.createElement("option");
             placeholder.value = "";
             placeholder.textContent = "Selecciona un servicio...";
@@ -2621,11 +2522,10 @@
                 const opt = document.createElement("option");
                 opt.value = s.nombre;
                 opt.textContent = s.nombre;
-                // Add dataset for pax limits/space/category
                 opt.dataset.paxMax = s.pax_max;
                 opt.dataset.espacio = s.espacio;
                 opt.dataset.categoria = s.categoria;
-                opt.dataset.precio = s.precio; // Use mapped price
+                opt.dataset.precio = s.precio;
                 if (s.items_incluidos) {
                     opt.dataset.items = JSON.stringify(s.items_incluidos);
                 }
@@ -2648,13 +2548,11 @@
                 const defaultSpa = servicesToShow.find(s => s.nombre.toLowerCase().includes('circuito')) || servicesToShow[0];
                 if (defaultSpa) sel.value = defaultSpa.nombre;
             } else {
-                // FORCE EMPTY for Panacea, Suite, Cabinas etc. to avoid auto-selecting default
                 sel.value = "";
             }
 
             const searchInp = document.getElementById("res-servicio-search");
             if (searchInp) {
-                // Keep the search box in sync with the hidden select
                 searchInp.value = sel.value || "";
             }
 
@@ -3611,6 +3509,32 @@
             return colors[(space || "").toLowerCase()] || '#94a3b8';
         }
 
+
+        window._autoOpenedEditId = null;
+        window.autoOpenBookingFromUrl = function (targetId, foundRes = null) {
+            if (!targetId || window._autoOpenedEditId === targetId) return;
+            const res = foundRes || (currentData ? currentData.find(r => r.id === targetId) : null);
+            if (!res) return;
+            window._autoOpenedEditId = targetId;
+
+            if (typeof editBooking === 'function') {
+                editBooking(targetId, res);
+            }
+            const modal = document.getElementById("booking-modal");
+            if (modal) modal.style.display = "flex";
+
+            // En modo embebido o modal-only jamás hacemos scroll de fondo
+            const isModalOnly = document.body.classList.contains('is-modal-only') || window.location.search.includes('modal=1');
+            if (!isModalOnly) {
+                setTimeout(() => {
+                    const card = document.querySelector(`.booking-card[data-id="${targetId}"]`);
+                    if (card) {
+                        card.style.boxShadow = "0 0 0 4px #fbbf24";
+                        setTimeout(() => card.style.boxShadow = "", 3000);
+                    }
+                }, 300);
+            }
+        };
 
         let loadReservasInstance = 0;
 
