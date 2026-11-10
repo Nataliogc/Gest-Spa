@@ -254,14 +254,27 @@
         }
 
         .po-table td {
-            padding: 0;
-            height: 40px;
+            padding: 3px 2px;
+            height: 46px;
             border-bottom: 1px solid #eef2f7;
             vertical-align: middle;
         }
 
         .po-table td.hour-start {
-            border-left: 1px solid #e2e8f0;
+            border-left: 2px solid #e2e8f0;
+            padding-left: 3px;
+        }
+
+        .po-table tbody tr:nth-child(even) td:not(.row-name) {
+            background: #fafbfc;
+        }
+
+        .po-table tbody tr:hover td:not(.row-name) {
+            background: #f1f5f9;
+        }
+
+        .po-table tbody tr:hover td.row-name {
+            background: #f8fafc;
         }
 
         .row-name-inner {
@@ -295,72 +308,99 @@
             font-weight: 600;
         }
 
-        /* CELL STATES */
-        td.c-free {
-            background: #f0fdf4;
-            cursor: pointer;
-            transition: background 0.1s;
-            position: relative;
-        }
-
-        td.c-free:hover {
-            background: #22c55e;
-        }
-
-        td.c-free:hover::after {
-            content: '+';
-            position: absolute;
-            inset: 0;
+        /* CELL STATES: cada turno de 15 min es un cuadradito independiente */
+        .sq {
+            height: 38px;
+            border-radius: 7px;
+            border: 1px solid transparent;
+            box-sizing: border-box;
             display: flex;
             align-items: center;
             justify-content: center;
-            color: #fff;
+            transition: background 0.12s, border-color 0.12s, transform 0.12s, box-shadow 0.12s;
+        }
+
+        td.c-free {
+            cursor: pointer;
+        }
+
+        td.c-free .sq {
+            background: #ecfdf5;
+            border-color: #bbf7d0;
+            color: transparent;
             font-weight: 800;
             font-size: 1rem;
         }
 
+        td.c-free:hover .sq {
+            background: #22c55e;
+            border-color: #16a34a;
+            color: #fff;
+            transform: scale(1.08);
+            box-shadow: 0 4px 10px rgba(34, 197, 94, 0.35);
+            position: relative;
+            z-index: 2;
+        }
+
         td.c-past {
-            background: #475569;
             cursor: not-allowed;
+        }
+
+        td.c-past .sq {
+            background: #64748b;
+            border-color: #475569;
+            opacity: 0.85;
         }
 
         td.c-off {
-            background: repeating-linear-gradient(45deg, #f1f5f9, #f1f5f9 4px, #e2e8f0 4px, #e2e8f0 8px);
             cursor: not-allowed;
         }
 
-        td.c-off.c-past-dim {
-            background: #475569;
+        td.c-off .sq {
+            background: repeating-linear-gradient(45deg, #f8fafc, #f8fafc 4px, #e9edf3 4px, #e9edf3 8px);
+            border-color: #e2e8f0;
+        }
+
+        td.c-off.c-past-dim .sq {
+            background: repeating-linear-gradient(45deg, #64748b, #64748b 4px, #5b6b80 4px, #5b6b80 8px);
+            border-color: #475569;
+            opacity: 0.85;
         }
 
         td.c-block {
-            background: #1e293b;
-            color: #cbd5e1;
             cursor: default;
         }
 
+        td.c-block .sq {
+            background: repeating-linear-gradient(135deg, #1e293b, #1e293b 6px, #273449 6px, #273449 12px);
+            border-color: #0f172a;
+            color: #cbd5e1;
+            justify-content: flex-start;
+        }
+
         td.c-booked {
-            padding: 2px 1px;
             cursor: pointer;
         }
 
         .bk {
-            height: 34px;
-            border-radius: 6px;
-            padding: 2px 6px;
+            height: 38px;
+            border-radius: 7px;
+            padding: 2px 7px 2px 8px;
             color: #fff;
             overflow: hidden;
             display: flex;
             flex-direction: column;
             justify-content: center;
-            line-height: 1.15;
-            box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08);
-            transition: filter 0.1s, transform 0.1s;
+            line-height: 1.2;
+            border-left: 4px solid rgba(0, 0, 0, 0.25);
+            box-shadow: 0 2px 6px rgba(15, 23, 42, 0.15);
+            transition: filter 0.12s, transform 0.12s, box-shadow 0.12s;
         }
 
         td.c-booked:hover .bk {
-            filter: brightness(1.08);
+            filter: brightness(1.06);
             transform: translateY(-1px);
+            box-shadow: 0 6px 14px rgba(15, 23, 42, 0.25);
         }
 
         .bk-l1 {
@@ -369,19 +409,21 @@
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
+            text-shadow: 0 1px 1px rgba(0, 0, 0, 0.15);
         }
 
         .bk-l2 {
-            font-weight: 500;
+            font-weight: 600;
             font-size: 0.62rem;
-            opacity: 0.92;
+            opacity: 0.95;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
         }
 
         td.c-booked.is-past .bk {
-            filter: grayscale(0.6) brightness(0.65);
+            filter: grayscale(0.55) brightness(0.7);
+            box-shadow: none;
         }
 
         .bk.partial {
@@ -412,7 +454,7 @@
     <div class="sidebar">
         <div style="display: flex; align-items: center; gap: 15px;">
             <img src="logo-spa.jpg" alt="Cumbria Bienestar" style="height: 65px; width: auto; object-fit: contain;">
-            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.0 (10/11/2026)">v2.3.0</span>
+            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.1 (10/11/2026)">v2.3.1</span>
         </div>
 
         <ul class="nav-links" style="flex:1;">
@@ -911,16 +953,68 @@
                 return;
             }
             const url = `reservas-salas.html?type=cabinas&action=new&date=${currentDate}&time=${time}` +
-                `&room=${encodeURIComponent(room)}&staff_id=${encodeURIComponent(staffId)}&staff_name=${encodeURIComponent(staffName)}&embedded=1`;
-            const roomName = room ? (ROOMS.find(r => r.code === room) || {}).name : '';
-            const info = {
-                service: `${roomName || staffName || 'Turno'} · ${time}h`,
-                client: staffName ? `Terapeuta: ${staffName}` : '',
-                type: room || 'salas'
-            };
-            if (typeof openReservationDrawer === 'function') openReservationDrawer(url, info);
-            else window.open(url, 'GestSpa_VentanaReservas');
+                `&room=${encodeURIComponent(room)}&staff_id=${encodeURIComponent(staffId)}&staff_name=${encodeURIComponent(staffName)}&embedded=1&modal=1`;
+            openQuickForm(url);
         }
+
+        // === FORMULARIO DIRECTO (sin panel lateral) ===
+        // Carga reservas-salas en modo "solo formulario" (modal=1) en una capa transparente
+        // a pantalla completa: el usuario ve directamente la ficha de reserva sobre el planning.
+        function openQuickForm(url) {
+            const layer = document.getElementById('quick-form-layer');
+            const frame = document.getElementById('quick-form-frame');
+            const loader = document.getElementById('quick-form-loader');
+            loader.style.display = 'flex';
+            frame.onload = null;
+            frame.src = url;
+            layer.style.display = 'block';
+
+            // Ocultar el "Abriendo reserva..." en cuanto la ficha está visible.
+            // Si no llega a abrirse (p.ej. turno no válido), se cierra la capa para no bloquear el planning.
+            clearInterval(window._qfPoll);
+            const started = Date.now();
+            window._qfPoll = setInterval(() => {
+                if (layer.style.display === 'none') return clearInterval(window._qfPoll);
+                let visible = false;
+                try {
+                    const m = frame.contentDocument && frame.contentDocument.getElementById('booking-modal');
+                    visible = !!(m && m.style.display && m.style.display !== 'none');
+                } catch (e) { visible = true; }
+                if (visible) {
+                    loader.style.display = 'none';
+                    clearInterval(window._qfPoll);
+                } else if (Date.now() - started > 12000) {
+                    clearInterval(window._qfPoll);
+                    closeQuickForm(false);
+                }
+            }, 100);
+        }
+
+        function closeQuickForm(refresh = true) {
+            const layer = document.getElementById('quick-form-layer');
+            const frame = document.getElementById('quick-form-frame');
+            if (layer.style.display === 'none') return;
+            layer.style.display = 'none';
+            frame.src = 'about:blank';
+            if (refresh) setTimeout(() => renderGrid(true), 300);
+        }
+
+        window.addEventListener('message', (event) => {
+            const d = event.data;
+            if (!d || typeof d !== 'object') return;
+            const frame = document.getElementById('quick-form-frame');
+            if (!frame || event.source !== frame.contentWindow) return;
+            if (d.type === 'GEST_SPA_RESERVATION_SUCCESS') {
+                closeQuickForm(true);
+                Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: `Reserva guardada${d.cliente ? ' · ' + d.cliente : ''}`, showConfirmButton: false, timer: 3000 });
+            } else if (d.type === 'GEST_SPA_CLOSE_DRAWER') {
+                closeQuickForm(true);
+            }
+        });
+
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') closeQuickForm(true);
+        });
 
         function newBookingForStaff(idx, time) {
             const s = currentStaffList[idx];
@@ -937,7 +1031,11 @@
 
         function openEdit(b) {
             const url = editUrlFor(b);
-            const info = { service: b.servicio || 'Reserva', client: b.nombre || '', type: (b._collection || '').replace('reservas_', '') };
+            const isSpa = (b._collection || '') === 'reservas_spa';
+            // Reservas de salas: abrir directamente la ficha de reserva
+            if (!isSpa) return openQuickForm(url + '&modal=1');
+            // Circuito SPA (módulo aparte): se mantiene el panel lateral
+            const info = { service: b.servicio || 'Reserva', client: b.nombre || '', type: 'spa' };
             if (typeof openReservationDrawer === 'function') {
                 openReservationDrawer(url, info);
                 const t = document.getElementById('drawer-title');
@@ -974,7 +1072,18 @@
         }
     </script>
 
-    <!-- DRAWER DE RESERVA RÁPIDA (SIN SALIR DE LA PANTALLA) -->
+    <!-- CAPA DE FORMULARIO DIRECTO (abre la ficha de reserva sin panel lateral) -->
+    <div id="quick-form-layer" style="display:none; position:fixed; inset:0; z-index:5000; background:transparent;">
+        <div id="quick-form-loader"
+            style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(15,23,42,0.35); color:#fff; font-weight:700; gap:10px;">
+            <i class="fas fa-spinner fa-spin"></i> Abriendo reserva...
+        </div>
+        <iframe id="quick-form-frame" src="about:blank" allowtransparency="true"
+            style="position:absolute; inset:0; width:100%; height:100%; border:none; background:transparent; color-scheme:normal;"
+            allow="clipboard-read; clipboard-write"></iframe>
+    </div>
+
+    <!-- DRAWER (solo para reservas del Circuito SPA, que tiene módulo aparte) -->
     <div id="reservation-drawer-backdrop" class="drawer-backdrop" style="display: none;" onclick="closeReservationDrawer()"></div>
     <div id="reservation-drawer" class="reservation-drawer" style="display: none;">
         <div class="drawer-header">

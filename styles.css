@@ -1160,3 +1160,29 @@ body.is-embedded #v-booking-notice {
     top: 15px !important;
 }
 
+/* ==========================================================================
+   MODO "SOLO FORMULARIO" (modal=1): se abre directamente la reserva sobre
+   la pantalla de origen (Planning de Ocupación), sin mostrar el cuadrante.
+   ========================================================================== */
+html.is-modal-only,
+body.is-modal-only {
+    background: transparent !important;
+}
+
+body.is-modal-only .main-content {
+    visibility: hidden !important;
+}
+
+/* Los modales y avisos sí deben verse aunque el contenedor esté oculto */
+body.is-modal-only .modal,
+body.is-modal-only .swal2-container,
+body.is-modal-only #toast-container,
+body.is-modal-only .toast {
+    visibility: visible !important;
+}
+
+body.is-modal-only .modal {
+    background: rgba(15, 23, 42, 0.45) !important;
+    backdrop-filter: none !important;
+}
+

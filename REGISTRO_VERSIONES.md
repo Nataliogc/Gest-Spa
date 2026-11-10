@@ -8,7 +8,7 @@ Este documento mantiene el **control de versión única y global** para todo el 
 
 | Parámetro | Valor Actual |
 | :--- | :--- |
-| **Versión Global del Sistema** | **`v2.3.0`** |
+| **Versión Global del Sistema** | **`v2.3.1`** |
 | **Fecha de Última Actualización** | **10/11/2026** |
 | **Estado General** | Operativo en Producción |
 
@@ -47,6 +47,11 @@ Cualquier cambio en los siguientes módulos impacta en la versión global:
 ---
 
 ## 📝 Historial Unificado de Versiones
+
+### [v2.3.1] - 10/11/2026
+- **Tipo:** PATCH
+- **Archivos:** `agenda-salas.html`, `reservas-salas.html`, `styles.css`
+- **Descripción:** Planning de Ocupacion: la ficha de reserva se abre directamente (sin panel lateral) y correccion del aviso de pax maximo segun la sala elegida
 
 ### [v2.3.0] - 10/11/2026
 - **Tipo:** MINOR
