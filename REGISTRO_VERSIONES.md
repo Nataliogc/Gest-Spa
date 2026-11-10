@@ -8,7 +8,7 @@ Este documento mantiene el **control de versión única y global** para todo el 
 
 | Parámetro | Valor Actual |
 | :--- | :--- |
-| **Versión Global del Sistema** | **`v2.3.12`** |
+| **Versión Global del Sistema** | **`v2.3.14`** |
 | **Fecha de Última Actualización** | **10/11/2026** |
 | **Estado General** | Operativo en Producción |
 
@@ -47,6 +47,16 @@ Cualquier cambio en los siguientes módulos impacta en la versión global:
 ---
 
 ## 📝 Historial Unificado de Versiones
+
+### [v2.3.14] - 10/11/2026
+- **Tipo:** PATCH
+- **Archivos:** `agenda-salas.html`, `agenda-spa.html`, `agenda-terapeutas.html`, `bonos.html`, `catalogo.html`, `configuracion.html`, `disponibilidad-terapeutas.html`, `firebase-config.js`, `index.html`, `js/dashboard.js`, `manual-usuario.html`, `package.json`, `pedidos-wc.html`, `personal.html`, `reservas-salas.html`, `reservas-spa.html`, `reservas.html`, `scripts/test-reservation-selectors.js`, `version.json`, `vision-general.html`
+- **Descripción:** Panel lateral de notas y metricas con opcion de ocultar y expandir tabla del dashboard
+
+### [v2.3.13] - 10/11/2026
+- **Tipo:** PATCH
+- **Archivos:** `index.html`, `reservas-salas.html`, `scripts/test-reservation-selectors.js`
+- **Descripción:** Apertura de reservas: cargar configuracion y catalogos en paralelo y compartir lecturas iniciales de servicios y maestro sin cachear reservas
 
 ### [v2.3.12] - 10/11/2026
 - **Tipo:** PATCH

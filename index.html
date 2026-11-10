@@ -39,7 +39,7 @@
     <div class="sidebar">
         <div style="display: flex; align-items: center; gap: 15px;">
             <img src="logo-spa.jpg" alt="Cumbria Bienestar" style="height: 65px; width: auto; object-fit: contain;">
-            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.12 (10/11/2026)">v2.3.12</span>
+            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.14 (10/11/2026)">v2.3.14</span>
         </div>
 
         <ul class="nav-links" style="flex:1;">
@@ -106,6 +106,10 @@
                             style="background: #0f172a; color: #ffffff; border: 1px solid #334155; font-weight: 700; display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); cursor: pointer;" title="Arqueo y Cierre de Caja del Día">
                             <i class="fas fa-cash-register" style="color: #f59e0b; font-size: 1rem;"></i> Caja del Día
                         </button>
+                        <button type="button" id="btn-toggle-sidebar" onclick="toggleDashboardSidebar()" class="btn"
+                            style="background: #ffffff; color: #475569; border: 1px solid #cbd5e1; font-weight: 600; display: inline-flex; align-items: center; gap: 7px; cursor: pointer;" title="Ocultar o mostrar panel de notas y estadísticas">
+                            <i id="btn-toggle-sidebar-icon" class="fas fa-eye-slash" style="color: #64748b;"></i> <span id="btn-toggle-sidebar-text">Ocultar Panel</span>
+                        </button>
                         <button onclick="openReportsModal()" class="btn btn-accent">
                             <i class="fas fa-chart-line"></i> Reportes
                         </button>
@@ -117,8 +121,8 @@
                 </header>
 
                 <!-- Dashboard Layout: 2 Columns -->
-                <div class="dashboard-container"
-                    style="display: grid; grid-template-columns: 1fr 220px; gap: 20px; height: 100%; overflow: hidden;">
+                <div id="dashboard-container" class="dashboard-container"
+                    style="display: grid; grid-template-columns: 1fr 220px; gap: 20px; height: 100%; overflow: hidden; transition: grid-template-columns 0.25s ease;">
 
                     <!-- Main Column: Table -->
                     <div class="dashboard-main"
@@ -235,22 +239,28 @@
                     </div>
 
                     <!-- Sidebar Column: Stats & Notes -->
-                    <div class="dashboard-sidebar"
+                    <div id="dashboard-sidebar" class="dashboard-sidebar"
                         style="display: flex; flex-direction: column; gap: 20px; overflow-y: auto;">
 
                         <!-- Notes Card with Date Selector -->
                         <div class="stat-card"
                             style="padding: 20px; background: #fffbeb; border-left: 4px solid var(--accent); border-radius: 12px;">
                             <div
-                                style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
+                                style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
                                 <h3
                                     style="color: #92400e; font-size: 0.75rem; font-weight: 700; margin: 0; display: flex; align-items: center; gap: 8px;">
                                     <i class="fas fa-sticky-note"></i> NOTAS DEL DÍA
                                 </h3>
-                                <button onclick="editNotasDia()" class="btn-icon" title="Editar notas"
-                                    style="color: #92400e; background: transparent; font-size: 0.9rem;">
-                                    <i class="fas fa-edit"></i>
-                                </button>
+                                <div style="display: flex; align-items: center; gap: 4px;">
+                                    <button onclick="editNotasDia()" class="btn-icon" title="Editar notas"
+                                        style="color: #92400e; background: transparent; font-size: 0.9rem; padding: 2px 6px; cursor: pointer; border: none;">
+                                        <i class="fas fa-edit"></i>
+                                    </button>
+                                    <button type="button" onclick="toggleDashboardSidebar()" class="btn-icon" title="Ocultar panel lateral"
+                                        style="color: #92400e; background: #fef3c7; border: 1px solid #fde68a; border-radius: 4px; font-size: 0.75rem; padding: 2px 6px; cursor: pointer;">
+                                        <i class="fas fa-chevron-right"></i>
+                                    </button>
+                                </div>
                             </div>
 
                             <!-- Date Selector -->
@@ -316,6 +326,13 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Botón flotante para reabrir el panel lateral cuando está oculto -->
+            <button type="button" id="btn-show-sidebar-dock" onclick="toggleDashboardSidebar()" title="Mostrar notas y estadísticas"
+                style="display: none; position: fixed; right: 0; top: 45%; transform: translateY(-50%); background: #ffffff; color: #1e293b; border: 1px solid #cbd5e1; border-right: none; padding: 12px 6px; border-radius: 8px 0 0 8px; cursor: pointer; box-shadow: -3px 2px 10px rgba(0,0,0,0.12); z-index: 99; flex-direction: column; align-items: center; gap: 6px;">
+                <i class="fas fa-chevron-left" style="color: #d97706; font-size: 0.95rem;"></i>
+                <span style="writing-mode: vertical-rl; font-size: 0.68rem; font-weight: 700; color: #475569; letter-spacing: 0.5px; text-transform: uppercase;">Notas y Métricas</span>
+            </button>
         </section>
     </main>
 

@@ -31,6 +31,6 @@ ctx.populateServices();
 assert.ok(services.options.some(o => o.value === 'Masaje de prueba'));
 assert.ok(ctx.window._allServiceOptions.some(o => o.value === 'Masaje de prueba'));
 assert(!html.includes('}, 150);')); // No hay apertura anticipada independiente de la carga.
-const init = html.slice(html.indexOf('await cargarSpaConfig();'), html.indexOf('// Manejar nueva reserva directa desde URL'));
-assert(init.includes('await loadMasterItems();') && init.includes('await fetchBasePrice();'));
+const init = html.slice(html.indexOf('await Promise.all([', html.indexOf('const initialDate =')), html.indexOf('// Manejar nueva reserva directa desde URL'));
+assert(init.includes('loadMasterItems()') && init.includes('fetchBasePrice()'));
 console.log('OK: salas únicas, código existente preservado, servicios de MAR y duración cero, apertura tras carga.');

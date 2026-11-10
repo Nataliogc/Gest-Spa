@@ -486,7 +486,7 @@
         <!-- LEFT: Cumbria Logo -->
         <div style="display: flex; align-items: center; gap: 15px;">
             <img src="logo-spa.jpg" alt="Cumbria Bienestar" style="height: 65px; width: auto; object-fit: contain;">
-            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.12 (10/11/2026)">v2.3.12</span>
+            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.14 (10/11/2026)">v2.3.14</span>
         </div>
 
         <ul class="nav-links" style="flex:1;">
@@ -1548,11 +1548,21 @@
         // --- SERVICE COLORS ---
         let serviceColorMap = {};
 
+        // Compartir lecturas de catálogo solo durante esta apertura; nunca reutilizar datos de reservas.
+        let initialCatalogReads = new Map();
+        function readInitialCatalog(collection) {
+            if (!initialCatalogReads) return db.collection(collection).get();
+            if (!initialCatalogReads.has(collection)) {
+                initialCatalogReads.set(collection, db.collection(collection).get());
+            }
+            return initialCatalogReads.get(collection);
+        }
+
         async function loadColors() {
             try {
                 serviceColorMap = {};
                 // 1. Generics / Legacy
-                const snap = await db.collection('spa_services').get();
+                const snap = await readInitialCatalog('spa_services');
                 snap.forEach(doc => {
                     const d = doc.data();
                     const name = (d.nombre || d.name || '').toLowerCase().trim();
@@ -1561,7 +1571,7 @@
                     }
                 });
                 // 2. Master Items (High Priority)
-                const snapMaster = await db.collection('spa_item_master').get();
+                const snapMaster = await readInitialCatalog('spa_item_master');
                 snapMaster.forEach(doc => {
                     const d = doc.data();
                     const name = (d.name || d.nombre || '').toLowerCase().trim();
@@ -1762,13 +1772,18 @@
             const initialDate = urlDate || localDate;
             picker.value = initialDate;
 
-            await cargarSpaConfig();
-            await window.loadStaff(); // Load staff data
-            await loadColors(); // Load service colors (NEW)
-            await loadStaffConfig(); // Cargar capacidad de personal (legacy?)
-            await loadMasterItems(); // Cargar configuración de espacios de items
-
-            await fetchBasePrice();
+            try {
+                await Promise.all([
+                    cargarSpaConfig(),
+                    window.loadStaff(),
+                    loadStaffConfig(),
+                    loadColors(),
+                    loadMasterItems(),
+                    fetchBasePrice()
+                ]);
+            } finally {
+                initialCatalogReads = null;
+            }
             picker.addEventListener("change", () => loadReservas(picker.value));
 
             // Ajustar UI según modo
@@ -2190,44 +2205,20 @@
 
         async function fetchBasePrice() {
             try {
-                const moduleCode = currentModule.code;
-                // Si es Suite, buscar precio de Suite
-                if (moduleCode === 'suite') {
-                    const snapshot = await db.collection("spa_services")
-                        .where("categoria", "==", "suite_privada")
-                        .get();
-
-                    snapshot.forEach(doc => {
-                        const data = doc.data();
-                        if (data.active) {
-                            baseCircuitoPrice = parseFloat(data.precio) || 100;
-                        }
-                    });
-                } else {
-                    // Buscamos el servicio "Circuito SPA" para sacar su precio base
-                    const snapshot = await db.collection("spa_services")
-                        .where("nombre", ">=", "Circuito")
-                        .get();
-
-                    snapshot.forEach(doc => {
-                        const data = doc.data();
-                        if (data.nombre.toLowerCase().includes("circuito spa") || data.nombre.toLowerCase() === "circuito") {
-                            baseCircuitoPrice = parseFloat(data.precio) || 0;
-                        }
-                    });
-                }
-
-                if (baseCircuitoPrice === 0) {
-                    baseCircuitoPrice = (currentModule.code === 'suite') ? 100 : 25;
-                }
-
-                // Ensure master items are loaded for deep filtering
-                if (!window.masterItems || window.masterItems.length === 0) {
-                    await loadMasterItems();
-                }
+                const snapshot = await readInitialCatalog('spa_services');
+                baseCircuitoPrice = currentModule.code === 'suite' ? 100 : 25;
+                snapshot.forEach(doc => {
+                    const data = doc.data();
+                    const name = (data.nombre || '').toLowerCase();
+                    if (currentModule.code === 'suite') {
+                        if (data.categoria === 'suite_privada' && data.active) baseCircuitoPrice = parseFloat(data.precio) || 100;
+                    } else if (name.includes('circuito spa') || name === 'circuito') {
+                        baseCircuitoPrice = parseFloat(data.precio) || 25;
+                    }
+                });
 
                 // Cargar todos los servicios para el selector dinámico (spa_services)
-                const allServicesSnapshot = await db.collection("spa_services").get();
+                const allServicesSnapshot = await readInitialCatalog('spa_services');
                 const all = [];
                 allServicesSnapshot.forEach(doc => {
                     const data = doc.data();
@@ -3358,7 +3349,7 @@
 
         async function loadMasterItems() {
             try {
-                const snap = await db.collection("spa_item_master").get();
+                const snap = await readInitialCatalog('spa_item_master');
                 window.masterItems = [];
                 snap.forEach(doc => window.masterItems.push(doc.data()));
                 console.log("Items maestros cargados:", window.masterItems.length);

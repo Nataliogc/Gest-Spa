@@ -54,7 +54,59 @@ function initDashboard() {
         const modal = document.getElementById("booking-modal");
         if (e.target === modal) closeModal();
     });
+
+    // Restaurar preferencia del panel lateral (mostrar / ocultar)
+    if (localStorage.getItem("dashboard_sidebar_hidden") === "true") {
+        window.toggleDashboardSidebar(false);
+    }
 }
+
+window.toggleDashboardSidebar = function (forceState) {
+    const container = document.getElementById("dashboard-container");
+    const sidebar = document.getElementById("dashboard-sidebar");
+    const btnText = document.getElementById("btn-toggle-sidebar-text");
+    const btnIcon = document.getElementById("btn-toggle-sidebar-icon");
+    const btnDock = document.getElementById("btn-show-sidebar-dock");
+    const btnHeader = document.getElementById("btn-toggle-sidebar");
+
+    if (!container || !sidebar) return;
+
+    // Si forceState es boolean: true = mostrar, false = ocultar
+    let shouldHide;
+    if (typeof forceState === "boolean") {
+        shouldHide = !forceState;
+    } else {
+        shouldHide = sidebar.style.display !== "none";
+    }
+
+    if (shouldHide) {
+        sidebar.style.display = "none";
+        container.style.gridTemplateColumns = "1fr";
+        if (btnText) btnText.textContent = "Mostrar Panel";
+        if (btnIcon) btnIcon.className = "fas fa-eye";
+        if (btnHeader) {
+            btnHeader.title = "Mostrar panel lateral de notas y métricas";
+            btnHeader.style.background = "#f8fafc";
+            btnHeader.style.color = "#0f172a";
+            btnHeader.style.borderColor = "#94a3b8";
+        }
+        if (btnDock) btnDock.style.display = "flex";
+        localStorage.setItem("dashboard_sidebar_hidden", "true");
+    } else {
+        sidebar.style.display = "flex";
+        container.style.gridTemplateColumns = "1fr 220px";
+        if (btnText) btnText.textContent = "Ocultar Panel";
+        if (btnIcon) btnIcon.className = "fas fa-eye-slash";
+        if (btnHeader) {
+            btnHeader.title = "Ocultar panel lateral de notas y métricas";
+            btnHeader.style.background = "#ffffff";
+            btnHeader.style.color = "#475569";
+            btnHeader.style.borderColor = "#cbd5e1";
+        }
+        if (btnDock) btnDock.style.display = "none";
+        localStorage.setItem("dashboard_sidebar_hidden", "false");
+    }
+};
 
 function updateDateDisplay() {
     const el = document.getElementById("current-date");
