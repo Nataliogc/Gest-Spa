@@ -198,33 +198,71 @@
             table-layout: fixed;
             min-width: 100%;
             font-size: 0.72rem;
+            background: #ffffff;
         }
 
         .po-table col.c-name {
-            width: 150px;
+            width: 160px;
         }
 
         .po-table col.c-slot {
-            width: 34px;
+            width: 40px;
         }
 
+        /* CABECERA 2 NIVELES (Horas y Minutos) */
         .po-table thead th {
-            padding: 7px 0;
             background: #f8fafc;
-            color: #64748b;
+            color: #475569;
             font-weight: 700;
-            font-size: 0.65rem;
-            text-align: left;
-            border-bottom: 1px solid #e2e8f0;
+            text-align: center;
             position: sticky;
             top: 0;
             z-index: 5;
             white-space: nowrap;
+            padding: 0;
         }
 
-        .po-table thead th.hour-start {
-            border-left: 1px solid #cbd5e1;
-            padding-left: 3px;
+        .po-table thead th.th-main-title {
+            vertical-align: middle;
+            text-align: left;
+            padding-left: 14px;
+            font-size: 0.75rem;
+            font-weight: 800;
+            color: #1e293b;
+            letter-spacing: 0.5px;
+            border-bottom: 2px solid #cbd5e1;
+            border-right: 2px solid #cbd5e1;
+            background: #f8fafc;
+            position: sticky;
+            left: 0;
+            z-index: 12;
+        }
+
+        .po-table thead th.th-hour {
+            font-size: 0.75rem;
+            font-weight: 800;
+            padding: 6px 4px 4px 4px;
+            border-left: 2px solid #cbd5e1;
+            border-bottom: 1px solid #e2e8f0;
+            background: #f1f5f9;
+            color: #334155;
+            letter-spacing: 0.3px;
+        }
+
+        .po-table thead th.th-sub {
+            font-size: 0.62rem;
+            font-weight: 600;
+            padding: 3px 0 5px 0;
+            color: #64748b;
+            border-left: 1px solid #e2e8f0;
+            border-bottom: 2px solid #cbd5e1;
+            background: #f8fafc;
+        }
+
+        .po-table thead th.th-sub.hour-start {
+            border-left: 2px solid #cbd5e1;
+            font-weight: 700;
+            color: #1e293b;
         }
 
         .po-table thead th.th-past {
@@ -233,44 +271,33 @@
         }
 
         .po-table thead th.th-now {
-            background: var(--accent, #d4a017);
-            color: #fff;
+            background: var(--accent, #d4a017) !important;
+            color: #fff !important;
         }
 
-        .po-table th:first-child,
         .po-table td.row-name {
             position: sticky;
             left: 0;
             z-index: 6;
             background: #fff;
-            border-right: 2px solid #e2e8f0;
+            border-right: 2px solid #cbd5e1;
+            border-bottom: 1px solid #e2e8f0;
             padding: 0 12px;
             text-align: left;
-        }
-
-        .po-table thead th:first-child {
-            background: #f8fafc;
-            z-index: 7;
+            box-shadow: 2px 0 5px rgba(0, 0, 0, 0.03);
         }
 
         .po-table td {
             padding: 3px 2px;
             height: 46px;
             border-bottom: 1px solid #eef2f7;
+            border-right: 1px solid #f1f5f9;
             vertical-align: middle;
+            box-sizing: border-box;
         }
 
         .po-table td.hour-start {
             border-left: 2px solid #e2e8f0;
-            padding-left: 3px;
-        }
-
-        .po-table tbody tr:nth-child(even) td:not(.row-name) {
-            background: #fafbfc;
-        }
-
-        .po-table tbody tr:hover td:not(.row-name) {
-            background: #f1f5f9;
         }
 
         .po-table tbody tr:hover td.row-name {
@@ -290,16 +317,17 @@
         }
 
         .row-avatar {
-            width: 26px;
-            height: 26px;
-            border-radius: 7px;
+            width: 28px;
+            height: 28px;
+            border-radius: 8px;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 0.62rem;
+            font-size: 0.65rem;
             font-weight: 800;
             color: #fff;
             flex-shrink: 0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
 
         .row-sub {
@@ -308,76 +336,89 @@
             font-weight: 600;
         }
 
-        /* CELL STATES: cada turno de 15 min es un cuadradito independiente */
-        .sq {
+        /* ==========================================================================
+           CUADRADITOS DE OCUPACIÓN (SLOT BOXES)
+           Cada celda de 15 minutos es un cuadradito nítido, táctil y bien definido
+           ========================================================================== */
+        .slot-box {
             height: 38px;
-            border-radius: 7px;
-            border: 1px solid transparent;
+            border-radius: 6px;
             box-sizing: border-box;
             display: flex;
             align-items: center;
             justify-content: center;
-            transition: background 0.12s, border-color 0.12s, transform 0.12s, box-shadow 0.12s;
+            transition: all 0.14s ease;
+            user-select: none;
+            width: 100%;
         }
 
+        /* 1. LIBRE */
         td.c-free {
             cursor: pointer;
         }
 
-        td.c-free .sq {
-            background: #ecfdf5;
-            border-color: #bbf7d0;
+        td.c-free .slot-box.free {
+            background: #f0fdf4;
+            border: 1px solid #bbf7d0;
             color: transparent;
+            font-size: 0.75rem;
             font-weight: 800;
-            font-size: 1rem;
         }
 
-        td.c-free:hover .sq {
+        td.c-free:hover .slot-box.free {
             background: #22c55e;
             border-color: #16a34a;
-            color: #fff;
+            color: #ffffff;
             transform: scale(1.08);
             box-shadow: 0 4px 10px rgba(34, 197, 94, 0.35);
             position: relative;
-            z-index: 2;
+            z-index: 4;
         }
 
+        /* 2. PASADO (OSCURECIDO Y BLOQUEADO) */
         td.c-past {
             cursor: not-allowed;
         }
 
-        td.c-past .sq {
-            background: #64748b;
-            border-color: #475569;
-            opacity: 0.85;
+        td.c-past .slot-box.past {
+            background: #475569;
+            border: 1px solid #334155;
+            color: #64748b;
+            opacity: 0.88;
         }
 
+        /* 3. FUERA DE TURNO (TERAPEUTAS) */
         td.c-off {
             cursor: not-allowed;
         }
 
-        td.c-off .sq {
+        td.c-off .slot-box.off {
             background: repeating-linear-gradient(45deg, #f8fafc, #f8fafc 4px, #e9edf3 4px, #e9edf3 8px);
-            border-color: #e2e8f0;
+            border: 1px solid #e2e8f0;
         }
 
-        td.c-off.c-past-dim .sq {
-            background: repeating-linear-gradient(45deg, #64748b, #64748b 4px, #5b6b80 4px, #5b6b80 8px);
-            border-color: #475569;
-            opacity: 0.85;
+        td.c-off.c-past-dim .slot-box.off {
+            background: repeating-linear-gradient(45deg, #475569, #475569 4px, #334155 4px, #334155 8px);
+            border: 1px solid #334155;
+            opacity: 0.8;
         }
 
+        /* 4. BLOQUEADO */
         td.c-block {
             cursor: default;
         }
 
-        td.c-block .sq {
+        td.c-block .slot-box.blk {
             background: repeating-linear-gradient(135deg, #1e293b, #1e293b 6px, #273449 6px, #273449 12px);
-            border-color: #0f172a;
+            border: 1px solid #0f172a;
             color: #cbd5e1;
+            padding: 0 8px;
             justify-content: flex-start;
+            font-weight: 700;
+            font-size: 0.65rem;
         }
 
+        /* 5. RESERVADO (TARJETA QUE ABARCA EL TURNO COMPLETO) */
         td.c-booked {
             cursor: pointer;
         }
@@ -385,40 +426,57 @@
         .bk {
             height: 38px;
             border-radius: 7px;
-            padding: 2px 7px 2px 8px;
+            padding: 3px 8px;
             color: #fff;
             overflow: hidden;
             display: flex;
             flex-direction: column;
             justify-content: center;
-            line-height: 1.2;
-            border-left: 4px solid rgba(0, 0, 0, 0.25);
-            box-shadow: 0 2px 6px rgba(15, 23, 42, 0.15);
-            transition: filter 0.12s, transform 0.12s, box-shadow 0.12s;
+            line-height: 1.18;
+            border-left: 4px solid rgba(0, 0, 0, 0.35);
+            box-shadow: 0 2px 6px rgba(15, 23, 42, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.22);
+            transition: all 0.14s ease;
+            width: 100%;
+            box-sizing: border-box;
         }
 
         td.c-booked:hover .bk {
-            filter: brightness(1.06);
-            transform: translateY(-1px);
-            box-shadow: 0 6px 14px rgba(15, 23, 42, 0.25);
+            filter: brightness(1.08);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 14px rgba(15, 23, 42, 0.28);
+            position: relative;
+            z-index: 3;
         }
 
         .bk-l1 {
             font-weight: 800;
-            font-size: 0.7rem;
+            font-size: 0.72rem;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
-            text-shadow: 0 1px 1px rgba(0, 0, 0, 0.15);
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            text-shadow: 0 1px 1px rgba(0, 0, 0, 0.2);
         }
 
         .bk-l2 {
             font-weight: 600;
-            font-size: 0.62rem;
+            font-size: 0.63rem;
             opacity: 0.95;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
+            letter-spacing: 0.2px;
+        }
+
+        .bk-badge {
+            background: rgba(0, 0, 0, 0.25);
+            padding: 1px 4px;
+            border-radius: 3px;
+            font-size: 0.6rem;
+            font-weight: 700;
+            white-space: nowrap;
         }
 
         td.c-booked.is-past .bk {
@@ -428,16 +486,6 @@
 
         .bk.partial {
             background-image: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.18) 0 6px, transparent 6px 12px);
-        }
-
-        .blk-label {
-            font-size: 0.62rem;
-            font-weight: 700;
-            padding: 0 6px;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            display: block;
         }
 
         .po-loading {
@@ -454,7 +502,7 @@
     <div class="sidebar">
         <div style="display: flex; align-items: center; gap: 15px;">
             <img src="logo-spa.jpg" alt="Cumbria Bienestar" style="height: 65px; width: auto; object-fit: contain;">
-            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.1 (10/11/2026)">v2.3.1</span>
+            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.2 (10/11/2026)">v2.3.2</span>
         </div>
 
         <ul class="nav-links" style="flex:1;">
@@ -530,14 +578,11 @@
                     consulta</span>
 
                 <div class="legend">
-                    <div class="legend-item"><span class="legend-sw" style="background:#f0fdf4;"></span> Libre (clic =
-                        reservar)</div>
-                    <div class="legend-item"><span class="legend-sw" style="background:#8b5cf6;"></span> Reservado</div>
-                    <div class="legend-item"><span class="legend-sw" style="background:#1e293b;"></span> Bloqueado</div>
-                    <div class="legend-item"><span class="legend-sw"
-                            style="background:repeating-linear-gradient(45deg,#f1f5f9,#f1f5f9 3px,#e2e8f0 3px,#e2e8f0 6px);"></span>
-                        Fuera de turno</div>
-                    <div class="legend-item"><span class="legend-sw" style="background:#475569;"></span> Pasado</div>
+                    <div class="legend-item"><span class="legend-sw" style="background:#f0fdf4; border:1px solid #86efac;"></span> Libre (clic = reservar)</div>
+                    <div class="legend-item"><span class="legend-sw" style="background:#8b5cf6; border:1px solid #7c3aed;"></span> Reservado</div>
+                    <div class="legend-item"><span class="legend-sw" style="background:#1e293b; border:1px solid #0f172a;"></span> Bloqueado</div>
+                    <div class="legend-item"><span class="legend-sw" style="background:repeating-linear-gradient(45deg,#f8fafc,#f8fafc 3px,#e2e8f0 3px,#e2e8f0 6px); border:1px solid #cbd5e1;"></span> Fuera de turno</div>
+                    <div class="legend-item"><span class="legend-sw" style="background:#475569; border:1px solid #334155;"></span> Pasado</div>
                 </div>
             </div>
 
@@ -776,16 +821,33 @@
 
         function tableHead(firstLabel) {
             const nowSlot = currentDate === todayISO() ? Math.floor(nowMinutes() / SLOT_MIN) * SLOT_MIN : -1;
+            const nowHour = currentDate === todayISO() ? Math.floor(nowMinutes() / 60) : -1;
+
             let h = `<colgroup><col class="c-name">${TIME_SLOTS.map(() => '<col class="c-slot">').join('')}</colgroup>`;
-            h += `<thead><tr><th>${firstLabel}</th>`;
+            h += `<thead>`;
+
+            // Fila 1: Horas (10:00, 11:00, ...) con colspan="4"
+            h += `<tr><th rowspan="2" class="th-main-title">${firstLabel}</th>`;
+            for (let t = DAY_START; t < DAY_END; t += 60) {
+                const hourNum = Math.floor(t / 60);
+                const isHourPast = currentDate < todayISO() || (currentDate === todayISO() && (t + 60) <= nowMinutes());
+                const isHourNow = hourNum === nowHour;
+                h += `<th colspan="4" class="th-hour ${isHourPast ? 'th-past' : ''} ${isHourNow ? 'th-now' : ''}">${toHHMM(t)}</th>`;
+            }
+            h += `</tr>`;
+
+            // Fila 2: Sub-cuadraditos de 15 minutos (:00, :15, :30, :45)
+            h += `<tr>`;
             TIME_SLOTS.forEach(t => {
-                const cls = [];
+                const cls = ['th-sub'];
                 if (t % 60 === 0) cls.push('hour-start');
                 if (t === nowSlot) cls.push('th-now');
                 else if (isSlotPast(currentDate, t)) cls.push('th-past');
-                h += `<th class="${cls.join(' ')}">${t % 60 === 0 ? toHHMM(t) : (t % 30 === 0 ? ':30' : '')}</th>`;
+                const minTxt = t % 60 === 0 ? ':00' : `:${pad(t % 60)}`;
+                h += `<th class="${cls.join(' ')}">${minTxt}</th>`;
             });
-            return h + '</tr></thead>';
+            h += `</tr></thead>`;
+            return h;
         }
 
         // Convierte una lista de estados por slot en celdas, fusionando bloques contiguos iguales
@@ -836,7 +898,12 @@
 
                     if (block) {
                         busySlots++;
-                        return { key: 'blk:' + block.id, cls: 'c-block', title: `Bloqueado${block.motivo || block.obs ? ': ' + (block.motivo || block.obs) : ''}`, inner: `<span class="blk-label"><i class="fas fa-lock"></i> ${esc(block.motivo || block.obs || 'Bloqueado')}</span>` };
+                        return {
+                            key: 'blk:' + block.id,
+                            cls: 'c-block',
+                            title: `Bloqueado${block.motivo || block.obs ? ': ' + (block.motivo || block.obs) : ''}`,
+                            inner: `<div class="slot-box blk"><i class="fas fa-lock" style="margin-right:5px;"></i> ${esc(block.motivo || block.obs || 'Bloqueado')}</div>`
+                        };
                     }
                     if (here.length) {
                         if (here.length >= room.capacity) busySlots++;
@@ -846,22 +913,43 @@
                         const blockEnd = Math.max(...here.map(bEnd));
                         const allPast = currentDate < todayISO() || (currentDate === todayISO() && blockEnd <= nowMinutes());
                         const color = getServiceColor(here[0].servicio || here[0].nombre_servicio, room.color);
-                        const lab = bookingLabel(here, here[0].staff_name || here[0].terapeuta || '');
+                        const b0 = here[0];
                         const cap = room.capacity > 1 ? ` (${here.length}/${room.capacity})` : '';
+                        const durTxt = `${b0.duracion || 60}m`;
+                        const timeTxt = b0.hora || toHHMM(t);
+                        const clientTxt = here.length > 1 ? `${here.length} clientes` : (b0.nombre || b0.cliente || 'Cliente');
+                        const svcTxt = [b0.servicio || b0.nombre_servicio || '', (b0.staff_name || b0.terapeuta || '')].filter(Boolean).join(' · ');
+
                         return {
                             key: 'b:' + ids,
                             cls: 'c-booked' + (allPast ? ' is-past' : ''),
                             title: here.map(b => `${b.hora} ${b.nombre || 'Cliente'} - ${b.servicio || ''} (${b.duracion || 60}m)${b.staff_name || b.terapeuta ? ' · ' + (b.staff_name || b.terapeuta) : ''}`).join('\n') + cap,
                             onclick: `onRoomBookedClick('${room.code}', '${ids}', ${partial && !past ? `'${toHHMM(t)}'` : 'null'})`,
-                            inner: `<div class="bk${partial ? ' partial' : ''}" style="background:${color};"><div class="bk-l1">${esc(lab.l1)}${esc(cap)}</div><div class="bk-l2">${esc(lab.l2)}</div></div>`
+                            inner: `<div class="bk${partial ? ' partial' : ''}" style="background:${color};">
+                                <div class="bk-l1">
+                                    <span class="bk-badge">${esc(timeTxt)}</span>
+                                    <span class="bk-name">${esc(clientTxt)}${esc(cap)}</span>
+                                    <span class="bk-badge" style="margin-left:auto; opacity:0.85;">${durTxt}</span>
+                                </div>
+                                <div class="bk-l2">${esc(svcTxt)}</div>
+                            </div>`
                         };
                     }
-                    if (past) return { key: 'past', cls: 'c-past', title: 'Turno pasado' };
+                    if (past) {
+                        return {
+                            key: null,
+                            cls: 'c-past',
+                            title: `${room.name} · ${toHHMM(t)}h (pasado)`,
+                            inner: `<div class="slot-box past"><i class="fas fa-clock" style="font-size:0.6rem; opacity:0.5;"></i></div>`
+                        };
+                    }
                     freeFuture++;
                     return {
-                        key: null, cls: 'c-free',
+                        key: null,
+                        cls: 'c-free',
                         title: `${room.name} · ${toHHMM(t)}h libre · Clic para reservar`,
-                        onclick: `newBooking({ time: '${toHHMM(t)}', room: '${room.code}' })`
+                        onclick: `newBooking({ time: '${toHHMM(t)}', room: '${room.code}' })`,
+                        inner: `<div class="slot-box free"><i class="fas fa-plus"></i></div>`
                     };
                 });
 
@@ -914,23 +1002,51 @@
                         const roomCode = roomCodeOf(here[0]);
                         const roomName = roomCode ? (ROOMS.find(r => r.code === roomCode) || {}).name : (isSpa ? 'CIRCUITO SPA' : '');
                         const bg = isSpa ? '#94a3b8' : getServiceColor(here[0].servicio || here[0].nombre_servicio);
-                        const lab = bookingLabel(here, roomName);
+                        const b0 = here[0];
+                        const durTxt = `${b0.duracion || 60}m`;
+                        const timeTxt = b0.hora || toHHMM(t);
+                        const clientTxt = here.length > 1 ? `${here.length} reservas` : (b0.nombre || b0.cliente || 'Cliente');
+                        const svcTxt = [b0.servicio || b0.nombre_servicio || '', roomName].filter(Boolean).join(' · ');
+
                         return {
                             key: 'b:' + ids,
                             cls: 'c-booked' + (allPast ? ' is-past' : ''),
                             title: here.map(b => `${b.hora} ${b.nombre || 'Cliente'} - ${b.servicio || ''} (${b.duracion || 60}m)`).join('\n'),
                             onclick: `onBookingClick('${ids}')`,
-                            inner: `<div class="bk" style="background:${bg};"><div class="bk-l1">${esc(lab.l1)}</div><div class="bk-l2">${esc(lab.l2)}</div></div>`
+                            inner: `<div class="bk" style="background:${bg};">
+                                <div class="bk-l1">
+                                    <span class="bk-badge">${esc(timeTxt)}</span>
+                                    <span class="bk-name">${esc(clientTxt)}</span>
+                                    <span class="bk-badge" style="margin-left:auto; opacity:0.85;">${durTxt}</span>
+                                </div>
+                                <div class="bk-l2">${esc(svcTxt)}</div>
+                            </div>`
                         };
                     }
                     const inShift = shifts.some(sh => t >= toMin(sh.start) && t + SLOT_MIN <= toMin(sh.end));
-                    if (!inShift) return { key: past ? 'offp' : 'off', cls: 'c-off' + (past ? ' c-past-dim' : ''), title: `Fuera de turno (${shiftTxt})` };
-                    if (past) return { key: 'past', cls: 'c-past', title: 'Turno pasado' };
+                    if (!inShift) {
+                        return {
+                            key: null,
+                            cls: 'c-off' + (past ? ' c-past-dim' : ''),
+                            title: `${sName} · Fuera de turno (${shiftTxt})`,
+                            inner: `<div class="slot-box off"></div>`
+                        };
+                    }
+                    if (past) {
+                        return {
+                            key: null,
+                            cls: 'c-past',
+                            title: `${sName} · ${toHHMM(t)}h (pasado)`,
+                            inner: `<div class="slot-box past"><i class="fas fa-clock" style="font-size:0.6rem; opacity:0.5;"></i></div>`
+                        };
+                    }
                     freeFuture++;
                     return {
-                        key: null, cls: 'c-free',
+                        key: null,
+                        cls: 'c-free',
                         title: `${sName} libre a las ${toHHMM(t)}h · Clic para reservar`,
-                        onclick: `newBookingForStaff(${idx}, '${toHHMM(t)}')`
+                        onclick: `newBookingForStaff(${idx}, '${toHHMM(t)}')`,
+                        inner: `<div class="slot-box free"><i class="fas fa-plus"></i></div>`
                     };
                 });
 
