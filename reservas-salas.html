@@ -480,7 +480,7 @@
         <!-- LEFT: Cumbria Logo -->
         <div style="display: flex; align-items: center; gap: 15px;">
             <img src="logo-spa.jpg" alt="Cumbria Bienestar" style="height: 65px; width: auto; object-fit: contain;">
-            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.2.1 (10/11/2026)">v2.2.1</span>
+            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.2.2 (10/11/2026)">v2.2.2</span>
         </div>
 
         <ul class="nav-links" style="flex:1;">
@@ -1293,7 +1293,7 @@
             },
             'panacea': {
                 code: 'panacea',
-                name: 'SALAS',
+                name: 'PANACEA',
                 collection: 'reservas_panacea',
                 capacity: 1,
                 isPrivate: true,
@@ -1353,7 +1353,7 @@
                 collection: 'reservas_cabinas_placeholder',
                 capacity: 0,
                 isPrivate: false,
-                requiresStaff: false,
+                requiresStaff: true,
                 viewType: 'timeline'
             },
             'terapeutas': {
@@ -1778,6 +1778,13 @@
             }
 
             await loadReservas(initialDate);
+
+            // Manejar nueva reserva directa desde URL (Casilla Libre de Agenda o Bonos)
+            if (urlParams.get('action') === 'new') {
+                if (typeof window.openNewReservationFromUrl === 'function') {
+                    await window.openNewReservationFromUrl();
+                }
+            }
 
             // Manejar salto a reserva específica
             const resId = urlParams.get('res_id');
@@ -2233,94 +2240,89 @@
             if (!sel) return;
             sel.innerHTML = "";
 
+            const urlParamsNow = new URLSearchParams(window.location.search);
+            const isNewAction = urlParamsNow.get('action') === 'new';
             const contextCode = contextCodeStr || currentModule.code;
 
-            // Filter modules to show compatible rooms based on type (Private vs Open)
-            // STRICT FILTERING: Remove junk (test names) but ALLOW 'mar', 'mari'
-            const EXCLUDED_NAMES = ['pesadilla', 'mari', 'pepito', 'gimnasio', 'hotel', 'rayos uva', 'restaurante', 'agenda terapeutas'];
-            // Removed 'mar' from blacklist to fix issue, kept others to clean up UI
+            // Opción inicial en blanco para que el operador elija la sala libremente
+            const defaultEmptyOpt = document.createElement("option");
+            defaultEmptyOpt.value = "";
+            defaultEmptyOpt.textContent = "-- Seleccionar Sala --";
+            sel.appendChild(defaultEmptyOpt);
 
-            const keys = Object.keys(window.MODULES || {}).filter(k => {
-                const m = window.MODULES[k];
-                if (!m) return false;
+            // Nombres o códigos excluidos que no son salas de tratamiento ni cabinas
+            const EXCLUDED_CODES = ['spa', 'gimnasio', 'gym', 'hotel', 'rayos uva', 'restaurante', 'agenda terapeutas', 'pesadilla', 'mari', 'mar', 'pepito', 'cabinas', 'staff', 'terapeutas'];
 
-                // 1. Basic Filters
-                if (k === 'cabinas' || k === 'staff' || k === 'terapeutas') return false;
-                if (m.deleted) return false;
+            // Salas estándar prioritarias garantizadas
+            const standardRooms = [
+                { code: 'cabina1', name: 'CABINA 1' },
+                { code: 'cabina2', name: 'CABINA 2' },
+                { code: 'cabina3', name: 'CABINA 3' },
+                { code: 'suite', name: 'SUITE SPA' },
+                { code: 'panacea', name: 'PANACEA' },
+                { code: 'vip', name: 'SALA VIP' },
+                { code: 'peluqueria', name: 'PELUQUERÍA' }
+            ];
 
-                // 2. Name Filter (Blacklist)
-                const nameLower = (m.name || '').toLowerCase().trim();
-                // Special check: Allow 'mari' explicitly even if it was in the list previously
-                if (nameLower !== 'mari' && EXCLUDED_NAMES.includes(nameLower)) return false;
-                // Note: 'mar' is not in the array above, so it passes. 'mari' is in array but we exclude it from check here just in case.
+            const roomMap = new Map();
 
-                // 3. Contextual Filter (Keep existing logic but stricter)
-                // Fixed Modules: Can only stay in themselves
-                if (contextCode === 'spa') return k === 'spa';
-                // Relaxed Panacea to allow moving reservations in/out
-                // if (contextCode === 'panacea') return k === 'panacea'; 
-                if (contextCode === 'peluqueria') return k === 'peluqueria';
-
-                // Movable Context (Cabinas, Suite, VIP, Panacea):
-                // Exclude Spa, Peluqueria from these selectors (Allow Panacea)
-                if (['spa', 'peluqueria'].includes(k)) return false;
-
-                return true;
-            });
-
-            // Sort keys to ensure cabina order
-            keys.sort();
-
-            // DEDUPLICATION BY NAME (Prefer contextCode)
-            const mapOptions = new Map();
-
-            keys.forEach(k => {
-                const m = window.MODULES[k];
-                let cleanName = (m.name || '').trim().toUpperCase();
-
-                // Si no existe o si es el modulo en el que estamos actualmente, lo guardamos
-                // Esto asegura que nunca se nos quede fuera el código esperado para sel.value
-                if (!mapOptions.has(cleanName) || k === contextCode) {
-                    mapOptions.set(cleanName, k);
+            // 1. Agregar las salas estándar primero (asegura Cabinas, Suite, Panacea, VIP y Peluquería)
+            standardRooms.forEach(r => {
+                const dynamicMod = (window.MODULES && window.MODULES[r.code]);
+                let label = r.name;
+                if (dynamicMod && dynamicMod.name && dynamicMod.name.toUpperCase() !== 'SALAS') {
+                    label = dynamicMod.name.toUpperCase();
                 }
+                roomMap.set(r.code, { code: r.code, name: label });
             });
 
-            keys.forEach(k => {
-                const m = window.MODULES[k];
-                let cleanName = (m.name || '').trim().toUpperCase();
+            // 2. Agregar cualquier otra sala dinámica registrada en spa_spaces / MODULES
+            if (window.MODULES) {
+                Object.keys(window.MODULES).forEach(k => {
+                    const m = window.MODULES[k];
+                    if (!m || m.deleted) return;
+                    const kLower = k.toLowerCase().trim();
+                    const nameLower = (m.name || '').toLowerCase().trim();
 
-                if (mapOptions.get(cleanName) === k) {
-                    const opt = document.createElement("option");
-                    opt.value = k;
-                    opt.textContent = cleanName;
-                    sel.appendChild(opt);
-                }
-            });
+                    if (EXCLUDED_CODES.includes(kLower) || EXCLUDED_CODES.includes(nameLower)) return;
 
-            // Set Value
-            if (preselectCode && keys.includes(preselectCode)) {
-                sel.value = preselectCode;
-            } else if (keys.includes(contextCode)) {
-                sel.value = contextCode;
-            } else if (contextCode === 'cabinas' && keys.includes('cabina1')) {
-                sel.value = 'cabina1';
+                    if (!roomMap.has(k)) {
+                        let displayName = (m.name || k).toUpperCase().trim();
+                        if (k === 'panacea') displayName = 'PANACEA';
+                        roomMap.set(k, { code: k, name: displayName });
+                    }
+                });
             }
 
-            // NEW VISIBILITY LOGIC (USER REQUEST: Spa, Salas/Panacea, Peluqueria are FIXED)
-            // NEW VISIBILITY LOGIC (USER REQUEST: Show room/sala even if fixed, to confirm where we are)
+            // Construir elementos <option>
+            roomMap.forEach(r => {
+                const opt = document.createElement("option");
+                opt.value = r.code;
+                opt.textContent = r.name;
+                sel.appendChild(opt);
+            });
+
+            // Establecer valor seleccionado:
+            // Si es nueva reserva sin sala explícita en la URL, dejar en blanco ("")
+            if (preselectCode && roomMap.has(preselectCode)) {
+                sel.value = preselectCode;
+            } else if (preselectCode === "" || preselectCode === "none") {
+                sel.value = "";
+            } else if (isNewAction && (!urlParamsNow.get('room') && !urlParamsNow.get('sala'))) {
+                sel.value = "";
+            } else if (roomMap.has(contextCode)) {
+                sel.value = contextCode;
+            } else {
+                sel.value = "";
+            }
+
+            // El selector de salas siempre visible y editable para que el usuario pueda elegir cualquier sala
             const roomGroup = document.getElementById("room-selector-group");
             if (roomGroup) {
-                roomGroup.style.display = 'block'; // Always show per user request
-                // Disable if it's a fixed room module
-                const isFixed = (contextCode === 'spa' || contextCode === 'panacea' || contextCode === 'peluqueria');
-                sel.disabled = isFixed;
-                if (isFixed) {
-                    sel.style.backgroundColor = "#f1f5f9";
-                    sel.style.color = "#475569";
-                } else {
-                    sel.style.backgroundColor = "#fff";
-                    sel.style.color = "#1e3a8a";
-                }
+                roomGroup.style.display = 'block';
+                sel.disabled = false;
+                sel.style.backgroundColor = "#fff";
+                sel.style.color = "#1e3a8a";
             }
         }
 
@@ -4469,12 +4471,19 @@
             window._spaCourtesyActive = false;
             window._spaCourtesyMinutes = 0;
 
+            const urlP = new URLSearchParams(window.location.search);
+            const isExplicitNew = urlP.get('action') === 'new';
+
             if (isPast) {
                 if (isSpaCourtesyEligible && isWithinCourtesy) {
                     // Allow with courtesy - will validate origin in handleFormSubmit
                     window._spaCourtesyActive = true;
                     window._spaCourtesyMinutes = minutesInPast;
                     console.log(`[SPA CORTESÍA] Permitido: ${minutesInPast} min en pasado`);
+                } else if (isExplicitNew || window._pastReservationUnlocked) {
+                    // Apertura directa desde cuadrante/agenda para registrar reserva
+                    console.log(`[AGENDA NEW] Abriendo formulario para hora ${selectedTime} solicitada desde agenda`);
+                    window._pastReservationUnlocked = true;
                 } else if (isBeyondCourtesy || !isSpaCourtesyEligible) {
                     // Block strictly
                     if (isSpaCourtesyEligible && isBeyondCourtesy) {
@@ -4486,7 +4495,7 @@
                 }
             }
 
-            if (isBlocked) {
+            if (isBlocked && !isExplicitNew) {
                 alert("Este turno está CERRADO manualmente. Ábrelo para añadir reservas.");
                 return;
             }
@@ -4518,22 +4527,27 @@
                     return;
                 }
             } else {
-                // Standard block for other modules
-                if (paxActual >= maxCapacity) {
+                // Standard block for other modules (cabinas wrapper or explicit new allows room selection first)
+                if (!isExplicitNew && currentModule.code !== 'cabinas' && paxActual >= maxCapacity && maxCapacity > 0) {
                     alert("Este turno está completo.");
                     return;
                 }
             }
 
             let titleText = "Nueva Reserva";
-            if (currentModule) {
+            const staffNameFromUrl = urlP.get('staff_name');
+            if (staffNameFromUrl) {
+                titleText = `Nueva Reserva · ${staffNameFromUrl.toUpperCase()}`;
+            } else if (currentModule && currentModule.code !== 'cabinas') {
                 // Use Name or Code
                 const modName = currentModule.name || currentModule.code.toUpperCase();
                 titleText = `Nueva Reserva · ${modName}`;
+            } else {
+                titleText = "Nueva Reserva";
             }
             document.getElementById("modal-title").textContent = titleText;
             const disponibles = maxCapacity - paxActual;
-            document.getElementById("modal-subtitle").textContent = `Turno: ${selectedTime}h - ` + (currentModule.isPrivate ? (disponibles > 0 ? "Disponible" : "Ocupado") : `Disponibles: ${disponibles} plazas`);
+            document.getElementById("modal-subtitle").textContent = `Turno: ${selectedTime}h - ` + (currentModule.isPrivate ? (disponibles > 0 ? "Disponible" : "Ocupado") : `Disponibles: ${disponibles > 0 ? disponibles : 1} plazas`);
             document.getElementById("res-id-display").textContent = "NUEVA";
             document.getElementById("audit-info").innerHTML = "";
             document.getElementById("form-id").value = "";
@@ -4614,14 +4628,16 @@
             // STAFF SELECTOR VISIBILITY
             const staffGroup = document.getElementById("staff-selector-group");
             const bookingStaff = document.getElementById("booking-staff");
+            const hasStaffInUrl = !!(urlP.get('staff_id') || urlP.get('staff_name') || urlP.get('terapeuta'));
+            const requiresStaffNow = currentModule.requiresStaff || (currentModule.code === 'cabinas') || hasStaffInUrl;
             if (staffGroup && bookingStaff) {
-                if (currentModule.requiresStaff) {
+                if (requiresStaffNow) {
                     staffGroup.style.display = "block";
                     bookingStaff.required = true;
 
                     // Trigger initial load of available staff
                     if (typeof window.handleStaffFieldsChange === 'function') {
-                        window.handleStaffFieldsChange();
+                        await window.handleStaffFieldsChange();
                     }
                 } else {
                     staffGroup.style.display = "none";
@@ -4635,7 +4651,7 @@
                 const therapistGroup = therapistInput.closest('.form-group');
                 if (therapistGroup) {
                     // Hide if module doesn't require staff (like SPA)
-                    therapistGroup.style.display = currentModule.requiresStaff ? "block" : "none";
+                    therapistGroup.style.display = requiresStaffNow ? "block" : "none";
                 }
             }
 
@@ -5399,6 +5415,7 @@
         function closeModal(fromUserCancel = false) {
             document.getElementById("booking-modal").style.display = "none";
             window.currentEditingId = null; // Clear global ID
+            window._isNewReservationOpening = false;
 
             // Clear Overbooking Globals
             window._spaOverbookingModeBase = null;
@@ -5481,6 +5498,17 @@
                 if (origenVal !== 'bono' && !telField.value.trim()) {
                     alert("Por favor, introduce un teléfono de contacto.");
                     telField.focus();
+                    return;
+                }
+
+                // Validar Sala seleccionada si el selector de salas existe y está visible
+                const roomSel = document.getElementById("res-sala");
+                if (roomSel && !roomSel.value && currentModule.code !== 'spa') {
+                    alert("Por favor, selecciona una Sala.");
+                    roomSel.focus();
+                    isSavingReservation = false;
+                    btn.disabled = false;
+                    btn.innerHTML = originalText;
                     return;
                 }
 
@@ -5711,7 +5739,6 @@
                 let originalColl = null;
 
                 // 1. Try to get collection from selected Sala
-                const roomSel = document.getElementById("res-sala");
                 if (roomSel && roomSel.value && window.MODULES && window.MODULES[roomSel.value]) {
                     targetColl = window.MODULES[roomSel.value].collection;
                 }
@@ -5768,14 +5795,18 @@
                     precio_total: parseFloat(document.getElementById("res-precio-total")?.value) || 0,
                     servicio: svcName,
                     duracion: duration,
+                    sala: (roomSel && roomSel.value) ? roomSel.value : (currentModule.code || ""),
                     obs: document.getElementById("res-obs")?.value || "",
                     pricing_mode: window._currentPricingMode || null,
                     updated_at: new Date().toISOString()
                 };
 
                 // CAPTURE STAFF
-                if (currentModule.requiresStaff) {
-                    const staffSel = document.getElementById("booking-staff");
+                const staffSel = document.getElementById("booking-staff");
+                const hasSelectedStaff = staffSel && staffSel.value;
+                const shouldCaptureStaff = requiresStaffForThisBooking || hasSelectedStaff;
+
+                if (shouldCaptureStaff) {
                     if (staffSel && staffSel.value) {
                         payload.staff_id = staffSel.value;
                         payload.staff_name = staffSel.options[staffSel.selectedIndex].text;
@@ -7152,6 +7183,21 @@
 
             // HANDLE NEW RESERVATION ACTION (Desde Bono o desde Casilla Libre de la Agenda)
             if (action === 'new') {
+                setTimeout(async () => {
+                    if (typeof window.openNewReservationFromUrl === 'function') {
+                        await window.openNewReservationFromUrl();
+                    }
+                }, 150);
+            }
+        });
+
+        // Definición global del manejador de nueva reserva para apertura directa de modal
+        window.openNewReservationFromUrl = async function () {
+            if (window._isNewReservationOpening) return;
+            window._isNewReservationOpening = true;
+
+            try {
+                const urlParams = new URLSearchParams(window.location.search);
                 const client = urlParams.get('client');
                 const service = urlParams.get('service');
                 const voucher = urlParams.get('voucher');
@@ -7159,79 +7205,114 @@
                 const staffParam = urlParams.get('staff_id') || urlParams.get('staff') || urlParams.get('terapeuta');
                 const staffNameParam = urlParams.get('staff_name');
                 const roomParam = urlParams.get('room') || urlParams.get('sala');
+                const dateParam = urlParams.get('fecha') || urlParams.get('date');
 
                 if (timeParam) {
                     selectedTime = timeParam;
                 }
+                if (dateParam) {
+                    const picker = document.getElementById("main-date-picker");
+                    if (picker) picker.value = dateParam;
+                }
 
-                // Store in session for pre-fill if coming from voucher
+                window._pastReservationUnlocked = true;
+
+                // Si viene de bono, registrar temporalmente para auto-rellenar
                 if (client || service || voucher) {
-                    const pendingData = {
+                    window._isExplicitVoucherBooking = true;
+                    sessionStorage.setItem('pendingVoucherBooking', JSON.stringify({
                         cliente: client || "",
                         producto: service || "",
                         bono: voucher || "",
-                        pax_por_sesion: 2 // Default or inferred?
-                    };
-                    sessionStorage.setItem('pendingVoucherBooking', JSON.stringify(pendingData));
+                        pax_por_sesion: 2
+                    }));
                 }
 
-                // Trigger Modal Open (give a moment for dynamic modules & staff to Init)
-                setTimeout(async () => {
-                    if (timeParam) {
-                        selectedTime = timeParam;
-                    }
+                // Abrir el formulario modal directamente
+                await showBookingForm();
 
-                    // Sincronizar sala si se indicó en la URL
-                    if (roomParam && window.MODULES) {
-                        const roomLower = roomParam.toLowerCase().trim();
-                        const foundModKey = Object.keys(window.MODULES).find(k => 
-                            k.toLowerCase() === roomLower || 
-                            (window.MODULES[k].name && window.MODULES[k].name.toLowerCase() === roomLower)
-                        );
-                        if (foundModKey && window.MODULES[foundModKey]) {
-                            window.currentModule = window.MODULES[foundModKey];
-                            currentModule = window.MODULES[foundModKey];
-                            const headerEl = document.querySelector('h2');
-                            if (headerEl) headerEl.textContent = currentModule.name;
-                        }
-                    }
-
-                    if (typeof showBookingForm === 'function') {
-                        await showBookingForm(null, true); // true = isNew
-
-                        // Preseleccionar sala en el desplegable si existe
-                        if (roomParam) {
-                            const salaSel = document.getElementById("res-sala");
-                            if (salaSel) {
-                                for (let opt of salaSel.options) {
-                                    if (opt.value.toLowerCase() === roomParam.toLowerCase() || 
-                                        opt.textContent.toLowerCase().trim() === roomParam.toLowerCase().trim()) {
-                                        salaSel.value = opt.value;
-                                        break;
-                                    }
-                                }
-                            }
-                        }
-
-                        // Preseleccionar terapeuta si vino indicado
-                        if (staffParam || staffNameParam) {
-                            const staffSel = document.getElementById("res-staff") || document.getElementById("res-staff-1");
-                            if (staffSel) {
-                                for (let opt of staffSel.options) {
-                                    if ((staffParam && opt.value === staffParam) || 
-                                        (staffNameParam && opt.textContent.toLowerCase().includes(staffNameParam.toLowerCase()))) {
-                                        staffSel.value = opt.value;
-                                        break;
-                                    }
-                                }
+                // 1. Selector de Sala: Dejar en blanco (-- Seleccionar Sala --) o asignar si vino especificada
+                populateRoomOptions(roomParam || "");
+                const salaSel = document.getElementById("res-sala");
+                if (salaSel) {
+                    salaSel.disabled = false;
+                    if (roomParam) {
+                        for (let opt of salaSel.options) {
+                            if (opt.value.toLowerCase() === roomParam.toLowerCase() || 
+                                opt.textContent.toLowerCase().trim() === roomParam.toLowerCase().trim()) {
+                                salaSel.value = opt.value;
+                                break;
                             }
                         }
                     } else {
-                        console.error("showBookingForm not defined yet");
+                        salaSel.value = ""; // Sala en blanco obligatoria según petición de usuario
                     }
-                }, 550);
+                    if (typeof populateServices === 'function') {
+                        populateServices();
+                    }
+                }
+
+                // 2. Selector de Terapeuta: Asegurar visibilidad, carga y preselección
+                const staffGroup = document.getElementById("staff-selector-group");
+                if (staffGroup) staffGroup.style.display = "block";
+                const bookingStaff = document.getElementById("booking-staff");
+                if (bookingStaff) {
+                    bookingStaff.required = true;
+                    if (typeof window.handleStaffFieldsChange === 'function') {
+                        await window.handleStaffFieldsChange();
+                    }
+
+                    if (staffParam || staffNameParam) {
+                        let matchedStaff = false;
+                        for (let opt of bookingStaff.options) {
+                            if (staffParam && opt.value === staffParam) {
+                                bookingStaff.value = opt.value;
+                                matchedStaff = true;
+                                break;
+                            }
+                        }
+                        if (!matchedStaff && staffNameParam) {
+                            const targetNameLower = staffNameParam.toLowerCase().trim();
+                            for (let opt of bookingStaff.options) {
+                                const optTextLower = opt.textContent.toLowerCase().trim();
+                                if (optTextLower === targetNameLower || optTextLower.startsWith(targetNameLower) || optTextLower.includes(targetNameLower)) {
+                                    bookingStaff.value = opt.value;
+                                    matchedStaff = true;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                const resTerapeutaInp = document.getElementById("res-terapeuta");
+                if (resTerapeutaInp && staffNameParam) {
+                    resTerapeutaInp.value = staffNameParam;
+                }
+
+                // 3. Preseleccionar datos adicionales si vienen en URL
+                if (client) {
+                    const nombreInp = document.getElementById("res-nombre");
+                    if (nombreInp) nombreInp.value = client;
+                }
+                if (service) {
+                    const srvSel = document.getElementById("res-servicio");
+                    if (srvSel) {
+                        srvSel.value = service;
+                        const searchInp = document.getElementById("res-servicio-search");
+                        if (searchInp) searchInp.value = service;
+                    }
+                }
+
+                // 4. Forzar visualización directa del modal de reservas
+                const modal = document.getElementById("booking-modal");
+                if (modal) {
+                    modal.style.display = "flex";
+                }
+            } catch (err) {
+                console.error("[openNewReservationFromUrl] Error:", err);
             }
-        });
+        };
 
         function handleDateChange(val) {
             updateDateDisplay(val);

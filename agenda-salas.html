@@ -351,7 +351,7 @@
     <div class="sidebar">
         <div style="display: flex; align-items: center; gap: 15px;">
             <img src="logo-spa.jpg" alt="Cumbria Bienestar" style="height: 65px; width: auto; object-fit: contain;">
-            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.2.1 (10/11/2026)">v2.2.1</span>
+            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.2.2 (10/11/2026)">v2.2.2</span>
         </div>
 
         <ul class="nav-links" style="flex:1;">
@@ -724,33 +724,17 @@
 
         function openNewReservationForSlot(date, time, staffId, staffName) {
             const cleanName = (staffName || '').trim();
-            const cleanKey = cleanName.toLowerCase();
 
-            // Detectar si el nombre coincide con alguna sala o módulo específico
-            let targetType = 'cabinas';
-            if (cleanKey === 'mar' || cleanKey === 'mari') {
-                targetType = cleanKey;
-            } else if (cleanKey.includes('suite')) {
-                targetType = 'suite';
-            } else if (cleanKey.includes('panacea')) {
-                targetType = 'panacea';
-            } else if (cleanKey.includes('peluqu')) {
-                targetType = 'peluqueria';
-            } else if (cleanKey.includes('cabina 1') || cleanKey === 'cabina1') {
-                targetType = 'cabina1';
-            } else if (cleanKey.includes('cabina 2') || cleanKey === 'cabina2') {
-                targetType = 'cabina2';
-            } else if (cleanKey.includes('cabina 3') || cleanKey === 'cabina3') {
-                targetType = 'cabina3';
-            }
-
-            const url = `reservas-salas.html?type=${targetType}&action=new&date=${date}&time=${time}&staff_id=${staffId}&staff_name=${encodeURIComponent(cleanName)}&room=${encodeURIComponent(cleanName)}&embedded=1`;
+            // Al pinchar en casilla libre de la agenda, abrir formulario de reservas directamente
+            // con sala en blanco (para que el usuario elija cualquier sala: Cabinas, Suite, Panacea, VIP, Peluquería)
+            // y con el terapeuta, fecha y turno preseleccionados.
+            const url = `reservas-salas.html?type=cabinas&action=new&date=${date}&time=${time}&staff_id=${staffId || ''}&staff_name=${encodeURIComponent(cleanName)}&room=&embedded=1`;
 
             if (typeof openReservationDrawer === 'function') {
                 openReservationDrawer(url, {
                     service: `Turno ${time}h`,
                     client: cleanName ? `Terapeuta: ${cleanName}` : '',
-                    type: targetType
+                    type: 'cabinas'
                 });
             } else {
                 window.open(url, 'GestSpa_VentanaReservas');
