@@ -1269,3 +1269,675 @@ window.unmarkNoShow = async function (resId, moduleType) {
         console.error('Error unmarking no show:', err);
     }
 };
+
+// --- CAJA DEL DÍA (Arqueo y Desglose) ---
+
+window._currentCajaData = {
+    date: '',
+    movements: [],
+    totals: {
+        efectivo: 0,
+        tarjeta: 0,
+        pasarela: 0,
+        tienda_virtual: 0,
+        total: 0
+    },
+    counts: {
+        efectivo: 0,
+        tarjeta: 0,
+        pasarela: 0,
+        tienda_virtual: 0,
+        total: 0
+    }
+};
+window._currentCajaFilter = 'todos';
+
+window.openCajaModal = function () {
+    const modal = document.getElementById("caja-modal");
+    if (!modal) return;
+    modal.style.display = "flex";
+
+    const dashPicker = document.getElementById("dashboard-date-picker");
+    const targetDate = (dashPicker && dashPicker.value) ? dashPicker.value : new Date().toISOString().split('T')[0];
+
+    const cajaPicker = document.getElementById("caja-date-picker");
+    if (cajaPicker) cajaPicker.value = targetDate;
+
+    window.cargarCajaDelDia(targetDate);
+};
+
+window.closeCajaModal = function () {
+    const modal = document.getElementById("caja-modal");
+    if (modal) modal.style.display = "none";
+};
+
+window.changeCajaDate = function (days) {
+    const picker = document.getElementById("caja-date-picker");
+    let cur = (picker && picker.value) ? picker.value : new Date().toISOString().split('T')[0];
+    const parts = cur.split('-');
+    const d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+    d.setDate(d.getDate() + days);
+    const newDate = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    if (picker) picker.value = newDate;
+    window.cargarCajaDelDia(newDate);
+};
+
+window.cargarCajaDelDia = async function (targetDate = null) {
+    const picker = document.getElementById("caja-date-picker");
+    const dateToLoad = targetDate || (picker && picker.value) || new Date().toISOString().split('T')[0];
+    if (picker && picker.value !== dateToLoad) picker.value = dateToLoad;
+
+    // Actualizar subtítulo con fecha legible
+    const sub = document.getElementById("caja-modal-subtitle");
+    try {
+        const parts = dateToLoad.split('-');
+        const d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+        const formatted = d.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+        if (sub) sub.textContent = `Arqueo del ${formatted} · Efectivo, Tarjeta, Pasarela y Tienda Virtual`;
+    } catch (e) {
+        if (sub) sub.textContent = `Arqueo del día ${dateToLoad}`;
+    }
+
+    const tbody = document.getElementById("caja-table-body");
+    if (tbody) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="6" style="text-align: center; padding: 36px; color: #64748b;">
+                    <i class="fas fa-spinner fa-spin" style="font-size: 1.5rem; color: #d97706; margin-bottom: 8px;"></i>
+                    <p style="margin: 0; font-weight: 600;">Calculando arqueo y cobros del día...</p>
+                </td>
+            </tr>
+        `;
+    }
+
+    const movements = [];
+    const countedKeys = new Set();
+
+    try {
+        const formatES = dateToLoad.split('-').reverse().join('/');
+
+        // 1. VOUCHERS / BONOS (spa_vouchers)
+        const [snapISO, snapES] = await Promise.all([
+            db.collection("spa_vouchers").where("fecha", ">=", dateToLoad).where("fecha", "<=", dateToLoad + "\uf8ff").get(),
+            db.collection("spa_vouchers").where("fecha", "==", formatES).get()
+        ]);
+
+        const processVoucher = (doc) => {
+            const data = doc.data();
+            const id = (data.bono || data.id || doc.id || "").toUpperCase();
+            const precio = parseFloat(data.precio || data.importe || 0);
+            const origen = String(data.origen || "").toLowerCase();
+            const metodo = String(data.metodo_pago || data.metodo || "").toLowerCase();
+            const cliente = data.nombre_cliente || data.nombre || data.cliente || "-";
+            const concepto = data.nombre_bono || data.bono || "Venta de Bono";
+            const hora = data.hora || (data.fecha && data.fecha.includes('T') ? data.fecha.split('T')[1].substring(0, 5) : "--:--");
+
+            // Check if voucher has payments array with specific dates
+            if (Array.isArray(data.pagos) && data.pagos.length > 0) {
+                data.pagos.forEach((p, idx) => {
+                    const pFecha = String(p.fecha || "");
+                    const pMetodo = String(p.metodo || "").toLowerCase();
+                    const pImp = parseFloat(p.importe || 0);
+                    const key = `voucher_${doc.id}_pago_${idx}`;
+
+                    if (pFecha.startsWith(dateToLoad) || pFecha === formatES) {
+                        if (countedKeys.has(key)) return;
+                        countedKeys.add(key);
+
+                        let cat = "efectivo";
+                        let metodoLabel = "Efectivo Mostrador";
+
+                        if (pMetodo.includes("paygold") || pMetodo.includes("pasarela") || pMetodo.includes("redsys")) {
+                            cat = "pasarela";
+                            metodoLabel = "Pasarela PayGold";
+                        } else if (pMetodo.includes("tarjeta") || pMetodo.includes("tpv") || pMetodo.includes("card")) {
+                            cat = "tarjeta";
+                            metodoLabel = "Tarjeta (TPV)";
+                        } else if (origen === "web" || origen === "online" || origen === "tienda" || pMetodo.includes("online") || pMetodo.includes("woo")) {
+                            cat = "tienda_virtual";
+                            metodoLabel = "Tienda Virtual (Online)";
+                        }
+
+                        movements.push({
+                            id: key,
+                            hora: p.hora || hora,
+                            tipo: "Bono",
+                            concepto: `${concepto} (Abono/Pago ${idx + 1})`,
+                            cliente: cliente,
+                            metodo: metodoLabel,
+                            category: cat,
+                            importe: pImp
+                        });
+                    }
+                });
+            } else {
+                // Voucher directly purchased on this date
+                const key = `voucher_${doc.id}`;
+                if (countedKeys.has(key)) return;
+                countedKeys.add(key);
+
+                const isPaygold = data.paygold_status === "COBRADO" ||
+                                  data.paygold_status === "PAGADO" ||
+                                  metodo.includes("paygold") ||
+                                  metodo.includes("pasarela") ||
+                                  metodo.includes("redsys") ||
+                                  origen === "paygold";
+
+                const isOnline = origen === "web" || origen === "online" || origen === "tienda" ||
+                                 (origen !== "local" && !id.startsWith("LOC") && data.email && data.email !== "-");
+
+                const isTarjeta = metodo.includes("tarjeta") || metodo.includes("tpv") || metodo.includes("card");
+
+                let cat = "efectivo";
+                let metodoLabel = "Efectivo Mostrador";
+
+                if (isPaygold) {
+                    cat = "pasarela";
+                    metodoLabel = "Pasarela PayGold";
+                } else if (isOnline) {
+                    cat = "tienda_virtual";
+                    metodoLabel = "Tienda Virtual (WooCommerce)";
+                } else if (isTarjeta) {
+                    cat = "tarjeta";
+                    metodoLabel = "Tarjeta (TPV)";
+                }
+
+                movements.push({
+                    id: key,
+                    hora: hora,
+                    tipo: "Bono",
+                    concepto: `${concepto} [${id}]`,
+                    cliente: cliente,
+                    metodo: metodoLabel,
+                    category: cat,
+                    importe: precio
+                });
+            }
+        };
+
+        snapISO.forEach(processVoucher);
+        snapES.forEach(processVoucher);
+
+    } catch (err) {
+        console.warn("[Caja] Error cargando bonos para la caja:", err);
+    }
+
+    // 2. RESERVAS (Todas las colecciones del día)
+    try {
+        const collections = [
+            "reservas_spa", "reservas_suite", "reservas_panacea", "reservas_vip",
+            "reservas_peluqueria", "reservas_cabinas", "reservas_cabina1", "reservas_cabina2", "reservas_cabina3"
+        ];
+
+        const promises = collections.map(col => db.collection(col).where("fecha", "==", dateToLoad).get());
+        const snapshots = await Promise.all(promises);
+
+        snapshots.forEach((snap, idx) => {
+            const colName = collections[idx].replace("reservas_", "").toUpperCase();
+            snap.forEach(doc => {
+                const d = doc.data();
+                if (d.status === "anulada") return;
+
+                const cliente = d.nombre || d.cliente || "-";
+                const concepto = `${d.servicio || "Servicio"} (${colName})`;
+                const hora = d.hora || "--:--";
+
+                // Caso A: payment.history con desglose
+                if (d.payment && Array.isArray(d.payment.history) && d.payment.history.length > 0) {
+                    d.payment.history.forEach((h, hIdx) => {
+                        const hFecha = String(h.fecha || "");
+                        const key = `res_${doc.id}_hist_${hIdx}`;
+                        // Si la fecha coincide o no tiene fecha (asume la fecha de la reserva)
+                        if (!hFecha || hFecha.startsWith(dateToLoad) || hFecha === dateToLoad) {
+                            if (countedKeys.has(key)) return;
+                            countedKeys.add(key);
+
+                            const amt = parseFloat(h.importe || 0);
+                            if (amt <= 0) return;
+
+                            const hMetodo = String(h.metodo || "").toLowerCase();
+                            if (hMetodo.includes("bono")) return; // Consumo de bono previo, no entra en caja de hoy
+
+                            let cat = "efectivo";
+                            let metodoLabel = "Efectivo Mostrador";
+
+                            if (hMetodo.includes("paygold") || hMetodo.includes("pasarela") || hMetodo.includes("redsys")) {
+                                cat = "pasarela";
+                                metodoLabel = "Pasarela PayGold";
+                            } else if (hMetodo.includes("tarjeta") || hMetodo.includes("tpv") || hMetodo.includes("card")) {
+                                cat = "tarjeta";
+                                metodoLabel = "Tarjeta (TPV)";
+                            } else if (hMetodo.includes("web") || hMetodo.includes("online") || hMetodo.includes("tienda")) {
+                                cat = "tienda_virtual";
+                                metodoLabel = "Tienda Virtual (Online)";
+                            }
+
+                            movements.push({
+                                id: key,
+                                hora: h.hora || hora,
+                                tipo: "Reserva",
+                                concepto: `${concepto} (Pago ${hIdx + 1})`,
+                                cliente: cliente,
+                                metodo: metodoLabel,
+                                category: cat,
+                                importe: amt
+                            });
+                        }
+                    });
+                } else {
+                    // Caso B: Cobro directo sin historial detallado
+                    const key = `res_${doc.id}`;
+                    if (countedKeys.has(key)) return;
+
+                    const amt = parseFloat(d.paygold_amount || (d.payment ? d.payment.paid : 0) || d.pagado || d.paid_amount || 0);
+                    if (amt > 0) {
+                        countedKeys.add(key);
+                        const metodo = String(d.metodo_pago || d.payment_method || "").toLowerCase();
+                        if (metodo.includes("bono")) return;
+
+                        const pgStatus = String(d.paygold_status || "").toUpperCase();
+                        let cat = "efectivo";
+                        let metodoLabel = "Efectivo Mostrador";
+
+                        if (pgStatus === "COBRADO" || pgStatus === "PAGADO" || !!d.paygold_auth || metodo.includes("paygold") || metodo.includes("pasarela") || metodo.includes("redsys")) {
+                            cat = "pasarela";
+                            metodoLabel = "Pasarela PayGold";
+                        } else if (metodo.includes("tarjeta") || metodo.includes("tpv") || metodo.includes("card")) {
+                            cat = "tarjeta";
+                            metodoLabel = "Tarjeta (TPV)";
+                        } else if (metodo.includes("web") || metodo.includes("online") || metodo.includes("tienda")) {
+                            cat = "tienda_virtual";
+                            metodoLabel = "Tienda Virtual (Online)";
+                        }
+
+                        movements.push({
+                            id: key,
+                            hora: hora,
+                            tipo: "Reserva",
+                            concepto: concepto,
+                            cliente: cliente,
+                            metodo: metodoLabel,
+                            category: cat,
+                            importe: amt
+                        });
+                    }
+                }
+            });
+        });
+
+        // 3. Pagos PayGold cobrados en esta fecha pero pertenecientes a reservas con otra fecha
+        const pgPromises = collections.map(col =>
+            db.collection(col)
+                .where("paygold_paid_at", ">=", dateToLoad)
+                .where("paygold_paid_at", "<=", dateToLoad + "T23:59:59.999Z")
+                .get()
+        );
+        const pgSnaps = await Promise.all(pgPromises);
+        pgSnaps.forEach(snap => {
+            snap.forEach(doc => {
+                const key = `res_pg_${doc.id}`;
+                if (countedKeys.has(key) || countedKeys.has(`res_${doc.id}`)) return;
+                countedKeys.add(key);
+
+                const d = doc.data();
+                if (d.status === "anulada") return;
+
+                let amt = 0;
+                if (d.payment && Array.isArray(d.payment.history)) {
+                    d.payment.history.forEach(h => {
+                        const m = String(h.metodo || "").toLowerCase();
+                        const f = String(h.fecha || "");
+                        if ((m.includes("paygold") || m.includes("pasarela") || m.includes("redsys")) && f.startsWith(dateToLoad)) {
+                            amt += parseFloat(h.importe || 0);
+                        }
+                    });
+                }
+                if (amt === 0) {
+                    amt = parseFloat(d.paygold_amount || (d.payment ? d.payment.paid : 0) || d.pagado || d.precio_total || 0);
+                }
+
+                if (amt > 0) {
+                    const hora = d.paygold_paid_at && d.paygold_paid_at.includes("T") ? d.paygold_paid_at.split("T")[1].substring(0, 5) : (d.hora || "--:--");
+                    movements.push({
+                        id: key,
+                        hora: hora,
+                        tipo: "Reserva",
+                        concepto: `${d.servicio || "Reserva"} (Anticipo PayGold)`,
+                        cliente: d.nombre || d.cliente || "-",
+                        metodo: "Pasarela PayGold",
+                        category: "pasarela",
+                        importe: amt
+                    });
+                }
+            });
+        });
+
+    } catch (resErr) {
+        console.warn("[Caja] Error cargando reservas para la caja:", resErr);
+    }
+
+    // Sort movements by hora
+    movements.sort((a, b) => (a.hora || "").localeCompare(b.hora || ""));
+
+    // Compute totals
+    let totEfectivo = 0, countEfectivo = 0;
+    let totTarjeta = 0, countTarjeta = 0;
+    let totPasarela = 0, countPasarela = 0;
+    let totTienda = 0, countTienda = 0;
+
+    movements.forEach(m => {
+        if (m.category === "efectivo") {
+            totEfectivo += m.importe;
+            countEfectivo++;
+        } else if (m.category === "tarjeta") {
+            totTarjeta += m.importe;
+            countTarjeta++;
+        } else if (m.category === "pasarela") {
+            totPasarela += m.importe;
+            countPasarela++;
+        } else if (m.category === "tienda_virtual") {
+            totTienda += m.importe;
+            countTienda++;
+        }
+    });
+
+    const totGeneral = totEfectivo + totTarjeta + totPasarela + totTienda;
+    const countGeneral = movements.length;
+
+    window._currentCajaData = {
+        date: dateToLoad,
+        movements: movements,
+        totals: {
+            efectivo: totEfectivo,
+            tarjeta: totTarjeta,
+            pasarela: totPasarela,
+            tienda_virtual: totTienda,
+            total: totGeneral
+        },
+        counts: {
+            efectivo: countEfectivo,
+            tarjeta: countTarjeta,
+            pasarela: countPasarela,
+            tienda_virtual: countTienda,
+            total: countGeneral
+        }
+    };
+
+    // Update KPI UI
+    const elTotDisplay = document.getElementById("caja-total-display");
+    if (elTotDisplay) elTotDisplay.textContent = formatCurrency(totGeneral);
+
+    const elValEf = document.getElementById("caja-val-efectivo");
+    const elCntEf = document.getElementById("caja-count-efectivo");
+    if (elValEf) elValEf.textContent = formatCurrency(totEfectivo);
+    if (elCntEf) elCntEf.textContent = `${countEfectivo} ${countEfectivo === 1 ? 'cobro' : 'cobros'}`;
+
+    const elValTar = document.getElementById("caja-val-tarjeta");
+    const elCntTar = document.getElementById("caja-count-tarjeta");
+    if (elValTar) elValTar.textContent = formatCurrency(totTarjeta);
+    if (elCntTar) elCntTar.textContent = `${countTarjeta} ${countTarjeta === 1 ? 'cobro' : 'cobros'}`;
+
+    const elValPas = document.getElementById("caja-val-pasarela");
+    const elCntPas = document.getElementById("caja-count-pasarela");
+    if (elValPas) elValPas.textContent = formatCurrency(totPasarela);
+    if (elCntPas) elCntPas.textContent = `${countPasarela} ${countPasarela === 1 ? 'cobro' : 'cobros'}`;
+
+    const elValTnd = document.getElementById("caja-val-tienda");
+    const elCntTnd = document.getElementById("caja-count-tienda");
+    if (elValTnd) elValTnd.textContent = formatCurrency(totTienda);
+    if (elCntTnd) elCntTnd.textContent = `${countTienda} ${countTienda === 1 ? 'venta' : 'ventas'}`;
+
+    const elCntTodos = document.getElementById("caja-count-todos");
+    if (elCntTodos) elCntTodos.textContent = countGeneral;
+
+    window.filterCajaTable(window._currentCajaFilter || 'todos');
+};
+
+window.filterCajaTable = function (category) {
+    window._currentCajaFilter = category || 'todos';
+
+    // Style tabs
+    const tabs = ['todos', 'efectivo', 'tarjeta', 'pasarela', 'tienda_virtual'];
+    tabs.forEach(t => {
+        const btn = document.getElementById(`tab-caja-${t}`);
+        const card = document.getElementById(`card-filter-${t}`);
+        const isActive = t === window._currentCajaFilter;
+
+        if (btn) {
+            btn.style.background = isActive ? "#0f172a" : "#f1f5f9";
+            btn.style.color = isActive ? "#ffffff" : "#475569";
+            btn.style.fontWeight = isActive ? "700" : "600";
+            btn.style.border = isActive ? "none" : "1px solid #cbd5e1";
+        }
+        if (card) {
+            card.style.boxShadow = isActive ? "0 0 0 2px #d97706" : "none";
+            card.style.borderColor = isActive ? "#d97706" : "#e2e8f0";
+        }
+    });
+
+    const statusEl = document.getElementById("caja-filter-status");
+    const labels = {
+        todos: 'Mostrando todos los movimientos',
+        efectivo: 'Mostrando únicamente cobros en Efectivo',
+        tarjeta: 'Mostrando únicamente cobros por Tarjeta (TPV)',
+        pasarela: 'Mostrando únicamente cobros por Pasarela PayGold',
+        tienda_virtual: 'Mostrando únicamente cobros de Tienda Virtual'
+    };
+    if (statusEl) statusEl.textContent = labels[window._currentCajaFilter] || '';
+
+    const tbody = document.getElementById("caja-table-body");
+    if (!tbody) return;
+
+    const data = window._currentCajaData || { movements: [] };
+    const filtered = (window._currentCajaFilter === 'todos')
+        ? data.movements
+        : data.movements.filter(m => m.category === window._currentCajaFilter);
+
+    if (filtered.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="6" style="text-align: center; padding: 40px 20px; color: #94a3b8;">
+                    <i class="fas fa-receipt" style="font-size: 2rem; color: #cbd5e1; margin-bottom: 8px;"></i>
+                    <p style="margin: 0; font-weight: 600;">No hay cobros registrados en esta categoría para la fecha seleccionada.</p>
+                </td>
+            </tr>
+        `;
+        return;
+    }
+
+    const categoryBadge = (cat, label) => {
+        const styles = {
+            efectivo: 'background: #fef3c7; color: #92400e; border: 1px solid #fde68a;',
+            tarjeta: 'background: #dbeafe; color: #1e40af; border: 1px solid #bfdbfe;',
+            pasarela: 'background: #d1fae5; color: #065f46; border: 1px solid #a7f3d0;',
+            tienda_virtual: 'background: #ede9fe; color: #5b21b6; border: 1px solid #ddd6fe;'
+        };
+        const icons = {
+            efectivo: 'fas fa-money-bill-wave',
+            tarjeta: 'fas fa-credit-card',
+            pasarela: 'fas fa-link',
+            tienda_virtual: 'fas fa-shopping-cart'
+        };
+        const s = styles[cat] || styles.efectivo;
+        const icon = icons[cat] || 'fas fa-euro-sign';
+        return `<span style="display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px; border-radius: 6px; font-size: 0.72rem; font-weight: 700; ${s}">
+            <i class="${icon}"></i> ${label}
+        </span>`;
+    };
+
+    const typeBadge = (tipo) => {
+        if (tipo === 'Bono') {
+            return `<span style="background: rgba(245, 158, 11, 0.15); color: #b45309; padding: 2px 7px; border-radius: 4px; font-weight: 700; font-size: 0.7rem;">BONO</span>`;
+        }
+        return `<span style="background: rgba(59, 130, 246, 0.12); color: #1d4ed8; padding: 2px 7px; border-radius: 4px; font-weight: 700; font-size: 0.7rem;">RESERVA</span>`;
+    };
+
+    tbody.innerHTML = filtered.map(m => `
+        <tr style="border-bottom: 1px solid #f1f5f9; transition: background 0.15s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='transparent'">
+            <td style="padding: 10px 14px; font-weight: 700; color: #334155; font-family: monospace;">${m.hora || '--:--'}</td>
+            <td style="padding: 10px 14px;">${typeBadge(m.tipo)}</td>
+            <td style="padding: 10px 14px; font-weight: 600; color: #1e293b;">${m.concepto}</td>
+            <td style="padding: 10px 14px; color: #475569;">${m.cliente}</td>
+            <td style="padding: 10px 14px;">${categoryBadge(m.category, m.metodo)}</td>
+            <td style="padding: 10px 14px; text-align: right; font-weight: 800; font-size: 0.88rem; color: #0f172a;">
+                + ${formatCurrency(m.importe)}
+            </td>
+        </tr>
+    `).join('');
+};
+
+window.imprimirCajaDelDia = function () {
+    const data = window._currentCajaData;
+    if (!data) {
+        alert("No hay datos de caja cargados para imprimir.");
+        return;
+    }
+
+    const w = window.open("", "_blank");
+    if (!w) {
+        alert("Por favor permite las ventanas emergentes para imprimir.");
+        return;
+    }
+
+    const formattedDate = (function() {
+        try {
+            const parts = data.date.split('-');
+            const d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+            return d.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+        } catch(e) {
+            return data.date;
+        }
+    })();
+
+    const rowsHtml = data.movements.map((m, i) => `
+        <tr>
+            <td style="text-align: center; color: #64748b;">${i + 1}</td>
+            <td style="font-family: monospace; font-weight: 700;">${m.hora || '--:--'}</td>
+            <td><strong style="text-transform: uppercase; font-size: 0.72rem;">${m.tipo}</strong></td>
+            <td>${m.concepto}</td>
+            <td>${m.cliente}</td>
+            <td>${m.metodo}</td>
+            <td style="text-align: right; font-weight: 700;">${formatCurrency(m.importe)}</td>
+        </tr>
+    `).join('');
+
+    w.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="utf-8">
+            <title>Cierre y Arqueo de Caja - ${data.date}</title>
+            <style>
+                body { font-family: 'Segoe UI', Arial, sans-serif; padding: 24px; color: #1e293b; margin: 0; }
+                h1, h2, h3, p { margin: 0; }
+                .header { border-bottom: 2px solid #0f172a; padding-bottom: 12px; margin-bottom: 18px; display: flex; justify-content: space-between; align-items: flex-end; }
+                .title { font-size: 1.4rem; font-weight: 800; color: #0f172a; }
+                .subtitle { font-size: 0.85rem; color: #64748b; margin-top: 4px; }
+                .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
+                .kpi-card { border: 1px solid #cbd5e1; border-radius: 8px; padding: 10px 14px; background: #f8fafc; }
+                .kpi-title { font-size: 0.7rem; font-weight: 700; color: #64748b; text-transform: uppercase; }
+                .kpi-value { font-size: 1.25rem; font-weight: 800; margin-top: 3px; color: #0f172a; }
+                .kpi-count { font-size: 0.68rem; color: #94a3b8; }
+                .total-bar { background: #0f172a; color: #fff; padding: 12px 18px; border-radius: 8px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; }
+                .total-bar h2 { font-size: 1.1rem; font-weight: 700; color: #cbd5e1; }
+                .total-bar .amount { font-size: 1.6rem; font-weight: 800; color: #fbbf24; }
+                table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 0.78rem; }
+                th, td { border: 1px solid #e2e8f0; padding: 7px 10px; text-align: left; }
+                th { background: #f1f5f9; font-weight: 700; color: #475569; text-transform: uppercase; font-size: 0.7rem; }
+                tr:nth-child(even) { background: #fafafa; }
+                .signatures { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-top: 50px; page-break-inside: avoid; }
+                .sig-box { border-top: 1px solid #0f172a; padding-top: 8px; text-align: center; font-size: 0.8rem; color: #475569; }
+                @media print {
+                    body { padding: 10px; }
+                    .kpi-card, th { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                }
+            </style>
+        </head>
+        <body>
+            <div class="header">
+                <div>
+                    <h1 class="title">ZENITH SPA & BIENESTAR</h1>
+                    <p class="subtitle">INFORME Y ARQUEO DIARIO DE CAJA · <strong>${formattedDate}</strong></p>
+                </div>
+                <div style="text-align: right; font-size: 0.75rem; color: #64748b;">
+                    <div>Fecha consulta: <strong>${data.date}</strong></div>
+                    <div>Emitido: ${new Date().toLocaleDateString('es-ES')} ${new Date().toLocaleTimeString('es-ES')}</div>
+                </div>
+            </div>
+
+            <!-- Total Banner -->
+            <div class="total-bar">
+                <div>
+                    <h2>TOTAL CAJA DEL DÍA</h2>
+                    <span style="font-size: 0.75rem; color: #94a3b8;">${data.counts.total} movimientos registrados</span>
+                </div>
+                <div class="amount">${formatCurrency(data.totals.total)}</div>
+            </div>
+
+            <!-- 4 Categories Summary -->
+            <div class="kpis">
+                <div class="kpi-card">
+                    <div class="kpi-title">Efectivo</div>
+                    <div class="kpi-value" style="color: #d97706;">${formatCurrency(data.totals.efectivo)}</div>
+                    <div class="kpi-count">${data.counts.efectivo} cobros</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-title">Tarjeta (TPV)</div>
+                    <div class="kpi-value" style="color: #2563eb;">${formatCurrency(data.totals.tarjeta)}</div>
+                    <div class="kpi-count">${data.counts.tarjeta} cobros</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-title">Pasarela PayGold</div>
+                    <div class="kpi-value" style="color: #059669;">${formatCurrency(data.totals.pasarela)}</div>
+                    <div class="kpi-count">${data.counts.pasarela} cobros</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-title">Tienda Virtual</div>
+                    <div class="kpi-value" style="color: #7c3aed;">${formatCurrency(data.totals.tienda_virtual)}</div>
+                    <div class="kpi-count">${data.counts.tienda_virtual} ventas</div>
+                </div>
+            </div>
+
+            <!-- Movimientos Detallados -->
+            <h3 style="font-size: 0.9rem; font-weight: 700; color: #334155; margin-bottom: 6px; text-transform: uppercase;">
+                Detalle de Cobros y Movimientos (${data.movements.length})
+            </h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width: 25px; text-align: center;">#</th>
+                        <th style="width: 60px;">Hora</th>
+                        <th style="width: 70px;">Tipo</th>
+                        <th>Concepto / Detalle</th>
+                        <th>Cliente</th>
+                        <th style="width: 140px;">Método Cobro</th>
+                        <th style="width: 85px; text-align: right;">Importe</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${rowsHtml || '<tr><td colspan="7" style="text-align: center; padding: 20px;">Sin movimientos registrados</td></tr>'}
+                </tbody>
+            </table>
+
+            <!-- Firmas -->
+            <div class="signatures">
+                <div class="sig-box">
+                    <strong>Firma Responsable de Caja</strong><br>
+                    <span style="font-size: 0.7rem; color: #94a3b8;">Recepción y Turno de Caja</span>
+                </div>
+                <div class="sig-box">
+                    <strong>Conforme Dirección / Administración</strong><br>
+                    <span style="font-size: 0.7rem; color: #94a3b8;">Zenith Spa & Bienestar</span>
+                </div>
+            </div>
+
+            <script>
+                setTimeout(() => {
+                    window.print();
+                }, 400);
+            </script>
+        </body>
+        </html>
+    `);
+    w.document.close();
+};
