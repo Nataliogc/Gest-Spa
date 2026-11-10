@@ -147,7 +147,7 @@ async function cargarCitasHoy(date) {
         }
 
         renderDashboard();
-        actualizarStatsInicio();
+        actualizarStatsInicio(targetDate);
     } catch (err) {
         console.error("Error cargando citas:", err);
     }
@@ -630,22 +630,25 @@ window.sendWhatsAppConfirmation = async function (id, telefono, cliente, fecha, 
     }
 };
 
-async function actualizarStatsInicio() {
+async function actualizarStatsInicio(selectedDate = null) {
     const today = new Date().toISOString().split('T')[0];
+    const datePicker = document.getElementById("dashboard-date-picker");
+    const targetDate = selectedDate || (datePicker && datePicker.value) || today;
 
-    // --- Ventas de Bonos (Directamente de spa_vouchers) ---
+    let localBonoTotal = 0;
+    let onlineBonoTotal = 0;
+    let pasarelaTotal = 0;
+    const countedResIds = new Set();
+
+    // --- 1. Ventas de Bonos (spa_vouchers) ---
     try {
-        // Buscamos bonos cuya fecha empiece por YYYY-MM-DD (ISO format)
-        // O bien que coincidan con el formato DD/MM/YYYY si se guardó así (fallback)
-        const formatES = today.split('-').reverse().join('/');
+        const formatES = targetDate.split('-').reverse().join('/');
 
         const [snapISO, snapES] = await Promise.all([
-            db.collection("spa_vouchers").where("fecha", ">=", today).where("fecha", "<=", today + "\uf8ff").get(),
+            db.collection("spa_vouchers").where("fecha", ">=", targetDate).where("fecha", "<=", targetDate + "\uf8ff").get(),
             db.collection("spa_vouchers").where("fecha", "==", formatES).get()
         ]);
 
-        let localBonoTotal = 0;
-        let onlineBonoTotal = 0;
         const processedIds = new Set();
 
         const processBono = (doc) => {
@@ -656,6 +659,31 @@ async function actualizarStatsInicio() {
             const precio = parseFloat(data.precio || data.importe) || 0;
             const id = (data.bono || data.id || "").toUpperCase();
             const origen = (data.origen || "").toLowerCase();
+            const metodo = (data.metodo_pago || data.metodo || "").toLowerCase();
+
+            // Verificar si el bono se pagó por pasarela PayGold / Redsys
+            const isPaygold = data.paygold_status === 'COBRADO' || 
+                              data.paygold_status === 'PAGADO' ||
+                              metodo.includes('paygold') ||
+                              metodo.includes('pasarela') ||
+                              metodo.includes('redsys') ||
+                              origen === 'paygold';
+
+            let paygoldInVoucher = 0;
+            if (Array.isArray(data.pagos)) {
+                data.pagos.forEach(p => {
+                    const pMetodo = String(p.metodo || '').toLowerCase();
+                    if (pMetodo.includes('paygold') || pMetodo.includes('pasarela') || pMetodo.includes('redsys')) {
+                        paygoldInVoucher += parseFloat(p.importe || 0);
+                    }
+                });
+            }
+
+            if (isPaygold) {
+                pasarelaTotal += precio;
+            } else if (paygoldInVoucher > 0) {
+                pasarelaTotal += paygoldInVoucher;
+            }
 
             // Prioridad al campo 'origen' si existe, fallback a prefijo LOC o falta de email
             if (origen === 'local' || id.startsWith("LOC") || (!data.email || data.email === "-")) {
@@ -668,11 +696,90 @@ async function actualizarStatsInicio() {
         snapISO.forEach(processBono);
         snapES.forEach(processBono);
 
-        document.getElementById("stat-ventas-local").textContent = formatCurrency(localBonoTotal);
-        document.getElementById("stat-ventas-online").textContent = formatCurrency(onlineBonoTotal);
+        const statLocal = document.getElementById("stat-ventas-local");
+        if (statLocal) statLocal.textContent = formatCurrency(localBonoTotal);
+        const statOnline = document.getElementById("stat-ventas-online");
+        if (statOnline) statOnline.textContent = formatCurrency(onlineBonoTotal);
 
     } catch (err) {
         console.error("Error cargando ventas de bonos:", err);
+    }
+
+    // --- 2. Pagos por Pasarela (Redsys PayGold) en Reservas ---
+    try {
+        // A) Reservas del día cargadas en state.citas
+        if (Array.isArray(state.citas)) {
+            state.citas.forEach(c => {
+                if (c.status === 'anulada') return;
+                countedResIds.add(c.id);
+
+                let cPayGold = 0;
+                // Historial de pagos explícito
+                if (c.payment && Array.isArray(c.payment.history)) {
+                    c.payment.history.forEach(h => {
+                        const m = String(h.metodo || '').toLowerCase();
+                        if (m.includes('paygold') || m.includes('pasarela') || m.includes('redsys')) {
+                            cPayGold += parseFloat(h.importe || 0);
+                        }
+                    });
+                }
+
+                // Campo paygold_status / paygold_auth
+                if (cPayGold === 0) {
+                    const pgStatus = String(c.paygold_status || '').toUpperCase();
+                    const isCobrado = pgStatus === 'COBRADO' || pgStatus === 'PAGADO' || !!c.paygold_auth;
+                    const metodo = String(c.metodo_pago || c.payment_method || '').toLowerCase();
+
+                    if (isCobrado || metodo.includes('paygold') || metodo.includes('pasarela') || metodo.includes('redsys')) {
+                        cPayGold = parseFloat(c.paygold_amount || (c.payment ? c.payment.paid : 0) || c.pagado || c.paid_amount || c.precio_total || 0);
+                    }
+                }
+
+                pasarelaTotal += cPayGold;
+            });
+        }
+
+        // B) Pagos PayGold registrados en la fecha de consulta en reservas de otras fechas
+        const collectionsToCheck = [
+            "reservas_spa", "reservas_suite", "reservas_panacea", "reservas_vip",
+            "reservas_peluqueria", "reservas_cabinas", "reservas_cabina1", "reservas_cabina2", "reservas_cabina3"
+        ];
+        const pgPromises = collectionsToCheck.map(col =>
+            db.collection(col)
+                .where("paygold_paid_at", ">=", targetDate)
+                .where("paygold_paid_at", "<=", targetDate + "T23:59:59.999Z")
+                .get()
+        );
+        const pgSnaps = await Promise.all(pgPromises);
+        pgSnaps.forEach(snap => {
+            snap.forEach(doc => {
+                if (countedResIds.has(doc.id)) return;
+                countedResIds.add(doc.id);
+                const d = doc.data();
+                if (d.status === 'anulada') return;
+                let amt = 0;
+                if (d.payment && Array.isArray(d.payment.history)) {
+                    d.payment.history.forEach(h => {
+                        const m = String(h.metodo || '').toLowerCase();
+                        const f = String(h.fecha || '');
+                        if ((m.includes('paygold') || m.includes('pasarela') || m.includes('redsys')) && f.startsWith(targetDate)) {
+                            amt += parseFloat(h.importe || 0);
+                        }
+                    });
+                }
+                if (amt === 0) {
+                    amt = parseFloat(d.paygold_amount || (d.payment ? d.payment.paid : 0) || d.pagado || d.precio_total || 0);
+                }
+                pasarelaTotal += amt;
+            });
+        });
+    } catch (pgErr) {
+        console.warn("[Stats] Error calculando pagos pasarela en reservas:", pgErr);
+    }
+
+    const statPasarela = document.getElementById("stat-pagos-pasarela");
+    if (statPasarela) {
+        statPasarela.textContent = formatCurrency(pasarelaTotal);
     }
 
     // --- Ocupación Suite / Panacea ---
