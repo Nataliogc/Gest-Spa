@@ -8,7 +8,7 @@ Este documento mantiene el **control de versión única y global** para todo el 
 
 | Parámetro | Valor Actual |
 | :--- | :--- |
-| **Versión Global del Sistema** | **`v2.3.23`** |
+| **Versión Global del Sistema** | **`v2.3.24`** |
 | **Fecha de Última Actualización** | **10/11/2026** |
 | **Estado General** | Operativo en Producción |
 
@@ -47,6 +47,11 @@ Cualquier cambio en los siguientes módulos impacta en la versión global:
 ---
 
 ## 📝 Historial Unificado de Versiones
+
+### [v2.3.24] - 10/11/2026
+- **Tipo:** PATCH
+- **Archivos:** `reservas-staff.js`
+- **Descripción:** Fix uniqueStaff scope in reservas-staff.js
 
 ### [v2.3.23] - 10/11/2026
 - **Tipo:** PATCH

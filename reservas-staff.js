@@ -64,23 +64,22 @@ async function handleStaffFieldsChange() {
 
     try {
         const availableStaff = await window.getAvailableStaffForRoom(roomCode, date, time, duration, currentResId);
+        const uniqueStaff = [...(availableStaff || [])];
+        uniqueStaff.sort((a, b) => {
+            // Priority: free (1) > busy (2) > off (3)
+            const getScore = (s) => {
+                if (s._status === 'free') return 1;
+                if (s._status === 'busy') return 2;
+                return 3;
+            };
+            const sa = getScore(a);
+            const sb = getScore(b);
+            if (sa === sb) return (a.alias || a.nombre || '').localeCompare(b.alias || b.nombre || '');
+            return sa - sb;
+        });
 
         const buildOptions = (selectedVal, excludeId) => {
             let html = '<option value="">Seleccionar...</option>';
-            const uniqueStaff = [...availableStaff];
-            uniqueStaff.sort((a, b) => {
-                // Priority: free (1) > busy (2) > off (3)
-                const getScore = (s) => {
-                    if (s._status === 'free') return 1;
-                    if (s._status === 'busy') return 2;
-                    return 3;
-                };
-                const sa = getScore(a);
-                const sb = getScore(b);
-                if (sa === sb) return (a.alias || a.nombre).localeCompare(b.alias || b.nombre);
-                return sa - sb;
-            });
-
             uniqueStaff.forEach(s => {
                 const isBusy = (s._status === 'busy' && s.id !== selectedVal);
                 const isOff = (s._status === 'off' && s.id !== selectedVal);
