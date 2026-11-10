@@ -8,7 +8,7 @@ Este documento mantiene el **control de versión única y global** para todo el 
 
 | Parámetro | Valor Actual |
 | :--- | :--- |
-| **Versión Global del Sistema** | **`v2.3.14`** |
+| **Versión Global del Sistema** | **`v2.3.15`** |
 | **Fecha de Última Actualización** | **10/11/2026** |
 | **Estado General** | Operativo en Producción |
 
@@ -47,6 +47,11 @@ Cualquier cambio en los siguientes módulos impacta en la versión global:
 ---
 
 ## 📝 Historial Unificado de Versiones
+
+### [v2.3.15] - 10/11/2026
+- **Tipo:** PATCH
+- **Archivos:** `vision-general.html`
+- **Descripción:** Vision 15 dias: boton Guardar y abrir PayGold con reserva persistida, coleccion correcta y saldo pendiente
 
 ### [v2.3.14] - 10/11/2026
 - **Tipo:** PATCH

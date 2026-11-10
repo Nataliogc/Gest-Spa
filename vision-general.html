@@ -836,7 +836,7 @@
     <div class="sidebar">
         <div style="display: flex; align-items: center; gap: 15px;">
             <img src="logo-spa.jpg" alt="Cumbria Bienestar" style="height: 65px; width: auto; object-fit: contain;">
-            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.14 (10/11/2026)">v2.3.14</span>
+            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.15 (10/11/2026)">v2.3.15</span>
         </div>
 
         <ul class="nav-links" style="flex:1;">
@@ -1915,6 +1915,9 @@
                         <button type="button" class="vg-submit-btn" onclick="submitQuickBooking('${staffId}', '${dateStr}')" style="flex:2;">
                             <i class="fas fa-save"></i> GUARDAR RESERVA
                         </button>
+                        <button type="button" id="vg-paygold-button" class="vg-submit-btn" style="flex:1;background:#f59e0b;" onclick="openQuickBookingPayGold(this, '${staffId}', '${dateStr}')">
+                            <i class="fas fa-link"></i> GUARDAR Y ABRIR PAYGOLD
+                        </button>
                         <div id="delete-btn-container" style="flex:1;"></div>
                     </div>
 
@@ -2321,7 +2324,19 @@
 
         // onServiceChange replaced by helper above
 
-        async function submitQuickBooking(staffId, dateStr) {
+        async function openQuickBookingPayGold(button, staffId, dateStr) {
+            const origin = document.getElementById('res-origin').value;
+            const pending = Number(document.getElementById('res-price-total').value) - Number(document.getElementById('res-price-paid').value);
+            if (!['particular', 'hotel_no_inc'].includes(origin) || !(pending > 0)) {
+                Swal.fire('Sin importe pendiente', 'PayGold requiere una reserva de pago directo con saldo pendiente.', 'info');
+                return;
+            }
+            button.disabled = true;
+            try { await submitQuickBooking(staffId, dateStr, true); }
+            finally { button.disabled = false; }
+        }
+
+        async function submitQuickBooking(staffId, dateStr, openPayGold = false) {
             // Re-read staff from form
             const formStaffId = document.getElementById('res-staff').value || staffId;
             const staff = staffList.find(s => s.id === formStaffId);
@@ -2492,10 +2507,12 @@
                         // Ensure created_at exists
                         if (!payload.created_at) payload.created_at = new Date();
 
-                        await db.collection(targetCollection).add(payload);
+                        const moved = await db.collection(targetCollection).add(payload);
+                        currentEditingId = moved.id;
+                        currentEditingCollection = targetCollection;
                     }
 
-                    Swal.fire('Actualizado', 'La reserva ha sido actualizada correctamente', 'success');
+                    if (!openPayGold) Swal.fire('Actualizado', 'La reserva ha sido actualizada correctamente', 'success');
                 } else {
                     // === CREATE MODE ===
                     payload.created_at = new Date();
@@ -2503,10 +2520,20 @@
                     payload.created_from = 'vision_general';
                     payload.precioTotal = payload.precio; // Compatibility
 
-                    await db.collection(room).add(payload);
-                    Swal.fire('Guardado', 'La reserva se ha guardado correctamente', 'success');
+                    const created = await db.collection(room).add(payload);
+                    currentEditingId = created.id;
+                    currentEditingCollection = room;
+                    if (!openPayGold) Swal.fire('Guardado', 'La reserva se ha guardado correctamente', 'success');
                 }
 
+                if (openPayGold) {
+                    window.currentEditingId = currentEditingId;
+                    window.currentModule = { collection: currentEditingCollection, name: serviceName };
+                    window.currentData = [{ ...payload, id: currentEditingId, collection: currentEditingCollection,
+                        precio_total: Number(price), paid_amount: Number(paid) || 0 }];
+                    await window.openPayGoldModalSpa();
+                    return;
+                }
                 closeDetailPanel();
                 renderGrid(); // Refresh grid to show new booking
 
