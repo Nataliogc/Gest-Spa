@@ -48,7 +48,8 @@
     }
     function space(value) {
         return normalize(value).replace(/^sala /, '').replace('suite spa', 'suite')
-            .replace(/^cabinauno$/, 'cabina1').replace(/^cabinados$/, 'cabina2').replace(/^cabinatres$/, 'cabina3');
+            .replace(/^cabinauno$/, 'cabina1').replace(/^cabinados$/, 'cabina2').replace(/^cabinatres$/, 'cabina3')
+            .replace(/^chon$/, 'cabina1').replace(/^mar$/, 'cabina2').replace(/^mari$/, 'cabina3');
     }
     function spacesOf(item) {
         const values = item.allowedSpaces ?? item.espacios ?? (item.space ? [item.space] : []);
@@ -56,9 +57,11 @@
     }
     function allows(item, room) {
         const code = space(room);
-        if (!code || code === 'cabinas') return true;
+        if (!code || code === 'cabinas' || code === 'cabina') return true;
         const spaces = spacesOf(item);
-        return spaces.includes(code) || (/^cabina\d+$/.test(code) && spaces.includes('cabina'));
+        if (spaces.length === 0) return true;
+        const isCabina = /^cabina\d+$/.test(code);
+        return spaces.includes(code) || (isCabina && spaces.includes('cabina')) || (code === 'cabina' && spaces.some(s => /^cabina\d+$/.test(s)));
     }
     function build(master = [], catalog = [], packs = [], room = '') {
         const packMasters = new Set(packs.filter(active).map(pack =>
@@ -86,6 +89,6 @@
         }
         return result;
     }
-    root.SpaServiceCatalog = { normalize, resolve, build, allows };
+    root.SpaServiceCatalog = { normalize, resolve, build, allows, space, spacesOf };
     if (typeof module !== 'undefined') module.exports = root.SpaServiceCatalog;
 })(typeof window !== 'undefined' ? window : globalThis);

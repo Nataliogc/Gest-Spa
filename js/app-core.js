@@ -241,6 +241,7 @@ function formatDate(dateStr) {
  */
 window.getItemConfig = async function (serviceName) {
     if (!serviceName) return null;
+    const cleanName = String(serviceName).replace(/^PACK\s*[-–—:]\s*/i, '').trim();
     try {
         // Use global cache to reduce reads
         if (!window._itemMasterCache) {
@@ -252,12 +253,12 @@ window.getItemConfig = async function (serviceName) {
             setTimeout(() => { window._itemMasterCache = null; }, 300000);
         }
 
-        const canonical = window.SpaServiceCatalog?.resolve(serviceName, window._itemMasterCache, window.currentServices || []);
+        const canonical = window.SpaServiceCatalog?.resolve(cleanName, window._itemMasterCache, window.currentServices || []);
         if (canonical) return canonical;
-        const normSearch = serviceName.toLowerCase().trim();
+        const normSearch = cleanName.toLowerCase();
         return window._itemMasterCache.find(item =>
-            item.name.toLowerCase().trim() === normSearch ||
-            (item.code && item.code.toLowerCase().trim() === normSearch)
+            (item.name || item.nombre || '').toLowerCase().trim() === normSearch ||
+            (item.code && String(item.code).toLowerCase().trim() === normSearch)
         ) || null;
     } catch (e) {
         console.error("Error fetching item config:", e);

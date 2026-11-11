@@ -486,7 +486,7 @@
         <!-- LEFT: Cumbria Logo -->
         <div style="display: flex; align-items: center; gap: 15px;">
             <img src="logo-spa.jpg" alt="Cumbria Bienestar" style="height: 65px; width: auto; object-fit: contain;">
-            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.33 (11/11/2026)">v2.3.33</span>
+            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.34 (11/11/2026)">v2.3.34</span>
         </div>
 
         <ul class="nav-links" style="flex:1;">
@@ -2853,10 +2853,39 @@
             return [...expanded];
         };
 
+                /**
+         * Comprueba si una sala coincide con una lista de espacios permitidos.
+         * Reconoce que Chon=Cabina 1, Mar=Cabina 2, Mari=Cabina 3 y que todas son cabinas.
+         */
+        window.checkRoomMatchesAllowedSpaces = function (roomVal, allowedSpaces) {
+            if (!allowedSpaces || !Array.isArray(allowedSpaces) || allowedSpaces.length === 0) return true;
+
+            const getCode = (typeof window.SpaServiceCatalog?.space === 'function')
+                ? window.SpaServiceCatalog.space
+                : (v => String(v || '').toLowerCase().trim());
+
+            const normRoom = getCode(roomVal);
+            const isCabinaRoom = ['cabina', 'cabinas', 'cabina1', 'cabina2', 'cabina3', 'chon', 'mar', 'mari'].includes(normRoom) ||
+                /^cabina\d+$/.test(normRoom) ||
+                (window.currentModule && (window.currentModule.code === 'cabinas' || (window.currentModule.code || '').startsWith('cabina')));
+
+            return allowedSpaces.some(rawSp => {
+                const normSp = getCode(rawSp);
+                if (!normSp) return true;
+                if (normSp === normRoom) return true;
+                // Si la sala actual es una cabina y el servicio permite cabinas genéricas
+                if (isCabinaRoom && (normSp === 'cabina' || normSp === 'cabinas')) return true;
+                // Si estamos en el módulo general de cabinas y el servicio permite una cabina específica
+                if ((normRoom === 'cabina' || normRoom === 'cabinas') && (isCabinaRoom || /^cabina\d+$/.test(normSp))) return true;
+                // Substring
+                if (normRoom && normSp && (normRoom.includes(normSp) || normSp.includes(normRoom))) return true;
+                return false;
+            });
+        };
+
         /**
          * Comprueba si el servicio seleccionado es compatible con la sala activa en el modal.
-         * Si no es compatible (ej. un ritual que requiere Panacea/Suite seleccionado en Cabina Chon),
-         * muestra un banner de advertencia con un botón para cambiar automáticamente a la sala requerida.
+         * Prioriza la configuración de spa_item_master (Regla 35).
          */
         function checkServiceRoomCompatibility(serviceName) {
             const warningDiv = document.getElementById("service-room-compatibility-warning");
@@ -2883,11 +2912,19 @@
             if (packData && Array.isArray(packData.secuencia) && packData.secuencia.length > 0) {
                 requiredSpaces = window.getPackRoomRequirements(packData);
             } else {
-                const item = (currentServices || []).find(s => (s.nombre || s.name || '').toLowerCase() === serviceName.toLowerCase()) ||
-                             (window.masterItems || []).find(m => (m.name || m.nombre || '').toLowerCase() === serviceName.toLowerCase());
+                // PRIORIDAD spa_item_master (Regla 35) sobre catálogo comercial
+                let item = null;
+                if (window.SpaServiceCatalog && typeof window.SpaServiceCatalog.resolve === 'function') {
+                    item = window.SpaServiceCatalog.resolve(cleanName, window.masterItems || [], currentServices || []);
+                }
+                if (!item) {
+                    const normSearch = cleanName.toLowerCase();
+                    item = (window.masterItems || []).find(m => (m.name || m.nombre || '').toLowerCase().trim() === normSearch) ||
+                           (currentServices || []).find(s => (s.nombre || s.name || '').toLowerCase().trim() === normSearch);
+                }
                 if (item) {
-                    const raw = item.allowedSpaces || (item.espacio ? [item.espacio] : []);
-                    requiredSpaces = (Array.isArray(raw) ? raw : [raw]).map(s => String(s).toLowerCase());
+                    const raw = item.allowedSpaces || item.espacios || (item.space ? [item.space] : (item.espacio ? [item.espacio] : []));
+                    requiredSpaces = (Array.isArray(raw) ? raw : [raw]).map(s => String(s).toLowerCase().trim());
                 }
             }
 
@@ -2904,15 +2941,9 @@
                 return;
             }
 
-            // Normalizar salas de cabinas
-            const isCurrentCabina = ['cabina', 'cabina1', 'cabina2', 'cabina3', 'chon', 'cabinas'].includes(currentRoomVal) || currentModule?.code === 'cabinas';
-
-            const isCompatible = requiredSpaces.some(sp => {
-                if (sp === currentRoomVal) return true;
-                if (isCurrentCabina && (sp.includes('cabina') || sp === 'cabinas')) return true;
-                if (currentRoomVal.includes(sp)) return true;
-                return false;
-            });
+            const isCompatible = (typeof window.checkRoomMatchesAllowedSpaces === 'function')
+                ? window.checkRoomMatchesAllowedSpaces(currentRoomVal, requiredSpaces)
+                : true;
 
             if (!isCompatible) {
                 const targetSpace = requiredSpaces[0].toUpperCase();
@@ -2921,15 +2952,23 @@
                     fixBtn.textContent = `Cambiar a ${targetSpace}`;
                     fixBtn.onclick = function() {
                         if (currentRoomSel) {
-                            let matchOpt = Array.from(currentRoomSel.options).find(o => 
-                                o.value.toLowerCase().includes(requiredSpaces[0]) || o.text.toLowerCase().includes(requiredSpaces[0])
-                            );
+                            const targetNorm = (typeof window.SpaServiceCatalog?.space === 'function')
+                                ? window.SpaServiceCatalog.space(requiredSpaces[0])
+                                : requiredSpaces[0].toLowerCase();
+                            let matchOpt = Array.from(currentRoomSel.options).find(o => {
+                                const optVal = o.value.toLowerCase();
+                                const optText = o.text.toLowerCase();
+                                const optNorm = (typeof window.SpaServiceCatalog?.space === 'function')
+                                    ? window.SpaServiceCatalog.space(optVal)
+                                    : optVal;
+                                return optNorm === targetNorm || optVal.includes(targetNorm) || optText.includes(targetNorm);
+                            });
                             if (matchOpt) {
                                 currentRoomSel.value = matchOpt.value;
                                 currentRoomSel.dispatchEvent(new Event('change', { bubbles: true }));
                                 checkServiceRoomCompatibility(serviceName);
                             } else {
-                                window.location.href = `reservas-salas.html?type=${requiredSpaces[0]}`;
+                                window.location.href = `reservas-salas.html?type=${targetNorm}`;
                             }
                         }
                     };
@@ -6335,14 +6374,20 @@
                 let reqSpacesForSave = [];
                 if (packDataForSave && Array.isArray(packDataForSave.secuencia) && packDataForSave.secuencia.length > 0) {
                     reqSpacesForSave = window.getPackRoomRequirements(packDataForSave);
-                } else if (itemConfig && itemConfig.allowedSpaces) {
-                    reqSpacesForSave = itemConfig.allowedSpaces.map(s => String(s).toLowerCase());
-                } else if (svcName.toLowerCase().includes('asian journey') || svcName.toLowerCase().includes('indian ritual')) {
-                    reqSpacesForSave = ['panacea', 'suite'];
+                } else {
+                    // Prioridad spa_item_master (Regla 35) sobre catálogo comercial
+                    const masterMatch = (window.masterItems || []).find(m => (m.name || m.nombre || '').toLowerCase().trim() === cleanSvc.toLowerCase()) ||
+                                        (window.SpaServiceCatalog?.resolve ? window.SpaServiceCatalog.resolve(cleanSvc, window.masterItems || [], currentServices || []) : null);
+                    const effectiveItem = masterMatch || itemConfig;
+                    const rawSpaces = effectiveItem ? (effectiveItem.allowedSpaces || effectiveItem.espacios || (effectiveItem.space ? [effectiveItem.space] : (effectiveItem.espacio ? [effectiveItem.espacio] : []))) : [];
+                    if (rawSpaces && rawSpaces.length > 0) {
+                        reqSpacesForSave = (Array.isArray(rawSpaces) ? rawSpaces : [rawSpaces]).map(s => String(s).toLowerCase().trim());
+                    } else if (svcName.toLowerCase().includes('asian journey') || svcName.toLowerCase().includes('indian ritual')) {
+                        reqSpacesForSave = ['panacea', 'suite'];
+                    }
                 }
 
-                const isCurrentCabina = ['cabina', 'cabina1', 'cabina2', 'cabina3', 'chon', 'cabinas'].includes(currentRoomVal) || currentModule?.code === 'cabinas';
-                const isRoomMatch = reqSpacesForSave.length === 0 || reqSpacesForSave.some(sp => sp === currentRoomVal || (isCurrentCabina && sp.includes('cabina')) || currentRoomVal.includes(sp));
+                const isRoomMatch = reqSpacesForSave.length === 0 || (typeof window.checkRoomMatchesAllowedSpaces === 'function' ? window.checkRoomMatchesAllowedSpaces(currentRoomVal, reqSpacesForSave) : true);
 
                 if (!isRoomMatch && !isForced) {
                     const targetSpace = reqSpacesForSave[0].toUpperCase();

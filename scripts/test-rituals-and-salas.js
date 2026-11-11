@@ -104,4 +104,53 @@ assert.equal(computedTimes[1], '16:30', 'El Masaje Relax DEBE recibir la hora pi
 assert.equal(computedTimes[0], '15:00', 'El Circuito Spa recibe turno redondo antes (15:00) o configurable');
 console.log('✓ Circuito Spa secundario: la hora pinchada (16:30) se asigna al Masaje Relax');
 
+// 8. TEST: Compatibilidad de salas y prioridad de spa_item_master sobre spa_services (CHON, MAR, MARI)
+const SpaServiceCatalog = require('../js/service-catalog');
+assert.equal(SpaServiceCatalog.space('chon'), 'cabina1', 'chon debe normalizarse a cabina1');
+assert.equal(SpaServiceCatalog.space('mar'), 'cabina2', 'mar debe normalizarse a cabina2');
+assert.equal(SpaServiceCatalog.space('mari'), 'cabina3', 'mari debe normalizarse a cabina3');
+
+const masterHigiene = {
+    id: '6505',
+    name: 'Higiene facial con ultrasonidos',
+    duration: 75,
+    allowedSpaces: ['chon', 'mar', 'mari', 'vip', 'panacea', 'suite']
+};
+const legacyHigiene = {
+    nombre: 'Higiene facial con ultrasonidos',
+    espacio: 'Panacea'
+};
+
+assert.equal(SpaServiceCatalog.allows(masterHigiene, 'chon'), true, 'Higiene facial con ultrasonidos debe permitirse en CHON');
+assert.equal(SpaServiceCatalog.allows(masterHigiene, 'mar'), true, 'Higiene facial con ultrasonidos debe permitirse en MAR');
+assert.equal(SpaServiceCatalog.allows(masterHigiene, 'mari'), true, 'Higiene facial con ultrasonidos debe permitirse en MARI');
+assert.equal(SpaServiceCatalog.allows(masterHigiene, 'cabina1'), true, 'Higiene facial con ultrasonidos debe permitirse en cabina1');
+
+// Simulación de checkRoomMatchesAllowedSpaces
+function checkRoomMatchesAllowedSpaces(roomVal, allowedSpaces) {
+    if (!allowedSpaces || !Array.isArray(allowedSpaces) || allowedSpaces.length === 0) return true;
+    const getCode = SpaServiceCatalog.space;
+    const normRoom = getCode(roomVal);
+    const isCabinaRoom = ['cabina', 'cabinas', 'cabina1', 'cabina2', 'cabina3', 'chon', 'mar', 'mari'].includes(normRoom) || /^cabina\d+$/.test(normRoom);
+    return allowedSpaces.some(rawSp => {
+        const normSp = getCode(rawSp);
+        if (!normSp) return true;
+        if (normSp === normRoom) return true;
+        if (isCabinaRoom && (normSp === 'cabina' || normSp === 'cabinas')) return true;
+        if ((normRoom === 'cabina' || normRoom === 'cabinas') && (isCabinaRoom || /^cabina\d+$/.test(normSp))) return true;
+        if (normRoom && normSp && (normRoom.includes(normSp) || normSp.includes(normRoom))) return true;
+        return false;
+    });
+}
+
+assert.equal(checkRoomMatchesAllowedSpaces('chon', masterHigiene.allowedSpaces), true, 'CHON es compatible con allowedSpaces de maestro');
+assert.equal(checkRoomMatchesAllowedSpaces('mar', masterHigiene.allowedSpaces), true, 'MAR es compatible con allowedSpaces de maestro');
+assert.equal(checkRoomMatchesAllowedSpaces('mari', masterHigiene.allowedSpaces), true, 'MARI es compatible con allowedSpaces de maestro');
+
+// Resolución de servicio: prioridad masterItems sobre legacy
+const resolved = SpaServiceCatalog.resolve('Higiene facial con ultrasonidos', [masterHigiene], [legacyHigiene]);
+assert.equal(resolved.id, '6505', 'Debe resolver el registro maestro (id 6505), no el catálogo legacy');
+assert.deepEqual(resolved.allowedSpaces, ['chon', 'mar', 'mari', 'vip', 'panacea', 'suite']);
+console.log('✓ Compatibilidad de salas: Higiene facial con ultrasonidos permitida en CHON/MAR/MARI según spa_item_master');
+
 console.log('\n✅ TODOS LOS TESTS DE RITUALES Y SALAS PASARON!');
