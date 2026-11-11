@@ -25,7 +25,7 @@
         <!-- LEFT: Cumbria Logo -->
         <div style="display: flex; align-items: center; gap: 15px;">
             <img src="logo-spa.jpg" alt="Cumbria Bienestar" style="height: 65px; width: auto; object-fit: contain;">
-            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.28 (11/11/2026)">v2.3.28</span>
+            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.29 (11/11/2026)">v2.3.29</span>
         </div>
 
         <ul class="nav-links" style="flex:1;">
@@ -507,6 +507,17 @@
                                 <p class="muted" style="font-size: 0.75rem; margin-bottom: 20px;">Configura la duración
                                     y el espacio por defecto para cada elemento del catálogo.</p>
 
+                                <div style="display: flex; align-items: end; flex-wrap: wrap; gap: 12px; margin-bottom: 16px;">
+                                    <div style="flex: 1; min-width: 220px; max-width: 520px;">
+                                        <label for="master-items-search" style="display: block; font-size: 0.8rem; font-weight: 600; margin-bottom: 6px;">Buscar por nombre o código</label>
+                                        <input id="master-items-search" type="search" class="param-input"
+                                            placeholder="Escribe, por ejemplo: masaje relax…" autocomplete="off"
+                                            oninput="filterMasterItems()" style="width: 100%; padding: 10px 12px;">
+                                    </div>
+                                    <button type="button" class="btn btn-outline btn-sm" onclick="clearMasterItemsSearch()">Limpiar</button>
+                                    <span id="master-items-search-count" role="status" aria-live="polite" style="font-size: 0.8rem; color: #64748b;"></span>
+                                </div>
+                                <p id="master-items-search-empty" hidden style="color: #64748b; font-size: 0.85rem;">No hay resultados. Prueba con otro nombre o código.</p>
                                 <div id="master-items-table-container"
                                     style="border: 1px solid var(--border); border-radius: 8px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.02); background: #fff;">
                                     <style>

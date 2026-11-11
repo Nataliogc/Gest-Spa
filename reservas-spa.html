@@ -480,7 +480,7 @@
         <!-- LEFT: Cumbria Logo -->
         <div style="display: flex; align-items: center; gap: 15px;">
             <img src="logo-spa.jpg" alt="Cumbria Bienestar" style="height: 65px; width: auto; object-fit: contain;">
-            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.28 (11/11/2026)">v2.3.28</span>
+            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.29 (11/11/2026)">v2.3.29</span>
         </div>
 
         <ul class="nav-links" style="flex:1;">
@@ -1269,9 +1269,10 @@
 
     <!-- Dexie loaded by db-local.js -->
     <!-- <script src="https://unpkg.com/dexie@latest/dist/dexie.js"></script> -->
-    <script src="js/app-core.js?v=2.3.28"></script>
+    <script src="js/app-core.js?v=2.3.29"></script>
     <script src="js/spa-packs-registry.js?v=2.3.21"></script>
-    <script src="js/service-pricing.js?v=2.3.21"></script>
+    <script src="js/service-catalog.js?v=1"></script>
+    <script src="js/service-pricing.js?v=2.3.29"></script>
 
     <script>
         const db = firebase.firestore();
@@ -2090,7 +2091,7 @@
             const sel = document.getElementById("res-servicio");
             if (!sel) return;
 
-            const currentVal = sel.value;
+            let currentVal = sel.value;
             sel.innerHTML = "";
 
             // --- 0. PREPARATION ---
@@ -2366,6 +2367,11 @@
             }
 
 
+            // Master items are the only source for individual treatments.
+            servicesToShow = window.SpaServiceCatalog.build(
+                window.masterItems || [], currentServices || [],
+                servicesToShow.filter(item => item.source === 'catalog_pack'), roomCode);
+
             // --- SORT ALPHABETICALLY ---
             servicesToShow.sort((a, b) => a.nombre.localeCompare(b.nombre));
 
@@ -2383,6 +2389,9 @@
                 opt.value = s.nombre;
                 opt.textContent = s.nombre;
                 // Add dataset for pax limits/space/category
+                opt.dataset.masterItemId = s.masterItemId || '';
+                opt.dataset.source = s.source || '';
+                opt.dataset.duration = s.duracion || 0;
                 opt.dataset.paxMax = s.pax_max;
                 opt.dataset.espacio = s.espacio;
                 opt.dataset.categoria = s.categoria;
@@ -2402,6 +2411,8 @@
                 selected: o.selected
             }));
 
+            const canonical = window.SpaServiceCatalog.resolve(currentVal, window.masterItems || [], currentServices || []);
+            if (canonical) currentVal = canonical.name || canonical.nombre;
             // Restore previous value if valid for this room
             if (currentVal && servicesToShow.some(s => s.nombre === currentVal)) {
                 sel.value = currentVal;
@@ -2682,7 +2693,7 @@
             let requiredTherapists = 1;
 
             if (selectedService && window.masterItems) {
-                const item = window.masterItems.find(i => i.name === selectedService);
+                const item = window.SpaServiceCatalog.resolve(selectedService, window.masterItems, currentServices || []);
                 if (item && item.required_therapists) {
                     requiredTherapists = parseInt(item.required_therapists);
                 } else if (item && item.pax === 2 && (item.category || "").includes('masaje')) {
@@ -3262,6 +3273,11 @@
 
                 // Check if option exists
                 // The inputDuration is now a number input, not a select.
+                const masterDuration = window.SpaServiceCatalog.resolve(val, window.masterItems || [], currentServices || []);
+                const configuredDuration = masterDuration?.duration ?? masterDuration?.duracion;
+                if (configuredDuration !== undefined && Number.isFinite(Number(configuredDuration)) && Number(configuredDuration) >= 0) {
+                    dur = Number(configuredDuration);
+                }
                 durationInput.value = dur;
 
                 // Refresh Staff Availability
@@ -5568,6 +5584,7 @@
                     precio_pax: parseFloat(document.getElementById("res-precio-pax")?.value) || 0,
                     precio_total: parseFloat(document.getElementById("res-precio-total")?.value) || 0,
                     servicio: svcName,
+                    master_item_id: window.SpaServiceCatalog.resolve(svcName, window.masterItems || [], currentServices || [])?.id || null,
                     duracion: duration,
                     obs: document.getElementById("res-obs")?.value || "",
                     pricing_mode: window._currentPricingMode || null,

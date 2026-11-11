@@ -486,7 +486,7 @@
         <!-- LEFT: Cumbria Logo -->
         <div style="display: flex; align-items: center; gap: 15px;">
             <img src="logo-spa.jpg" alt="Cumbria Bienestar" style="height: 65px; width: auto; object-fit: contain;">
-            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.28 (11/11/2026)">v2.3.28</span>
+            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.29 (11/11/2026)">v2.3.29</span>
         </div>
 
         <ul class="nav-links" style="flex:1;">
@@ -1271,9 +1271,10 @@
 
     <!-- Dexie loaded by db-local.js -->
     <!-- <script src="https://unpkg.com/dexie@latest/dist/dexie.js"></script> -->
-    <script src="js/app-core.js?v=2.3.28"></script>
+    <script src="js/app-core.js?v=2.3.29"></script>
     <script src="js/spa-packs-registry.js?v=2.3.21"></script>
-    <script src="js/service-pricing.js?v=2.3.21"></script>
+    <script src="js/service-catalog.js?v=1"></script>
+    <script src="js/service-pricing.js?v=2.3.29"></script>
 
     <script>
         const db = firebase.firestore();
@@ -2352,7 +2353,7 @@
             const sel = document.getElementById("res-servicio");
             if (!sel) return;
 
-            const currentVal = sel.value;
+            let currentVal = sel.value;
             sel.innerHTML = "";
 
             // --- 0. PREPARATION ---
@@ -2556,6 +2557,11 @@
                 servicesToShow = allItems.filter(item => !['restaurante', 'hotel'].includes((item.categoria || '').toLowerCase()));
             }
 
+            // Master items are the only source for individual treatments.
+            servicesToShow = window.SpaServiceCatalog.build(
+                window.masterItems || [], currentServices || [],
+                allItems.filter(item => item.source === 'catalog_pack'), roomCode);
+
             // --- SORT ALPHABETICALLY ---
             servicesToShow.sort((a, b) => a.nombre.localeCompare(b.nombre));
 
@@ -2571,6 +2577,9 @@
                 const opt = document.createElement("option");
                 opt.value = s.nombre;
                 opt.textContent = s.nombre;
+                opt.dataset.masterItemId = s.masterItemId || '';
+                opt.dataset.source = s.source || '';
+                opt.dataset.duration = s.duracion || 0;
                 opt.dataset.paxMax = s.pax_max;
                 opt.dataset.espacio = s.espacio;
                 opt.dataset.categoria = s.categoria;
@@ -2593,6 +2602,8 @@
                 selected: o.selected
             }));
 
+            const canonical = window.SpaServiceCatalog.resolve(currentVal, window.masterItems || [], currentServices || []);
+            if (canonical) currentVal = canonical.name || canonical.nombre;
             // Restore previous value if valid for this room
             if (currentVal && servicesToShow.some(s => s.nombre === currentVal)) {
                 sel.value = currentVal;
@@ -2980,7 +2991,7 @@
                 if (sLower.includes('suite spa') && !sLower.includes('masaje')) {
                     requiredTherapists = 0;
                 } else if (window.masterItems) {
-                    const item = window.masterItems.find(i => (i.name || i.nombre || '').toLowerCase() === selectedService.toLowerCase());
+                    const item = window.SpaServiceCatalog.resolve(selectedService, window.masterItems, currentServices || []);
                     if (item && item.required_therapists !== undefined) {
                         requiredTherapists = parseInt(item.required_therapists) || 0;
                     } else if (item && item.pax === 2 && (item.category || "").includes('masaje')) {
@@ -3532,6 +3543,9 @@
                 service = window.masterItems.find(m => m.name === val || m.name === cleanVal || (m.name && m.name.toLowerCase() === cleanVal.toLowerCase()));
             }
 
+            const canonicalMaster = window.SpaServiceCatalog.resolve(val, window.masterItems || [], currentServices || []);
+            if (canonicalMaster) service = canonicalMaster;
+
             // Fallback from Pack Registry
             if (!service && typeof getPackFullData === 'function') {
                 const packMeta = getPackFullData(cleanVal, currentServices, window.masterItems);
@@ -3590,6 +3604,11 @@
 
                 // Check if option exists
                 // The inputDuration is now a number input, not a select.
+                const masterDuration = window.SpaServiceCatalog.resolve(val, window.masterItems || [], currentServices || []);
+                const configuredDuration = masterDuration?.duration ?? masterDuration?.duracion;
+                if (configuredDuration !== undefined && Number.isFinite(Number(configuredDuration)) && Number(configuredDuration) >= 0) {
+                    dur = Number(configuredDuration);
+                }
                 durationInput.value = dur;
 
                 // Refresh Staff Availability
@@ -3606,7 +3625,7 @@
             try {
                 const snap = await readInitialCatalog('spa_item_master');
                 window.masterItems = [];
-                snap.forEach(doc => window.masterItems.push(doc.data()));
+                snap.forEach(doc => window.masterItems.push({ ...doc.data(), id: doc.id }));
                 console.log("Items maestros cargados:", window.masterItems.length);
             } catch (e) {
                 if (window.checkFirestoreError && window.checkFirestoreError(e)) return;
@@ -6389,6 +6408,7 @@
                     precio_pax: parseFloat(document.getElementById("res-precio-pax")?.value) || 0,
                     precio_total: parseFloat(document.getElementById("res-precio-total")?.value) || 0,
                     servicio: svcName,
+                    master_item_id: window.SpaServiceCatalog.resolve(svcName, window.masterItems || [], currentServices || [])?.id || null,
                     duracion: duration,
                     sala: (roomSel && roomSel.value) ? roomSel.value : (currentModule.code || ""),
                     obs: document.getElementById("res-obs")?.value || "",

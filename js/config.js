@@ -495,6 +495,31 @@ window.sanitizeSpace = sanitizeSpace;
 window.sanitizeAllowedSpaces = sanitizeAllowedSpaces;
 
 
+function filterMasterItems() {
+    const normalize = value => String(value || '').normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '').toLowerCase()
+        .replace(/[^a-z0-9]+/g, ' ').trim();
+    const words = normalize(document.getElementById('master-items-search')?.value).split(/\s+/).filter(Boolean);
+    const rows = document.querySelectorAll('#master-items-tbody tr[data-master-item]');
+    let visible = 0;
+    rows.forEach(row => {
+        const text = normalize(Array.from(row.querySelectorAll('input[type="text"]')).map(input => input.value).join(' '));
+        row.hidden = !words.every(word => text.includes(word));
+        if (!row.hidden) visible++;
+    });
+    const count = document.getElementById('master-items-search-count');
+    if (count) count.textContent = `${visible} de ${rows.length} items`;
+    const empty = document.getElementById('master-items-search-empty');
+    if (empty) empty.hidden = !words.length || visible > 0;
+}
+
+function clearMasterItemsSearch() {
+    const input = document.getElementById('master-items-search');
+    if (input) input.value = '';
+    filterMasterItems();
+    if (input) input.focus();
+}
+
 function renderMasterItems() {
     const list = document.getElementById("master-items-tbody");
     if (!list) return;
@@ -502,6 +527,7 @@ function renderMasterItems() {
 
     if (spaConfigState.masterItems.length === 0) {
         list.innerHTML = `<tr><td colspan="6" style="padding: 30px; text-align: center; color: #94a3b8;">No hay items configurados.</td></tr>`;
+        filterMasterItems();
         return;
     }
 
@@ -538,7 +564,7 @@ function renderMasterItems() {
         }
 
         return `
-        <tr style="border-bottom: 1px solid #f1f5f9;">
+        <tr data-master-item style="border-bottom: 1px solid #f1f5f9;">
             <td style="padding: 6px 2px;">
                 <input type="text" value="${item.code || ''}" placeholder="ID..." onchange="updateMasterItemField('${item.id}', 'code', this.value)" 
                     class="param-input" style="width:100%; font-size: 0.75rem;">
@@ -630,6 +656,7 @@ function renderMasterItems() {
             </td>
         </tr>
     `}).join('');
+    filterMasterItems();
 }
 
 // --- MULTI-SELECT HELPERS ---

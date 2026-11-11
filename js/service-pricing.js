@@ -22,7 +22,7 @@
         if (!name) return null;
         const key = normalize(name);
         const match = item => item.active !== false && !item.deleted && normalize(item.name || item.nombre) === key;
-        const m = master.find(match), c = catalog.find(match);
+        const m = root.SpaServiceCatalog?.resolve(name, master, catalog) || master.find(match), c = catalog.find(match);
 
         // Consultar registro unificado de packs si existe
         const packInfo = (typeof root.getPackFullData === 'function')

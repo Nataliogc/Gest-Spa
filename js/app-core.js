@@ -252,6 +252,8 @@ window.getItemConfig = async function (serviceName) {
             setTimeout(() => { window._itemMasterCache = null; }, 300000);
         }
 
+        const canonical = window.SpaServiceCatalog?.resolve(serviceName, window._itemMasterCache, window.currentServices || []);
+        if (canonical) return canonical;
         const normSearch = serviceName.toLowerCase().trim();
         return window._itemMasterCache.find(item =>
             item.name.toLowerCase().trim() === normSearch ||

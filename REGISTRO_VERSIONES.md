@@ -8,7 +8,7 @@ Este documento mantiene el **control de versión única y global** para todo el 
 
 | Parámetro | Valor Actual |
 | :--- | :--- |
-| **Versión Global del Sistema** | **`v2.3.28`** |
+| **Versión Global del Sistema** | **`v2.3.29`** |
 | **Fecha de Última Actualización** | **11/11/2026** |
 | **Estado General** | Operativo en Producción |
 
@@ -47,6 +47,11 @@ Cualquier cambio en los siguientes módulos impacta en la versión global:
 ---
 
 ## 📝 Historial Unificado de Versiones
+
+### [v2.3.29] - 11/11/2026
+- **Tipo:** PATCH
+- **Archivos:** `configuracion.html`, `js/app-core.js`, `js/config.js`, `js/service-pricing.js`, `reservas-salas.html`, `reservas-spa.html`, `reservas.html`, `scripts/test-reservation-selectors.js`, `js/service-catalog.js`, `scripts/test-service-catalog.js`
+- **Descripción:** Buscador en Ajustes Items/Pack y selector de tratamientos basado en items maestros: nombres compatibles, salas configuradas e identificador estable en nuevas reservas. Sin borrado de datos; Relax en Suite conservado pendiente de revisar su producto asociado.
 
 ### [v2.3.28] - 11/11/2026
 - **Tipo:** PATCH / BUGFIX

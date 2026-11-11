@@ -14,7 +14,7 @@ const modules = {
     peluqueria: { name: 'PELUQUERÍA' }, hair: { name: 'PELUQUERIA' }
 };
 const ctx = vm.createContext({ URLSearchParams, console, currentModule: { code: 'cabinas' },
-    currentServices: [], window: { MODULES: modules, location: { search: '?action=new' },
+    currentServices: [], window: { SpaServiceCatalog: require('../js/service-catalog'), MODULES: modules, location: { search: '?action=new' },
         masterItems: [{ name: 'Masaje de prueba', space: 'cabina', duration: 0, price_pax: 35, pax: 1 }] },
     document: { getElementById: id => ({ 'res-sala': rooms, 'res-servicio': services })[id] || null,
         createElement: () => ({ dataset: {} }) }, updatePriceAutomation() {}, syncServiceDuration() {}
