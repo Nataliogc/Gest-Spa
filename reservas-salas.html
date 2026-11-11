@@ -486,7 +486,7 @@
         <!-- LEFT: Cumbria Logo -->
         <div style="display: flex; align-items: center; gap: 15px;">
             <img src="logo-spa.jpg" alt="Cumbria Bienestar" style="height: 65px; width: auto; object-fit: contain;">
-            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.27 (11/11/2026)">v2.3.27</span>
+            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.28 (11/11/2026)">v2.3.28</span>
         </div>
 
         <ul class="nav-links" style="flex:1;">
@@ -1271,7 +1271,7 @@
 
     <!-- Dexie loaded by db-local.js -->
     <!-- <script src="https://unpkg.com/dexie@latest/dist/dexie.js"></script> -->
-    <script src="js/app-core.js?v=2.3.27"></script>
+    <script src="js/app-core.js?v=2.3.28"></script>
     <script src="js/spa-packs-registry.js?v=2.3.21"></script>
     <script src="js/service-pricing.js?v=2.3.21"></script>
 
@@ -2044,13 +2044,13 @@
                 const currentMin = now.getHours() * 60 + now.getMinutes();
 
                 for (let time of slots) {
-                    // Siempre permitimos la hora original de la reserva que estamos editando SI no hemos cambiado de fecha
-                    if (time === originalTime && date === originalDate) {
+                    // Solo permitimos la hora original si estamos editando una reserva existente (con ID) y no hemos cambiado de fecha
+                    if (currentResId && time === originalTime && date === originalDate) {
                         validSlots.push({ time, isFull: false });
                         continue;
                     }
 
-                    // Si es hoy, filtrar slots pasados (con un margen de cortesía de 5 min si se prefiere, pero aquí estricto)
+                    // Si es hoy, filtrar slots pasados
                     if (date === todayStr) {
                         const [sh, sm] = time.split(':').map(Number);
                         if ((sh * 60 + sm) < currentMin) continue;
@@ -3724,10 +3724,29 @@
             }
 
             // Hora base y fecha base
-            const timeInput = document.getElementById("res-hora") || document.getElementById("form-time");
-            const baseTime = (timeInput && timeInput.value) ? timeInput.value : "10:00";
-            const dateInput = document.getElementById("res-fecha") || document.getElementById("form-date");
-            const baseDate = (dateInput && dateInput.value) ? dateInput.value : new Date().toISOString().split('T')[0];
+            const now = new Date();
+            const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+            const nowMinutes = now.getHours() * 60 + now.getMinutes();
+
+            const timeInput = document.getElementById("form-time");
+            const dateInput = document.getElementById("form-date");
+            const baseDate = (dateInput && dateInput.value) ? dateInput.value : todayStr;
+
+            let baseTime = (timeInput && timeInput.value) ? timeInput.value : "";
+            // Si la hora es vacía o es una hora pasada para hoy, fijar al siguiente cuarto de hora futuro
+            if (baseDate === todayStr) {
+                const [bh, bm] = (baseTime || "10:00").split(':').map(Number);
+                const baseMin = (isNaN(bh) ? 10 : bh) * 60 + (isNaN(bm) ? 0 : bm);
+                if (!baseTime || baseMin < nowMinutes) {
+                    const nextQuarter = Math.ceil((nowMinutes + 5) / 15) * 15;
+                    const nextH = Math.floor(nextQuarter / 60) % 24;
+                    const nextM = nextQuarter % 60;
+                    baseTime = `${String(nextH).padStart(2, '0')}:${String(nextM).padStart(2, '0')}`;
+                    if (timeInput && (!timeInput.value || baseMin < nowMinutes)) timeInput.value = baseTime;
+                }
+            } else if (!baseTime) {
+                baseTime = "10:00";
+            }
 
             // Construir desglose interactivo
             let html = '';
@@ -5981,31 +6000,56 @@
                 // ========== BLOCK PAST DATE/TIME RESERVATIONS ==========
                 const formDate = document.getElementById("form-date")?.value;
                 const formTime = document.getElementById("form-time")?.value || "00:00";
-                const dateTimeContainer = document.getElementById("date-time-container");
 
-                // Only validate if date/time fields are visible (not for agenda-less services)
-                // AND not within SPA courtesy window
-                if (!window._spaCourtesyActive && dateTimeContainer && dateTimeContainer.style.display !== "none" && formDate && formTime) {
+                // Allow bypass only if explicitly unlocked
+                if (!window._pastReservationUnlocked) {
                     const now = new Date();
                     const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
                     const currentMinutes = now.getHours() * 60 + now.getMinutes();
-                    const [resH, resM] = formTime.split(':').map(Number);
-                    const resMinutes = resH * 60 + resM;
+                    const courtesyMin = (window._spaCourtesyActive && window._spaCourtesyMinutes > 0) ? window._spaCourtesyMinutes : 0;
 
-                    // Allow bypass if explicitly unlocked
-                    if (!window._pastReservationUnlocked) {
+                    // 1. Validar fecha/hora principal
+                    if (formDate && formTime) {
+                        const [resH, resM] = formTime.split(':').map(Number);
+                        const resMinutes = (isNaN(resH) ? 0 : resH) * 60 + (isNaN(resM) ? 0 : resM);
+
                         if (formDate < todayStr) {
                             alert(`⚠️ No se puede reservar en una fecha pasada (${formDate}).`);
+                            isSavingReservation = false; btn.disabled = false; btn.innerHTML = originalText;
                             return;
                         }
 
-                        if (formDate === todayStr && resMinutes < currentMinutes) {
-                            alert(`⚠️ No se puede reservar a las ${formTime} (Hora pasada).`);
+                        if (formDate === todayStr && (resMinutes + courtesyMin) < currentMinutes) {
+                            alert(`⚠️ No se puede reservar a las ${formTime} porque es una hora pasada.`);
+                            isSavingReservation = false; btn.disabled = false; btn.innerHTML = originalText;
                             return;
                         }
-                    } else {
-                        console.log("⚠️ GUARDANDO RESERVA PASADA (Desbloqueo activo)");
                     }
+
+                    // 2. Si es un pack, validar también las horas de cada fase activa
+                    if (window._packItems && Array.isArray(window._packItems)) {
+                        for (const it of window._packItems) {
+                            if (it.active === false) continue;
+                            const itDate = it.fecha || formDate;
+                            const itTime = it.hora || formTime;
+                            if (itDate && itTime) {
+                                if (itDate < todayStr) {
+                                    alert(`⚠️ El servicio "${it.name}" del pack tiene fecha pasada (${itDate}).`);
+                                    isSavingReservation = false; btn.disabled = false; btn.innerHTML = originalText;
+                                    return;
+                                }
+                                const [ih, im] = itTime.split(':').map(Number);
+                                const itemMin = (isNaN(ih) ? 0 : ih) * 60 + (isNaN(im) ? 0 : im);
+                                if (itDate === todayStr && itemMin < currentMinutes) {
+                                    alert(`⚠️ El servicio "${it.name}" del pack está a las ${itTime} (hora ya pasada). Cambia la hora antes de guardar.`);
+                                    isSavingReservation = false; btn.disabled = false; btn.innerHTML = originalText;
+                                    return;
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    console.log("⚠️ GUARDANDO RESERVA PASADA (Desbloqueo activo)");
                 }
                 // ========================================================
 
@@ -8977,7 +9021,7 @@
     </script>
 
     <!-- Staff Management Integration -->
-    <script src="reservas-staff.js?v=2.3.27"></script>
+    <script src="reservas-staff.js?v=2.3.28"></script>
 
     <!-- MODAL BLOQUEO DE SALA -->
     <div id="block-room-modal" class="modal" style="z-index: 10000;">

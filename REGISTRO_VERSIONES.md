@@ -8,7 +8,7 @@ Este documento mantiene el **control de versión única y global** para todo el 
 
 | Parámetro | Valor Actual |
 | :--- | :--- |
-| **Versión Global del Sistema** | **`v2.3.27`** |
+| **Versión Global del Sistema** | **`v2.3.28`** |
 | **Fecha de Última Actualización** | **11/11/2026** |
 | **Estado General** | Operativo en Producción |
 
@@ -47,6 +47,11 @@ Cualquier cambio en los siguientes módulos impacta en la versión global:
 ---
 
 ## 📝 Historial Unificado de Versiones
+
+### [v2.3.28] - 11/11/2026
+- **Tipo:** PATCH / BUGFIX
+- **Archivos:** `reservas-salas.html`, `reservas-spa.html`
+- **Descripción:** Corrección de la validación de turnos pasados en handleFormSubmit (se eliminó la condición dependiente de un elemento DOM inexistente que puenteaba el bloqueo). Validación extendida a todas las fases de los packs para impedir guardar servicios a horas pasadas. Ajuste de hora inicial en packs al siguiente cuarto de hora futuro en lugar de 10:00h si esa hora ya transcurrió.
 
 ### [v2.3.27] - 11/11/2026
 - **Tipo:** MINOR / PATCH
