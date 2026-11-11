@@ -8,7 +8,7 @@ Este documento mantiene el **control de versión única y global** para todo el 
 
 | Parámetro | Valor Actual |
 | :--- | :--- |
-| **Versión Global del Sistema** | **`v2.3.25`** |
+| **Versión Global del Sistema** | **`v2.3.26`** |
 | **Fecha de Última Actualización** | **11/11/2026** |
 | **Estado General** | Operativo en Producción |
 
@@ -47,6 +47,11 @@ Cualquier cambio en los siguientes módulos impacta en la versión global:
 ---
 
 ## 📝 Historial Unificado de Versiones
+
+### [v2.3.26] - 11/11/2026
+- **Tipo:** PATCH
+- **Archivos:** `reservas-salas.html`
+- **Descripción:** Packs con Circuito Spa (Fantasía para dos, Especial Parejas...) ya se pueden reservar desde Sala VIP, Panacea o Suite. La fase de Spa se envía automáticamente a la agenda del Spa sin condicionar la sala del tratamiento.
 
 ### [v2.3.25] - 11/11/2026
 - **Tipo:** PATCH

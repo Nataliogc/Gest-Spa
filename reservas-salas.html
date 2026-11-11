@@ -486,7 +486,7 @@
         <!-- LEFT: Cumbria Logo -->
         <div style="display: flex; align-items: center; gap: 15px;">
             <img src="logo-spa.jpg" alt="Cumbria Bienestar" style="height: 65px; width: auto; object-fit: contain;">
-            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.25 (11/11/2026)">v2.3.25</span>
+            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.26 (11/11/2026)">v2.3.26</span>
         </div>
 
         <ul class="nav-links" style="flex:1;">
@@ -2777,6 +2777,25 @@
          * Si no es compatible (ej. un ritual que requiere Panacea/Suite seleccionado en Cabina Chon),
          * muestra un banner de advertencia con un botón para cambiar automáticamente a la sala requerida.
          */
+        /**
+         * Devuelve las salas válidas para la reserva "principal" de un pack.
+         * Las fases de Circuito Spa (y gym/hotel) se reservan automáticamente en su propia
+         * agenda, por lo que NO condicionan la sala elegida para el tratamiento.
+         * Además, los tratamientos de Panacea / Sala VIP / Suite son intercambiables entre sí
+         * (igual que en el desglose del pack, que adapta la sala a la seleccionada).
+         */
+        window.getPackRoomRequirements = function (packData) {
+            const seq = (packData && Array.isArray(packData.secuencia)) ? packData.secuencia : [];
+            const all = [...new Set(seq.map(s => String(s.espacio || 'panacea').toLowerCase()))];
+            const autoRouted = ['spa', 'gym', 'gimnasio', 'hotel'];
+            const treatment = all.filter(sp => !autoRouted.includes(sp));
+            if (treatment.length === 0) return all; // Pack solo de Spa: requiere sala SPA
+            const premium = ['panacea', 'vip', 'suite'];
+            const expanded = new Set(treatment);
+            if (treatment.some(sp => premium.includes(sp))) premium.forEach(sp => expanded.add(sp));
+            return [...expanded];
+        };
+
         function checkServiceRoomCompatibility(serviceName) {
             const warningDiv = document.getElementById("service-room-compatibility-warning");
             const warningText = document.getElementById("service-room-compatibility-text");
@@ -2800,7 +2819,7 @@
 
             let requiredSpaces = [];
             if (packData && Array.isArray(packData.secuencia) && packData.secuencia.length > 0) {
-                requiredSpaces = [...new Set(packData.secuencia.map(s => (s.espacio || 'panacea').toLowerCase()))];
+                requiredSpaces = window.getPackRoomRequirements(packData);
             } else {
                 const item = (currentServices || []).find(s => (s.nombre || s.name || '').toLowerCase() === serviceName.toLowerCase()) ||
                              (window.masterItems || []).find(m => (m.name || m.nombre || '').toLowerCase() === serviceName.toLowerCase());
@@ -5862,7 +5881,7 @@
 
                 let reqSpacesForSave = [];
                 if (packDataForSave && Array.isArray(packDataForSave.secuencia) && packDataForSave.secuencia.length > 0) {
-                    reqSpacesForSave = [...new Set(packDataForSave.secuencia.map(s => (s.espacio || 'panacea').toLowerCase()))];
+                    reqSpacesForSave = window.getPackRoomRequirements(packDataForSave);
                 } else if (itemConfig && itemConfig.allowedSpaces) {
                     reqSpacesForSave = itemConfig.allowedSpaces.map(s => String(s).toLowerCase());
                 } else if (svcName.toLowerCase().includes('asian journey') || svcName.toLowerCase().includes('indian ritual')) {
