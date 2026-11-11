@@ -486,7 +486,7 @@
         <!-- LEFT: Cumbria Logo -->
         <div style="display: flex; align-items: center; gap: 15px;">
             <img src="logo-spa.jpg" alt="Cumbria Bienestar" style="height: 65px; width: auto; object-fit: contain;">
-            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.26 (11/11/2026)">v2.3.26</span>
+            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.27 (11/11/2026)">v2.3.27</span>
         </div>
 
         <ul class="nav-links" style="flex:1;">
@@ -1271,7 +1271,7 @@
 
     <!-- Dexie loaded by db-local.js -->
     <!-- <script src="https://unpkg.com/dexie@latest/dist/dexie.js"></script> -->
-    <script src="js/app-core.js"></script>
+    <script src="js/app-core.js?v=2.3.27"></script>
     <script src="js/spa-packs-registry.js?v=2.3.21"></script>
     <script src="js/service-pricing.js?v=2.3.21"></script>
 
@@ -2773,10 +2773,23 @@
         }
 
         /**
-         * Comprueba si el servicio seleccionado es compatible con la sala activa en el modal.
-         * Si no es compatible (ej. un ritual que requiere Panacea/Suite seleccionado en Cabina Chon),
-         * muestra un banner de advertencia con un botón para cambiar automáticamente a la sala requerida.
+         * Indica si una fase de pack necesita terapeuta (masaje/tratamiento).
          */
+        window.packPhaseNeedsTherapist = function (phase) {
+            if (!phase) return false;
+            if (phase.terapeutas !== undefined && phase.terapeutas !== null) return (parseInt(phase.terapeutas) || 0) > 0;
+            return phase.requires_therapist !== false;
+        };
+
+        /**
+         * Fase de tratamiento (con terapeuta) activa del pack en curso, para comprobar
+         * terapeutas y sala a SU hora y no a la hora general del formulario.
+         */
+        window.getActivePackTherapyPhase = function () {
+            const items = Array.isArray(window._packItems) ? window._packItems : [];
+            return items.find(it => it.active !== false && window.packPhaseNeedsTherapist(it)) || null;
+        };
+
         /**
          * Devuelve las salas válidas para la reserva "principal" de un pack.
          * Las fases de Circuito Spa (y gym/hotel) se reservan automáticamente en su propia
@@ -2788,14 +2801,24 @@
             const seq = (packData && Array.isArray(packData.secuencia)) ? packData.secuencia : [];
             const all = [...new Set(seq.map(s => String(s.espacio || 'panacea').toLowerCase()))];
             const autoRouted = ['spa', 'gym', 'gimnasio', 'hotel'];
-            const treatment = all.filter(sp => !autoRouted.includes(sp));
-            if (treatment.length === 0) return all; // Pack solo de Spa: requiere sala SPA
+            // Solo las fases con terapeuta (masajes/tratamientos) condicionan la sala elegida.
+            // Las fases sin terapeuta (Circuito Spa, Suite Spa, Baño hidromasaje) van a su propia agenda.
+            const treatment = [...new Set(seq
+                .filter(s => window.packPhaseNeedsTherapist(s))
+                .map(s => String(s.espacio || 'panacea').toLowerCase())
+                .filter(sp => !autoRouted.includes(sp)))];
+            if (treatment.length === 0) return all; // Pack sin tratamientos: requiere su sala propia (SPA / SUITE)
             const premium = ['panacea', 'vip', 'suite'];
             const expanded = new Set(treatment);
             if (treatment.some(sp => premium.includes(sp))) premium.forEach(sp => expanded.add(sp));
             return [...expanded];
         };
 
+        /**
+         * Comprueba si el servicio seleccionado es compatible con la sala activa en el modal.
+         * Si no es compatible (ej. un ritual que requiere Panacea/Suite seleccionado en Cabina Chon),
+         * muestra un banner de advertencia con un botón para cambiar automáticamente a la sala requerida.
+         */
         function checkServiceRoomCompatibility(serviceName) {
             const warningDiv = document.getElementById("service-room-compatibility-warning");
             const warningText = document.getElementById("service-room-compatibility-text");
@@ -3718,9 +3741,10 @@
             displayItems.forEach((item, index) => {
                 let assignedSpace = (item.espacio || 'spa').toLowerCase();
 
-                // Si el tratamiento es de sala múltiple (panacea/vip/suite) y el operador está en una de ellas,
-                // adaptar visualmente la sala preferente
-                if (['panacea', 'vip', 'suite'].includes(assignedSpace) && ['panacea', 'vip', 'suite', 'cabina1', 'cabina2', 'cabina3'].includes(activeRoomCode)) {
+                // Si el tratamiento (con terapeuta) es de sala múltiple (panacea/vip/suite) y el operador está en una de ellas,
+                // adaptar la sala preferente. Las fases sin terapeuta (Suite Spa, Baño hidromasaje, Circuito Spa)
+                // mantienen siempre su sala propia.
+                if (window.packPhaseNeedsTherapist(item) && ['panacea', 'vip', 'suite'].includes(assignedSpace) && ['panacea', 'vip', 'suite', 'cabina1', 'cabina2', 'cabina3'].includes(activeRoomCode)) {
                     assignedSpace = activeRoomCode;
                 }
 
@@ -3786,6 +3810,7 @@
                             </div>
                         </div>
                     </div>
+                    ${assignedSpace === 'spa' ? `<div id="pack-spa-occ-${index}" class="pack-spa-occupancy" style="margin: -2px 0 8px 0; padding: 6px 8px; background: #eff6ff; border: 1px dashed #93c5fd; border-radius: 8px; font-size: 0.7rem; color: #1e3a8a;"><i class="fas fa-spinner fa-spin"></i> Cargando ocupación del Spa...</div>` : ''}
                 `;
 
                 cumulativeMinutes += duration + 15; // 15 min transición entre fases
@@ -3807,6 +3832,16 @@
             packSchedule.innerHTML = html;
             window._packItems = packItemsData;
 
+            // Ocupación del Spa para las fases de Circuito Spa
+            packItemsData.forEach(it => {
+                if (it.space === 'spa') window.renderPackSpaOccupancy(it.index);
+            });
+
+            // Recalcular terapeutas disponibles a la hora del tratamiento (no a la hora general)
+            if (typeof window.handleStaffFieldsChange === 'function' && window.getActivePackTherapyPhase()) {
+                window.handleStaffFieldsChange();
+            }
+
             if (packReminder) {
                 packReminder.style.display = hasRestaurant ? "block" : "none";
             }
@@ -3819,6 +3854,7 @@
             if (window._packItems && window._packItems[index]) {
                 window._packItems[index].hora = newTime;
                 console.log(`[PACK] Item ${index} time updated to ${newTime}`);
+                window.onPackItemScheduleChanged(index);
             }
         };
 
@@ -3826,6 +3862,132 @@
             if (window._packItems && window._packItems[index]) {
                 window._packItems[index].fecha = newDate;
                 console.log(`[PACK] Item ${index} date updated to ${newDate}`);
+                window.onPackItemScheduleChanged(index);
+            }
+        };
+
+        /**
+         * Tras cambiar fecha/hora de una fase: refresca la ocupación del Spa (si es fase Spa)
+         * y los terapeutas disponibles (si es la fase de tratamiento).
+         */
+        window.onPackItemScheduleChanged = function (index) {
+            const item = window._packItems && window._packItems[index];
+            if (!item) return;
+            if (item.space === 'spa') window.renderPackSpaOccupancy(index);
+            const therapy = window.getActivePackTherapyPhase();
+            if (therapy && therapy.index === item.index && typeof window.handleStaffFieldsChange === 'function') {
+                window.handleStaffFieldsChange();
+            }
+        };
+
+        // --- OCUPACIÓN DEL SPA (para elegir hora del Circuito Spa dentro de un pack) ---
+        let _spaOccConfigCache = null;
+        async function getSpaOccupancyConfig() {
+            if (_spaOccConfigCache) return _spaOccConfigCache;
+            const cfg = { capacity: 20, schedules: window.SPA_SCHEDULES || null, blockedSlots: {} };
+            try {
+                const gen = await db.collection("spa_config").doc("general").get();
+                if (gen.exists && gen.data().capacity !== undefined) cfg.capacity = parseInt(gen.data().capacity) || cfg.capacity;
+                const set = await db.collection("spa_config").doc("settings").get();
+                if (set.exists) {
+                    const s = set.data();
+                    if (s.capacity) cfg.capacity = parseInt(s.capacity) || cfg.capacity;
+                    if (s.schedules) cfg.schedules = s.schedules;
+                    if (s.blockedSlots) cfg.blockedSlots = s.blockedSlots;
+                }
+            } catch (e) {
+                console.warn("[PACK SPA] Error cargando configuración del Spa:", e);
+            }
+            _spaOccConfigCache = cfg;
+            return cfg;
+        }
+
+        window.selectPackSpaSlot = function (index, time) {
+            const input = document.getElementById(`pack-time-${index}`);
+            if (input) input.value = time;
+            window.updatePackItemTime(index, time);
+        };
+
+        window.renderPackSpaOccupancy = async function (index) {
+            const box = document.getElementById(`pack-spa-occ-${index}`);
+            const item = window._packItems && window._packItems[index];
+            if (!box || !item) return;
+            const date = item.fecha;
+            if (!date) { box.innerHTML = 'Selecciona una fecha para ver la ocupación del Spa.'; return; }
+
+            const reqId = `${date}|${Date.now()}`;
+            box.dataset.req = reqId;
+            try {
+                const cfg = await getSpaOccupancyConfig();
+                const snap = await db.collection("reservas_spa").where("fecha", "==", date).get();
+                if (box.dataset.req !== reqId) return; // Respuesta obsoleta
+
+                const paxByTime = {};
+                snap.forEach(doc => {
+                    const r = doc.data();
+                    if (!r.hora || r.status === 'anulada' || r.status === 'cancelled' || r.status === 'lista_espera') return;
+                    paxByTime[r.hora] = (paxByTime[r.hora] || 0) + (parseInt(r.pax) || 0);
+                });
+
+                const daysMap = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+                const dayName = daysMap[new Date(date + 'T12:00:00').getDay()];
+                let slots = (cfg.schedules && Array.isArray(cfg.schedules[dayName])) ? [...cfg.schedules[dayName]] : [];
+                Object.keys(paxByTime).forEach(t => { if (!slots.includes(t)) slots.push(t); });
+                slots.sort((a, b) => {
+                    const [h1, m1] = a.split(':').map(Number);
+                    const [h2, m2] = b.split(':').map(Number);
+                    return (h1 * 60 + m1) - (h2 * 60 + m2);
+                });
+
+                if (slots.length === 0) {
+                    box.innerHTML = '<i class="fas fa-info-circle"></i> No hay turnos de Spa configurados para este día.';
+                    return;
+                }
+
+                const blocked = (cfg.blockedSlots && cfg.blockedSlots[date]) || [];
+                const pax = parseInt(document.getElementById("res-pax")?.value) || 2;
+                const cap = cfg.capacity;
+                const now = new Date();
+                const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+                const nowMin = now.getHours() * 60 + now.getMinutes();
+                const selected = item.hora;
+
+                const chips = slots.map(t => {
+                    const used = paxByTime[t] || 0;
+                    const free = Math.max(0, cap - used);
+                    const [h, m] = t.split(':').map(Number);
+                    const isPast = date < todayStr || (date === todayStr && (h * 60 + m) < nowMin);
+                    const isBlocked = blocked.includes(t);
+                    const fits = free >= pax;
+                    let bg = '#dcfce7', fg = '#166534', bd = '#86efac';
+                    if (isBlocked || !fits) { bg = '#fee2e2'; fg = '#991b1b'; bd = '#fca5a5'; }
+                    else if (used > cap * 0.75) { bg = '#ffedd5'; fg = '#9a3412'; bd = '#fdba74'; }
+                    if (isPast) { bg = '#f1f5f9'; fg = '#94a3b8'; bd = '#e2e8f0'; }
+                    const isSel = t === selected;
+                    const label = isBlocked ? 'Cerrado' : `${free} libres`;
+                    const title = isBlocked ? 'Turno cerrado' : `${used}/${cap} ocupadas`;
+                    return `<button type="button" title="${title}" onclick="selectPackSpaSlot(${index}, '${t}')"
+                        style="cursor:pointer; border:${isSel ? '2px solid #1d4ed8' : '1px solid ' + bd}; background:${bg}; color:${fg}; border-radius:6px; padding:2px 6px; font-size:0.68rem; font-weight:700; line-height:1.2; ${isSel ? 'box-shadow:0 0 0 2px #bfdbfe;' : ''}">
+                        ${t}<br><span style="font-weight:500;">${label}</span></button>`;
+                }).join('');
+
+                const selectedInSlots = slots.includes(selected);
+                const selUsed = paxByTime[selected] || 0;
+                let status = '';
+                if (!selectedInSlots) {
+                    status = `<span style="color:#b45309; font-weight:700;"><i class="fas fa-exclamation-triangle"></i> ${selected || '--:--'} no es un turno del Spa. Elige uno:</span>`;
+                } else if (cap - selUsed < pax) {
+                    status = `<span style="color:#b91c1c; font-weight:700;"><i class="fas fa-times-circle"></i> ${selected}: sin plazas suficientes (${selUsed}/${cap}).</span>`;
+                } else {
+                    status = `<span style="color:#15803d; font-weight:700;"><i class="fas fa-check-circle"></i> ${selected}: ${cap - selUsed} plazas libres (${selUsed}/${cap}).</span>`;
+                }
+
+                box.innerHTML = `
+                    <div style="margin-bottom:5px;"><i class="fas fa-swimmer"></i> <strong>Ocupación Spa</strong> · ${status}</div>
+                    <div style="display:flex; flex-wrap:wrap; gap:4px;">${chips}</div>`;
+            } catch (e) {
+                console.warn("[PACK SPA] Error cargando ocupación:", e);
+                box.innerHTML = '<i class="fas fa-exclamation-circle"></i> No se pudo cargar la ocupación del Spa.';
             }
         };
 
@@ -5941,6 +6103,13 @@
                     let staffId = document.getElementById("booking-staff")?.value;
                     let staffId2 = document.getElementById("booking-staff-2")?.value;
 
+                    // En packs, evaluar disponibilidad a la hora del tratamiento y no a la hora general
+                    const therapy = (typeof window.getActivePackTherapyPhase === 'function')
+                        ? window.getActivePackTherapyPhase() : null;
+                    const staffCheckDate = therapy ? (therapy.fecha || formDate) : formDate;
+                    const staffCheckTime = therapy ? (therapy.hora || formTime) : formTime;
+                    const staffCheckDuration = therapy ? (parseInt(therapy.duracion) || 30) : 60;
+
                     // Auto-selección de rescate: si no se marcó manualmente pero hay terapeutas libres en el desplegable
                     const staffSel1 = document.getElementById("booking-staff");
                     if (!staffId && staffSel1 && staffSel1.options.length > 1) {
@@ -5967,7 +6136,7 @@
 
                     if (!staffId) {
                         if (isLocalSaleFlow && !isForced) {
-                            revealConflictWarning("No hay terapeutas disponibles en este horario.", formDate, formTime, 60, currentModule.code);
+                            revealConflictWarning("No hay terapeutas disponibles en este horario.", staffCheckDate, staffCheckTime, staffCheckDuration, currentModule.code, getSelectedServiceInfo());
                             isSavingReservation = false; btn.disabled = false; btn.innerHTML = originalText; return;
                         } else if (!isLocalSaleFlow) {
                             alert("⛔ No hay terapeutas disponibles en este horario.");
@@ -5978,7 +6147,7 @@
                     // For 2 PAX, require 2nd staff ONLY if service actually demands 2 therapists
                     if (pax > 1 && requiredTherapistsCount >= 2 && !staffId2) {
                         if (isLocalSaleFlow && !isForced) {
-                            revealConflictWarning("No hay 2 terapeutas disponibles simultáneamente en este horario.", formDate, formTime, 60, currentModule.code);
+                            revealConflictWarning("No hay 2 terapeutas disponibles simultáneamente en este horario.", staffCheckDate, staffCheckTime, staffCheckDuration, currentModule.code, getSelectedServiceInfo());
                             isSavingReservation = false; btn.disabled = false; btn.innerHTML = originalText; return;
                         } else if (!isLocalSaleFlow) {
                             alert("⛔ No hay 2 terapeutas disponibles para atender a 2 personas a la vez.");
@@ -6003,22 +6172,40 @@
 
                 // 3. VALIDACIÓNES AVANZADAS (AVAILABILITY)
                 if (!isAgendaLess && !isForced) {
+                    const isPackBooking = !!(window._packItems && window._packItems.length > 0 && !id);
+                    const therapy = (isPackBooking && typeof window.getActivePackTherapyPhase === 'function')
+                        ? window.getActivePackTherapyPhase() : null;
+
+                    const checkDate = therapy ? (therapy.fecha || date) : date;
+                    const checkTime = therapy ? (therapy.hora || time) : time;
+                    const checkDuration = therapy ? (parseInt(therapy.duracion) || 30) : duration;
+
                     // Check Sala
                     let conflictMsg = null;
                     if (currentModule.isPrivate) {
-                        const collision = await checkRoomAvailability(date, time, duration, id);
-                        if (collision) {
-                            if (collision.nombre === "Aforo Máximo Superado") {
-                                conflictMsg = `Aforo Completo (${collision.now}/${collision.max})`;
-                            } else {
-                                conflictMsg = `Sala Ocupada por ${collision.nombre || 'Otro cliente'} (${collision.hora})`;
+                        const roomPhase = isPackBooking
+                            ? window._packItems.find(it => it.active !== false && (it.space === currentRoomVal || it.space === currentModule.code))
+                            : null;
+
+                        if (!isPackBooking || roomPhase) {
+                            const rDate = roomPhase ? (roomPhase.fecha || date) : checkDate;
+                            const rTime = roomPhase ? (roomPhase.hora || time) : checkTime;
+                            const rDur = roomPhase ? (parseInt(roomPhase.duracion) || 30) : checkDuration;
+
+                            const collision = await checkRoomAvailability(rDate, rTime, rDur, id);
+                            if (collision) {
+                                if (collision.nombre === "Aforo Máximo Superado") {
+                                    conflictMsg = `Aforo Completo (${collision.now}/${collision.max})`;
+                                } else {
+                                    conflictMsg = `Sala Ocupada por ${collision.nombre || 'Otro cliente'} (${collision.hora})`;
+                                }
                             }
                         }
                     }
 
                     // Check Personal
                     if (!conflictMsg && requiresStaffForThisBooking) {
-                        const staffFree = await checkReservationStaffAvailability(date, time, duration, id);
+                        const staffFree = await checkReservationStaffAvailability(checkDate, checkTime, checkDuration, id);
                         if (!staffFree) {
                             conflictMsg = "Terapeuta NO disponible en este horario.";
                         }
@@ -6026,9 +6213,8 @@
 
                     // If Conflict Found
                     if (conflictMsg) {
-                        // SOFT BLOCK for everyone - User Requested: "Meter con aviso y bajo responsabilidad"
                         const serviceInfo = getSelectedServiceInfo();
-                        revealConflictWarning(conflictMsg, date, time, duration, currentModule.code, serviceInfo);
+                        revealConflictWarning(conflictMsg, checkDate, checkTime, checkDuration, currentModule.code, serviceInfo);
 
                         isSavingReservation = false;
                         btn.disabled = false;
@@ -6235,6 +6421,14 @@
                         return;
                     }
                     const parentData = { ...payload };
+                    // Asignar los terapeutas seleccionados a las fases de tratamiento del pack
+                    activeItems.forEach(item => {
+                        if (window.packPhaseNeedsTherapist(item)) {
+                            if (payload.staff_id) { item.staff_id = payload.staff_id; item.staff_name = payload.staff_name; }
+                            if (payload.staff_id2) { item.staff_id2 = payload.staff_id2; item.staff_name2 = payload.staff_name2; }
+                            if (payload.terapeuta) item.terapeuta = payload.terapeuta;
+                        }
+                    });
                     try {
                         btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creando Pack...';
                         const result = await window.createPackReservations(parentData, activeItems);
@@ -6732,21 +6926,21 @@
 
         // Helper: Extract service information from pack breakdown
         function getSelectedServiceInfo() {
-            // Read directly from the form fields
-            const duration = parseInt(document.getElementById('inputDuration')?.value || 60);
+            const therapy = (typeof window.getActivePackTherapyPhase === 'function') ? window.getActivePackTherapyPhase() : null;
+            const duration = therapy ? (parseInt(therapy.duracion) || 30) : parseInt(document.getElementById('inputDuration')?.value || 60);
             const pax = parseInt(document.getElementById('res-pax')?.value || 1);
-            const serviceName = document.getElementById('form-service-name')?.value ||
-                document.getElementById('res-servicio')?.value || '';
+            const serviceName = therapy ? (therapy.name || therapy.nombre) : (document.getElementById('form-service-name')?.value ||
+                document.getElementById('res-servicio')?.value || '');
 
-            // Determine required therapists based on pax
-            // For most services: 1 therapist per person
-            const requiredTherapists = pax;
+            const requiredTherapists = (therapy && therapy.terapeutas !== undefined)
+                ? (parseInt(therapy.terapeutas) || 0)
+                : pax;
 
             return {
                 services: [{
                     name: serviceName,
                     duration: duration,
-                    space: currentModule.code,
+                    space: (therapy && therapy.space) ? therapy.space : currentModule.code,
                     requiredTherapists: requiredTherapists
                 }],
                 totalDuration: duration,
@@ -7063,28 +7257,26 @@
             // Update the main value
             timeField.value = time;
 
-            // CRITICAL FIX: Update Pack Items to match the new time
-            // Loops through all inputs with id starting with "pack-time-"
-            const packInputs = document.querySelectorAll('input[id^="pack-time-"]');
-            if (packInputs.length > 0) {
-                console.log(`[ALTERNATIVE] Updating ${packInputs.length} pack items to ${time}`);
-                packInputs.forEach(input => {
-                    // Update input value
-                    input.value = time;
-                    input.dispatchEvent(new Event('change', { bubbles: true }));
-
-                    // Try to update visual text "Hora: HH:MM" in the container
-                    const itemDiv = input.closest('.pack-item, .service-item, .list-group-item, li, div');
-                    if (itemDiv) {
-                        const walker = document.createTreeWalker(itemDiv, NodeFilter.SHOW_TEXT);
-                        let node;
-                        while (node = walker.nextNode()) {
-                            if (node.nodeValue && node.nodeValue.includes('Hora:')) {
-                                node.nodeValue = node.nodeValue.replace(/Hora:\s*\d{2}:\d{2}/, `Hora: ${time}`);
-                            }
-                        }
-                    }
-                });
+            // Update Pack Items: si es un pack con fase de tratamiento, actualizar solo la fase de tratamiento
+            const therapy = (typeof window.getActivePackTherapyPhase === 'function')
+                ? window.getActivePackTherapyPhase() : null;
+            if (therapy) {
+                const therapyInput = document.getElementById(`pack-time-${therapy.index}`);
+                if (therapyInput) {
+                    therapyInput.value = time;
+                    therapyInput.dispatchEvent(new Event('change', { bubbles: true }));
+                }
+                if (window._packItems && window._packItems[therapy.index]) {
+                    window._packItems[therapy.index].hora = time;
+                }
+            } else {
+                const packInputs = document.querySelectorAll('input[id^="pack-time-"]');
+                if (packInputs.length > 0) {
+                    packInputs.forEach(input => {
+                        input.value = time;
+                        input.dispatchEvent(new Event('change', { bubbles: true }));
+                    });
+                }
             }
 
             // Trigger change event to update dependent fields (therapists, etc.)
@@ -8785,7 +8977,7 @@
     </script>
 
     <!-- Staff Management Integration -->
-    <script src="reservas-staff.js?v=2.3.24"></script>
+    <script src="reservas-staff.js?v=2.3.27"></script>
 
     <!-- MODAL BLOQUEO DE SALA -->
     <div id="block-room-modal" class="modal" style="z-index: 10000;">

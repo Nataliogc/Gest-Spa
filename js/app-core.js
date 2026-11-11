@@ -409,6 +409,12 @@ window.createPackReservations = async function (parentData, childItems) {
             // Child has NO payment info
         };
 
+        // Sala y terapeutas de la fase (solo si se han indicado para esa fase)
+        if (child.space) childPayload.sala = child.space;
+        ['staff_id', 'staff_name', 'staff_id2', 'staff_name2', 'terapeuta'].forEach(k => {
+            if (child[k]) childPayload[k] = child[k];
+        });
+
         batch.set(childRef, childPayload);
     });
 

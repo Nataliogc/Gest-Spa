@@ -47,11 +47,21 @@ async function handleStaffFieldsChange() {
     const durationField = document.getElementById("inputDuration");
     const formIdField = document.getElementById("form-id");
 
-    const date = dateField?.value;
-    const time = timeField?.value;
-    const duration = parseInt(durationField?.value || 60);
+    let date = dateField?.value;
+    let time = timeField?.value;
+    let duration = parseInt(durationField?.value || 60);
     const currentResId = formIdField?.value;
     const roomCode = (window.currentModule && window.currentModule.code) ? window.currentModule.code : 'spa';
+
+    // PACKS: los terapeutas se comprueban a la fecha/hora/duración de la fase de tratamiento
+    // (ej. Masaje a las 11:15), no a la hora general del formulario ni con la duración total del pack.
+    const packTherapy = (!currentResId && typeof window.getActivePackTherapyPhase === 'function')
+        ? window.getActivePackTherapyPhase() : null;
+    if (packTherapy) {
+        date = packTherapy.fecha || date;
+        time = packTherapy.hora || time;
+        duration = parseInt(packTherapy.duracion) || duration;
+    }
 
     if (!date || !time) return;
 

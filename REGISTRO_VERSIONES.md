@@ -8,7 +8,7 @@ Este documento mantiene el **control de versión única y global** para todo el 
 
 | Parámetro | Valor Actual |
 | :--- | :--- |
-| **Versión Global del Sistema** | **`v2.3.26`** |
+| **Versión Global del Sistema** | **`v2.3.27`** |
 | **Fecha de Última Actualización** | **11/11/2026** |
 | **Estado General** | Operativo en Producción |
 
@@ -47,6 +47,11 @@ Cualquier cambio en los siguientes módulos impacta en la versión global:
 ---
 
 ## 📝 Historial Unificado de Versiones
+
+### [v2.3.27] - 11/11/2026
+- **Tipo:** MINOR / PATCH
+- **Archivos:** `reservas-salas.html`, `reservas-staff.js`, `js/app-core.js`
+- **Descripción:** Módulo de ocupación interactiva del Spa en packs: botones con plazas libres/ocupadas por turno para elegir hora del circuito spa con un solo clic. Validación de disponibilidad de terapeutas ajustada a la hora real de la fase de tratamiento (no a la hora general). Corrección de asignación de sala en packs con Suite Spa.
 
 ### [v2.3.26] - 11/11/2026
 - **Tipo:** PATCH
