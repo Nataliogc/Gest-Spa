@@ -56,6 +56,14 @@
         const merged = { ...(c || {}), ...(m || {}), resolvedPrice: amount,
             priceSource: mp > 0 ? 'master' : cp > 0 ? 'catalog' : (packInfo?.precio > 0 ? 'pack_registry' : 'unpriced') };
 
+        // Both field names must agree: legacy catalog pax must not override
+        // the capacity configured on the master item.
+        if (m && !packInfo) {
+            const masterPax = parseInt(m.pax_max ?? m.pax, 10);
+            if (masterPax > 0) merged.pax = merged.pax_max = masterPax;
+            merged.isPack = false;
+        }
+
         if (packInfo) {
             merged.isPack = true;
             merged.packData = packInfo;

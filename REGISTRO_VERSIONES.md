@@ -8,7 +8,7 @@ Este documento mantiene el **control de versión única y global** para todo el 
 
 | Parámetro | Valor Actual |
 | :--- | :--- |
-| **Versión Global del Sistema** | **`v2.3.29`** |
+| **Versión Global del Sistema** | **`v2.3.30`** |
 | **Fecha de Última Actualización** | **11/11/2026** |
 | **Estado General** | Operativo en Producción |
 
@@ -47,6 +47,11 @@ Cualquier cambio en los siguientes módulos impacta en la versión global:
 ---
 
 ## 📝 Historial Unificado de Versiones
+
+### [v2.3.30] - 11/11/2026
+- **Tipo:** PATCH
+- **Archivos:** `js/service-pricing.js`, `js/spa-packs-registry.js`, `reservas-salas.html`, `reservas-spa.html`, `reservas.html`, `scripts/test-individual-pax.js`
+- **Descripción:** Corregido PAX en tratamientos individuales: no se clasifican como packs, prevalece la capacidad de Items y el campo personas queda editable dentro del maximo configurado. Relax individual restablece 1 persona; packs y parejas conservan su modalidad.
 
 ### [v2.3.29] - 11/11/2026
 - **Tipo:** PATCH

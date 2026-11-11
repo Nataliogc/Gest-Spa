@@ -334,7 +334,7 @@
         }) || null;
 
         const isPack = !!regPack || isPackService(nameOrId, catalogMatch || masterMatch);
-        if (!isPack && !catalogMatch && !masterMatch) return null;
+        if (!isPack) return null;
 
         // Construir secuencia de fases
         let secuencia = [];
