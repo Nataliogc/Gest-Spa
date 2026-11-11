@@ -8,7 +8,7 @@ Este documento mantiene el **control de versión única y global** para todo el 
 
 | Parámetro | Valor Actual |
 | :--- | :--- |
-| **Versión Global del Sistema** | **`v2.3.30`** |
+| **Versión Global del Sistema** | **`v2.3.31`** |
 | **Fecha de Última Actualización** | **11/11/2026** |
 | **Estado General** | Operativo en Producción |
 
@@ -47,6 +47,11 @@ Cualquier cambio en los siguientes módulos impacta en la versión global:
 ---
 
 ## 📝 Historial Unificado de Versiones
+
+### [v2.3.31] - 11/11/2026
+- **Tipo:** PATCH
+- **Archivos:** `reservas-salas.html`, `scripts/test-rituals-and-salas.js`
+- **Descripción:** Corrección de autorrelleno de hora al pinchar en planning, servicio obligatorio, bloqueo de Circuito Spa en salas y unificación de tiempo completo y sala para rituales
 
 ### [v2.3.30] - 11/11/2026
 - **Tipo:** PATCH

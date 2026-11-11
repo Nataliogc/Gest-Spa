@@ -486,7 +486,7 @@
         <!-- LEFT: Cumbria Logo -->
         <div style="display: flex; align-items: center; gap: 15px;">
             <img src="logo-spa.jpg" alt="Cumbria Bienestar" style="height: 65px; width: auto; object-fit: contain;">
-            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.30 (11/11/2026)">v2.3.30</span>
+            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.31 (11/11/2026)">v2.3.31</span>
         </div>
 
         <ul class="nav-links" style="flex:1;">
@@ -766,7 +766,7 @@
                                     style="font-size: 0.6rem; font-weight: 800; color: #1e40af; text-transform: uppercase;">
                                     <i class="fas fa-calendar-day"></i> Fecha
                                 </label>
-                                <input type="date" id="form-date" required onchange="updatePriceAutomation()"
+                                <input type="date" id="form-date" required onchange="updatePriceAutomation(); if(typeof updatePackInfo==='function') updatePackInfo();"
                                     style="width: 100%; padding: 4px 6px; border-radius: 4px; border: 1px solid #bfdbfe; font-size: 0.85rem; font-weight: 700; color: #1e3a8a; background: #fff;">
                             </div>
                             <!-- HORA -->
@@ -775,7 +775,7 @@
                                     style="font-size: 0.6rem; font-weight: 800; color: #1e40af; text-transform: uppercase;">
                                     <i class="fas fa-clock"></i> Hora
                                 </label>
-                                <select id="form-time" required
+                                <select id="form-time" required onchange="if(typeof updatePackInfo==='function') updatePackInfo(); if(typeof updatePriceAutomation==='function') updatePriceAutomation();"
                                     style="width: 100%; padding: 5px 6px; border-radius: 4px; border: 1px solid #bfdbfe; font-size: 0.85rem; font-weight: 700; color: #1e3a8a; background: #fff;">
                                 </select>
                             </div>
@@ -799,7 +799,7 @@
                             <div class="form-group" id="room-selector-group" style="flex: 1; margin-bottom: 0;">
                                 <label
                                     style="font-size: 0.6rem; font-weight: 800; color: #4a5568; text-transform: uppercase;">Sala</label>
-                                <select id="res-sala" onchange="populateServices(); updatePriceAutomation();"
+                                <select id="res-sala" onchange="populateServices(); updatePriceAutomation(); if(typeof updatePackInfo==='function') updatePackInfo();"
                                     style="width: 100%; padding: 5px 8px; border-radius: 4px; border: 1px solid #e2e8f0; font-size: 0.85rem; background: #fff; cursor: pointer;">
                                 </select>
                             </div>
@@ -843,10 +843,12 @@
                             <div class="form-group" id="service-group"
                                 style="flex: 1.5; margin-bottom: 0; display: none; position: relative;">
                                 <label id="label-service"
-                                    style="font-size: 0.65rem; font-weight: 800; color: #4a5568; text-transform: uppercase;">Servicio</label>
+                                    style="font-size: 0.65rem; font-weight: 800; color: #4a5568; text-transform: uppercase;">
+                                    Servicio <span style="color: #ef4444;" title="Obligatorio">*</span>
+                                </label>
                                 <div style="position: relative; display: flex; flex-direction: column; gap: 4px;">
                                     <div style="position: relative;">
-                                        <input type="text" id="res-servicio-search" placeholder="🔍 Buscar servicio..."
+                                        <input type="text" id="res-servicio-search" required placeholder="🔍 Buscar servicio..."
                                             style="width: 100%; padding: 8px 10px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 0.9rem; background: #fff; outline: none; font-weight: 600; color: var(--accent);"
                                             oninput="filterServiceOptions(this.value)" onfocus="showServiceDropdown()"
                                             onkeydown="handleServiceSearchKey(event)">
@@ -2059,7 +2061,8 @@
 
                     if (currentModule.viewType === 'timeline') {
                         // Check Room Availability (Timeline)
-                        const roomFree = checkSpaceSync(time, duration, bookingsToProcess, currentResId);
+                        const targetRoom = document.getElementById("res-sala")?.value || currentModule?.code || '';
+                        const roomFree = checkSpaceSync(time, duration, bookingsToProcess, currentResId, targetRoom);
                         if (!roomFree) continue;
                     } else {
                         // Check Capacity (Slots)
@@ -2106,6 +2109,12 @@
                     validSlots.push({ time, isFull: false });
                 }
 
+                // Si originalTime está definido (slot pinchado por usuario o edición), asegurar que siempre esté en validSlots
+                if (originalTime && !validSlots.some(v => v.time === originalTime)) {
+                    validSlots.push({ time: originalTime, isFull: false });
+                    validSlots.sort((a, b) => a.time.localeCompare(b.time));
+                }
+
                 // 5. Poblar el select
                 timeSel.innerHTML = validSlots.map(obj => {
                     const t = obj.time;
@@ -2113,16 +2122,23 @@
                     return `<option value="${t}">${label}</option>`;
                 }).join('');
 
-                // Restaurar valor si es posible, o el original
+                // Restaurar valor: prioridad absoluta al originalTime (slot pinchado)
                 const justTimes = validSlots.map(v => v.time);
                 if (originalTime && justTimes.includes(originalTime)) {
                     timeSel.value = originalTime;
                 } else if (justTimes.includes(previousVal)) {
                     timeSel.value = previousVal;
+                } else if (validSlots.length > 0) {
+                    timeSel.value = validSlots[0].time;
                 }
 
                 // Cleanup
                 if (saveBtn) saveBtn.disabled = false;
+
+                // Sincronizar desglose de packs/rituales con la hora elegida
+                if (typeof updatePackInfo === 'function') {
+                    updatePackInfo();
+                }
 
                 // Trigger staff update if time changed
                 if (timeSel.value && currentModule.requiresStaff) {
@@ -2561,6 +2577,18 @@
             servicesToShow = window.SpaServiceCatalog.build(
                 window.masterItems || [], currentServices || [],
                 allItems.filter(item => item.source === 'catalog_pack'), roomCode);
+
+            // En salas NUNCA se puede reservar "Circuito Spa" individual
+            if (currentModule && currentModule.code !== 'spa') {
+                servicesToShow = servicesToShow.filter(item => {
+                    const n = (item.nombre || item.name || '').toLowerCase().trim();
+                    const c = (item.categoria || item.category || '').toLowerCase().trim();
+                    if (n === 'circuito spa' || n === 'circuito' || (c === 'circuito' && !item.isPack && item.source !== 'catalog_pack')) {
+                        return false;
+                    }
+                    return true;
+                });
+            }
 
             // --- SORT ALPHABETICALLY ---
             servicesToShow.sort((a, b) => a.nombre.localeCompare(b.nombre));
@@ -3550,14 +3578,26 @@
             const canonicalMaster = window.SpaServiceCatalog.resolve(val, window.masterItems || [], currentServices || []);
             if (canonicalMaster) service = canonicalMaster;
 
-            // Fallback from Pack Registry
-            if (!service && typeof getPackFullData === 'function') {
-                const packMeta = getPackFullData(cleanVal, currentServices, window.masterItems);
-                if (packMeta) {
-                    const roomCode = document.getElementById("res-sala")?.value || currentModule?.code || '';
-                    const phase = (packMeta.secuencia || []).find(f => (f.espacio || '').toLowerCase() === (roomCode || '').toLowerCase() || (['panacea', 'vip', 'suite'].includes((f.espacio || '').toLowerCase()) && ['panacea', 'vip', 'suite'].includes((roomCode || '').toLowerCase())));
-                    service = { duration: phase ? phase.duracion : packMeta.duracion_total };
-                }
+            // Fallback from Pack Registry / Rituals
+            let packMeta = null;
+            if (typeof getPackFullData === 'function') {
+                packMeta = getPackFullData(cleanVal, currentServices, window.masterItems);
+            }
+
+            const isRitual = (packMeta && packMeta.categoria === 'ritual') ||
+                (service?.categoria && service.categoria.toLowerCase().includes('ritual')) ||
+                /ritual/i.test(val) ||
+                /ritual/i.test(cleanVal);
+
+            if (packMeta && isRitual) {
+                // Para rituales: coger siempre la duración completa del ritual entero en la misma sala
+                const totalRitualDuration = packMeta.duracion_real || packMeta.duracion_total || 90;
+                service = { duration: totalRitualDuration };
+                dur = totalRitualDuration;
+            } else if (!service && packMeta) {
+                const roomCode = document.getElementById("res-sala")?.value || currentModule?.code || '';
+                const phase = (packMeta.secuencia || []).find(f => (f.espacio || '').toLowerCase() === (roomCode || '').toLowerCase() || (['panacea', 'vip', 'suite'].includes((f.espacio || '').toLowerCase()) && ['panacea', 'vip', 'suite'].includes((roomCode || '').toLowerCase())));
+                service = { duration: phase ? phase.duracion : packMeta.duracion_total };
             }
 
             if (!service && val === 'Circuito Spa') service = { duration: 90 };
@@ -3566,53 +3606,46 @@
             if (service) {
                 let dur = parseInt(service.duration) || 0;
 
-                // If duration is 0 or missing, try to sum from included items (Configured in Master Items)
-                if (dur === 0 && service.items_incluidos && service.items_incluidos.length > 0) {
-                    if (!window.masterItems || window.masterItems.length === 0) await loadMasterItems();
+                if (!isRitual) {
+                    // If duration is 0 or missing, try to sum from included items (Configured in Master Items)
+                    if (dur === 0 && service.items_incluidos && service.items_incluidos.length > 0) {
+                        if (!window.masterItems || window.masterItems.length === 0) await loadMasterItems();
 
-                    service.items_incluidos.forEach(itemName => {
-                        const master = window.masterItems.find(m => m.name === itemName);
-                        if (master && master.duration) {
-                            dur += parseInt(master.duration);
-                        }
-                    });
+                        service.items_incluidos.forEach(itemName => {
+                            const master = window.masterItems.find(m => m.name === itemName);
+                            if (master && master.duration) {
+                                dur += parseInt(master.duration);
+                            }
+                        });
+                    }
+
+                    // Default fallbacks or name-based override
+                    const explicitDurationMatch = val.match(/(\d+)\s*'/); // Matches 60'
+                    const explicitMinMatch = val.match(/(\d+)\s*min/i);   // Matches 60min
+
+                    if (explicitDurationMatch) {
+                        dur = parseInt(explicitDurationMatch[1]);
+                    } else if (explicitMinMatch) {
+                        dur = parseInt(explicitMinMatch[1]);
+                    } else if (!service.duration) {
+                        if (val.match(/\b30\b/)) dur = 30;
+                        else if (val.match(/\b45\b/)) dur = 45;
+                        else if (val.match(/\b60\b/)) dur = 60;
+                        else if (val.match(/\b90\b/)) dur = 90;
+                        else if (val.match(/\b120\b/)) dur = 120;
+                    }
+
+                    if (dur === 0) dur = 60; // Final safe default
+
+                    const masterDuration = window.SpaServiceCatalog.resolve(val, window.masterItems || [], currentServices || []);
+                    const configuredDuration = masterDuration?.duration ?? masterDuration?.duracion;
+                    if (configuredDuration !== undefined && Number.isFinite(Number(configuredDuration)) && Number(configuredDuration) >= 0) {
+                        dur = Number(configuredDuration);
+                    }
+                } else {
+                    dur = packMeta?.duracion_real || packMeta?.duracion_total || dur || 90;
                 }
 
-                // Default fallbacks or name-based override
-                // If the name explicitly contains "30'", "60'", etc., we should trust the name over a potentially generic DB default.
-                // FIX: "Masaje a 4 manos - 60'" -> The '4' was being picked up. We need to match number BEFORE quote.
-                const explicitDurationMatch = val.match(/(\d+)\s*'/); // Matches 60'
-                const explicitMinMatch = val.match(/(\d+)\s*min/i);   // Matches 60min
-
-                if (explicitDurationMatch) {
-                    dur = parseInt(explicitDurationMatch[1]);
-                } else if (explicitMinMatch) {
-                    dur = parseInt(explicitMinMatch[1]);
-                } else if (!service.duration) {
-                    // Check for simple numbers if no specific format found, but be careful of '4 manos'
-                    if (val.match(/\b30\b/)) dur = 30;
-                    else if (val.match(/\b45\b/)) dur = 45;
-                    else if (val.match(/\b60\b/)) dur = 60;
-                    else if (val.match(/\b90\b/)) dur = 90;
-                    else if (val.match(/\b120\b/)) dur = 120;
-                }
-
-                if (dur === 0) dur = 60; // Final safe default
-
-                // Update Input (Find closest match in options if select, or just set value)
-                // The inputDuration is a SELECT. We need to match option.
-                // If exact match doesn't exist? (e.g. 75 min). 
-                // The select options are 30, 45, 60, 90, 120.
-                // If not found, maybe add it? Or round?
-                // For now, try to set it.
-
-                // Check if option exists
-                // The inputDuration is now a number input, not a select.
-                const masterDuration = window.SpaServiceCatalog.resolve(val, window.masterItems || [], currentServices || []);
-                const configuredDuration = masterDuration?.duration ?? masterDuration?.duracion;
-                if (configuredDuration !== undefined && Number.isFinite(Number(configuredDuration)) && Number(configuredDuration) >= 0) {
-                    dur = Number(configuredDuration);
-                }
                 durationInput.value = dur;
 
                 // Refresh Staff Availability
@@ -3725,19 +3758,48 @@
                 });
             }
 
-            // Evitar loop si solo hay 1 item y se llama exactamente igual que el servicio
-            if (displayItems.length === 1 && displayItems[0].nombre.trim().toLowerCase() === cleanName.toLowerCase()) {
+            // Si solo hay 1 item en total, NO es un pack multiservicio: ocultar desglose y salir
+            if (displayItems.length <= 1) {
                 packContainer.style.display = "none";
                 window._packItems = null;
+                window._currentRitualData = null;
                 return;
             }
 
-            // Mostrar contenedor de pack
+            // Identificar si es RITUAL (todos los servicios son en la misma sala y duran el tiempo total)
+            const isRitual = (packData?.categoria === 'ritual') ||
+                (serviceData?.categoria && serviceData.categoria.toLowerCase().includes('ritual')) ||
+                /ritual/i.test(svcName) ||
+                /ritual/i.test(cleanName);
+
+            // Sala actual donde se crea la reserva
+            const currentRoomSel = document.getElementById("res-sala");
+            const activeRoomCode = (currentRoomSel && currentRoomSel.value) ? currentRoomSel.value.toLowerCase() : (currentModule?.code || '');
+            const activeRoomName = (currentRoomSel && currentRoomSel.options && currentRoomSel.selectedIndex >= 0)
+                ? currentRoomSel.options[currentRoomSel.selectedIndex].text
+                : (activeRoomCode || 'SALA').toUpperCase();
+
+            // Total de duración para ritual
+            const ritualTotalDuration = packData?.duracion_real || packData?.duracion_total || displayItems.reduce((acc, it) => acc + (it.duracion || 0), 0);
+
+            // Si es un ritual, sincronizar la duración del formulario al ritual completo en la misma sala
+            if (isRitual) {
+                const durationInput = document.getElementById("inputDuration");
+                if (durationInput && (!durationInput.value || parseInt(durationInput.value) !== ritualTotalDuration)) {
+                    durationInput.value = ritualTotalDuration;
+                }
+            }
+
+            // Mostrar contenedor de pack/ritual
             packContainer.style.display = "block";
             const packPax = packData?.pax || serviceData?.pax || (displayItems.some(i => i.terapeutas > 1) ? 2 : 1);
             if (packCount) {
                 const paxBadge = packPax > 1 ? ' · 2 Pax' : ' · 1 Pax';
-                packCount.textContent = `(${displayItems.length} ${displayItems.length === 1 ? 'servicio' : 'servicios'}${paxBadge})`;
+                if (isRitual) {
+                    packCount.textContent = `(${displayItems.length} servicios · ${ritualTotalDuration}' en ${activeRoomName}${paxBadge})`;
+                } else {
+                    packCount.textContent = `(${displayItems.length} ${displayItems.length === 1 ? 'servicio' : 'servicios'}${paxBadge})`;
+                }
             }
 
             // Auto-ajustar número de personas si es un pack de pareja
@@ -3749,25 +3811,17 @@
             // Hora base y fecha base
             const now = new Date();
             const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-            const nowMinutes = now.getHours() * 60 + now.getMinutes();
 
             const timeInput = document.getElementById("form-time");
             const dateInput = document.getElementById("form-date");
             const baseDate = (dateInput && dateInput.value) ? dateInput.value : todayStr;
 
-            let baseTime = (timeInput && timeInput.value) ? timeInput.value : "";
-            // Si la hora es vacía o es una hora pasada para hoy, fijar al siguiente cuarto de hora futuro
-            if (baseDate === todayStr) {
-                const [bh, bm] = (baseTime || "10:00").split(':').map(Number);
-                const baseMin = (isNaN(bh) ? 10 : bh) * 60 + (isNaN(bm) ? 0 : bm);
-                if (!baseTime || baseMin < nowMinutes) {
-                    const nextQuarter = Math.ceil((nowMinutes + 5) / 15) * 15;
-                    const nextH = Math.floor(nextQuarter / 60) % 24;
-                    const nextM = nextQuarter % 60;
-                    baseTime = `${String(nextH).padStart(2, '0')}:${String(nextM).padStart(2, '0')}`;
-                    if (timeInput && (!timeInput.value || baseMin < nowMinutes)) timeInput.value = baseTime;
-                }
-            } else if (!baseTime) {
+            // Extraer hora base del selector de hora
+            let baseTime = (timeInput && timeInput.value) ? timeInput.value.replace(/h$/i, '').trim() : "";
+            if (!baseTime && timeInput?.dataset?.originalTime) {
+                baseTime = timeInput.dataset.originalTime.replace(/h$/i, '').trim();
+            }
+            if (!baseTime) {
                 baseTime = "10:00";
             }
 
@@ -3776,17 +3830,11 @@
             let cumulativeMinutes = 0;
             const packItemsData = [];
 
-            // Sala actual donde se crea la reserva para contextualizar
-            const currentRoomSel = document.getElementById("res-sala");
-            const activeRoomCode = (currentRoomSel && currentRoomSel.value) ? currentRoomSel.value.toLowerCase() : (currentModule?.code || '');
-
             displayItems.forEach((item, index) => {
-                let assignedSpace = (item.espacio || 'spa').toLowerCase();
+                let assignedSpace = isRitual ? activeRoomCode : (item.espacio || 'spa').toLowerCase();
 
-                // Si el tratamiento (con terapeuta) es de sala múltiple (panacea/vip/suite) y el operador está en una de ellas,
-                // adaptar la sala preferente. Las fases sin terapeuta (Suite Spa, Baño hidromasaje, Circuito Spa)
-                // mantienen siempre su sala propia.
-                if (window.packPhaseNeedsTherapist(item) && ['panacea', 'vip', 'suite'].includes(assignedSpace) && ['panacea', 'vip', 'suite', 'cabina1', 'cabina2', 'cabina3'].includes(activeRoomCode)) {
+                // Si el tratamiento (con terapeuta) es de sala múltiple y el operador está en una de ellas, adaptar sala
+                if (!isRitual && window.packPhaseNeedsTherapist(item) && ['panacea', 'vip', 'suite'].includes(assignedSpace) && ['panacea', 'vip', 'suite', 'cabina1', 'cabina2', 'cabina3', 'chon', 'mar', 'mari'].includes(activeRoomCode)) {
                     assignedSpace = activeRoomCode;
                 }
 
@@ -3797,65 +3845,92 @@
                 const suggestedM = totalMinutes % 60;
                 const suggestedTime = `${String(suggestedH).padStart(2, '0')}:${String(suggestedM).padStart(2, '0')}`;
 
-                packItemsData.push({
-                    name: item.nombre,
-                    space: assignedSpace,
-                    collection: getCollectionForSpace(assignedSpace),
-                    duracion: duration,
-                    hora: suggestedTime,
-                    fecha: baseDate,
-                    active: true,
-                    index: index,
-                    terapeutas: item.terapeutas
-                });
+                if (!isRitual) {
+                    packItemsData.push({
+                        name: item.nombre,
+                        space: assignedSpace,
+                        collection: getCollectionForSpace(assignedSpace),
+                        duracion: duration,
+                        hora: suggestedTime,
+                        fecha: baseDate,
+                        active: true,
+                        index: index,
+                        terapeutas: item.terapeutas
+                    });
+                }
 
-                const spaceBadgeColor = getSpaceColor(assignedSpace);
+                const spaceBadgeColor = isRitual ? '#0284c7' : getSpaceColor(assignedSpace);
                 const therapistBadge = item.terapeutas > 1 
                     ? `<span style="background:#fee2e2; color:#991b1b; padding:2px 6px; border-radius:4px; font-weight:700; font-size:0.65rem;"><i class="fas fa-user-friends"></i> 2 Terapeutas</span>`
                     : item.terapeutas === 1
                     ? `<span style="background:#fef3c7; color:#92400e; padding:2px 6px; border-radius:4px; font-weight:600; font-size:0.65rem;"><i class="fas fa-user"></i> 1 Terapeuta</span>`
                     : `<span style="background:#f1f5f9; color:#475569; padding:2px 6px; border-radius:4px; font-size:0.65rem;"><i class="fas fa-minus-circle"></i> Sin terapeuta</span>`;
 
-                html += `
-                    <div class="pack-item-row" id="pack-row-${index}" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 10px; margin-bottom: 6px; background: #ffffff; border-radius: 8px; border-left: 4px solid ${spaceBadgeColor}; box-shadow: 0 1px 3px rgba(0,0,0,0.06); transition: opacity 0.2s, background 0.2s;">
-                        <div style="display: flex; align-items: center; gap: 8px; flex-shrink: 0;">
-                            <input type="checkbox" id="pack-active-${index}" checked title="Incluir este servicio en la reserva" onchange="togglePackItemActive(${index}, this.checked)" style="width: 17px; height: 17px; accent-color: #059669; cursor: pointer;">
-                        </div>
-                        <div style="flex: 1; min-width: 0;">
-                            <div style="font-weight: 700; font-size: 0.8rem; color: #1e293b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-                                <span style="color:#d97706; margin-right:4px;">${index + 1}.</span> ${item.nombre}
+                if (isRitual) {
+                    // Para RITUALES: informativa en misma sala sin especificar fecha ni hora en desglose
+                    html += `
+                        <div class="pack-item-row" id="pack-row-${index}" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 10px; margin-bottom: 6px; background: #ffffff; border-radius: 8px; border-left: 4px solid #0284c7; box-shadow: 0 1px 3px rgba(0,0,0,0.06);">
+                            <div style="flex: 1; min-width: 0;">
+                                <div style="font-weight: 700; font-size: 0.82rem; color: #1e293b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                                    <span style="color:#0284c7; margin-right:4px;">${index + 1}.</span> ${item.nombre}
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 6px; margin-top: 3px; font-size: 0.7rem; color: #64748b; flex-wrap: wrap;">
+                                    <span style="background:#e0f2fe; color:#0369a1; padding:1px 6px; border-radius:4px; font-weight:800; border:1px solid #bae6fd;">
+                                        <i class="fas fa-map-marker-alt"></i> ${activeRoomName}
+                                    </span>
+                                    <span><i class="fas fa-clock" style="color:#94a3b8;"></i> ${duration}'</span>
+                                    ${therapistBadge}
+                                </div>
                             </div>
-                            <div style="display: flex; align-items: center; gap: 6px; margin-top: 3px; font-size: 0.7rem; color: #64748b; flex-wrap: wrap;">
-                                <span style="background:${spaceBadgeColor}15; color:${spaceBadgeColor}; padding:1px 6px; border-radius:4px; font-weight:800; border:1px solid ${spaceBadgeColor}30;">
-                                    <i class="fas fa-map-marker-alt"></i> ${assignedSpace.toUpperCase()}
+                            <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
+                                <span style="font-size: 0.72rem; color: #0284c7; font-weight: 700; background: #f0f9ff; padding: 3px 8px; border-radius: 6px; border: 1px solid #bae6fd;">
+                                    <i class="fas fa-check-circle" style="color: #0284c7;"></i> Incluido (${duration}')
                                 </span>
-                                <span><i class="fas fa-clock" style="color:#94a3b8;"></i> ${duration}'</span>
-                                ${therapistBadge}
                             </div>
                         </div>
-                        <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0; flex-wrap: wrap;">
-                            <div style="display: flex; align-items: center; gap: 3px;">
-                                <label style="font-size: 0.65rem; color: #64748b; font-weight: 700;">Fecha:</label>
-                                <input type="date" 
-                                       id="pack-date-${index}" 
-                                       value="${baseDate}" 
-                                       onchange="updatePackItemDate(${index}, this.value)"
-                                       style="padding: 3px 5px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.74rem; font-weight: 600; width: 110px; color: #1e293b; background: #fff;">
+                    `;
+                } else {
+                    html += `
+                        <div class="pack-item-row" id="pack-row-${index}" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 10px; margin-bottom: 6px; background: #ffffff; border-radius: 8px; border-left: 4px solid ${spaceBadgeColor}; box-shadow: 0 1px 3px rgba(0,0,0,0.06); transition: opacity 0.2s, background 0.2s;">
+                            <div style="display: flex; align-items: center; gap: 8px; flex-shrink: 0;">
+                                <input type="checkbox" id="pack-active-${index}" checked title="Incluir este servicio en la reserva" onchange="togglePackItemActive(${index}, this.checked)" style="width: 17px; height: 17px; accent-color: #059669; cursor: pointer;">
                             </div>
-                            <div style="display: flex; align-items: center; gap: 3px;">
-                                <label style="font-size: 0.65rem; color: #64748b; font-weight: 700;">Hora:</label>
-                                <input type="time" 
-                                       id="pack-time-${index}" 
-                                       value="${suggestedTime}" 
-                                       onchange="updatePackItemTime(${index}, this.value)"
-                                       style="padding: 3px 5px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.78rem; font-weight: 700; width: 80px; color: #1e293b; background: #fff;">
+                            <div style="flex: 1; min-width: 0;">
+                                <div style="font-weight: 700; font-size: 0.8rem; color: #1e293b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                                    <span style="color:#d97706; margin-right:4px;">${index + 1}.</span> ${item.nombre}
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 6px; margin-top: 3px; font-size: 0.7rem; color: #64748b; flex-wrap: wrap;">
+                                    <span style="background:${spaceBadgeColor}15; color:${spaceBadgeColor}; padding:1px 6px; border-radius:4px; font-weight:800; border:1px solid ${spaceBadgeColor}30;">
+                                        <i class="fas fa-map-marker-alt"></i> ${assignedSpace.toUpperCase()}
+                                    </span>
+                                    <span><i class="fas fa-clock" style="color:#94a3b8;"></i> ${duration}'</span>
+                                    ${therapistBadge}
+                                </div>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0; flex-wrap: wrap;">
+                                <div style="display: flex; align-items: center; gap: 3px;">
+                                    <label style="font-size: 0.65rem; color: #64748b; font-weight: 700;">Fecha:</label>
+                                    <input type="date" 
+                                           id="pack-date-${index}" 
+                                           value="${baseDate}" 
+                                           onchange="updatePackItemDate(${index}, this.value)"
+                                           style="padding: 3px 5px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.74rem; font-weight: 600; width: 110px; color: #1e293b; background: #fff;">
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 3px;">
+                                    <label style="font-size: 0.65rem; color: #64748b; font-weight: 700;">Hora:</label>
+                                    <input type="time" 
+                                           id="pack-time-${index}" 
+                                           value="${suggestedTime}" 
+                                           onchange="updatePackItemTime(${index}, this.value)"
+                                           style="padding: 3px 5px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.78rem; font-weight: 700; width: 80px; color: #1e293b; background: #fff;">
+                                </div>
                             </div>
                         </div>
-                    </div>
-                    ${assignedSpace === 'spa' ? `<div id="pack-spa-occ-${index}" class="pack-spa-occupancy" style="margin: -2px 0 8px 0; padding: 6px 8px; background: #eff6ff; border: 1px dashed #93c5fd; border-radius: 8px; font-size: 0.7rem; color: #1e3a8a;"><i class="fas fa-spinner fa-spin"></i> Cargando ocupación del Spa...</div>` : ''}
-                `;
+                        ${assignedSpace === 'spa' ? `<div id="pack-spa-occ-${index}" class="pack-spa-occupancy" style="margin: -2px 0 8px 0; padding: 6px 8px; background: #eff6ff; border: 1px dashed #93c5fd; border-radius: 8px; font-size: 0.7rem; color: #1e3a8a;"><i class="fas fa-spinner fa-spin"></i> Cargando ocupación del Spa...</div>` : ''}
+                    `;
+                }
 
-                cumulativeMinutes += duration + 15; // 15 min transición entre fases
+                cumulativeMinutes += duration + (isRitual ? 0 : 15);
             });
 
             // Extras externos (Restaurante, Hotel, Cava)
@@ -3872,7 +3947,19 @@
             }
 
             packSchedule.innerHTML = html;
-            window._packItems = packItemsData;
+
+            if (isRitual) {
+                window._packItems = null;
+                window._currentRitualData = {
+                    nombre: cleanName,
+                    items: displayItems,
+                    duracion_total: ritualTotalDuration,
+                    sala: activeRoomCode
+                };
+            } else {
+                window._packItems = packItemsData;
+                window._currentRitualData = null;
+            }
 
             // Ocupación del Spa para las fases de Circuito Spa
             packItemsData.forEach(it => {
@@ -5031,8 +5118,21 @@
             // Forzar actualización de slots disponibles
             await updateAvailableTimeSlots();
 
-            // Intentar seleccionar la hora de la que venimos
-            timeSel.value = selectedTime;
+            // Garantizar que la hora de la que venimos quede seleccionada sí o sí
+            if (selectedTime) {
+                timeSel.value = selectedTime;
+                if (timeSel.value !== selectedTime) {
+                    const opt = document.createElement("option");
+                    opt.value = selectedTime;
+                    opt.textContent = selectedTime + 'h';
+                    timeSel.appendChild(opt);
+                    timeSel.value = selectedTime;
+                }
+            }
+
+            if (typeof updatePackInfo === 'function') {
+                updatePackInfo();
+            }
 
             // Re-setup form classes
             // document.getElementById("booking-form").className = "form-grid-premium"; // Removed because we use inline styles for the modern wide layout
@@ -6075,9 +6175,36 @@
                     console.log("⚠️ GUARDANDO RESERVA PASADA (Desbloqueo activo)");
                 }
                 // ========================================================
+                // VALIDACIONES OBLIGATORIAS: SERVICIO
+                // ========================================================
+                const svcSelect = document.getElementById("res-servicio");
+                const searchInp = document.getElementById("res-servicio-search");
+                const svcName = (svcSelect?.value || searchInp?.value || "").trim();
+
+                if (!svcName) {
+                    alert("⛔ Debe seleccionar un servicio. El servicio es obligatorio para realizar una reserva.");
+                    if (searchInp) {
+                        searchInp.focus();
+                        searchInp.style.border = "2px solid #ef4444";
+                    }
+                    isSavingReservation = false;
+                    btn.disabled = false;
+                    btn.innerHTML = originalText;
+                    return;
+                }
+
+                // En una sala nunca se puede reservar un circuito spa
+                const isSalaModule = currentModule && currentModule.code !== 'spa';
+                const svcLower = svcName.toLowerCase();
+                if (isSalaModule && (svcLower === 'circuito spa' || svcLower === 'circuito')) {
+                    alert("⛔ En una sala nunca se puede reservar un circuito spa. El circuito spa solo se puede reservar en el módulo de SPA.");
+                    isSavingReservation = false;
+                    btn.disabled = false;
+                    btn.innerHTML = originalText;
+                    return;
+                }
 
                 // MASTER CONFIG LOGIC
-                const svcName = document.getElementById("res-servicio")?.value || "";
                 const svcOpt = document.getElementById("res-servicio")?.selectedOptions?.[0];
                 const svcCategory = (svcOpt?.dataset.categoria || "").toLowerCase();
 
@@ -6419,6 +6546,11 @@
                     pricing_mode: window._currentPricingMode || null,
                     updated_at: new Date().toISOString()
                 };
+
+                if (window._currentRitualData) {
+                    payload.is_ritual = true;
+                    payload.ritual_desglose = (window._currentRitualData.items || []).map(it => `${it.nombre} (${it.duracion}')`).join(' + ');
+                }
 
                 // CAPTURE STAFF
                 const staffSel = document.getElementById("booking-staff");
@@ -6952,9 +7084,13 @@
         }
 
         // Helper síncrono para verificar hueco en renderTimeline y updateAvailableTimeSlots
-        function checkSpaceSync(start, duration, customData = null, excludeId = null) {
+        function checkSpaceSync(start, duration, customData = null, excludeId = null, room = null) {
             const bookingsToCheck = customData || currentData;
-            const collision = findCollision(start, duration, bookingsToCheck, excludeId);
+            const targetRoom = room || document.getElementById("res-sala")?.value || null;
+            const filtered = targetRoom
+                ? bookingsToCheck.filter(b => !b.sala || b.sala.toLowerCase() === targetRoom.toLowerCase())
+                : bookingsToCheck;
+            const collision = findCollision(start, duration, filtered, excludeId);
             return !collision; // If collision (object) found, return false (no space). If undefined, return true.
         }
 
