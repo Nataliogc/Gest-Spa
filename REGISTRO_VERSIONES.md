@@ -8,7 +8,7 @@ Este documento mantiene el **control de versión única y global** para todo el 
 
 | Parámetro | Valor Actual |
 | :--- | :--- |
-| **Versión Global del Sistema** | **`v2.3.31`** |
+| **Versión Global del Sistema** | **`v2.3.32`** |
 | **Fecha de Última Actualización** | **11/11/2026** |
 | **Estado General** | Operativo en Producción |
 
@@ -47,6 +47,11 @@ Cualquier cambio en los siguientes módulos impacta en la versión global:
 ---
 
 ## 📝 Historial Unificado de Versiones
+
+### [v2.3.32] - 11/11/2026
+- **Tipo:** PATCH
+- **Archivos:** `agenda-salas.html`, `agenda-terapeutas.html`, `reservas-salas.html`, `reservas-spa.html`, `reservas-staff.js`, `reservas.html`, `scripts/test-rituals-and-salas.js`
+- **Descripción:** Correccion Suite Spa: 0 terapeutas requeridos en alquiler de Suite Spa sin masaje y exclusion estricta de personal
 
 ### [v2.3.31] - 11/11/2026
 - **Tipo:** PATCH

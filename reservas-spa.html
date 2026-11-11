@@ -480,7 +480,7 @@
         <!-- LEFT: Cumbria Logo -->
         <div style="display: flex; align-items: center; gap: 15px;">
             <img src="logo-spa.jpg" alt="Cumbria Bienestar" style="height: 65px; width: auto; object-fit: contain;">
-            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.31 (11/11/2026)">v2.3.31</span>
+            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.32 (11/11/2026)">v2.3.32</span>
         </div>
 
         <ul class="nav-links" style="flex:1;">
@@ -5359,7 +5359,7 @@
                     });
                     requiredTherapistsCount = Math.max(0, ...counts);
                     if (requiredTherapistsCount === 0) requiresStaffForThisBooking = false;
-                } else if (svcName && svcName.toLowerCase().includes('suite spa') && !svcName.toLowerCase().includes('masaje')) {
+                } else if (svcName && (svcName.toLowerCase().includes('suite') || currentModule?.code === 'suite') && !svcName.toLowerCase().includes('masaje') && !svcName.toLowerCase().includes('massage')) {
                     requiresStaffForThisBooking = false;
                     requiredTherapistsCount = 0;
                 } else if (itemConfig && itemConfig.required_therapists !== undefined) {
@@ -5596,23 +5596,35 @@
                 };
 
                 // CAPTURE STAFF
-                if (currentModule.requiresStaff) {
-                    const staffSel = document.getElementById("booking-staff");
+                const staffSel = document.getElementById("booking-staff");
+                const staffSel2 = document.getElementById("booking-staff-2");
+
+                if (!requiresStaffForThisBooking || requiredTherapistsCount === 0 || isAgendaLess) {
+                    payload.staff_id = null;
+                    payload.staff_name = null;
+                    payload.staff_id2 = null;
+                    payload.staff_name2 = null;
+                    payload.terapeuta = "";
+                    payload.terapeuta2 = "";
+                } else if (currentModule.requiresStaff) {
                     if (staffSel && staffSel.value) {
                         payload.staff_id = staffSel.value;
-                        payload.staff_name = staffSel.options[staffSel.selectedIndex].text;
-                    }
-                    const staffSel2 = document.getElementById("booking-staff-2");
-                    if (staffSel2 && staffSel2.value) {
-                        payload.staff_id2 = staffSel2.value;
-                        payload.staff_name2 = staffSel2.options[staffSel2.selectedIndex].text;
+                        payload.staff_name = staffSel.options[staffSel.selectedIndex]?.text || "";
+                    } else {
+                        payload.staff_id = null;
+                        payload.staff_name = null;
                     }
 
-                    // FALLBACK: If 'terapeuta' field (text) is empty/hidden, populate it with staff_name
-                    // This ensures compatibility with views that rely on 'terapeuta' string.
-                    if ((!payload.terapeuta || payload.terapeuta.trim() === "") && payload.staff_name) {
-                        payload.terapeuta = payload.staff_name;
+                    if (requiredTherapistsCount >= 2 && staffSel2 && staffSel2.value) {
+                        payload.staff_id2 = staffSel2.value;
+                        payload.staff_name2 = staffSel2.options[staffSel2.selectedIndex]?.text || "";
+                    } else {
+                        payload.staff_id2 = null;
+                        payload.staff_name2 = null;
                     }
+
+                    if (payload.staff_name) payload.terapeuta = payload.staff_name;
+                    if (payload.staff_name2) payload.terapeuta2 = payload.staff_name2;
                 }
 
                 // INCLUDE AUDIT

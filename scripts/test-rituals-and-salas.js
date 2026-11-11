@@ -38,4 +38,14 @@ assert.ok(html.includes('displayItems.length <= 1'), 'Oculta pack multiservicio 
 assert.ok(html.includes('Incluido (${duration}\')'), 'Desglose informativo sin inputs de hora/fecha para rituales');
 console.log('✓ Rituales en misma sala y desglose informativo verificado');
 
+// e) Suite Spa sin masajes: 0 terapeutas requeridos y nunca captura terapeutas
+const staffJs = fs.readFileSync(path.resolve(__dirname, '../reservas-staff.js'), 'utf8');
+const agendaHtml = fs.readFileSync(path.resolve(__dirname, '../agenda-salas.html'), 'utf8');
+
+assert.ok(html.includes("!requiresStaffForThisBooking || requiredTherapistsCount === 0 || isAgendaLess"), 'Limpia terapeutas en payload si no requiere staff');
+assert.ok(staffJs.includes("isSuiteNoMassage"), 'Detecta suite spa sin masaje en reservas-staff.js');
+assert.ok(staffJs.includes("staffSelect1.value = ''"), 'Limpia staffSelect1 en reservas-staff.js cuando no requiere personal');
+assert.ok(agendaHtml.includes("svc.includes('suite') && !svc.includes('masaje')"), 'Filtra suite spa sin masajes de planning de terapeutas');
+console.log('✓ Suite Spa sin masaje: 0 terapeutas garantizados');
+
 console.log('\n✅ TODOS LOS TESTS DE RITUALES Y SALAS PASARON!');

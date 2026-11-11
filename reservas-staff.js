@@ -53,6 +53,50 @@ async function handleStaffFieldsChange() {
     const currentResId = formIdField?.value;
     const roomCode = (window.currentModule && window.currentModule.code) ? window.currentModule.code : 'spa';
 
+    // Comprobar si el servicio actual requiere terapeutas
+    const svcField = document.getElementById("res-servicio") || document.getElementById("res-servicio-search");
+    const svcName = (svcField?.value || "").trim().toLowerCase();
+    const pax = parseInt(document.getElementById("res-pax")?.value) || 1;
+    const isSuiteNoMassage = (svcName.includes('suite') || roomCode === 'suite') && !svcName.includes('masaje') && !svcName.includes('massage');
+    const isSpaCircuit = svcName.includes('circuito spa') || roomCode === 'spa';
+    const isGym = svcName.includes('gimnasio') || svcName.includes('gym') || roomCode === 'gimnasio';
+
+    let requiresStaff = (window.currentModule && window.currentModule.requiresStaff !== false);
+    let requiredTherapistsCount = 1;
+
+    if (isSuiteNoMassage || isSpaCircuit || isGym) {
+        requiresStaff = false;
+        requiredTherapistsCount = 0;
+    } else if (window.masterItems && window.SpaServiceCatalog) {
+        const item = window.SpaServiceCatalog.resolve(svcName, window.masterItems, window.currentServices || []);
+        if (item && item.required_therapists !== undefined) {
+            requiredTherapistsCount = parseInt(item.required_therapists) || 0;
+            if (requiredTherapistsCount === 0) requiresStaff = false;
+        }
+    }
+
+    if (pax >= 2 && requiredTherapistsCount === 1) {
+        if (svcName.includes('pareja') || svcName.includes('para dos') || svcName.includes('duo') || svcName.includes('dúo') || svcName.includes('masaje')) {
+            requiredTherapistsCount = 2;
+        }
+    }
+
+    if (!requiresStaff || requiredTherapistsCount === 0) {
+        staffSelect1.innerHTML = '<option value="">No requiere terapeuta</option>';
+        staffSelect1.value = '';
+        if (staffSelect2) {
+            staffSelect2.innerHTML = '<option value="">No requiere terapeuta</option>';
+            staffSelect2.value = '';
+        }
+        const staffGroup = document.getElementById("staff-selector-group");
+        if (staffGroup) staffGroup.style.display = 'none';
+        const staff2Cont = document.getElementById("staff-2-container");
+        if (staff2Cont) staff2Cont.style.display = 'none';
+        const msgSpan = document.getElementById("staff-availability-msg");
+        if (msgSpan) msgSpan.textContent = '';
+        return;
+    }
+
     // PACKS: los terapeutas se comprueban a la fecha/hora/duración de la fase de tratamiento
     // (ej. Masaje a las 11:15), no a la hora general del formulario ni con la duración total del pack.
     const packTherapy = (!currentResId && typeof window.getActivePackTherapyPhase === 'function')
@@ -137,15 +181,19 @@ async function handleStaffFieldsChange() {
 
         if (staffSelect2) {
             staffSelect2.innerHTML = buildOptions(prev2, staffSelect1.value);
-            if (prev2) {
-                staffSelect2.value = prev2;
-            }
-            // Auto-seleccionar segundo terapeuta libre si no hay ninguno seleccionado previamente
-            if (!staffSelect2.value || staffSelect2.value === '') {
-                const secondFree = uniqueStaff.find(s => s._status === 'free' && s.id !== staffSelect1.value);
-                if (secondFree) {
-                    staffSelect2.value = secondFree.id;
+            if (requiredTherapistsCount >= 2) {
+                if (prev2) {
+                    staffSelect2.value = prev2;
                 }
+                // Auto-seleccionar segundo terapeuta libre si se requieren 2 y no hay seleccionado
+                if (!staffSelect2.value || staffSelect2.value === '') {
+                    const secondFree = uniqueStaff.find(s => s._status === 'free' && s.id !== staffSelect1.value);
+                    if (secondFree) {
+                        staffSelect2.value = secondFree.id;
+                    }
+                }
+            } else {
+                staffSelect2.value = '';
             }
         }
 
@@ -454,6 +502,14 @@ window.getDailyStaffAvailability = async function (moduleCode, date) {
                 const hasBooking = dayBookings.some(b => {
                     if (b.status === 'anulada') return false;
                     if (b.isBlock || b.status === 'blocked') return false;
+
+                    // Ignorar servicios sin terapeuta
+                    const bSvc = (b.servicio || b.nombre_servicio || '').toLowerCase();
+                    if ((bSvc.includes('suite') && !bSvc.includes('masaje') && !bSvc.includes('massage')) ||
+                        bSvc.includes('circuito spa') || b._collection === 'reservas_spa' ||
+                        b._collection === 'reservas_gimnasio') {
+                        return false;
+                    }
 
                     // Match staff
                     const sId = staff.id;
