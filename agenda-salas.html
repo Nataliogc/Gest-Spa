@@ -507,7 +507,7 @@
     <div class="sidebar">
         <div style="display: flex; align-items: center; gap: 15px;">
             <img src="logo-spa.jpg" alt="Cumbria Bienestar" style="height: 65px; width: auto; object-fit: contain;">
-            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.34 (11/11/2026)">v2.3.34</span>
+            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.35 (11/11/2026)">v2.3.35</span>
         </div>
 
         <ul class="nav-links" style="flex:1;">
@@ -916,8 +916,9 @@
                     loadRoomOpening()
                 ]);
                 lastBookings = dayBookings.filter(isActive);
+                currentStaffList = allStaff || [];
 
-                renderRooms(lastBookings);
+                renderRooms(lastBookings, currentStaffList);
                 await renderTherapists(allStaff || [], lastBookings, dayExceptions);
             } catch (e) {
                 console.error('Error rendering planning:', e);
@@ -985,7 +986,43 @@
         }
 
         // ---------- SALAS ----------
-        function renderRooms(bookings) {
+        const DEFAULT_ROOM_NAMES = {
+            cabina1: 'CABINA 1',
+            cabina2: 'CABINA 2',
+            cabina3: 'CABINA 3',
+            cabina4: 'CABINA 4',
+            cabina5: 'CABINA 5',
+            cabinas: 'CABINAS',
+            cabina: 'CABINA',
+            suite: 'SUITE SPA',
+            panacea: 'PANACEA',
+            vip: 'SALA VIP',
+            peluqueria: 'PELUQUERÍA'
+        };
+
+        function getRoomTherapistSub(room, staffList = []) {
+            const rNameUpper = (room.name || '').trim().toUpperCase();
+            let defaultRoomName = DEFAULT_ROOM_NAMES[room.code] || null;
+            if (!defaultRoomName && room.code) {
+                const m = room.code.match(/^cabina(\d+)$/i);
+                if (m) defaultRoomName = 'CABINA ' + m[1];
+            }
+
+            // Si el nombre actual de la sala ya es el nombre estándar de la sala, no es un terapeuta
+            if (!defaultRoomName || rNameUpper === defaultRoomName) return null;
+
+            // Comprobar si coincide con un terapeuta activo o es una cabina asignada/renombrada
+            const isTherapist = (room.code && room.code.startsWith('cabina')) || (Array.isArray(staffList) && staffList.some(s => {
+                const n = (s.nombre || s.name || '').trim().toUpperCase();
+                const a = (s.alias || '').trim().toUpperCase();
+                return (n && (rNameUpper === n || rNameUpper.includes(n))) ||
+                       (a && (rNameUpper === a || rNameUpper.includes(a)));
+            }));
+
+            return isTherapist ? defaultRoomName : null;
+        }
+
+        function renderRooms(bookings, staffList = currentStaffList) {
             const byRoom = {};
             ROOMS.forEach(r => byRoom[r.code] = []);
             bookings.forEach(b => {
@@ -1070,7 +1107,11 @@
                 const isRec = vb && vb.space && (room.code === vb.space.toLowerCase() || room.name.toLowerCase().includes(vb.space.toLowerCase()));
                 const recBadge = isRec ? `<span style="background:#fef3c7; color:#92400e; border:1px solid #fcd34d; padding:2px 6px; border-radius:4px; font-size:0.65rem; margin-left:6px; font-weight:700;"><i class="fas fa-star"></i> Bono</span>` : '';
 
-                html += `<tr><td class="row-name"><div class="row-name-inner"><div class="row-avatar" style="background:${room.color};"><i class="fas fa-door-closed"></i></div><div>${esc(room.name)}${recBadge}${room.capacity > 1 ? `<div class="row-sub">Capacidad ${room.capacity}</div>` : ''}</div></div></td>${buildCells(states)}</tr>`;
+                // Debajo del nombre del terapeuta, mostrar la sala que tiene (solo en sala)
+                const subSala = getRoomTherapistSub(room, staffList);
+                const subSalaHtml = subSala ? `<div class="row-sub">${esc(subSala)}</div>` : '';
+
+                html += `<tr><td class="row-name"><div class="row-name-inner"><div class="row-avatar" style="background:${room.color};"><i class="fas fa-door-closed"></i></div><div>${esc(room.name)}${recBadge}${subSalaHtml}</div></div></td>${buildCells(states)}</tr>`;
             });
             html += '</tbody></table>';
             document.getElementById('grid-salas').innerHTML = html;
@@ -1167,7 +1208,7 @@
                     };
                 });
 
-                html += `<tr><td class="row-name"><div class="row-name-inner"><div class="row-avatar" style="background:${color};">${esc(initials)}</div><div>${esc(sName)}<div class="row-sub">${esc(shiftTxt)}</div></div></div></td>${buildCells(states)}</tr>`;
+                html += `<tr><td class="row-name"><div class="row-name-inner"><div class="row-avatar" style="background:${color};">${esc(initials)}</div><div>${esc(sName)}</div></div></td>${buildCells(states)}</tr>`;
             });
             html += '</tbody></table>';
             container.innerHTML = html;

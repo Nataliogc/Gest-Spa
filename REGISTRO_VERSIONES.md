@@ -8,7 +8,7 @@ Este documento mantiene el **control de versión única y global** para todo el 
 
 | Parámetro | Valor Actual |
 | :--- | :--- |
-| **Versión Global del Sistema** | **`v2.3.34`** |
+| **Versión Global del Sistema** | **`v2.3.35`** |
 | **Fecha de Última Actualización** | **11/11/2026** |
 | **Estado General** | Operativo en Producción |
 
@@ -47,6 +47,11 @@ Cualquier cambio en los siguientes módulos impacta en la versión global:
 ---
 
 ## 📝 Historial Unificado de Versiones
+
+### [v2.3.35] - 11/11/2026
+- **Tipo:** PATCH
+- **Archivos:** `agenda-salas.html`
+- **Descripción:** Ajuste de visualización en planning: sala bajo nombre de terapeuta en sección salas, eliminación de horario en terapeutas y capacidad en salas
 
 ### [v2.3.34] - 11/11/2026
 - **Tipo:** PATCH
