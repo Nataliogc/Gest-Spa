@@ -485,7 +485,7 @@
         <!-- LEFT: Cumbria Logo -->
         <div style="display: flex; align-items: center; gap: 15px;">
             <img src="logo-spa.jpg" alt="Cumbria Bienestar" style="height: 65px; width: auto; object-fit: contain;">
-            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.32 (11/11/2026)">v2.3.32</span>
+            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.33 (11/11/2026)">v2.3.33</span>
         </div>
 
         <ul class="nav-links" style="flex:1;">
@@ -3416,9 +3416,79 @@
             const dateInput = document.getElementById("res-fecha") || document.getElementById("form-date");
             const baseDate = (dateInput && dateInput.value) ? dateInput.value : new Date().toISOString().split('T')[0];
 
+            // PRE-CÁLCULO DE HORAS POR FASE:
+            // REGLA FUNDAMENTAL: En reservas de salas, el Circuito Spa es SIEMPRE secundario.
+            // La hora seleccionada (baseTime) DEBE ser la hora del tratamiento / masaje en la sala.
+            const hasSpaPhase = displayItems.some(it => (it.espacio || '').toLowerCase() === 'spa');
+            const therapyIndices = [];
+            displayItems.forEach((it, idx) => {
+                if ((it.espacio || '').toLowerCase() !== 'spa' && it.requires_therapist !== false) {
+                    therapyIndices.push(idx);
+                }
+            });
+            const firstTherapyIdx = therapyIndices.length > 0 ? therapyIndices[0] : -1;
+
+            const [bH, bM] = baseTime.split(':').map(Number);
+            const baseMin = (isNaN(bH) ? 10 : bH) * 60 + (isNaN(bM) ? 0 : bM);
+
+            const computedTimes = [];
+
+            if (hasSpaPhase && firstTherapyIdx !== -1) {
+                // 1. Fases de tratamiento: la primera recibe EXACTAMENTE baseTime
+                let runningTherapyMin = baseMin;
+                let totalTherapyDuration = 0;
+                therapyIndices.forEach(tIdx => {
+                    const h = Math.floor(runningTherapyMin / 60) % 24;
+                    const m = runningTherapyMin % 60;
+                    computedTimes[tIdx] = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+                    const dur = displayItems[tIdx].duracion || 30;
+                    runningTherapyMin += dur;
+                    totalTherapyDuration += dur;
+                });
+
+                // 2. Fases de Spa (secundarias):
+                displayItems.forEach((it, idx) => {
+                    if ((it.espacio || '').toLowerCase() === 'spa') {
+                        const prevHour = window._packItems?.[idx]?.hora;
+                        if (prevHour) {
+                            computedTimes[idx] = prevHour;
+                        } else {
+                            if (idx < firstTherapyIdx && baseMin >= 11 * 60) {
+                                const prevSlotMin = Math.floor((baseMin - 60) / 60) * 60;
+                                const pH = Math.floor(prevSlotMin / 60) % 24;
+                                computedTimes[idx] = `${String(pH).padStart(2, '0')}:00`;
+                            } else {
+                                const endTherapyMin = baseMin + totalTherapyDuration;
+                                const nextSlotMin = Math.ceil(endTherapyMin / 60) * 60;
+                                const nH = Math.floor(nextSlotMin / 60) % 24;
+                                computedTimes[idx] = `${String(nH).padStart(2, '0')}:00`;
+                            }
+                        }
+                    }
+                });
+
+                // 3. Fases restantes:
+                displayItems.forEach((it, idx) => {
+                    if (!computedTimes[idx]) {
+                        const h = Math.floor(runningTherapyMin / 60) % 24;
+                        const m = runningTherapyMin % 60;
+                        computedTimes[idx] = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+                        runningTherapyMin += (it.duracion || 30) + 15;
+                    }
+                });
+            } else {
+                let cumMin = 0;
+                displayItems.forEach((it, idx) => {
+                    const totalMin = baseMin + cumMin;
+                    const h = Math.floor(totalMin / 60) % 24;
+                    const m = totalMin % 60;
+                    computedTimes[idx] = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+                    cumMin += (it.duracion || 60) + 15;
+                });
+            }
+
             // Construir desglose interactivo
             let html = '';
-            let cumulativeMinutes = 0;
             const packItemsData = [];
 
             // Sala actual donde se crea la reserva para contextualizar
@@ -3435,11 +3505,7 @@
                 }
 
                 const duration = item.duracion || 60;
-                const [baseH, baseM] = baseTime.split(':').map(Number);
-                const totalMinutes = (isNaN(baseH) ? 10 : baseH) * 60 + (isNaN(baseM) ? 0 : baseM) + cumulativeMinutes;
-                const suggestedH = Math.floor(totalMinutes / 60) % 24;
-                const suggestedM = totalMinutes % 60;
-                const suggestedTime = `${String(suggestedH).padStart(2, '0')}:${String(suggestedM).padStart(2, '0')}`;
+                const suggestedTime = computedTimes[index] || baseTime;
 
                 packItemsData.push({
                     name: item.nombre,
@@ -3497,8 +3563,6 @@
                         </div>
                     </div>
                 `;
-
-                cumulativeMinutes += duration + 15; // 15 min transición entre fases
             });
 
             // Extras externos (Restaurante, Hotel, Cava)
@@ -3529,6 +3593,15 @@
             if (window._packItems && window._packItems[index]) {
                 window._packItems[index].hora = newTime;
                 console.log(`[PACK] Item ${index} time updated to ${newTime}`);
+
+                const therapy = (typeof window.getActivePackTherapyPhase === 'function')
+                    ? window.getActivePackTherapyPhase() : null;
+                if (therapy && therapy.index === index) {
+                    const formTimeSel = document.getElementById("res-hora") || document.getElementById("form-time");
+                    if (formTimeSel && formTimeSel.value !== newTime) {
+                        formTimeSel.value = newTime;
+                    }
+                }
             }
         };
 

@@ -48,4 +48,60 @@ assert.ok(staffJs.includes("staffSelect1.value = ''"), 'Limpia staffSelect1 en r
 assert.ok(agendaHtml.includes("svc.includes('suite') && !svc.includes('masaje')"), 'Filtra suite spa sin masajes de planning de terapeutas');
 console.log('✓ Suite Spa sin masaje: 0 terapeutas garantizados');
 
+// f) Circuito Spa secundario: la hora pinchada en sala va a la fase de masaje
+assert.ok(html.includes("hasSpaPhase && firstTherapyIdx !== -1"), 'Detecta pack mixto con spa y terapia');
+assert.ok(html.includes("computedTimes[tIdx] = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`"), 'Asigna baseTime a fase de tratamiento');
+
+// Simulación funcional del cálculo de horarios:
+const fantasia = packRegistry.getPackFullData('Fantasía para dos');
+assert.ok(fantasia, 'Fantasía para dos resuelto');
+assert.equal(fantasia.secuencia.length, 2);
+assert.equal(fantasia.secuencia[0].nombre, 'Circuito Spa');
+assert.equal(fantasia.secuencia[1].nombre, 'Masaje Relax');
+
+// Probar asignación de horas con baseTime = '16:30':
+const baseTimeTest = '16:30';
+const [bH, bM] = baseTimeTest.split(':').map(Number);
+const baseMin = bH * 60 + bM;
+const displayItems = fantasia.secuencia;
+const hasSpaPhase = displayItems.some(it => (it.espacio || '').toLowerCase() === 'spa');
+const therapyIndices = [];
+displayItems.forEach((it, idx) => {
+    if ((it.espacio || '').toLowerCase() !== 'spa' && it.requires_therapist !== false) {
+        therapyIndices.push(idx);
+    }
+});
+const firstTherapyIdx = therapyIndices[0];
+const computedTimes = [];
+let runningTherapyMin = baseMin;
+let totalTherapyDuration = 0;
+therapyIndices.forEach(tIdx => {
+    const h = Math.floor(runningTherapyMin / 60) % 24;
+    const m = runningTherapyMin % 60;
+    computedTimes[tIdx] = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+    const dur = displayItems[tIdx].duracion || 30;
+    runningTherapyMin += dur;
+    totalTherapyDuration += dur;
+});
+
+// Spa secundario:
+displayItems.forEach((it, idx) => {
+    if ((it.espacio || '').toLowerCase() === 'spa') {
+        if (idx < firstTherapyIdx && baseMin >= 11 * 60) {
+            const prevSlotMin = Math.floor((baseMin - 60) / 60) * 60;
+            const pH = Math.floor(prevSlotMin / 60) % 24;
+            computedTimes[idx] = `${String(pH).padStart(2, '0')}:00`;
+        } else {
+            const endTherapyMin = baseMin + totalTherapyDuration;
+            const nextSlotMin = Math.ceil(endTherapyMin / 60) * 60;
+            const nH = Math.floor(nextSlotMin / 60) % 24;
+            computedTimes[idx] = `${String(nH).padStart(2, '0')}:00`;
+        }
+    }
+});
+
+assert.equal(computedTimes[1], '16:30', 'El Masaje Relax DEBE recibir la hora pinchada (16:30)');
+assert.equal(computedTimes[0], '15:00', 'El Circuito Spa recibe turno redondo antes (15:00) o configurable');
+console.log('✓ Circuito Spa secundario: la hora pinchada (16:30) se asigna al Masaje Relax');
+
 console.log('\n✅ TODOS LOS TESTS DE RITUALES Y SALAS PASARON!');
