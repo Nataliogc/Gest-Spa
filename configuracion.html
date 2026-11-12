@@ -25,7 +25,7 @@
         <!-- LEFT: Cumbria Logo -->
         <div style="display: flex; align-items: center; gap: 15px;">
             <img src="logo-spa.jpg" alt="Cumbria Bienestar" style="height: 65px; width: auto; object-fit: contain;">
-            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.35 (11/11/2026)">v2.3.35</span>
+            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.36 (12/11/2026)">v2.3.36</span>
         </div>
 
         <ul class="nav-links" style="flex:1;">
@@ -508,13 +508,21 @@
                                     y el espacio por defecto para cada elemento del catálogo.</p>
 
                                 <div style="display: flex; align-items: end; flex-wrap: wrap; gap: 12px; margin-bottom: 16px;">
-                                    <div style="flex: 1; min-width: 220px; max-width: 520px;">
+                                    <div style="flex: 1; min-width: 220px; max-width: 420px;">
                                         <label for="master-items-search" style="display: block; font-size: 0.8rem; font-weight: 600; margin-bottom: 6px;">Buscar por nombre o código</label>
                                         <input id="master-items-search" type="search" class="param-input"
                                             placeholder="Escribe, por ejemplo: masaje relax…" autocomplete="off"
                                             oninput="filterMasterItems()" style="width: 100%; padding: 10px 12px;">
                                     </div>
-                                    <button type="button" class="btn btn-outline btn-sm" onclick="clearMasterItemsSearch()">Limpiar</button>
+                                    <div style="min-width: 190px;">
+                                        <label for="master-items-sale-filter" style="display: block; font-size: 0.8rem; font-weight: 600; margin-bottom: 6px;">Canal de Venta</label>
+                                        <select id="master-items-sale-filter" class="param-input" onchange="filterMasterItems()" style="width: 100%; padding: 9px 12px; height: 42px;">
+                                            <option value="todos">Todos los canales</option>
+                                            <option value="directa">Venta Directa</option>
+                                            <option value="solo_pack">Solo Paquetes Online</option>
+                                        </select>
+                                    </div>
+                                    <button type="button" class="btn btn-outline btn-sm" onclick="clearMasterItemsSearch()" style="height: 42px;">Limpiar</button>
                                     <span id="master-items-search-count" role="status" aria-live="polite" style="font-size: 0.8rem; color: #64748b;"></span>
                                 </div>
                                 <p id="master-items-search-empty" hidden style="color: #64748b; font-size: 0.85rem;">No hay resultados. Prueba con otro nombre o código.</p>
@@ -542,7 +550,7 @@
                                                     style="padding: 8px 4px; text-align: left; color: #475569; font-weight: 700; width: 5%;">
                                                     CÓDIGO</th>
                                                 <th
-                                                    style="padding: 8px 4px; text-align: left; color: #475569; font-weight: 700; width: 35%;">
+                                                    style="padding: 8px 4px; text-align: left; color: #475569; font-weight: 700; width: 28%;">
                                                     ITEM / NOMBRE</th>
                                                 <th
                                                     style="padding: 8px 4px; text-align: center; color: #475569; font-weight: 700; width: 5%;">
@@ -551,13 +559,13 @@
                                                     style="padding: 8px 4px; text-align: left; color: #475569; font-weight: 700; width: 12%;">
                                                     ESPACIO</th>
                                                 <th
-                                                    style="padding: 8px 4px; text-align: left; color: #475569; font-weight: 700; width: 10%;">
+                                                    style="padding: 8px 4px; text-align: left; color: #475569; font-weight: 700; width: 9%;">
                                                     HAB REQUERIDA</th>
                                                 <th
-                                                    style="padding: 8px 4px; text-align: center; color: #475569; font-weight: 700; width: 5%;">
+                                                    style="padding: 8px 4px; text-align: center; color: #475569; font-weight: 700; width: 4%;">
                                                     PAX</th>
                                                 <th
-                                                    style="padding: 8px 4px; text-align: center; color: #475569; font-weight: 700; width: 5%;">
+                                                    style="padding: 8px 4px; text-align: center; color: #475569; font-weight: 700; width: 4%;">
                                                     TERAP</th>
                                                 <th
                                                     style="padding: 8px 4px; text-align: center; color: #475569; font-weight: 700; width: 6%;">
@@ -566,14 +574,18 @@
                                                     style="padding: 8px 4px; text-align: center; color: #475569; font-weight: 700; width: 5%;">
                                                     AGENDA</th>
                                                 <th
+                                                    style="padding: 8px 4px; text-align: center; color: #475569; font-weight: 700; width: 12%;"
+                                                    title="Define si se puede vender directamente en recepción/reserva o si solo forma parte de paquetes online">
+                                                    VENTA</th>
+                                                <th
                                                     style="padding: 8px 4px; text-align: center; color: #475569; font-weight: 700; width: 5%;">
                                                     PROD</th>
-                                                <th style="padding: 8px 4px; text-align: center; width: 7%;"></th>
+                                                <th style="padding: 8px 4px; text-align: center; width: 5%;"></th>
                                             </tr>
                                         </thead>
                                         <tbody id="master-items-tbody">
                                             <tr>
-                                                <td colspan="4"
+                                                <td colspan="12"
                                                     style="padding: 30px; text-align: center; color: #94a3b8;">Cargando
                                                     configuración de items...</td>
                                             </tr>

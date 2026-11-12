@@ -30,6 +30,8 @@ const before = JSON.stringify({master, catalog});
 assert.deepEqual(api.build(master, catalog, [], 'vip').map(i => i.masterItemId), ['relax30', 'pareja']);
 assert.equal(api.build(master, catalog, [], 'vip')[0].precio, 32);
 assert.equal(api.build(master, catalog, [], 'suite')[0].masterItemId, 'suite'); // Zero price does not imply pack-only.
+assert.equal(api.build([{ id: 'test_pack_only', name: 'Solo Pack Item', allowedSpaces: ['vip'], sale_mode: 'solo_pack' }], [], [], 'vip').length, 0);
+assert.equal(api.build([{ id: 'test_direct', name: 'Direct Item', allowedSpaces: ['vip'], sale_mode: 'directa' }], [], [], 'vip').length, 1);
 assert.equal(api.build(master, catalog, packs, '').filter(i => i.source === 'catalog_pack').length, 1);
 assert.equal(api.build(master, catalog, [], 'cabina2').length, 3);
 const packMaster = { id: 'ritual', name: 'Ritual completo', allowedSpaces: ['vip'] };

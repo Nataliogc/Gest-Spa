@@ -499,23 +499,31 @@ function filterMasterItems() {
     const normalize = value => String(value || '').normalize('NFD')
         .replace(/[\u0300-\u036f]/g, '').toLowerCase()
         .replace(/[^a-z0-9]+/g, ' ').trim();
-    const words = normalize(document.getElementById('master-items-search')?.value).split(/\s+/).filter(Boolean);
+    const searchVal = document.getElementById('master-items-search')?.value;
+    const saleFilter = document.getElementById('master-items-sale-filter')?.value || 'todos';
+    const words = normalize(searchVal).split(/\s+/).filter(Boolean);
     const rows = document.querySelectorAll('#master-items-tbody tr[data-master-item]');
     let visible = 0;
     rows.forEach(row => {
-        const text = normalize(Array.from(row.querySelectorAll('input[type="text"]')).map(input => input.value).join(' '));
-        row.hidden = !words.every(word => text.includes(word));
+        const textInputs = Array.from(row.querySelectorAll('input[type="text"]')).map(input => input.value).join(' ');
+        const saleMode = row.dataset.saleMode || 'directa';
+        const matchesSale = (saleFilter === 'todos') || (saleMode === saleFilter);
+        const text = normalize(textInputs);
+        const matchesSearch = words.every(word => text.includes(word));
+        row.hidden = !(matchesSale && matchesSearch);
         if (!row.hidden) visible++;
     });
     const count = document.getElementById('master-items-search-count');
     if (count) count.textContent = `${visible} de ${rows.length} items`;
     const empty = document.getElementById('master-items-search-empty');
-    if (empty) empty.hidden = !words.length || visible > 0;
+    if (empty) empty.hidden = visible > 0;
 }
 
 function clearMasterItemsSearch() {
     const input = document.getElementById('master-items-search');
     if (input) input.value = '';
+    const saleFilter = document.getElementById('master-items-sale-filter');
+    if (saleFilter) saleFilter.value = 'todos';
     filterMasterItems();
     if (input) input.focus();
 }
@@ -526,7 +534,7 @@ function renderMasterItems() {
 
 
     if (spaConfigState.masterItems.length === 0) {
-        list.innerHTML = `<tr><td colspan="6" style="padding: 30px; text-align: center; color: #94a3b8;">No hay items configurados.</td></tr>`;
+        list.innerHTML = `<tr><td colspan="12" style="padding: 30px; text-align: center; color: #94a3b8;">No hay items configurados.</td></tr>`;
         filterMasterItems();
         return;
     }
@@ -542,6 +550,10 @@ function renderMasterItems() {
                 includedItem.toLowerCase().trim() === item.name.toLowerCase().trim()
             );
         }).length;
+
+        // Modo de venta: Venta directa o solo paquetes de venta online
+        const isSoloPack = item.pack_only === true || item.sale_mode === 'solo_pack' || item.standalone === false;
+        const currentSaleMode = isSoloPack ? 'solo_pack' : 'directa';
 
         // -- LOGICA MULTI-SELECT --
         // Determinar espacios seleccionados
@@ -564,7 +576,7 @@ function renderMasterItems() {
         }
 
         return `
-        <tr data-master-item style="border-bottom: 1px solid #f1f5f9;">
+        <tr data-master-item data-sale-mode="${currentSaleMode}" style="border-bottom: 1px solid #f1f5f9;">
             <td style="padding: 6px 2px;">
                 <input type="text" value="${item.code || ''}" placeholder="ID..." onchange="updateMasterItemField('${item.id}', 'code', this.value)" 
                     class="param-input" style="width:100%; font-size: 0.75rem;">
@@ -603,7 +615,7 @@ function renderMasterItems() {
                 const checked = selectedCodes.includes(s.code) ? 'checked' : '';
                 return `
                                 <label class="ms-option">
-                                    <input type="checkbox" ${checked} onchange="updateMasterItemSpaces('${item.id}', '${s.code}', this.checked)">
+                                     <input type="checkbox" ${checked} onchange="updateMasterItemSpaces('${item.id}', '${s.code}', this.checked)">
                                     ${s.name}
                                 </label>
                             `;
@@ -642,6 +654,15 @@ function renderMasterItems() {
                 <select onchange="updateMasterItemField('${item.id}', 'agenda_required', this.value === 'true')" class="param-input" style="width: 100%;">
                     <option value="true" ${item.agenda_required !== false ? 'selected' : ''}>SÍ</option>
                     <option value="false" ${item.agenda_required === false ? 'selected' : ''}>NO</option>
+                </select>
+            </td>
+            <td style="padding: 6px 2px; text-align: center;">
+                <select onchange="updateMasterItemSaleMode('${item.id}', this.value, this)" 
+                        class="param-input" 
+                        title="${isSoloPack ? 'Solo se vende dentro de paquetes / packs de venta online' : 'Se puede vender directamente en recepción/reserva'}"
+                        style="width: 100%; font-size: 0.7rem; font-weight: 600; padding: 4px 2px; border-radius: 4px; cursor: pointer; transition: all 0.2s; ${isSoloPack ? 'background: #fffbeb; color: #b45309; border: 1px solid #fcd34d;' : 'background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0;'}">
+                    <option value="directa" ${!isSoloPack ? 'selected' : ''}>Directa</option>
+                    <option value="solo_pack" ${isSoloPack ? 'selected' : ''}>Solo Paquetes</option>
                 </select>
             </td>
             <td style="padding: 6px 2px; text-align: center;">
@@ -695,6 +716,50 @@ async function updateMasterItemField(id, field, value) {
 
     } catch (err) {
         showToast("Error actualizando: " + err.message, "error");
+    }
+}
+
+async function updateMasterItemSaleMode(id, value, selectEl) {
+    const isSoloPack = (value === 'solo_pack');
+    try {
+        await db.collection("spa_item_master").doc(id).update({
+            pack_only: isSoloPack,
+            standalone: !isSoloPack,
+            venta_directa: !isSoloPack,
+            sale_mode: value,
+            updated_at: new Date().toISOString()
+        });
+
+        const item = spaConfigState.masterItems.find(i => i.id === id);
+        if (item) {
+            item.pack_only = isSoloPack;
+            item.standalone = !isSoloPack;
+            item.venta_directa = !isSoloPack;
+            item.sale_mode = value;
+        }
+
+        const row = selectEl ? selectEl.closest('tr[data-master-item]') : null;
+        if (row) {
+            row.dataset.saleMode = value;
+        }
+
+        if (selectEl) {
+            if (isSoloPack) {
+                selectEl.style.background = '#fffbeb';
+                selectEl.style.color = '#b45309';
+                selectEl.style.border = '1px solid #fcd34d';
+                selectEl.title = 'Solo se vende dentro de paquetes / packs de venta online';
+            } else {
+                selectEl.style.background = '#f0fdf4';
+                selectEl.style.color = '#15803d';
+                selectEl.style.border = '1px solid #bbf7d0';
+                selectEl.title = 'Se puede vender directamente en recepción/reserva';
+            }
+        }
+        showToast(isSoloPack ? "Item marcado como: Solo Paquetes Online" : "Item marcado como: Venta Directa", "success");
+    } catch (err) {
+        console.error("Error al actualizar modo de venta:", err);
+        showToast("Error al guardar: " + err.message, "error");
     }
 }
 
@@ -833,6 +898,10 @@ async function addMasterItem() {
             required_therapists: 1, // Nuevo: asignación por defecto
             price_pax: 0,
             agenda_required: true, // Default to true
+            pack_only: false,
+            standalone: true,
+            venta_directa: true,
+            sale_mode: 'directa',
             space: "",
             created_at: new Date().toISOString()
         });

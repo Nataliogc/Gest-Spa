@@ -8,8 +8,8 @@ Este documento mantiene el **control de versión única y global** para todo el 
 
 | Parámetro | Valor Actual |
 | :--- | :--- |
-| **Versión Global del Sistema** | **`v2.3.35`** |
-| **Fecha de Última Actualización** | **11/11/2026** |
+| **Versión Global del Sistema** | **`v2.3.36`** |
+| **Fecha de Última Actualización** | **12/11/2026** |
 | **Estado General** | Operativo en Producción |
 
 ---
@@ -47,6 +47,11 @@ Cualquier cambio en los siguientes módulos impacta en la versión global:
 ---
 
 ## 📝 Historial Unificado de Versiones
+
+### [v2.3.36] - 12/11/2026
+- **Tipo:** PATCH
+- **Archivos:** `catalogo.html`, `configuracion.html`, `js/config.js`, `js/service-catalog.js`, `scripts/test-service-catalog.js`
+- **Descripción:** Opcion en catalogo maestro (Items de Compra/Pack) para definir canal de venta: Venta Directa o Solo Paquetes Online
 
 ### [v2.3.35] - 11/11/2026
 - **Tipo:** PATCH

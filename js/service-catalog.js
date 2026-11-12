@@ -66,9 +66,10 @@
     function build(master = [], catalog = [], packs = [], room = '') {
         const packMasters = new Set(packs.filter(active).map(pack =>
             resolve(pack.nombre.replace(/^PACK\s*[-:—–]\s*/i, ''), master, catalog)).filter(Boolean));
+        const isSoloPack = m => m.pack_only === true || m.standalone === false || m.venta_directa === false || m.sale_mode === 'solo_pack';
         const individuals = master.filter(m => active(m) && m.agenda_required !== false &&
             !packMasters.has(m) &&
-            m.pack_only !== true && m.standalone !== false && allows(m, room) &&
+            !isSoloPack(m) && allows(m, room) &&
             !['hotel', 'restaurante', 'gimnasio'].includes(normalize(m.category || m.categoria)));
         const result = individuals.map(m => ({
             nombre: nameOf(m), masterItemId: m.id || '',
