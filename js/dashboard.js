@@ -517,6 +517,9 @@ function renderDashboard() {
             paid = parseFloat(c.payment.paid);
         } else if (isPayGoldPaid) {
             paid = parseFloat(c.paygold_amount || c.precio_total || totalPrice);
+        } else if (c.payment && typeof c.payment.paid === 'number' && c.payment.paid === 0 && totalPrice > 0) {
+            // Si el bloque de control de pago registra explícitamente 0€ abonados, NO inventar que está pagado
+            paid = 0;
         } else if (estadoPagoLower === 'pagado') {
             paid = totalPrice;
         } else if (estadoPagoLower === 'pendiente') {
@@ -616,10 +619,10 @@ function renderDashboard() {
                     <i class="fas fa-gift" style="color:#d97706;"></i> SIN CARGO${authName ? ' · ' + authName : ''}
                 </span>`;
         }
-        // 9.5 SOCIO CUMBRIA (Cuota de socio - Sin deuda de pago directo)
-        else if (isSocio && totalPrice <= 0) {
+        // 9.5 SOCIO CUMBRIA (Socio/a del club Cumbria - Cuota de socio)
+        else if (isSocio) {
             paymentBadgeHtml = `
-                <span title="Cliente Socio Club Cumbria (Cuota de socio)" style="display:inline-flex; align-items:center; gap:4px; background:#f0fdf4; color:#166534; border:1px solid #bbf7d0; padding:3px 8px; border-radius:6px; font-size:0.7rem; font-weight:700; white-space:nowrap;">
+                <span title="Cliente Socio/a Club Cumbria (Cuota de socio)" style="display:inline-flex; align-items:center; gap:4px; background:#f0fdf4; color:#166534; border:1px solid #bbf7d0; padding:3px 8px; border-radius:6px; font-size:0.7rem; font-weight:700; white-space:nowrap;">
                     <i class="fas fa-id-card" style="color:#16a34a;"></i> SOCIO
                 </span>`;
         }

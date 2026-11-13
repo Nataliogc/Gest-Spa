@@ -499,7 +499,7 @@
         <!-- LEFT: Cumbria Logo -->
         <div style="display: flex; align-items: center; gap: 15px;">
             <img src="logo-spa.jpg" alt="Cumbria Bienestar" style="height: 65px; width: auto; object-fit: contain;">
-            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.45 (13/11/2026)">v2.3.45</span>
+            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.46 (13/11/2026)">v2.3.46</span>
         </div>
 
         <ul class="nav-links" style="flex:1;">
@@ -3716,7 +3716,11 @@
             } else {
                 if (packNoticeGroup) packNoticeGroup.style.display = "none";
                 if (sinCargoGroup) sinCargoGroup.style.display = "none";
-                if (pending <= 0 && total > 0) {
+                const nombreInp = document.getElementById("res-nombre")?.value || "";
+                const isClientSocio = /socio|socia/i.test(nombreInp);
+                if (isClientSocio && total === 0) {
+                    badge.innerHTML = `<span class="badge" style="background: #16a34a; color: white; padding: 4px 8px; border-radius: 4px;"><i class="fas fa-id-card"></i> SOCIO</span>`;
+                } else if (pending <= 0 && total > 0) {
                     badge.innerHTML = `<span class="badge" style="background: #22c55e; color: white; padding: 4px 8px; border-radius: 4px;">PAGADO</span>`;
                 } else if (paid > 0) {
                     badge.innerHTML = `<span class="badge" style="background: #f59e0b; color: white; padding: 4px 8px; border-radius: 4px;">PARCIAL</span>`;
@@ -6898,10 +6902,14 @@
                 }
 
                 const isItemFromPack = !!(payload.is_pack_element || payload.parent_id || payload.pack_origen || payload.parent_service || (window.SpaServiceCatalog && typeof window.SpaServiceCatalog.findParentPacks === 'function' && window.SpaServiceCatalog.findParentPacks(svcName, currentServices, window.SPA_PACKS_REGISTRY).length > 0));
+                const isClientSocio = /socio|socia/i.test(nombreField.value) || (payload.obs && /socio|socia/i.test(payload.obs));
                 if ((finalOrigin === 'particular' || finalOrigin === 'hotel_no_inc') && payload.precio_total === 0) {
-                    if (hasDiscount) {
-                        // Descuento total aplicado con motivo registrado
+                    if (hasDiscount || isClientSocio) {
+                        // Descuento total aplicado o cliente socio del club (cuota de socio)
                         payload.sin_cargo = false;
+                        if (isClientSocio && !payload.obs.includes('[SOCIO]')) {
+                            payload.obs = (payload.obs ? payload.obs + "\n" : "") + "⭐ [SOCIO] Cuota Club Cumbria";
+                        }
                     } else 
                     if (isItemFromPack) {
                         // Es un tratamiento incluido en un paquete/ritual, no requiere autorización sin cargo
@@ -8623,12 +8631,18 @@
             if (ppPending) ppPending.textContent = pending.toFixed(2) + "€";
 
             if (ppBadgeSet) {
-                let status = 'pending';
-                if (pending <= 0 && total > 0) status = 'paid';
-                else if (paid > 0) status = 'partial';
+                const nombreVal = document.getElementById("res-nombre")?.value || "";
+                const isClientSocio = /socio|socia/i.test(nombreVal);
+                if (isClientSocio && total === 0) {
+                    ppBadgeSet.innerHTML = `<span style="background:#f0fdf4; color:#166534; border:1px solid #bbf7d0; padding:2px 8px; border-radius:4px; font-weight:700; font-size:0.75rem;"><i class="fas fa-id-card"></i> SOCIO</span>`;
+                } else {
+                    let status = 'pending';
+                    if (pending <= 0 && total > 0) status = 'paid';
+                    else if (paid > 0) status = 'partial';
 
-                const badgeClass = window.getPaymentStatusClass(status);
-                ppBadgeSet.innerHTML = `<span class="${badgeClass}">${status.toUpperCase()}</span>`;
+                    const badgeClass = window.getPaymentStatusClass(status);
+                    ppBadgeSet.innerHTML = `<span class="${badgeClass}">${status.toUpperCase()}</span>`;
+                }
             }
 
             // Render History

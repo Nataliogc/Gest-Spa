@@ -8,7 +8,7 @@ Este documento mantiene el **control de versión única y global** para todo el 
 
 | Parámetro | Valor Actual |
 | :--- | :--- |
-| **Versión Global del Sistema** | **`v2.3.45`** |
+| **Versión Global del Sistema** | **`v2.3.46`** |
 | **Fecha de Última Actualización** | **13/11/2026** |
 | **Estado General** | Operativo en Producción |
 
@@ -47,6 +47,14 @@ Cualquier cambio en los siguientes módulos impacta en la versión global:
 ---
 
 ## 📝 Historial Unificado de Versiones
+
+### [v2.3.46] - 13/11/2026
+- **Tipo:** PATCH
+- **Archivos:** `js/dashboard.js`, `reservas-salas.html`, `reservas-spa.html`, `reservas.html`
+- **Descripción:** Corrección de coherencia de pagos en Dashboard vs Modal y asignación incondicional de badge `SOCIO`:
+  1. **Coherencia Total Dashboard vs Modal:** Se eliminó la incoherencia donde el Dashboard mostraba `PAGADO` mientras el modal de pago registraba `PAGADO: 0.00€, PENDIENTE: 49.90€`. Si el bloque de control de pagos registra explícitamente 0€ abonados, el Dashboard nunca asumirá que está pagado.
+  2. **Píldora `SOCIO` Incondicional:** Cualquier reserva de socio o socia (ej. 'pilar moreno socia', 'ISIDRO CRUZ(SOCIO)') muestra siempre en el Dashboard su distintivo oficial verde `SOCIO`, sin depender de si la reserva tiene tarifa 0€ o tarifa previa en base de datos.
+  3. **Gestión de Tarifas de Socios en Modales:** Las reservas de socios pueden guardarse a 0.00 € (cuota de club) sin bloquearse solicitando autorización, y el bloque de control de pago muestra el badge `SOCIO`.
 
 ### [v2.3.45] - 13/11/2026
 - **Tipo:** PATCH

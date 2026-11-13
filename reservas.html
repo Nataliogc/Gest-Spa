@@ -498,7 +498,7 @@
         <!-- LEFT: Cumbria Logo -->
         <div style="display: flex; align-items: center; gap: 15px;">
             <img src="logo-spa.jpg" alt="Cumbria Bienestar" style="height: 65px; width: auto; object-fit: contain;">
-            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.45 (13/11/2026)">v2.3.45</span>
+            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.46 (13/11/2026)">v2.3.46</span>
         </div>
 
         <ul class="nav-links" style="flex:1;">
@@ -6113,10 +6113,14 @@
                 }
 
                 const isItemFromPack = !!(payload.is_pack_element || payload.parent_id || payload.pack_origen || payload.parent_service || (window.SpaServiceCatalog && typeof window.SpaServiceCatalog.findParentPacks === 'function' && window.SpaServiceCatalog.findParentPacks(svcName, currentServices, window.SPA_PACKS_REGISTRY).length > 0));
+                const isClientSocio = /socio|socia/i.test(nombreField.value) || (payload.obs && /socio|socia/i.test(payload.obs));
                 if ((finalOrigin === 'particular' || finalOrigin === 'hotel_no_inc') && payload.precio_total === 0) {
-                    if (hasDiscount) {
-                        // Descuento total aplicado con motivo registrado
+                    if (hasDiscount || isClientSocio) {
+                        // Descuento total aplicado o cliente socio del club (cuota de socio)
                         payload.sin_cargo = false;
+                        if (isClientSocio && !payload.obs.includes('[SOCIO]')) {
+                            payload.obs = (payload.obs ? payload.obs + "\n" : "") + "⭐ [SOCIO] Cuota Club Cumbria";
+                        }
                     } else 
                     if (isItemFromPack) {
                         // Es un tratamiento incluido en un paquete/ritual, no requiere autorización sin cargo
