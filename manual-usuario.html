@@ -2,10 +2,10 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="manual-version" content="2.3.43">
+    <meta name="manual-version" content="2.3.44">
     <script src="js/manual-status.js?v=2.3.6" defer></script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Manual de Usuario | Gest-Spa & Zenith Manager</title>
+    <title>Manual de Operaciones y Capacitación | Gest-Spa & Zenith Manager</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
@@ -43,13 +43,12 @@
             font-size: 14px;
         }
 
-        /* Container & Print setup */
         .manual-wrapper {
-            max-width: 900px;
+            max-width: 960px;
             margin: 20px auto;
             background: var(--card);
             box-shadow: 0 10px 30px rgba(0,0,0,0.08);
-            border-radius: 12px;
+            border-radius: 14px;
             overflow: hidden;
         }
 
@@ -61,39 +60,20 @@
         .page-break {
             page-break-before: always;
             break-before: page;
-            border-top: 1px dashed #cbd5e1;
-            margin-top: 20px;
-            padding-top: 40px;
+            border-top: 2px dashed #cbd5e1;
+            margin: 40px 0 30px 0;
+            padding-top: 30px;
         }
 
         @media print {
-            body {
-                background: white;
-            }
-            .manual-wrapper {
-                box-shadow: none;
-                margin: 0;
-                max-width: 100%;
-                border-radius: 0;
-            }
-            .page {
-                padding: 30px 40px;
-            }
-            .no-print {
-                display: none !important;
-            }
-            .page-break {
-                border-top: none;
-                margin-top: 0;
-                padding-top: 0;
-            }
-            @page {
-                size: A4;
-                margin: 15mm 15mm 15mm 15mm;
-            }
+            body { background: white; }
+            .manual-wrapper { box-shadow: none; margin: 0; max-width: 100%; border-radius: 0; }
+            .page { padding: 25px 35px; }
+            .no-print { display: none !important; }
+            .page-break { border-top: none; margin: 0; padding-top: 0; }
+            @page { size: A4; margin: 12mm; }
         }
 
-        /* Top Action Bar (for browser viewing) */
         .manual-actions-bar {
             background: #1e293b;
             color: white;
@@ -131,8 +111,8 @@
             background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
             color: white;
             text-align: center;
-            padding: 80px 40px;
-            border-radius: 12px 12px 0 0;
+            padding: 70px 40px;
+            border-radius: 14px 14px 0 0;
             position: relative;
         }
         .cover::after {
@@ -158,90 +138,89 @@
             margin-bottom: 20px;
         }
         .cover-title {
-            font-size: 2.6rem;
+            font-size: 2.7rem;
             font-weight: 900;
             letter-spacing: -0.5px;
             line-height: 1.15;
             margin-bottom: 12px;
             color: #ffffff;
         }
-        .cover-title span {
-            color: #d4af37;
-        }
+        .cover-title span { color: #d4af37; }
         .cover-subtitle {
             font-size: 1.15rem;
-            color: #94a3b8;
+            color: #cbd5e1;
             font-weight: 400;
-            max-width: 600px;
-            margin: 0 auto 35px auto;
+            max-width: 680px;
+            margin: 0 auto 30px auto;
         }
         .cover-meta {
             display: flex;
             justify-content: center;
             gap: 25px;
-            font-size: 0.8rem;
+            font-size: 0.82rem;
             color: #cbd5e1;
-            border-top: 1px solid rgba(255,255,255,0.1);
-            padding-top: 25px;
-            max-width: 500px;
+            border-top: 1px solid rgba(255,255,255,0.15);
+            padding-top: 20px;
+            max-width: 600px;
             margin: 0 auto;
         }
 
-        /* Typography & Headings */
-        h1, h2, h3, h4 {
-            color: var(--primary);
-            font-weight: 800;
-        }
+        h1, h2, h3, h4 { color: var(--primary); font-weight: 800; }
         h2 {
-            font-size: 1.5rem;
+            font-size: 1.45rem;
             border-bottom: 2px solid var(--border);
             padding-bottom: 8px;
-            margin-bottom: 20px;
+            margin: 30px 0 16px 0;
             display: flex;
             align-items: center;
             gap: 12px;
         }
-        h2 i {
-            color: var(--gold);
-        }
+        h2 i { color: var(--gold); }
         h3 {
             font-size: 1.1rem;
-            margin: 20px 0 10px 0;
+            margin: 22px 0 10px 0;
             color: #1e3a8a;
             display: flex;
             align-items: center;
             gap: 8px;
         }
-        p {
-            margin-bottom: 12px;
-            color: #334155;
-        }
+        p { margin-bottom: 12px; color: #334155; }
 
         /* Table of Contents */
         .toc-card {
             background: #f8fafc;
-            border: 1px solid var(--border);
-            border-radius: 10px;
+            border: 1.5px solid var(--border);
+            border-radius: 12px;
             padding: 24px;
-            margin-bottom: 30px;
+            margin-bottom: 35px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.03);
         }
         .toc-list {
             list-style: none;
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 10px 20px;
+            gap: 10px 24px;
         }
         .toc-item {
-            font-size: 0.9rem;
+            font-size: 0.88rem;
             display: flex;
             align-items: center;
             gap: 10px;
             font-weight: 600;
             color: #1e293b;
         }
+        .toc-item a {
+            color: #1e293b;
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+        .toc-item a:hover {
+            color: var(--accent);
+            text-decoration: underline;
+        }
         .toc-number {
-            width: 24px;
-            height: 24px;
+            width: 26px;
+            height: 26px;
             border-radius: 50%;
             background: #e2e8f0;
             color: #475569;
@@ -253,7 +232,6 @@
             flex-shrink: 0;
         }
 
-        /* Steps, Boxes & Cards */
         .step-box {
             background: #ffffff;
             border: 1.5px solid var(--border);
@@ -263,7 +241,7 @@
             display: flex;
             gap: 16px;
             align-items: flex-start;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.03);
+            box-shadow: 0 2px 5px rgba(0,0,0,0.02);
         }
         .step-number {
             width: 32px;
@@ -279,9 +257,7 @@
             flex-shrink: 0;
             margin-top: 2px;
         }
-        .step-content {
-            flex: 1;
-        }
+        .step-content { flex: 1; }
         .step-title {
             font-weight: 700;
             font-size: 0.95rem;
@@ -289,13 +265,12 @@
             margin-bottom: 4px;
         }
 
-        /* Visual UI Mockup Box */
         .ui-mockup {
             background: #f8fafc;
             border: 1.5px solid #cbd5e1;
             border-radius: 10px;
-            padding: 14px;
-            margin: 15px 0 20px 0;
+            padding: 16px;
+            margin: 16px 0 22px 0;
             box-shadow: inset 0 2px 4px rgba(0,0,0,0.02);
         }
         .ui-mockup-header {
@@ -304,7 +279,7 @@
             color: #64748b;
             text-transform: uppercase;
             letter-spacing: 0.5px;
-            margin-bottom: 10px;
+            margin-bottom: 12px;
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -312,7 +287,17 @@
             padding-bottom: 6px;
         }
 
-        /* Alert Callouts */
+        .badge-pill-demo {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 0.72rem;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+
         .alert-callout {
             border-radius: 8px;
             padding: 14px 18px;
@@ -322,47 +307,12 @@
             align-items: flex-start;
             font-size: 0.88rem;
         }
-        .alert-warning {
-            background: #fffbeb;
-            border: 1.5px solid #fde047;
-            color: #854d0e;
-        }
-        .alert-danger {
-            background: #fef2f2;
-            border: 1.5px solid #fca5a5;
-            color: #991b1b;
-        }
-        .alert-success {
-            background: #f0fdf4;
-            border: 1.5px solid #86efac;
-            color: #166534;
-        }
-        .alert-info {
-            background: #eff6ff;
-            border: 1.5px solid #93c5fd;
-            color: #1e40af;
-        }
-        .alert-callout i {
-            font-size: 1.25rem;
-            margin-top: 2px;
-            flex-shrink: 0;
-        }
+        .alert-warning { background: #fffbeb; border: 1.5px solid #fde047; color: #854d0e; }
+        .alert-danger { background: #fef2f2; border: 1.5px solid #fca5a5; color: #991b1b; }
+        .alert-success { background: #f0fdf4; border: 1.5px solid #86efac; color: #166534; }
+        .alert-info { background: #eff6ff; border: 1.5px solid #93c5fd; color: #1e40af; }
+        .alert-callout i { font-size: 1.25rem; margin-top: 2px; flex-shrink: 0; }
 
-        /* Badges */
-        .badge {
-            display: inline-block;
-            padding: 3px 8px;
-            border-radius: 5px;
-            font-weight: 700;
-            font-size: 0.72rem;
-            text-transform: uppercase;
-        }
-        .badge-red { background: #fee2e2; color: #dc2626; border: 1px solid #fca5a5; }
-        .badge-green { background: #dcfce7; color: #16a34a; border: 1px solid #86efac; }
-        .badge-blue { background: #dbeafe; color: #1e40af; border: 1px solid #93c5fd; }
-        .badge-amber { background: #fef3c7; color: #d97706; border: 1px solid #fcd34d; }
-
-        /* Troubleshooting Q&A Grid */
         .qa-card {
             background: white;
             border: 1.5px solid #e2e8f0;
@@ -386,553 +336,971 @@
             line-height: 1.5;
         }
 
-        /* Checklists */
         .checklist-item {
             display: flex;
             align-items: center;
             gap: 10px;
-            padding: 8px 12px;
+            padding: 10px 14px;
             background: white;
             border: 1px solid #e2e8f0;
             border-radius: 6px;
-            margin-bottom: 6px;
+            margin-bottom: 8px;
             font-size: 0.85rem;
             font-weight: 600;
         }
-        .checklist-item i {
-            color: #10b981;
-            font-size: 1rem;
+        .checklist-item i { color: #10b981; font-size: 1.1rem; }
+
+        .channel-card {
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 12px 16px;
+            margin-bottom: 10px;
+            display: grid;
+            grid-template-columns: 180px 1fr 140px;
+            gap: 15px;
+            align-items: center;
         }
-    @media print { .manual-guide { break-before: page; } }
-.manual-guide { margin: 28px 0; padding: 22px; border: 1px solid #cbd5e1; border-radius: 10px; }
-.manual-guide li { margin: 10px 0 10px 20px; }
-.manual-guide h3 { margin: 18px 0 8px; }
-</style>
+    </style>
 </head>
 <body>
 
-    <!-- Top Action Bar for Screen view -->
+    <!-- Barra Superior -->
     <div class="manual-actions-bar no-print">
         <div style="display:flex; align-items:center; gap:12px;">
-            <i class="fas fa-book-reader" style="color:#d4af37; font-size:1.2rem;"></i>
-            <span style="font-weight:700; font-size:0.95rem;">Manual Oficial Dinámico | Gest-Spa & Zenith</span>
-            <span style="background:rgba(34,197,94,0.2); border:1px solid #22c55e; color:#4ade80; padding:2px 8px; border-radius:12px; font-size:0.7rem; font-weight:800; letter-spacing:0.5px;" id="manual-version-status">COMPROBANDO</span>
+            <i class="fas fa-book-open" style="color:#d4af37; font-size:1.2rem;"></i>
+            <span style="font-weight:700; font-size:0.95rem;">Manual Oficial de Operaciones & Capacitación | Gest-Spa & Zenith</span>
+            <span style="background:rgba(34,197,94,0.2); border:1px solid #22c55e; color:#4ade80; padding:2px 8px; border-radius:12px; font-size:0.7rem; font-weight:800;" id="manual-version-status">OFICIAL v2.3.43</span>
         </div>
 
-        <!-- Live Search Box -->
         <div style="display:flex; align-items:center; gap:8px; background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.25); border-radius:6px; padding:5px 12px;">
             <i class="fas fa-search" style="color:#cbd5e1; font-size:0.8rem;"></i>
-            <input type="text" id="manual-search-input" oninput="filterManualContent(this.value)" placeholder="Buscar en el manual (bono, baja, duplicada, citas...)" style="background:transparent; border:none; color:white; font-size:0.82rem; outline:none; width:260px; font-family:'Montserrat',sans-serif;">
+            <input type="text" id="manual-search-input" oninput="filterManualContent(this.value)" placeholder="Buscar en el manual (bono, paygold, pack, sala...)" style="background:transparent; border:none; color:white; font-size:0.82rem; outline:none; width:260px; font-family:'Montserrat',sans-serif;">
             <button type="button" onclick="clearSearch()" style="background:none; border:none; color:#94a3b8; cursor:pointer; font-size:0.75rem;" title="Limpiar búsqueda">&times;</button>
         </div>
 
         <div style="display:flex; gap:8px; align-items:center;">
             <button class="btn-print" onclick="window.print()">
-                <i class="fas fa-print"></i> Imprimir / Guardar en PDF
+                <i class="fas fa-print"></i> Imprimir / PDF
             </button>
         </div>
     </div>
 
-    <section class="no-print" aria-label="Carga del manual" style="max-width:900px;margin:16px auto;padding:16px 20px;background:white;border-radius:12px;">
-        <p id="manual-load-status" role="status" aria-live="polite">Cargando el contenido del manual…</p>
-        <progress id="manual-load-progress" aria-label="Progreso de carga y comprobación" max="3" value="0" style="width:100%;height:16px;accent-color:#b89327;"></progress>
-        <button id="manual-load-retry" type="button" hidden>Reintentar comprobación</button>
-        <a id="manual-load-update" hidden>Descargar versión actual</a>
-        <noscript>Activa JavaScript para comprobar si esta copia coincide con la versión publicada. El contenido sigue disponible.</noscript>
-    </section>
     <div class="manual-wrapper">
 
         <!-- =================================================================== -->
         <!-- PORTADA -->
         <!-- =================================================================== -->
         <div class="cover">
-            <div class="cover-badge"><i class="fas fa-book" style="margin-right:6px;"></i> Manual Dinámico y Actualizado</div>
+            <div class="cover-badge"><i class="fas fa-graduation-cap" style="margin-right:6px;"></i> Guía Integral de Capacitación & Operaciones</div>
             <h1 class="cover-title">GEST-SPA / <span>ZENITH</span></h1>
-            <p class="cover-subtitle">Guía práctica de uso diario, agendamiento de citas, gestión de personal, control de bonos y resolución de incidencias para el equipo de recepción y estética.</p>
+            <p class="cover-subtitle">Manual formativo completo para recepción, agendamiento de citas, control de estados, gestión de bonos, rituales y resolución de incidencias en Cumbria Bienestar.</p>
             <div class="cover-meta">
-                <span><i class="fas fa-users"></i> Para todo el personal</span>
-                <span><i class="fas fa-calendar-check"></i> <span id="manual-dynamic-date">Actualizado el 13/11/2026 · v2.3.43</span></span>
-                <span><i class="fas fa-shield-alt"></i> Procesos Controlados</span>
+                <span><i class="fas fa-user-plus"></i> Nuevas Incorporaciones & Equipo</span>
+                <span><i class="fas fa-calendar-check"></i> <span id="manual-dynamic-date">Actualizado el 13/11/2026 · v2.3.44</span></span>
+                <span><i class="fas fa-spa"></i> Cumbria Bienestar</span>
             </div>
         </div>
 
         <div class="page">
 
-            <!-- =================================================================== -->
-            <!-- NOVEDADES Y ACTUALIZACIONES EN VIVO (CHANGELOG) -->
-            <!-- =================================================================== -->
-            <div id="section-novedades" style="background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); border: 2px solid #86efac; border-radius: 10px; padding: 18px 22px; margin-bottom: 25px; box-shadow: 0 4px 12px rgba(22,101,52,0.06);">
-                <!-- AUTO-RELEASES:START -->
-<h2>Historial completo de actualizaciones</h2>
-<article class="manual-release" style="background:white;padding:12px;border-radius:8px;margin-top:10px"><b>v2.3.43 · 13/11/2026</b><p>Corrección integral de orígenes de reservas, resolución de estados por canal y optimización proporcional de la distribución de la tabla:</p></article>
-<article class="manual-release" style="background:white;padding:12px;border-radius:8px;margin-top:10px"><b>v2.3.42 · 13/11/2026</b><p>Corrección de desalineación de columnas en la tabla del Dashboard y sincronización de versión global única:</p></article>
-<article class="manual-release" style="background:white;padding:12px;border-radius:8px;margin-top:10px"><b>v2.3.41 · 13/11/2026</b><p>Implementación del sistema de descuentos en reservas, alarmas de venta directa sin precio, centrado de tabla y sincronización del manual:</p></article>
-<article class="manual-release" style="background:white;padding:12px;border-radius:8px;margin-top:10px"><b>v2.3.40 · 13/11/2026</b><p>Identificación visual y vinculación automática del paquete de origen cuando un tratamiento tiene precio 0€ o pertenece a un pack:</p></article>
-<article class="manual-release" style="background:white;padding:12px;border-radius:8px;margin-top:10px"><b>v2.3.39 · 13/11/2026</b><p>Resolución inteligente y difusa de nombres de servicios en el catálogo (ej. &quot;ENVOLTURA VIT.C&quot; emparejada con &quot;Envoltura corporal vit.c&quot; de 40€). Ignora omisiones de descriptores comunes como &quot;corporal&quot; o abreviaciones (&quot;vit.c&quot; vs &quot;vitamina c&quot;), permitiendo que las reservas antiguas o con nombres abreviados reconozcan su tarifa oficial de catálogo y activen el botón de 1-clic &quot;Aplicar Tarifa Catálogo: 40.00€&quot;.</p></article>
-<article class="manual-release" style="background:white;padding:12px;border-radius:8px;margin-top:10px"><b>v2.3.38 · 13/11/2026</b><p>Código de colores y distintivos visuales diferenciados por origen y estado de reserva: Hotel Incluido (Azul/Índigo), Hotel No Incluido (Violeta/Púrpura con importe pendiente), Bono Spa (Verde Teal), Groupon (Verde Menta), Smartbox (Naranja Cálido), Wonderbox (Dorado/Ámbar), Ego Experiencias (Fucsia/Rosa), Pagado (Verde Éxito), Pendiente (Rojo Alerta), Parcial (Naranja Intenso), PayGold (Ámbar Pasarela) y Sin Cargo (Miel/Regalo). Homogeneizado en Dashboard de Inicio y en las tablas de detalle de reservas.</p></article>
-<article class="manual-release" style="background:white;padding:12px;border-radius:8px;margin-top:10px"><b>v2.3.37 · 13/11/2026</b><p>Corrección de preservación de precio/total guardado al consultar reservas en modal de edición (evita recálculo no deseado que reducía totales como PayGold 100€ a 50€). Implementación de soporte para reservas &quot;Sin Cargo / Gratuita (0.00 €)&quot; con campo obligatorio &quot;Autorizado por&quot;, distintivo SIN CARGO en agenda y tabla, y asistente de 1-clic &quot;Aplicar Tarifa Catálogo&quot; cuando un servicio tiene precio oficial configurado en el catálogo maestro.</p></article>
-<article class="manual-release" style="background:white;padding:12px;border-radius:8px;margin-top:10px"><b>v2.3.36 · 12/11/2026</b><p>Opcion en catalogo maestro (Items de Compra/Pack) para definir canal de venta: Venta Directa o Solo Paquetes Online</p></article>
-<article class="manual-release" style="background:white;padding:12px;border-radius:8px;margin-top:10px"><b>v2.3.35 · 11/11/2026</b><p>Ajuste de visualización en planning: sala bajo nombre de terapeuta en sección salas, eliminación de horario en terapeutas y capacidad en salas</p></article>
-<article class="manual-release" style="background:white;padding:12px;border-radius:8px;margin-top:10px"><b>v2.3.34 · 11/11/2026</b><p>Prioridad de spa_item_master sobre spa_services en compatibilidad de salas (CHON, MAR, MARI)</p></article>
-<article class="manual-release" style="background:white;padding:12px;border-radius:8px;margin-top:10px"><b>v2.3.33 · 11/11/2026</b><p>Packs mixtos: Circuito Spa secundario y asignacion de hora pinchada al tratamiento de sala (masaje)</p></article>
-<article class="manual-release" style="background:white;padding:12px;border-radius:8px;margin-top:10px"><b>v2.3.32 · 11/11/2026</b><p>Correccion Suite Spa: 0 terapeutas requeridos en alquiler de Suite Spa sin masaje y exclusion estricta de personal</p></article>
-<article class="manual-release" style="background:white;padding:12px;border-radius:8px;margin-top:10px"><b>v2.3.31 · 11/11/2026</b><p>Corrección de autorrelleno de hora al pinchar en planning, servicio obligatorio, bloqueo de Circuito Spa en salas y unificación de tiempo completo y sala para rituales</p></article>
-<article class="manual-release" style="background:white;padding:12px;border-radius:8px;margin-top:10px"><b>v2.3.30 · 11/11/2026</b><p>Corregido PAX en tratamientos individuales: no se clasifican como packs, prevalece la capacidad de Items y el campo personas queda editable dentro del maximo configurado. Relax individual restablece 1 persona; packs y parejas conservan su modalidad.</p></article>
-<article class="manual-release" style="background:white;padding:12px;border-radius:8px;margin-top:10px"><b>v2.3.29 · 11/11/2026</b><p>Buscador en Ajustes Items/Pack y selector de tratamientos basado en items maestros: nombres compatibles, salas configuradas e identificador estable en nuevas reservas. Sin borrado de datos; Relax en Suite conservado pendiente de revisar su producto asociado.</p></article>
-<article class="manual-release" style="background:white;padding:12px;border-radius:8px;margin-top:10px"><b>v2.3.28 · 11/11/2026</b><p>Corrección de la validación de turnos pasados en handleFormSubmit (se eliminó la condición dependiente de un elemento DOM inexistente que puenteaba el bloqueo). Validación extendida a todas las fases de los packs para impedir guardar servicios a horas pasadas. Ajuste de hora inicial en packs al siguiente cuarto de hora futuro en lugar de 10:00h si esa hora ya transcurrió.</p></article>
-<article class="manual-release" style="background:white;padding:12px;border-radius:8px;margin-top:10px"><b>v2.3.27 · 11/11/2026</b><p>Módulo de ocupación interactiva del Spa en packs: botones con plazas libres/ocupadas por turno para elegir hora del circuito spa con un solo clic. Validación de disponibilidad de terapeutas ajustada a la hora real de la fase de tratamiento (no a la hora general). Corrección de asignación de sala en packs con Suite Spa.</p></article>
-<article class="manual-release" style="background:white;padding:12px;border-radius:8px;margin-top:10px"><b>v2.3.26 · 11/11/2026</b><p>Packs con Circuito Spa (Fantasía para dos, Especial Parejas...) ya se pueden reservar desde Sala VIP, Panacea o Suite. La fase de Spa se envía automáticamente a la agenda del Spa sin condicionar la sala del tratamiento.</p></article>
-<article class="manual-release" style="background:white;padding:12px;border-radius:8px;margin-top:10px"><b>v2.3.25 · 11/11/2026</b><p>Fix pack cancellation across all collections and enable independent per-service pack scheduling</p></article>
-<article class="manual-release" style="background:white;padding:12px;border-radius:8px;margin-top:10px"><b>v2.3.24 · 10/11/2026</b><p>Fix uniqueStaff scope in reservas-staff.js</p></article>
-<article class="manual-release" style="background:white;padding:12px;border-radius:8px;margin-top:10px"><b>v2.3.23 · 10/11/2026</b><p>Auto-assign available therapists to eliminate false conflict popups on saving reservations</p></article>
-<article class="manual-release" style="background:white;padding:12px;border-radius:8px;margin-top:10px"><b>v2.3.22 · 10/11/2026</b><p>Fix reservas-spa syntax, unify daily cash stats, enable 2 therapists in couples packs, zero-therapist packs validation, and room-service compatibility check</p></article>
-<article class="manual-release" style="background:white;padding:12px;border-radius:8px;margin-top:10px"><b>v2.3.21 · 10/11/2026</b><p>PayGold: correccion residual error modal, consistencia estado pagado particular, cache-busters v2.3.21 y activacion packs en salas</p></article>
-<article class="manual-release" style="background:white;padding:12px;border-radius:8px;margin-top:10px"><b>v2.3.20 · 10/11/2026</b><p>Ajuste de tarifas y desgloses de packs segun catalogo oficial</p></article>
-<article class="manual-release" style="background:white;padding:12px;border-radius:8px;margin-top:10px"><b>v2.3.19 · 10/11/2026</b><p>Desglose automatico de servicios, secuencias y tarifas para todos los packs del sistema</p></article>
-<article class="manual-release" style="background:white;padding:12px;border-radius:8px;margin-top:10px"><b>v2.3.18 · 10/11/2026</b><p>Panel lateral del dashboard minimizado por defecto</p></article>
-<article class="manual-release" style="background:white;padding:12px;border-radius:8px;margin-top:10px"><b>v2.3.17 · 10/11/2026</b><p>PayGold: correccion funcion checkReservation y ventana modal mas ancha y ergonomica</p></article>
-<article class="manual-release" style="background:white;padding:12px;border-radius:8px;margin-top:10px"><b>v2.3.16 · 10/11/2026</b><p>Correccion indicador de pago en dashboard y reservas para citas con precio sin precio_total explicito</p></article>
-<article class="manual-release" style="background:white;padding:12px;border-radius:8px;margin-top:10px"><b>v2.3.15 · 10/11/2026</b><p>Vision 15 dias: boton Guardar y abrir PayGold con reserva persistida, coleccion correcta y saldo pendiente</p></article>
-<article class="manual-release" style="background:white;padding:12px;border-radius:8px;margin-top:10px"><b>v2.3.14 · 10/11/2026</b><p>Panel lateral de notas y metricas con opcion de ocultar y expandir tabla del dashboard</p></article>
-<article class="manual-release" style="background:white;padding:12px;border-radius:8px;margin-top:10px"><b>v2.3.13 · 10/11/2026</b><p>Apertura de reservas: cargar configuracion y catalogos en paralelo y compartir lecturas iniciales de servicios y maestro sin cachear reservas</p></article>
-<article class="manual-release" style="background:white;padding:12px;border-radius:8px;margin-top:10px"><b>v2.3.12 · 10/11/2026</b><p>Arqueo y Cierre de Caja del Dia con desglose efectivo, tarjeta, pasarela y tienda virtual</p></article>
-<article class="manual-release" style="background:white;padding:12px;border-radius:8px;margin-top:10px"><b>v2.3.11 · 10/11/2026</b><p>Anadida tarjeta KPI Pagos Pasarela en el panel de inicio (dashboard) para contabilizar cobros por Redsys PayGold en reservas y bonos</p></article>
-<article class="manual-release" style="background:white;padding:12px;border-radius:8px;margin-top:10px"><b>v2.3.10 · 10/11/2026</b><p>Reserva desde bono: conservar codigo, cliente, servicio y personas al pasar del planning al formulario; aplicar vinculacion despues de cargar salas y servicios sin depender de memoria temporal</p></article>
-<article class="manual-release" style="background:white;padding:12px;border-radius:8px;margin-top:10px"><b>v2.3.9 · 10/11/2026</b><p>Precios de servicios: recuperar PVP del catalogo cuando el maestro no tiene tarifa positiva, normalizar nombres sin confundir duraciones y limpiar precio fijo anterior</p></article>
-<article class="manual-release" style="background:white;padding:12px;border-radius:8px;margin-top:10px"><b>v2.3.8 · 10/11/2026</b><p>Apertura del modulo de Ocupacion al reservar servicios de salas desde Bonos (con visualizacion de salas, disponibilidad y banner de reserva de bono), manteniendo Spa, Restaurante y Hotel en sus flujos especificos</p></article>
-<article class="manual-release" style="background:white;padding:12px;border-radius:8px;margin-top:10px"><b>v2.3.7 · 10/11/2026</b><p>Reservas: evitar apertura antes de cargar servicios, eliminar salas duplicadas del selector y ajustar PAX inicial de cabinas; manual con guia detallada de PayGold</p></article>
-<article class="manual-release" style="background:white;padding:12px;border-radius:8px;margin-top:10px"><b>v2.3.6 · 10/11/2026</b><p>Manual con todo el historial registrado, barra de carga por etapas reales y comprobacion de version publicada con aviso de error y reintento</p></article>
-<article class="manual-release" style="background:white;padding:12px;border-radius:8px;margin-top:10px"><b>v2.3.5 · 10/11/2026</b><p>Planning de salas: respetar horarios de apertura, domingos y fechas de cierre; excluir cierres de horas libres e impedir reservas desde franjas cerradas</p></article>
-<article class="manual-release" style="background:white;padding:12px;border-radius:8px;margin-top:10px"><b>v2.3.4 · 10/11/2026</b><p>Manual sincronizado automaticamente con las novedades y la version real; PDF desde el contenido actualizado y recarga sin cache</p></article>
-<article class="manual-release" style="background:white;padding:12px;border-radius:8px;margin-top:10px"><b>v2.3.3 · 10/11/2026</b><p>Correccion en selector de servicios: integracion completa de spa_services y spa_item_master para que Suite, Panacea, VIP, Cabinas y Peluqueria muestren siempre sus servicios</p></article>
-<article class="manual-release" style="background:white;padding:12px;border-radius:8px;margin-top:10px"><b>v2.3.2 · 10/11/2026</b><p>Rediseño visual de cuadraditos del planning: cabecera horaria con subdivisiones de 15 min, celdas táctiles con bordes y tarjetas de reserva con badges de hora y duración</p></article>
-<article class="manual-release" style="background:white;padding:12px;border-radius:8px;margin-top:10px"><b>v2.3.1 · 10/11/2026</b><p>Planning de Ocupacion: la ficha de reserva se abre directamente (sin panel lateral) y correccion del aviso de pax maximo segun la sala elegida</p></article>
-<article class="manual-release" style="background:white;padding:12px;border-radius:8px;margin-top:10px"><b>v2.3.0 · 10/11/2026</b><p>Nuevo Planning de Ocupacion: desplegables Salas (Cabinas, Suite, Panacea, VIP, Peluqueria) y Terapeutas, reserva en 1 clic, turnos y fechas pasadas oscurecidos y bloqueados</p></article>
-<article class="manual-release" style="background:white;padding:12px;border-radius:8px;margin-top:10px"><b>v2.2.2 · 10/11/2026</b><p>Apertura directa del formulario de reserva al pinchar casilla libre de agenda con sala en blanco (-- Seleccionar Sala --), selector completo de salas (Cabinas 1, 2, 3, Suite, Panacea, Sala VIP y Peluquería) y terapeuta, fecha y hora preseleccionados automáticamente sin bloqueos de turno pasado.</p></article>
-<article class="manual-release" style="background:white;padding:12px;border-radius:8px;margin-top:10px"><b>v2.2.1 · 10/11/2026</b><p>Limpieza estricta de bonos residuales en sessionStorage y corrección de precio y terapeuta en salas</p></article>
-<article class="manual-release" style="background:white;padding:12px;border-radius:8px;margin-top:10px"><b>v2.2.0 · 10/11/2026</b><p>Apertura directa de pantalla de reserva al hacer clic en casilla libre de la agenda de ocupación de terapeutas</p></article>
-<article class="manual-release" style="background:white;padding:12px;border-radius:8px;margin-top:10px"><b>v2.1.0 · 10/11/2026</b><p>Panel lateral integrado de reserva rápida (Drawer) para evitar ventanas duplicadas en puestos de trabajo</p></article>
-<article class="manual-release" style="background:white;padding:12px;border-radius:8px;margin-top:10px"><b>v2.0.6 · 09/11/2026</b><p>Registro automatico en tiempo real de pagos Redsys PayGold sin intervencion manual</p><p><a href="#guia-paygold">Cómo utilizar PayGold: pasos, estados de pago y resolución de incidencias</a></p></article>
-<article class="manual-release" style="background:white;padding:12px;border-radius:8px;margin-top:10px"><b>v2.0.5 · 09/11/2026</b><p>Logo transparente Zenith (navegador y PWA), formato de pedido SPA-XXXX en Redsys y modal PayGold adaptado</p><p><a href="#guia-paygold">Cómo utilizar PayGold: pasos, estados de pago y resolución de incidencias</a></p></article>
-<article class="manual-release" style="background:white;padding:12px;border-radius:8px;margin-top:10px"><b>v2.0.4 · 09/11/2026</b><p>Mejora comercial en mensaje PayGold (garantía 24h), badges de estado de pago en panel e indicadores visuales de cobro</p><p><a href="#guia-paygold">Cómo utilizar PayGold: pasos, estados de pago y resolución de incidencias</a></p></article>
-<article class="manual-release" style="background:white;padding:12px;border-radius:8px;margin-top:10px"><b>v2.0.3 · 09/11/2026</b><p>Integración oficial de pasarela Redsys PayGold Cumbria Spa &amp; Hotel</p><p><a href="#guia-paygold">Cómo utilizar PayGold: pasos, estados de pago y resolución de incidencias</a></p></article>
-<article class="manual-release" style="background:white;padding:12px;border-radius:8px;margin-top:10px"><b>v2.0.2 · 27/10/2026</b><p>Prueba de bump automático</p></article>
-<article class="manual-release" style="background:white;padding:12px;border-radius:8px;margin-top:10px"><b>v2.0.1 · 27/10/2026</b><p>Automatización del sistema de incremento de versiones</p></article>
-<article class="manual-release" style="background:white;padding:12px;border-radius:8px;margin-top:10px"><b>v2.0.0 · 27/10/2026</b><p>Unificación del versionado de todo el ecosistema Gest-Spa bajo una única versión global. Implementación del protocolo de incremento automático de versión y fecha ante cualquier cambio en cualquier módulo. Integración de la directriz en las normas de trabajo del agente (`.agent/working-criteria.md`).</p></article>
-<!-- AUTO-RELEASES:END -->
+            <!-- MENSAJE DE BIENVENIDA -->
+            <div style="background:linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); border:1.5px solid #93c5fd; border-radius:10px; padding:18px 22px; margin-bottom:28px;">
+                <h3 style="margin-top:0; color:#1e40af;"><i class="fas fa-hand-holding-heart" style="color:#2563eb;"></i> ¡Bienvenido/a al equipo de Cumbria Bienestar!</h3>
+                <p style="margin-bottom:0; font-size:0.9rem; color:#1e3a8a;">Este manual ha sido diseñado para acompañarte en tus primeros días y servirte como guía de consulta diaria permanente. Aquí encontrarás <b>todos los procedimientos explicados paso a paso</b>: desde cómo revisar las citas de la mañana hasta cómo canjear un bono, cobrar con PayGold, tramitar rituales y resolver cualquier duda en recepción.</p>
             </div>
 
             <!-- =================================================================== -->
             <!-- ÍNDICE DE CONTENIDOS -->
             <!-- =================================================================== -->
             <div class="toc-card">
-                <div style="font-weight:800; font-size:1.1rem; color:#1e293b; margin-bottom:14px; display:flex; align-items:center; gap:8px;">
+                <div style="font-weight:800; font-size:1.15rem; color:#1e293b; margin-bottom:16px; display:flex; align-items:center; gap:8px;">
                     <i class="fas fa-list-ol" style="color:var(--gold);"></i> Índice de Contenidos del Manual
                 </div>
                 <ul class="toc-list">
-                    <li class="toc-item"><span class="toc-number">1</span> <span>Visión General de la Agenda</span></li>
-                    <li class="toc-item"><span class="toc-number">2</span> <span>Agendar Citas sin Errores</span></li>
-                    <li class="toc-item"><span class="toc-number">3</span> <span>Uso y Validación de Bonos Spa</span></li>
-                    <li class="toc-item"><span class="toc-number">4</span> <span>Eliminar Citas Duplicadas [🗑️]</span></li>
-                    <li class="toc-item"><span class="toc-number">5</span> <span>Horarios y Cuadrante Semanal</span></li>
-                    <li class="toc-item"><span class="toc-number">6</span> <span>Bajas, Vacaciones y Ausencias</span></li>
-                    <li class="toc-item"><span class="toc-number">7</span> <span>Asistente de Reasignación</span></li>
-                    <li class="toc-item"><span class="toc-number">8</span> <span>Solución de Problemas (FAQ)</span></li>
+                    <li class="toc-item"><span class="toc-number">1</span> <a href="#sec-1">Estructura y Navegación del Sistema</a></li>
+                    <li class="toc-item"><span class="toc-number">2</span> <a href="#sec-2">Panel de Inicio / Dashboard (Día a Día)</a></li>
+                    <li class="toc-item"><span class="toc-number">3</span> <a href="#sec-3">Código Oficial de Estados y Colores</a></li>
+                    <li class="toc-item"><span class="toc-number">4</span> <a href="#sec-4">Acciones Rápidas: Asistencia, WhatsApp y No-Show</a></li>
+                    <li class="toc-item"><span class="toc-number">5</span> <a href="#sec-5">Agendar y Gestionar Citas sin Errores</a></li>
+                    <li class="toc-item"><span class="toc-number">6</span> <a href="#sec-6">Los 8 Canales y Orígenes Oficiales</a></li>
+                    <li class="toc-item"><span class="toc-number">7</span> <a href="#sec-7">Gestión Integral de Bonos y Vales</a></li>
+                    <li class="toc-item"><span class="toc-number">8</span> <a href="#sec-8">Rituales y Packs Multi-servicio</a></li>
+                    <li class="toc-item"><span class="toc-number">9</span> <a href="#sec-9">Cobros, Caja y Pasarela Redsys PayGold</a></li>
+                    <li class="toc-item"><span class="toc-number">10</span> <a href="#sec-10">Descuentos Especiales y Reservas Sin Cargo</a></li>
+                    <li class="toc-item"><span class="toc-number">11</span> <a href="#sec-11">Planning de Ocupación, Bajas y Cuadrantes</a></li>
+                    <li class="toc-item"><span class="toc-number">12</span> <a href="#sec-12">Protocolos y Solución de Incidencias (FAQ)</a></li>
+                    <li class="toc-item"><span class="toc-number">13</span> <a href="#sec-13">Checklist Matinal y de Cierre</a></li>
+                    <li class="toc-item"><span class="toc-number">14</span> <a href="#sec-14">Anexo: Historial de Versiones</a></li>
                 </ul>
             </div>
 
             <!-- =================================================================== -->
-            <!-- 1. VISIÓN GENERAL DE LA AGENDA -->
+            <!-- 1. ESTRUCTURA Y NAVEGACIÓN DEL SISTEMA -->
             <!-- =================================================================== -->
-            <h2><i class="fas fa-calendar-alt"></i> 1. Visión General de la Agenda</h2>
-            <p>La pantalla de <b>Visión General</b> es el panel central de control diario. Muestra en una cuadrícula a cada terapeuta con sus huecos libres, citas programadas o días de descanso en los próximos 14 días.</p>
+            <div id="sec-1">
+                <h2><i class="fas fa-sitemap"></i> 1. Estructura y Navegación del Sistema</h2>
+                <p><b>Gest-Spa / Zenith Manager</b> es la plataforma integral en la nube que gestiona todas las áreas de bienestar de Cumbria. En la barra superior tienes acceso a los módulos clave:</p>
+                <div style="display:grid; grid-template-columns: repeat(2, 1fr); gap:12px; margin:16px 0;">
+                    <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:12px;">
+                        <b><i class="fas fa-home" style="color:var(--accent);"></i> Inicio / Dashboard:</b> Tu pantalla de inicio obligatoria. Listado cronológico de citas del día, estados de cobro y acciones inmediatas.
+                    </div>
+                    <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:12px;">
+                        <b><i class="fas fa-calendar-alt" style="color:#0ea5e9;"></i> Visión General 15 Días:</b> Cuadrícula quincenal de turnos y ocupación por terapeuta.
+                    </div>
+                    <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:12px;">
+                        <b><i class="fas fa-water" style="color:#06b6d4;"></i> Reservas Spa:</b> Planning de aforo y agendamiento de turnos para la piscina y circuito hidrotermal.
+                    </div>
+                    <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:12px;">
+                        <b><i class="fas fa-door-open" style="color:#8b5cf6;"></i> Reservas Salas:</b> Planning de Cabinas (1, 2, 3), Suite Spa, Panacea, Sala VIP y Peluquería.
+                    </div>
+                    <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:12px;">
+                        <b><i class="fas fa-ticket-alt" style="color:#10b981;"></i> Bonos y Vales:</b> Consulta de saldo, validación y canje de bonos locales y tienda online.
+                    </div>
+                    <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:12px;">
+                        <b><i class="fas fa-users-cog" style="color:#f59e0b;"></i> Personal & Turnos:</b> Cuadrante semanal, asignación de turnos, registro de bajas médicas y vacaciones.
+                    </div>
+                </div>
+            </div>
 
+            <!-- =================================================================== -->
+            <!-- 2. PANEL DE INICIO / DASHBOARD -->
+            <!-- =================================================================== -->
+            <div id="sec-2" class="page-break"></div>
+            <h2><i class="fas fa-tachometer-alt"></i> 2. Panel de Inicio / Dashboard (Operativa Diaria)</h2>
+            <p>El <b>Dashboard</b> es el centro neurálgico de recepción. Cada mañana y a lo largo de la jornada, la recepcionista tiene aquí la foto exacta de lo que va a ocurrir:</p>
+            
             <div class="ui-mockup">
                 <div class="ui-mockup-header">
-                    <span><i class="fas fa-columns"></i> Cómo interpretar cada celda de la cuadrícula</span>
+                    <span><i class="fas fa-table"></i> Columnas de la Tabla de Reservas de Hoy</span>
+                    <span>Alineación Cuadrada v2.3.43</span>
                 </div>
-                <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:10px; text-align:center;">
-                    <div style="background:#f0fdf4; border:1.5px solid #86efac; padding:10px; border-radius:8px;">
-                        <span class="badge badge-green">32 libres</span>
-                        <div style="font-size:0.75rem; color:#166534; font-weight:700; margin-top:4px;">Huecos Disponibles</div>
-                        <div style="font-size:0.7rem; color:#475569;">Pulsar para ver horas libres</div>
-                    </div>
-                    <div style="background:#eff6ff; border:1.5px solid #93c5fd; padding:10px; border-radius:8px;">
-                        <span class="badge badge-blue">4 citas</span>
-                        <div style="font-size:0.75rem; color:#1e40af; font-weight:700; margin-top:4px;">Citas Ocupadas</div>
-                        <div style="font-size:0.7rem; color:#475569;">Ocupación parcial normal</div>
-                    </div>
-                    <div style="background:#f1f5f9; border:1.5px solid #cbd5e1; padding:10px; border-radius:8px;">
-                        <span class="badge" style="background:#e2e8f0; color:#64748b;">Libre / Baja</span>
-                        <div style="font-size:0.75rem; color:#475569; font-weight:700; margin-top:4px;">Descanso / Permiso</div>
-                        <div style="font-size:0.7rem; color:#475569;">No trabaja este día</div>
-                    </div>
-                    <div style="background:#fee2e2; border:2px solid #ef4444; padding:10px; border-radius:8px;">
-                        <span class="badge badge-red">⚠️ 2 SIN CUBRIR</span>
-                        <div style="font-size:0.75rem; color:#b91c1c; font-weight:800; margin-top:4px;">¡Atención Máxima!</div>
-                        <div style="font-size:0.7rem; color:#991b1b;">Terapeuta ausente con citas</div>
-                    </div>
+                <ul style="margin-left:20px; font-size:0.86rem; color:#334155;">
+                    <li><b>ID (95px):</b> Localizador de la cita (ej. <code>RS-1UNK</code>).</li>
+                    <li><b>HORA (80px):</b> Hora exacta de inicio (ej. <b>11:00</b>).</li>
+                    <li><b>CLIENTE:</b> Nombre y apellidos del titular.</li>
+                    <li><b>SERVICIO:</b> Tratamiento reservado (ej. <i>Circuito Spa</i>, <i>Masaje en pareja</i>).</li>
+                    <li><b>SALA (95px):</b> Espacio asignado (<i>SPA</i>, <i>Cabina 1</i>, <i>Suite Spa</i>, <i>VIP</i>, etc.).</li>
+                    <li><b>TERAPEUTA (105px):</b> Profesional asignada (ej. <i>Mar</i>, <i>MARI</i>, o <i>—</i> si no requiere).</li>
+                    <li><b>ESTADO (175px):</b> Check de confirmación y píldora visual de origen/cobro.</li>
+                    <li><b>ACCIONES (135px):</b> Botones directos de Asistencia, WhatsApp, No-Show y ficha.</li>
+                </ul>
+            </div>
+
+            <div class="step-box">
+                <div class="step-number">🔍</div>
+                <div class="step-content">
+                    <div class="step-title">Filtros Rápidos en Cabecera:</div>
+                    <p style="margin:0; font-size:0.85rem;">Puedes filtrar al instante por <b>Sala</b> (ver solo Spa o solo Cabinas), por <b>Terapeuta</b>, o buscar directamente por nombre en la caja de texto. Si marcas <i>«Pasadas»</i>, se muestran también las citas anteriores a la hora actual.</p>
+                </div>
+            </div>
+
+            <!-- =================================================================== -->
+            <!-- 3. CÓDIGO OFICIAL DE ESTADOS Y COLORES -->
+            <!-- =================================================================== -->
+            <div id="sec-3" class="page-break"></div>
+            <h2><i class="fas fa-palette"></i> 3. Código Oficial de Estados y Colores (Imprescindible)</h2>
+            <p>Cada reserva muestra en la columna <b>ESTADO</b> un distintivo con su color correspondiente para que recepción sepa inmediatamente cómo proceder:</p>
+
+            <div style="display:grid; grid-template-columns: repeat(2, 1fr); gap:12px; margin:20px 0;">
+                <div style="background:#eff6ff; border:1px solid #93c5fd; padding:12px; border-radius:8px;">
+                    <span class="badge-pill-demo" style="background:#eff6ff; color:#1d4ed8; border:1px solid #93c5fd;"><i class="fas fa-hotel" style="color:#2563eb;"></i> HOTEL INC.</span>
+                    <div style="font-size:0.8rem; margin-top:6px; color:#1e40af;"><b>Cliente alojado con circuito incluido.</b> No se le cobra nada en recepción.</div>
+                </div>
+                <div style="background:#f5f3ff; border:1px solid #c4b5fd; padding:12px; border-radius:8px;">
+                    <span class="badge-pill-demo" style="background:#f5f3ff; color:#6d28d9; border:1px solid #c4b5fd;"><i class="fas fa-bed" style="color:#7c3aed;"></i> HOT. NO INC. 30€</span>
+                    <div style="font-size:0.8rem; margin-top:6px; color:#5b21b6;"><b>Huésped sin servicio incluido.</b> Debe abonar el importe o cargarlo a la habitación.</div>
+                </div>
+                <div style="background:#eff6ff; border:1px solid #bfdbfe; padding:12px; border-radius:8px;">
+                    <span class="badge-pill-demo" style="background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe;"><i class="fas fa-ticket-alt" style="color:#2563eb;"></i> BONO</span>
+                    <div style="font-size:0.8rem; margin-top:6px; color:#1e40af;"><b>Sesión de Bono o Vale prepagado.</b> Descontada de su saldo; no cobrar.</div>
+                </div>
+                <div style="background:#f0fdf4; border:1px solid #86efac; padding:12px; border-radius:8px;">
+                    <span class="badge-pill-demo" style="background:#f0fdf4; color:#15803d; border:1px solid #86efac;"><i class="fas fa-tag" style="color:#16a34a;"></i> GROUPON</span>
+                    <div style="font-size:0.8rem; margin-top:6px; color:#166534;"><b>Cupón de plataforma online.</b> Prepagado a través de Groupon.</div>
+                </div>
+                <div style="background:#fff7ed; border:1px solid #fdba74; padding:12px; border-radius:8px;">
+                    <span class="badge-pill-demo" style="background:#fff7ed; color:#c2410c; border:1px solid #fdba74;"><i class="fas fa-gift" style="color:#ea580c;"></i> SMARTBOX</span>
+                    <div style="font-size:0.8rem; margin-top:6px; color:#9a3412;"><b>Cofre regalo físico o digital.</b> Canjeado con código Smartbox.</div>
+                </div>
+                <div style="background:#fefce8; border:1px solid #fde047; padding:12px; border-radius:8px;">
+                    <span class="badge-pill-demo" style="background:#fefce8; color:#a16207; border:1px solid #fde047;"><i class="fas fa-box-open" style="color:#ca8a04;"></i> WONDERBOX</span>
+                    <div style="font-size:0.8rem; margin-top:6px; color:#854d0e;"><b>Cofre Wonderbox.</b> Bono externo validado.</div>
+                </div>
+                <div style="background:#fdf2f8; border:1px solid #f472b6; padding:12px; border-radius:8px;">
+                    <span class="badge-pill-demo" style="background:#fdf2f8; color:#be185d; border:1px solid #f472b6;"><i class="fas fa-star" style="color:#db2777;"></i> EGO EXP.</span>
+                    <div style="font-size:0.8rem; margin-top:6px; color:#9d174d;"><b>Cofre Ego Experiencias.</b> Bono externo validado.</div>
+                </div>
+                <div style="background:#fff7ed; border:1px solid #fed7aa; padding:12px; border-radius:8px;">
+                    <span class="badge-pill-demo" style="background:#fff7ed; color:#c2410c; border:1px solid #fed7aa;"><i class="fas fa-box" style="color:#ea580c;"></i> PACK · Indian ritual</span>
+                    <div style="font-size:0.8rem; margin-top:6px; color:#9a3412;"><b>Fase de un Ritual/Paquete.</b> Precio 0€ por estar facturado en el pack de origen.</div>
+                </div>
+                <div style="background:#fef2f2; border:1px solid #fecaca; padding:12px; border-radius:8px;">
+                    <span class="badge-pill-demo" style="background:#fef2f2; color:#b91c1c; border:1px solid #fecaca;"><i class="fas fa-clock" style="color:#ef4444;"></i> PENDIENTE 100€</span>
+                    <div style="font-size:0.8rem; margin-top:6px; color:#991b1b;"><b>Cobro pendiente.</b> El cliente debe abonar esa cantidad en recepción.</div>
+                </div>
+                <div style="background:#fffbeb; border:1px solid #fde68a; padding:12px; border-radius:8px;">
+                    <span class="badge-pill-demo" style="background:#fffbeb; color:#b45309; border:1px solid #fde68a;"><i class="fas fa-credit-card" style="color:#d97706;"></i> PAYGOLD 52€</span>
+                    <div style="font-size:0.8rem; margin-top:6px; color:#92400e;"><b>Enlace PayGold enviado.</b> Pendiente de confirmación bancaria online.</div>
+                </div>
+                <div style="background:#ecfdf5; border:1px solid #a7f3d0; padding:12px; border-radius:8px;">
+                    <span class="badge-pill-demo" style="background:#ecfdf5; color:#047857; border:1px solid #a7f3d0;"><i class="fas fa-check-circle" style="color:#10b981;"></i> PAGADO</span>
+                    <div style="font-size:0.8rem; margin-top:6px; color:#065f46;"><b>Totalmente abonado (100%).</b> Servicio liquidado con éxito.</div>
+                </div>
+                <div style="background:#fef3c7; border:1px solid #fcd34d; padding:12px; border-radius:8px;">
+                    <span class="badge-pill-demo" style="background:#fef3c7; color:#92400e; border:1px solid #fcd34d;"><i class="fas fa-gift" style="color:#d97706;"></i> SIN CARGO · Dirección</span>
+                    <div style="font-size:0.8rem; margin-top:6px; color:#92400e;"><b>Cortesía gratuita autorizada.</b> Lleva obligatoriamente el autorizador.</div>
+                </div>
+            </div>
+
+            <!-- =================================================================== -->
+            <!-- 4. ACCIONES RÁPIDAS -->
+            <!-- =================================================================== -->
+            <div id="sec-4" class="page-break"></div>
+            <h2><i class="fas fa-bolt"></i> 4. Acciones Rápidas: Asistencia, WhatsApp y No-Show</h2>
+            <p>En la última columna de cada fila tienes 4 botones directos para gestionar la cita en 1 clic:</p>
+
+            <div class="step-box">
+                <div class="step-number" style="background:#f59e0b;"><i class="fas fa-user-check"></i></div>
+                <div class="step-content">
+                    <div class="step-title">1. Confirmar Asistencia (Presentado):</div>
+                    <p style="margin:0; font-size:0.85rem;">En cuanto el cliente se persone en el mostrador, pulsa el botón naranja. Cambiará a verde con doble check <i class="fas fa-check-double" style="color:#10b981;"></i>. Esto avisa a las terapeutas de que el cliente ya está en las instalaciones.</p>
                 </div>
             </div>
 
             <div class="step-box">
+                <div class="step-number" style="background:#25D366;"><i class="fab fa-whatsapp"></i></div>
+                <div class="step-content">
+                    <div class="step-title">2. Enviar Confirmación / PayGold por WhatsApp:</div>
+                    <p style="margin:0; font-size:0.85rem;">Abre automáticamente WhatsApp Web con el mensaje pre-redactado para el cliente, indicando fecha, hora, servicio y, si tiene enlace PayGold generado, el link directo para que pague con tarjeta.</p>
+                </div>
+            </div>
+
+            <div class="step-box">
+                <div class="step-number" style="background:#94a3b8;"><i class="fas fa-user-times"></i></div>
+                <div class="step-content">
+                    <div class="step-title">3. Marcar No-Show (No presentado):</div>
+                    <p style="margin:0; font-size:0.85rem;">Si la hora de la cita pasa y el cliente no acude ni avisa, pulsa el icono de No-Show. La fila se atenuará y quedará registrada en auditoría.</p>
+                </div>
+            </div>
+
+            <div class="step-box">
+                <div class="step-number" style="background:#1e293b;"><i class="fas fa-eye"></i></div>
+                <div class="step-content">
+                    <div class="step-title">4. Ver Detalles y Control de Pago:</div>
+                    <p style="margin:0; font-size:0.85rem;">Abre la ficha completa de la reserva para registrar un cobro, consultar observaciones, aplicar un descuento especial o modificar la sala.</p>
+                </div>
+            </div>
+
+            <!-- =================================================================== -->
+            <!-- 5. AGENDAR CITAS SIN ERRORES -->
+            <!-- =================================================================== -->
+            <div id="sec-5" class="page-break"></div>
+            <h2><i class="fas fa-calendar-plus"></i> 5. Agendar y Gestionar Citas sin Errores</h2>
+            <p>Para agendar una nueva reserva en <b>Reservas Salas</b> o <b>Reservas Spa</b>:</p>
+
+            <div class="step-box">
                 <div class="step-number">1</div>
                 <div class="step-content">
-                    <div class="step-title">Ver el detalle de un terapeuta en un día:</div>
-                    <p style="margin:0; font-size:0.85rem;">Haz clic directamente sobre cualquier celda. Se abrirá el panel lateral con sus horarios de turno, las citas confirmadas y todos los bloques de huecos libres de 15/30 min.</p>
+                    <div class="step-title">Hacer clic en la celda libre del Planning:</div>
+                    <p style="margin:0; font-size:0.85rem;">Busca la hora y sala deseadas en el planning y pulsa directamente sobre el recuadro blanco. La ventana de reserva se abrirá con la fecha, hora y sala ya rellenadas automáticamente.</p>
                 </div>
             </div>
 
             <div class="step-box">
                 <div class="step-number">2</div>
                 <div class="step-content">
-                    <div class="step-title">Ver el resumen global del día de todo el equipo:</div>
-                    <p style="margin:0; font-size:0.85rem;">Haz clic sobre la <b>cabecera del día</b> (ej. <i>Mar 29</i>). Se abrirá una vista de pantalla completa con una columna para cada compañera, ideal para el seguimiento matinal.</p>
-                </div>
-            </div>
-
-            <!-- =================================================================== -->
-            <!-- 2. AGENDAR CITAS SIN ERRORES -->
-            <!-- =================================================================== -->
-            <div class="page-break"></div>
-<div class="step-box"><div class="step-content"><div class="step-title">Planning de ocupación: salas y terapeutas</div><p>Selecciona la sala o el terapeuta en los desplegables del planning. Pulsa una casilla libre para abrir el formulario de reserva con la fecha y hora seleccionadas. Revisa la sala, el servicio, las personas y el terapeuta antes de guardar. Pulsa una reserva existente para abrir su ficha. Las horas pasadas y los periodos no disponibles aparecen oscurecidos. El planning respeta el horario de apertura configurado, incluidos los domingos, los descansos entre turnos y las fechas de cierre. Las franjas cerradas muestran un candado, no permiten iniciar reservas y no suman horas libres. Las reservas existentes durante un cierre siguen visibles para su revisión.</p></div></div>
-            <h2><i class="fas fa-plus-circle"></i> 2. Agendar Citas sin Errores</h2>
-            <p>El sistema cuenta con un motor inteligente que evita solapamientos y protege la disponibilidad real de cabinas y terapeutas.</p>
-
-            <div class="step-box">
-                <div class="step-number">1</div>
-                <div class="step-content">
-                    <div class="step-title">Seleccionar el hueco libre:</div>
-                    <p style="margin:0; font-size:0.85rem;">En el panel de Visión General, haz clic en el chip verde con la hora deseada (ej. <b>11:00</b>). Se abrirá el formulario rápido ya preconfigurado con esa hora y fecha.</p>
-                </div>
-            </div>
-
-            <div class="step-box">
-                <div class="step-number">2</div>
-                <div class="step-content">
-                    <div class="step-title">Rellenar los datos obligatorios:</div>
-                    <p style="margin:0; font-size:0.85rem;">Introduce el <b>Nombre completo</b>, <b>Teléfono móvil</b>, <b>Servicio</b> y la <b>Sala/Cabina</b>.</p>
+                    <div class="step-title">Buscar el Servicio / Tratamiento:</div>
+                    <p style="margin:0; font-size:0.85rem;">Escribe las primeras letras del tratamiento en el buscador predictivo (ej. <i>«relax»</i> o <i>«envoltura»</i>). El sistema cargará el precio y la duración oficial estipulada en el catálogo.</p>
                 </div>
             </div>
 
             <div class="step-box">
                 <div class="step-number">3</div>
                 <div class="step-content">
-                    <div class="step-title">Protección de Disponibilidad del Terapeuta:</div>
-                    <p style="margin:0; font-size:0.85rem;">En el desplegable de terapeutas, el sistema indica quién está disponible. Si alguien está ausente o fuera de turno saldrá indicado (ej. <i>Chon (Baja médica)</i> o <i>(Fuera de turno)</i>). El sistema <b>bloqueará la reserva</b> si se intenta agendar en un hueco sin terapeuta.</p>
+                    <div class="step-title">Asignar Terapeuta Compatible:</div>
+                    <p style="margin:0; font-size:0.85rem;">El selector de terapeutas te muestra en verde quién está disponible en ese turno (ej. <i>Mar (1 disp.)</i>). Si intentas asignar a una profesional fuera de turno o con otra cita, el sistema te avisará para evitar solapamientos.</p>
                 </div>
             </div>
 
-            <div class="alert-callout alert-warning">
-                <i class="fas fa-exclamation-triangle"></i>
-                <div>
-                    <b>Alerta de Cita Duplicada:</b> Si intentas guardar una cita para un cliente que ya tiene otra reserva a esa misma hora en otra sala o con otro profesional, el programa te avisará con una ventana naranja preguntando si deseas continuar o cancelar para evitar duplicidades accidentales.
+            <div class="step-box">
+                <div class="step-number">4</div>
+                <div class="step-content">
+                    <div class="step-title">Seleccionar el Origen y Guardar:</div>
+                    <p style="margin:0; font-size:0.85rem;">Elige el canal correspondiente (Particular, Bono, Hotel, etc.). Revisa el total calculado y pulsa <b>«Guardar Reserva»</b>.</p>
                 </div>
             </div>
 
             <!-- =================================================================== -->
-            <!-- 3. USO Y VINCULACIÓN DE BONOS SPA -->
+            <!-- 6. LOS 8 CANALES Y ORÍGENES OFICIALES -->
             <!-- =================================================================== -->
-            <h2><i class="fas fa-ticket-alt"></i> 3. Uso y Validación de Bonos Spa</h2>
-            <p>Cuando un cliente acude a consumir una sesión de su bono o cupón, la cita debe quedar vinculada para que el saldo se descuente correctamente.</p>
+            <div id="sec-6" class="page-break"></div>
+            <h2><i class="fas fa-layer-group"></i> 6. Los 8 Canales y Orígenes Oficiales</h2>
+            <p>En todas las salas y formularios dispones de los **8 orígenes oficiales**. Protocolo para cada uno:</p>
+
+            <div class="channel-card">
+                <div><b>1. Particular</b></div>
+                <div>Pago directo en el spa. Puede abonarse en efectivo, tarjeta física o enlace PayGold previo.</div>
+                <div><span class="badge-pill-demo" style="background:#ecfdf5; color:#047857; border:1px solid #a7f3d0;">Requiere Cobro</span></div>
+            </div>
+
+            <div class="channel-card">
+                <div><b>2. Hotel - Incluido</b></div>
+                <div>Huéspedes con circuito spa incluido en su reserva de hotel. Obligatorio indicar <b>Número de Habitación</b>.</div>
+                <div><span class="badge-pill-demo" style="background:#eff6ff; color:#1d4ed8; border:1px solid #93c5fd;">Sin Cargo Extra</span></div>
+            </div>
+
+            <div class="channel-card">
+                <div><b>3. Hotel - NO Incluidos</b></div>
+                <div>Huéspedes alojados que consumen tratamientos adicionales. Puede cobrarse en spa o cargarse a la habitación.</div>
+                <div><span class="badge-pill-demo" style="background:#f5f3ff; color:#6d28d9; border:1px solid #c4b5fd;">Cargo Hab. / Mostrador</span></div>
+            </div>
+
+            <div class="channel-card">
+                <div><b>4. Bono Spa (Interno)</b></div>
+                <div>Vales de regalo comprados en tienda o recepción. Escribe el localizador (ej. <code>exc.Loc 17854</code> o <code>LOC-</code>) para validar saldo.</div>
+                <div><span class="badge-pill-demo" style="background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe;">Consume Sesión</span></div>
+            </div>
+
+            <div class="channel-card">
+                <div><b>5. Smartbox</b></div>
+                <div>Cofres de regalo Smartbox. Pide el bono físico o bono digital y verifica el código antes de la sesión.</div>
+                <div><span class="badge-pill-demo" style="background:#fff7ed; color:#c2410c; border:1px solid #fdba74;">Bono Externo</span></div>
+            </div>
+
+            <div class="channel-card">
+                <div><b>6. Wonderbox</b></div>
+                <div>Cofres Wonderbox. Anota el código en el campo bono y verifica la validez de la experiencia.</div>
+                <div><span class="badge-pill-demo" style="background:#fefce8; color:#a16207; border:1px solid #fde047;">Bono Externo</span></div>
+            </div>
+
+            <div class="channel-card">
+                <div><b>7. Ego Experiencias</b></div>
+                <div>Cajas regalo Ego Experiencias. Protocolo idéntico a cofres externos.</div>
+                <div><span class="badge-pill-demo" style="background:#fdf2f8; color:#be185d; border:1px solid #f472b6;">Bono Externo</span></div>
+            </div>
+
+            <div class="channel-card">
+                <div><b>8. Groupon</b></div>
+                <div>Cupones promocionales adquiridos a través de la web de Groupon.</div>
+                <div><span class="badge-pill-demo" style="background:#f0fdf4; color:#15803d; border:1px solid #86efac;">Cupón Online</span></div>
+            </div>
+
+            <!-- =================================================================== -->
+            <!-- 7. GESTIÓN INTEGRAL DE BONOS -->
+            <!-- =================================================================== -->
+            <div id="sec-7" class="page-break"></div>
+            <h2><i class="fas fa-ticket-alt"></i> 7. Gestión Integral de Bonos y Vales</h2>
+            <p>Los bonos representan tratamientos prepagados. Al agendar con origen <b>Bono Spa</b>:</p>
 
             <div class="step-box">
                 <div class="step-number">1</div>
                 <div class="step-content">
-                    <div class="step-title">Seleccionar Origen "Bono Spa":</div>
-                    <p style="margin:0; font-size:0.85rem;">Al crear o editar la reserva, en el campo <i>Origen</i> selecciona <b>Bono Spa</b> o <b>Bono Hotel</b>.</p>
+                    <div class="step-title">Escribir el código en la casilla «Bono/Cupón»:</div>
+                    <p style="margin:0; font-size:0.85rem;">Introduce el localizador (ej. <code>17854</code> o <code>LOC-2026-0042</code>). El sistema busca automáticamente el bono en la base de datos.</p>
                 </div>
             </div>
 
             <div class="step-box">
                 <div class="step-number">2</div>
                 <div class="step-content">
-                    <div class="step-title">Escribir el Código del Bono o Localizador:</div>
-                    <p style="margin:0; font-size:0.85rem;">Aparecerá el campo <b>"Número de Bono / Localizador"</b>. Escribe el código del cliente.</p>
-                </div>
-            </div>
-
-            <div class="step-box">
-                <div class="step-number">3</div>
-                <div class="step-content">
-                    <div class="step-title">Comprobación en Vivo de Sesiones:</div>
-                    <p style="margin:0; font-size:0.85rem;">El sistema consultará la base de datos de bonos y mostrará un recuadro verde informativo con las <b>sesiones restantes disponibles</b> y el <b>nombre del titular</b>.</p>
+                    <div class="step-title">Validación automática de sesiones disponibles:</div>
+                    <p style="margin:0; font-size:0.85rem;">Si el bono tiene saldo, se mostrará el número de sesiones disponibles (ej. <i>«Sesiones: 2»</i>). Si el bono no tiene sesiones restantes, el sistema mostrará en rojo: <b style="color:#dc2626;">«🚨 BONO AGOTADO. No quedan sesiones disponibles»</b> impidiendo que se consuma de más.</p>
                 </div>
             </div>
 
             <!-- =================================================================== -->
-            <!-- 4. ELIMINAR CITAS DUPLICADAS [🗑️] -->
+            <!-- 8. RITUALES Y PACKS MULTI-SERVICIO -->
             <!-- =================================================================== -->
-            <div class="page-break"></div>
-            <h2><i class="fas fa-trash-alt"></i> 4. Eliminar Citas Duplicadas en 1 Clic</h2>
-            <p>Si por error se genera una cita repetida o un cliente cancela, ya no es necesario abrir el formulario completo de edición ni arriesgarse a bloqueos.</p>
+            <div id="sec-8" class="page-break"></div>
+            <h2><i class="fas fa-box-open"></i> 8. Rituales y Packs Multi-servicio (Desglose Automático)</h2>
+            <p>Un <b>Pack o Ritual</b> (ej. <i>Ritual Indian ritual</i>, <i>Cuento para dos</i>, <i>Relax Oriental</i>) se compone de varias fases consecutivas (ej. circuito spa + peeling + masaje):</p>
 
             <div class="ui-mockup">
                 <div class="ui-mockup-header">
-                    <span><i class="fas fa-mouse-pointer"></i> Botón de papelera directo en cada tarjeta de cita</span>
+                    <span><i class="fas fa-sitemap"></i> Funcionamiento del Desglose Automático</span>
                 </div>
-                <div style="background:white; border:1px solid #cbd5e1; border-left:4px solid #f59e0b; border-radius:8px; padding:12px; display:flex; justify-content:space-between; align-items:center;">
-                    <div>
-                        <div style="font-weight:800; color:#1e293b; font-size:0.95rem;">16:30 — 17:30 · Masaje Relajante (60 min)</div>
-                        <div style="font-size:0.8rem; color:#475569;"><i class="fas fa-user"></i> Cristina Coronado · 📞 612 34 56 78 · <i class="fas fa-door-open"></i> Cabina 2</div>
-                    </div>
-                    <div style="display:flex; gap:6px;">
-                        <div style="background:#fee2e2; border:1px solid #fca5a5; color:#dc2626; border-radius:6px; padding:6px 10px; font-weight:700; font-size:0.8rem;">
-                            <i class="fas fa-trash-alt"></i> Borrar
-                        </div>
-                        <div style="background:#f1f5f9; border:1px solid #cbd5e1; color:#475569; border-radius:6px; padding:6px 10px; font-weight:700; font-size:0.8rem;">
-                            <i class="fas fa-pencil-alt"></i> Editar
-                        </div>
-                    </div>
+                <ul style="margin-left:20px; font-size:0.86rem; color:#334155;">
+                    <li>Al reservar un Pack, el sistema crea la <b>reserva principal</b> con el precio global del paquete (ej. 110.00 €).</li>
+                    <li>Automáticamente se desglosan las <b>citas hijas</b> en las salas correspondientes respetando tiempos de preparación.</li>
+                    <li>Cada fase derivada se etiqueta como <b><code>📦 PACK · [Nombre del Pack]</code></b> con importe 0.00 €.</li>
+                    <li><b>Sin peticiones de autorización:</b> Como el tratamiento ya está pagado en el pack, el sistema <b>no solicita "Autorizado por"</b>.</li>
+                </ul>
+            </div>
+
+            <!-- =================================================================== -->
+            <!-- 9. COBROS, CAJA Y PASARELA PAYGOLD -->
+            <!-- =================================================================== -->
+            <div id="sec-9" class="page-break"></div>
+            <h2><i class="fas fa-cash-register"></i> 9. Control de Pagos, Caja y Pasarela Redsys PayGold</h2>
+            <p>Gestión de cobros y liquidaciones diarias:</p>
+
+            <h3>Cobro a distancia con Redsys PayGold:</h3>
+            <ol style="margin-left:20px; font-size:0.88rem; color:#334155; line-height:1.7;">
+                <li>Abre la reserva y en el bloque de cobro pulsa <b>«Enlace PayGold»</b>.</li>
+                <li>Selecciona el importe (total o anticipo de señal) y pulsa <b>«Generar Enlace Redsys»</b>.</li>
+                <li>Pulsa <b>«Enviar por WhatsApp»</b> o copia el link para compartirlo con el cliente.</li>
+                <li>Cuando el cliente paga con su tarjeta, el sistema recibe la confirmación bancaria y actualiza el estado a <b>PAGADO</b> automáticamente.</li>
+            </ol>
+
+            <h3>Arqueo y Cierre de Caja Diario:</h3>
+            <p>Al final del turno, en la sección de caja puedes contrastar el dinero físico recaudado en efectivo con los cobros por datáfono y los pagos online de PayGold, emitiendo el informe de cierre diario.</p>
+
+            <!-- =================================================================== -->
+            <!-- 10. DESCUENTOS Y SIN CARGO -->
+            <!-- =================================================================== -->
+            <div id="sec-10" class="page-break"></div>
+            <h2><i class="fas fa-percentage"></i> 10. Descuentos Comerciales y Reservas Sin Cargo (Auditoría)</h2>
+            <p>Procedimientos bajo estricta trazabilidad de auditoría:</p>
+
+            <div class="step-box">
+                <div class="step-number">%</div>
+                <div class="step-content">
+                    <div class="step-title">Aplicar Descuento Especial (% o €):</div>
+                    <p style="margin:0; font-size:0.85rem;">Despliega el bloque <b>«Descuento Especial»</b> en la reserva. Elige si es porcentaje (ej. 20%) o importe fijo (ej. 15€). <b>Es obligatorio indicar el Motivo</b> (ej. <i>«Socio Isidro»</i> o <i>«Promoción Hotel»</i>). Quedará guardado en el registro de auditoría.</p>
                 </div>
             </div>
 
             <div class="step-box">
-                <div class="step-number">1</div>
+                <div class="step-number">🎁</div>
                 <div class="step-content">
-                    <div class="step-title">Pulsar el botón rojo de papelera [🗑️]:</div>
-                    <p style="margin:0; font-size:0.85rem;">En la tarjeta de la cita que deseas borrar, pulsa el icono de papelera.</p>
-                </div>
-            </div>
-
-            <div class="step-box">
-                <div class="step-number">2</div>
-                <div class="step-content">
-                    <div class="step-title">Confirmar el borrado:</div>
-                    <p style="margin:0; font-size:0.85rem;">Aparecerá un mensaje con el nombre del cliente y la sala. Pulsa <b>"Sí, eliminar"</b>. La cita se borrará de inmediato y la sala quedará libre en la agenda.</p>
+                    <div class="step-title">Reservas Sin Cargo / Gratuitas (Cortesías):</div>
+                    <p style="margin:0; font-size:0.85rem;">Si una cita normal se queda a 0.00 € (ej. invitación de gerencia), es <b>obligatorio indicar quién la autoriza</b> en el campo <i>«Autorizado por *»</i>. Sin ese dato, el sistema impedirá el guardado para evitar servicios sin facturar por error.</p>
                 </div>
             </div>
 
             <!-- =================================================================== -->
-            <!-- 5. HORARIOS Y CUADRANTE SEMANAL -->
+            <!-- 11. PLANNING DE OCUPACIÓN Y TURNOS -->
             <!-- =================================================================== -->
-            <h2><i class="fas fa-calendar-week"></i> 5. Horarios y Cuadrante Semanal</h2>
-            <p>En el menú <b>Personal</b> dispones del <b>Cuadrante Semanal</b> para organizar los turnos del equipo de forma muy ágil.</p>
-
-            <div class="step-box">
-                <div class="step-number">⚡</div>
-                <div class="step-content">
-                    <div class="step-title">Asignar Turno Rápido por Plantilla:</div>
-                    <p style="margin:0; font-size:0.85rem;">Pulsa el botón <b>"⚡ Asignar Turno Rápido"</b>. Selecciona a la profesional (ej. Mar), las fechas (ej. esta semana) y elige una plantilla:</p>
-                    <ul style="margin:6px 0 0 18px; font-size:0.8rem; color:#475569;">
-                        <li><b>Partido Estética:</b> 10:00 a 14:00 y 16:30 a 20:30 (mar-vie).</li>
-                        <li><b>Sábado Estética:</b> 10:00 a 14:00 y 16:00 a 20:00.</li>
-                        <li><b>Continuo:</b> 10:00 a 18:00.</li>
-                    </ul>
-                </div>
-            </div>
-
-            <!-- =================================================================== -->
-            <!-- 6. BAJAS, VACACIONES Y AUSENCIAS -->
-            <!-- =================================================================== -->
-            <div class="page-break"></div>
-            <h2><i class="fas fa-user-injured"></i> 6. Bajas, Vacaciones y Ausencias</h2>
-            <p>Cuando un miembro del equipo no puede trabajar, debe registrarse inmediatamente en el sistema para que las citas queden protegidas.</p>
-
-            <div class="step-box">
-                <div class="step-number">🔴</div>
-                <div class="step-content">
-                    <div class="step-title">Baja Médica / Activo en 1 Clic:</div>
-                    <p style="margin:0; font-size:0.85rem;">Tanto en el cuadrante como en la lista de personal, cada profesional tiene un botón <b>[🟢 Activo / 🔴 Baja]</b>. Pulsando sobre él se conmuta su estado de baja al instante.</p>
-                </div>
-            </div>
-
-            <div class="step-box">
-                <div class="step-number">📅</div>
-                <div class="step-content">
-                    <div class="step-title">Registrar Vacaciones o Permisos por Rango:</div>
-                    <p style="margin:0; font-size:0.85rem;">Usa el botón <b>"📅 Ausencia / Vacaciones"</b>. Elige el nombre, selecciona la fecha de inicio y fin (ej. la semana completa de Mari) y pulsa Guardar.</p>
-                </div>
-            </div>
-
-            <!-- =================================================================== -->
-            <!-- 7. ASISTENTE DE REASIGNACIÓN DE CITAS -->
-            <!-- =================================================================== -->
-            <h2><i class="fas fa-exchange-alt"></i> 7. Asistente de Reasignación de Citas</h2>
-            <p><b>¿Qué ocurre si un terapeuta se da de baja y ya tenía citas cogidas?</b> El sistema activa automáticamente el Asistente de Reasignación para que ningún cliente quede desatendido.</p>
-
-            <div class="ui-mockup">
-                <div class="ui-mockup-header">
-                    <span><i class="fas fa-shield-alt"></i> Protocolo en 3 pasos con el Asistente</span>
-                </div>
-                <div style="display:flex; flex-direction:column; gap:10px;">
-                    <div style="background:#fee2e2; border:1px solid #f87171; border-radius:6px; padding:10px; font-size:0.85rem; color:#991b1b;">
-                        <b>Paso 1 · Alerta Automática:</b> Al marcar la baja o guardar la ausencia, el sistema te avisará: <i>"⚠️ Chon tiene 5 citas programadas. ¿Deseas reasignarlas ahora?"</i>. Pulsa <b>Aceptar</b>.
-                    </div>
-                    <div style="background:#fff7ed; border:1px solid #fdba74; border-radius:6px; padding:10px; font-size:0.85rem; color:#c2410c;">
-                        <b>Paso 2 · Reasignación en Bloque [⚡]:</b> Si una compañera cubre todo el turno (ej. Mar), elígela en el desplegable superior y pulsa <b>"Reasignar Todas"</b>. Todas las reservas cambiarán de terapeuta a la vez.
-                    </div>
-                    <div style="background:#f0fdf4; border:1px solid #86efac; border-radius:6px; padding:10px; font-size:0.85rem; color:#166534;">
-                        <b>Paso 3 · Contacto con el Cliente:</b> En cada tarjeta tienes botones directos de <b>Llamada 📞</b> y <b>WhatsApp 💬</b> para confirmar con el cliente cualquier cambio de profesional o de hora.
-                    </div>
-                </div>
-            </div>
-
-            <div class="alert-callout alert-danger">
-                <i class="fas fa-bell"></i>
-                <div>
-                    <b>Aviso en Cuadrícula "SIN CUBRIR":</b> Si queda alguna cita sin reasignar asignada a alguien que no trabaja, la celda de la agenda saldrá en rojo parpadeante con el texto <b>`⚠️ X SIN CUBRIR`</b>. ¡Revisar siempre a primera hora de la mañana!
-                </div>
-            </div>
-
-            <!-- =================================================================== -->
-            <!-- 8. SOLUCIÓN DE PROBLEMAS (FAQ) -->
-            <!-- =================================================================== -->
-            <div class="page-break"></div>
-            <h2><i class="fas fa-question-circle"></i> 8. Solución de Problemas Frecuentes</h2>
-
-            <div class="qa-card">
-                <div class="qa-question">
-                    <i class="fas fa-exclamation-circle" style="color:#d97706;"></i>
-                    "El programa dice 'Terapeuta NO disponible en este horario' y no me deja guardar"
-                </div>
-                <div class="qa-answer">
-                    <b>Causa:</b> Ese terapeuta está marcado como baja, de vacaciones o fuera de su turno asignado.<br>
-                    <b>Solución:</b> Elige a otro profesional que sí esté en turno en ese tramo horario, o bien revisa en la sección <i>Personal</i> si su turno horario está bien configurado.
-                </div>
-            </div>
-
-            <div class="qa-card">
-                <div class="qa-question">
-                    <i class="fas fa-exclamation-circle" style="color:#d97706;"></i>
-                    "Tengo una cita duplicada en la misma cabina o a la misma hora"
-                </div>
-                <div class="qa-answer">
-                    <b>Solución:</b> Abre el panel de la cita en Visión General y pulsa directamente el icono de papelera roja <b>[🗑️]</b>. Confirma el borrado y se eliminará la duplicidad en 1 segundo liberando la sala.
-                </div>
-            </div>
-
-            <div class="qa-card">
-                <div class="qa-question">
-                    <i class="fas fa-exclamation-circle" style="color:#d97706;"></i>
-                    "Un cliente viene con un bono pero la cita ya estaba creada"
-                </div>
-                <div class="qa-answer">
-                    <b>Solución:</b> Haz clic sobre la cita en Visión General para editarla. En <i>Origen</i> cambia a <b>Bono Spa</b>, escribe el número en la casilla <i>Número de Bono</i> (verás cómo el sistema confirma el saldo en verde) y pulsa <b>Actualizar Reserva</b>.
-                </div>
-            </div>
-
-            <div class="qa-card">
-                <div class="qa-question">
-                    <i class="fas fa-exclamation-circle" style="color:#d97706;"></i>
-                    "En Visión General me sale una celda en rojo con el texto 'SIN CUBRIR'"
-                </div>
-                <div class="qa-answer">
-                    <b>Causa:</b> Hay clientes citados con una terapeuta que figura de baja o día libre.<br>
-                    <b>Solución:</b> Haz clic sobre la celda roja, pulsa en la cita y cámbiala a la compañera que esté trabajando o llámale para acordar otra fecha.
-                </div>
-            </div>
-
-            <!-- =================================================================== -->
-            <!-- AUTO-GUIDES:START -->
-<section id="guia-paygold" class="manual-guide">
-    <h2>Redsys PayGold: cobrar una reserva mediante enlace</h2>
-    <p><b>Para qué sirve:</b> permite preparar un enlace de pago asociado a la reserva de Cumbria y compartirlo con el cliente. Generar o enviar el enlace no significa que el cliente haya pagado.</p>
-    <h3>Pasos para recepción</h3>
-    <ol>
-        <li><b>Guarda y abre la reserva.</b> Revisa cliente, móvil, correo, servicio, fecha, hora, precio total y cantidades ya cobradas.</li>
-        <li><b>Pulsa «Enlace PayGold»</b> en el bloque de control de pago de la ficha.</li>
-        <li><b>Selecciona el importe.</b> Revisa el saldo pendiente y elige la opción de importe que corresponda. Si utilizas un importe personalizado, comprueba que coincide con la cantidad acordada con el cliente.</li>
-        <li><b>Revisa la caducidad del enlace.</b> El formulario propone una fecha inicial; ajústala según la cita. La caducidad del enlace y el requisito comunicado de pagar con 24 horas de antelación son datos diferentes.</li>
-        <li><b>Elige cómo enviarlo.</b> Marca SMS o Email para solicitar ese envío a través de Redsys. Si no marcas ninguna opción, se genera el enlace para que lo compartas tú.</li>
-        <li><b>Pulsa «Generar Enlace Redsys»</b> y espera el resultado. Si aparece un error, revisa el mensaje antes de volver a intentarlo.</li>
-        <li><b>Comparte el resultado.</b> Utiliza «Copiar Enlace», «Copiar Mensaje» o «Enviar por WhatsApp». Revisa destinatario, importe y fecha antes de enviar. Copiar el texto no lo envía al cliente.</li>
-        <li><b>Comprueba el cobro.</b> La ficha escucha los cambios de pago registrados y actualiza su estado. Revisa el importe pagado y el saldo pendiente antes de dar el servicio por abonado.</li>
-    </ol>
-    <h3>Cómo interpretar los estados</h3>
-    <ul>
-        <li><b>Pendiente:</b> todavía no consta el cobro en la aplicación. No equivale a un pago rechazado.</li>
-        <li><b>Parcial:</b> consta un importe abonado, pero queda saldo por pagar.</li>
-        <li><b>Cobrado / Pagado:</b> revisa también el importe y el saldo. El cobro de un enlace puede corresponder solo a parte del total de la reserva.</li>
-    </ul>
-    <h3>Si el cliente dice que ha pagado y sigue pendiente</h3>
-    <p>Abre la reserva y utiliza «Comprobar Pago Online». En la implementación actual, esta acción consulta el estado guardado en la aplicación; no constituye una consulta directa al banco. Si sigue pendiente, verifica la operación bancaria por el procedimiento habitual antes de pedir otro pago o registrar uno manualmente.</p>
-    <p><b>«Marcar como Pagado»</b> abre el registro manual de cobro con Tarjeta preseleccionada. Utilízalo solo después de verificar el cobro y comprobar que no está ya registrado, para evitar duplicidades.</p>
-    <h3>Ejemplo práctico</h3>
-    <p>Una reserva cuesta 80 € y ya tiene 20 € abonados. El saldo pendiente es 60 €. Revisa esas cantidades antes de generar el enlace. Tras el pago, comprueba que la ficha refleja el total efectivamente cobrado y el saldo restante; no des por finalizado el cobro solo porque el enlace se haya creado correctamente.</p>
-    <h3>Garantía de la cita y cancelaciones</h3>
-    <p>El mensaje preparado para el cliente solicita el pago al menos 24 horas antes del servicio y advierte de una posible cancelación. Ese texto, por sí solo, no confirma que exista una cancelación automática programada. Si no consta el pago al acercarse la cita, revisa la reserva y aplica el procedimiento autorizado por el hotel.</p>
-</section>
-
-<!-- GUÍA DE DESCUENTOS Y CONTROL DE PRECIOS -->
-<section id="guia-descuentos" class="manual-guide" style="margin-top:25px; border-top:1px solid #e2e8f0; padding-top:20px;">
-    <h2><i class="fas fa-percentage" style="color:#6366f1;"></i> Sistema de Descuentos en Reservas (% y €)</h2>
-    <p><b>Para qué sirve:</b> Permite aplicar descuentos comerciales, promociones o tarifas especiales (por ejemplo a socios del club, personal o convenios) de forma controlada y con trazabilidad obligatoria.</p>
-    <h3>Cómo aplicar un descuento:</h3>
-    <ol>
-        <li>En el formulario de reserva (Salas, Spa o Cabinas), localiza el bloque <b>«Descuento Especial»</b> bajo las observaciones.</li>
-        <li>Pulsa <b>«+ Aplicar Descuento»</b> para desplegar los campos.</li>
-        <li>Selecciona el <b>Tipo</b>:
-            <ul>
-                <li><b>% Porcentaje:</b> Aplica un porcentaje de rebaja sobre el subtotal de la reserva (ej: <code>10</code> para 10%, <code>20</code> para 20%, <code>100</code> para 100% socios).</li>
-                <li><b>€ Importe fijo:</b> Resta una cantidad fija en euros (ej: <code>15.00€</code>).</li>
+            <div id="sec-11" class="page-break"></div>
+            <h2><i class="fas fa-user-clock"></i> 11. Planning de Ocupación, Turnos, Bajas y Vacaciones</h2>
+            <p>Gestión del equipo humano de estética y quiromasaje:</p>
+            <ul style="margin-left:20px; font-size:0.88rem; color:#334155; line-height:1.7;">
+                <li><b>Asignar Turno Rápido:</b> En el menú <i>Personal</i>, pulsa <b>«⚡ Asignar Turno Rápido»</b> para aplicar plantillas estándar (Partido 10-14 y 16:30-20:30, Continuo 10-18, etc.).</li>
+                <li><b>Baja Médica en 1 Clic:</b> Pulsa sobre el botón <b>[🟢 Activo / 🔴 Baja]</b> de cualquier compañera para conmutar su estado de inmediato.</li>
+                <li><b>Asistente de Reasignación Automática:</b> Si una terapeuta causa baja y tiene citas cogidas, el sistema te preguntará si deseas reasignarlas a otra compañera en bloque para que ningún cliente se quede sin atender.</li>
             </ul>
-        </li>
-        <li>Introduce el <b>Valor</b> y comprueba el recálculo automático del Total en el pie de la ficha.</li>
-        <li><b>Indica obligatoriamente el Motivo del Descuento *:</b> Escribe la justificación (ej: <i>«Socio Isidro»</i>, <i>«Cortesía Dirección»</i>, <i>«Promoción apertura»</i>). El sistema <b>no permitirá guardar</b> un descuento sin motivo especificado.</li>
-        <li>Al guardar, el motivo y el importe descontado quedarán registrados en el historial de observaciones y en el control de auditoría de la reserva.</li>
-    </ol>
-</section>
 
-<!-- GUÍA DE TRATAMIENTOS DE PAQUETE Y PRESERVACIÓN DE PRECIOS -->
-<section id="guia-paquetes-precios" class="manual-guide" style="margin-top:25px; border-top:1px solid #e2e8f0; padding-top:20px;">
-    <h2><i class="fas fa-box-open" style="color:#ea580c;"></i> Tratamientos de Paquete vs. Reservas Sin Cargo</h2>
-    <p><b>Para qué sirve:</b> Evita confusiones entre citas gratuitas por cortesía y servicios que tienen precio 0.00 € por formar parte de un paquete ya facturado (ej. los tratamientos desglosados de un Ritual o Pack Multiservicio).</p>
-    <h3>Tratamientos incluidos en un paquete:</h3>
-    <ul>
-        <li>Cuando un tratamiento pertenece a un pack (ej. <i>Envoltura corporal de flores de loto</i> dentro de <i>Ritual Indian ritual</i>), su precio individual es 0.00 € porque el cobro se gestiona en la reserva principal.</li>
-        <li>El sistema detecta automáticamente su vinculación y muestra el distintivo <b><code>📦 PACK: [Nombre del Paquete]</code></b>.</li>
-        <li><b>No requiere autorización:</b> Al estar respaldado por el paquete de origen, no se exige el campo <i>«Autorizado por»</i>.</li>
-    </ul>
-    <h3>Reservas Sin Cargo / Gratuitas (Cortesías):</h3>
-    <ul>
-        <li>Si una reserva normal (sin paquete) tiene un importe final de 0.00 €, el sistema activa la protección de cortesía.</li>
-        <li>Es obligatorio rellenar el campo <b>«Autorizado por *»</b> (ej. <i>Dirección General</i>, <i>Dirección Comercial</i>). De lo contrario, el sistema impedirá su guardado para evitar servicios sin facturar por error.</li>
-    </ul>
-    <h3>Auto-recuperación de Tarifa de Catálogo:</h3>
-    <ul>
-        <li>Si una reserva particular antigua se abre con precio 0.00 € sin motivo, el sistema busca su tarifa oficial en el catálogo maestro y la asigna automáticamente para evitar que se cobre de menos.</li>
-    </ul>
-</section>
-
-<!-- GUÍA DE CONFIGURACIÓN Y ALARMAS DE CATÁLOGO -->
-<section id="guia-alarmas-catalogo" class="manual-guide" style="margin-top:25px; border-top:1px solid #e2e8f0; padding-top:20px;">
-    <h2><i class="fas fa-bell" style="color:#ef4444;"></i> Catálogo Maestro: Alarmas de Venta Directa y Canales</h2>
-    <p>En el menú <b>Configuración & Ajustes</b> (sección <i>Items de Compra / Pack</i>), el catálogo maestro cuenta con filtros y alertas automáticas para garantizar la coherencia comercial:</p>
-    <ul>
-        <li><b>🚨 ¡SIN PRECIO! (Alarma 0€):</b> Si un tratamiento está marcado como <b>Venta Directa</b> pero tiene tarifa <code>0.00 €</code>, la fila se resalta en naranja/rojo con la advertencia <i>«¡SIN PRECIO!»</i> para recordar al administrador que debe asignarle precio o pasarlo a <i>«Solo Pack»</i>.</li>
-        <li><b>Canal «Solo Pack»:</b> Reserva exclusiva para tratamientos que no se venden sueltos en recepción, sino únicamente dentro de paquetes y experiencias online.</li>
-        <li><b>Filtro Rápido por Alarma:</b> En el desplegable superior <i>Canal de Venta</i>, selecciona <b>«🚨 Alarma: Venta Directa 0€»</b> para auditar en 1 segundo todos los servicios que requieran fijar precio.</li>
-        <li><b>Paquete de Origen:</b> Cada elemento que forma parte de un ritual muestra la insignia <i>«📦 Paquete: [Nombre]»</i> bajo su nombre y el desglose de productos asociados al pulsar su contador.</li>
-    </ul>
-</section>
-
-<!-- AUTO-GUIDES:END -->
-            <!-- CHECKLIST DIARIO DE RECEPCIÓN -->
             <!-- =================================================================== -->
-            <div style="background:#f8fafc; border:2px solid #e2e8f0; border-radius:10px; padding:20px; margin-top:25px;">
-                <div style="font-weight:800; font-size:1.05rem; color:#1e293b; margin-bottom:12px; display:flex; align-items:center; gap:8px;">
-                    <i class="fas fa-clipboard-check" style="color:#16a34a;"></i> Checklist Matinal de Recepción (3 minutos al inicio del turno)
-                </div>
-                <div class="checklist-item"><i class="fas fa-check-square"></i> 1. Abrir Visión General y verificar que NO haya celdas en rojo con "SIN CUBRIR".</div>
-                <div class="checklist-item"><i class="fas fa-check-square"></i> 2. Si hay alguna baja, abrir el Asistente de Reasignación y pasar las citas a quien cubra el turno.</div>
-                <div class="checklist-item"><i class="fas fa-check-square"></i> 3. Comprobar que los clientes con Bonos tienen el localizador introducido y sesiones disponibles.</div>
-                <div class="checklist-item"><i class="fas fa-check-square"></i> 4. Eliminar cualquier cita duplicada o bloqueada pulsando la papelera [🗑️].</div>
+            <!-- 12. PROTOCOLOS Y FAQ -->
+            <!-- =================================================================== -->
+            <div id="sec-12" class="page-break"></div>
+            <h2><i class="fas fa-question-circle"></i> 12. Protocolos de Calidad y Preguntas Frecuentes (FAQ)</h2>
+
+            <div class="qa-card">
+                <div class="qa-question"><i class="fas fa-exclamation-triangle" style="color:#d97706;"></i> ¿Qué hago si un cliente llega tarde a su cita?</div>
+                <div class="qa-answer">Si el retraso es menor a 10 minutos, se realiza el servicio reduciendo proporcionalmente el tiempo para no perjudicar al siguiente cliente. Si el retraso supera los 20 minutos y hay citas consecutivas, se ofrece reprogramar o ajustar a un tratamiento más breve previo aviso al cliente.</div>
             </div>
 
-            <div style="text-align:center; color:#94a3b8; font-size:0.75rem; margin-top:30px; border-top:1px solid #e2e8f0; padding-top:15px;">
-                Documento de Formación y Calidad · Gest-Spa & Zenith Manager · Plataforma Operativa Dinámica
+            <div class="qa-card">
+                <div class="qa-question"><i class="fas fa-exclamation-triangle" style="color:#d97706;"></i> ¿Qué hago si el sistema avisa de «Bono Agotado»?</div>
+                <div class="qa-answer">Indica amablemente al cliente que todas las sesiones de su bono ya han sido disfrutadas en fechas previas. Si desea recibir el tratamiento hoy, puede abonarlo como particular con pago directo en mostrador o adquirir un nuevo bono.</div>
+            </div>
+
+            <div class="qa-card">
+                <div class="qa-question"><i class="fas fa-exclamation-triangle" style="color:#d97706;"></i> ¿Cómo elimino una cita duplicada por error?</div>
+                <div class="qa-answer">En Visión General o en el Planning, pulsa el botón de la papelera roja <b>[🗑️]</b> en la tarjeta de la cita y confirma. Se eliminará al instante liberando la sala y a la terapeuta.</div>
+            </div>
+
+            <!-- =================================================================== -->
+            <!-- 13. CHECKLIST MATINAL Y DE CIERRE -->
+            <!-- =================================================================== -->
+            <div id="sec-13" class="page-break"></div>
+            <h2><i class="fas fa-clipboard-check"></i> 13. Checklist Matinal y de Cierre de Recepción</h2>
+            
+            <div style="background:#f8fafc; border:2px solid #e2e8f0; border-radius:10px; padding:20px; margin-bottom:20px;">
+                <div style="font-weight:800; font-size:1.05rem; color:#1e293b; margin-bottom:12px; display:flex; align-items:center; gap:8px;">
+                    <i class="fas fa-sun" style="color:#f59e0b;"></i> Rutina Matinal de Recepción (3 minutos al abrir)
+                </div>
+                <div class="checklist-item"><i class="fas fa-check-square"></i> 1. Abrir el <b>Dashboard</b> y revisar el total de citas programadas para hoy.</div>
+                <div class="checklist-item"><i class="fas fa-check-square"></i> 2. Comprobar que NO haya ninguna celda roja de <b>«SIN CUBRIR»</b> en Visión General.</div>
+                <div class="checklist-item"><i class="fas fa-check-square"></i> 3. Verificar que las citas de hotel tienen número de habitación anotado.</div>
+                <div class="checklist-item"><i class="fas fa-check-square"></i> 4. Enviar recordatorio por WhatsApp a las citas de la tarde si no confirmaron previamente.</div>
+            </div>
+
+            <div style="background:#f8fafc; border:2px solid #e2e8f0; border-radius:10px; padding:20px;">
+                <div style="font-weight:800; font-size:1.05rem; color:#1e293b; margin-bottom:12px; display:flex; align-items:center; gap:8px;">
+                    <i class="fas fa-moon" style="color:#6366f1;"></i> Rutina de Cierre de Recepción (5 minutos al finalizar)
+                </div>
+                <div class="checklist-item"><i class="fas fa-check-square"></i> 1. Comprobar que todas las citas del día tienen marcada la asistencia o el No-Show.</div>
+                <div class="checklist-item"><i class="fas fa-check-square"></i> 2. Realizar el Arqueo y Cierre de Caja contrastando efectivo, tarjeta y PayGold.</div>
+                <div class="checklist-item"><i class="fas fa-check-square"></i> 3. Dejar anotadas las notas o incidencias del día en el panel de notas.</div>
+            </div>
+
+            <!-- =================================================================== -->
+            <!-- 14. ANEXO: HISTORIAL DE VERSIONES -->
+            <!-- =================================================================== -->
+            <div id="sec-14" class="page-break"></div>
+            <h2><i class="fas fa-code-branch"></i> 14. Anexo: Historial de Versiones y Novedades del Sistema</h2>
+            <p>Registro histórico detallado de todas las actualizaciones técnicas y mejoras desplegadas en Gest-Spa / Zenith Manager:</p>
+
+            <div id="section-novedades" style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:18px; margin-top:15px;">
+                <!-- AUTO-RELEASES:START -->
+<div style="max-height:480px; overflow-y:auto; padding-right:8px; margin-top:10px;">
+
+        <article class="manual-release" style="background:white; border:1px solid #e2e8f0; padding:14px; border-radius:8px; margin-top:10px;">
+            <div style="font-weight:700; color:#1e293b; font-size:0.9rem; margin-bottom:4px;">
+                <span style="background:#eff6ff; color:#1d4ed8; padding:2px 8px; border-radius:4px; font-size:0.8rem; margin-right:6px;">v2.3.44</span> 
+                13/11/2026
+            </div>
+            <p style="margin:0; font-size:0.85rem; color:#475569;">Mejora continua del sistema Gest-Spa</p>
+        </article>
+
+        <article class="manual-release" style="background:white; border:1px solid #e2e8f0; padding:14px; border-radius:8px; margin-top:10px;">
+            <div style="font-weight:700; color:#1e293b; font-size:0.9rem; margin-bottom:4px;">
+                <span style="background:#eff6ff; color:#1d4ed8; padding:2px 8px; border-radius:4px; font-size:0.8rem; margin-right:6px;">v2.3.43</span> 
+                13/11/2026
+            </div>
+            <p style="margin:0; font-size:0.85rem; color:#475569;">Corrección integral de orígenes de reservas, resolución de estados por canal y optimización proporcional de la distribución de la tabla:</p>
+        </article>
+
+        <article class="manual-release" style="background:white; border:1px solid #e2e8f0; padding:14px; border-radius:8px; margin-top:10px;">
+            <div style="font-weight:700; color:#1e293b; font-size:0.9rem; margin-bottom:4px;">
+                <span style="background:#eff6ff; color:#1d4ed8; padding:2px 8px; border-radius:4px; font-size:0.8rem; margin-right:6px;">v2.3.42</span> 
+                13/11/2026
+            </div>
+            <p style="margin:0; font-size:0.85rem; color:#475569;">Corrección de desalineación de columnas en la tabla del Dashboard y sincronización de versión global única:</p>
+        </article>
+
+        <article class="manual-release" style="background:white; border:1px solid #e2e8f0; padding:14px; border-radius:8px; margin-top:10px;">
+            <div style="font-weight:700; color:#1e293b; font-size:0.9rem; margin-bottom:4px;">
+                <span style="background:#eff6ff; color:#1d4ed8; padding:2px 8px; border-radius:4px; font-size:0.8rem; margin-right:6px;">v2.3.41</span> 
+                13/11/2026
+            </div>
+            <p style="margin:0; font-size:0.85rem; color:#475569;">Implementación del sistema de descuentos en reservas, alarmas de venta directa sin precio, centrado de tabla y sincronización del manual:</p>
+        </article>
+
+        <article class="manual-release" style="background:white; border:1px solid #e2e8f0; padding:14px; border-radius:8px; margin-top:10px;">
+            <div style="font-weight:700; color:#1e293b; font-size:0.9rem; margin-bottom:4px;">
+                <span style="background:#eff6ff; color:#1d4ed8; padding:2px 8px; border-radius:4px; font-size:0.8rem; margin-right:6px;">v2.3.40</span> 
+                13/11/2026
+            </div>
+            <p style="margin:0; font-size:0.85rem; color:#475569;">Identificación visual y vinculación automática del paquete de origen cuando un tratamiento tiene precio 0€ o pertenece a un pack:</p>
+        </article>
+
+        <article class="manual-release" style="background:white; border:1px solid #e2e8f0; padding:14px; border-radius:8px; margin-top:10px;">
+            <div style="font-weight:700; color:#1e293b; font-size:0.9rem; margin-bottom:4px;">
+                <span style="background:#eff6ff; color:#1d4ed8; padding:2px 8px; border-radius:4px; font-size:0.8rem; margin-right:6px;">v2.3.39</span> 
+                13/11/2026
+            </div>
+            <p style="margin:0; font-size:0.85rem; color:#475569;">Resolución inteligente y difusa de nombres de servicios en el catálogo (ej. &quot;ENVOLTURA VIT.C&quot; emparejada con &quot;Envoltura corporal vit.c&quot; de 40€). Ignora omisiones de descriptores comunes como &quot;corporal&quot; o abreviaciones (&quot;vit.c&quot; vs &quot;vitamina c&quot;), permitiendo que las reservas antiguas o con nombres abreviados reconozcan su tarifa oficial de catálogo y activen el botón de 1-clic &quot;Aplicar Tarifa Catálogo: 40.00€&quot;.</p>
+        </article>
+
+        <article class="manual-release" style="background:white; border:1px solid #e2e8f0; padding:14px; border-radius:8px; margin-top:10px;">
+            <div style="font-weight:700; color:#1e293b; font-size:0.9rem; margin-bottom:4px;">
+                <span style="background:#eff6ff; color:#1d4ed8; padding:2px 8px; border-radius:4px; font-size:0.8rem; margin-right:6px;">v2.3.38</span> 
+                13/11/2026
+            </div>
+            <p style="margin:0; font-size:0.85rem; color:#475569;">Código de colores y distintivos visuales diferenciados por origen y estado de reserva: Hotel Incluido (Azul/Índigo), Hotel No Incluido (Violeta/Púrpura con importe pendiente), Bono Spa (Verde Teal), Groupon (Verde Menta), Smartbox (Naranja Cálido), Wonderbox (Dorado/Ámbar), Ego Experiencias (Fucsia/Rosa), Pagado (Verde Éxito), Pendiente (Rojo Alerta), Parcial (Naranja Intenso), PayGold (Ámbar Pasarela) y Sin Cargo (Miel/Regalo). Homogeneizado en Dashboard de Inicio y en las tablas de detalle de reservas.</p>
+        </article>
+
+        <article class="manual-release" style="background:white; border:1px solid #e2e8f0; padding:14px; border-radius:8px; margin-top:10px;">
+            <div style="font-weight:700; color:#1e293b; font-size:0.9rem; margin-bottom:4px;">
+                <span style="background:#eff6ff; color:#1d4ed8; padding:2px 8px; border-radius:4px; font-size:0.8rem; margin-right:6px;">v2.3.37</span> 
+                13/11/2026
+            </div>
+            <p style="margin:0; font-size:0.85rem; color:#475569;">Corrección de preservación de precio/total guardado al consultar reservas en modal de edición (evita recálculo no deseado que reducía totales como PayGold 100€ a 50€). Implementación de soporte para reservas &quot;Sin Cargo / Gratuita (0.00 €)&quot; con campo obligatorio &quot;Autorizado por&quot;, distintivo SIN CARGO en agenda y tabla, y asistente de 1-clic &quot;Aplicar Tarifa Catálogo&quot; cuando un servicio tiene precio oficial configurado en el catálogo maestro.</p>
+        </article>
+
+        <article class="manual-release" style="background:white; border:1px solid #e2e8f0; padding:14px; border-radius:8px; margin-top:10px;">
+            <div style="font-weight:700; color:#1e293b; font-size:0.9rem; margin-bottom:4px;">
+                <span style="background:#eff6ff; color:#1d4ed8; padding:2px 8px; border-radius:4px; font-size:0.8rem; margin-right:6px;">v2.3.36</span> 
+                12/11/2026
+            </div>
+            <p style="margin:0; font-size:0.85rem; color:#475569;">Opcion en catalogo maestro (Items de Compra/Pack) para definir canal de venta: Venta Directa o Solo Paquetes Online</p>
+        </article>
+
+        <article class="manual-release" style="background:white; border:1px solid #e2e8f0; padding:14px; border-radius:8px; margin-top:10px;">
+            <div style="font-weight:700; color:#1e293b; font-size:0.9rem; margin-bottom:4px;">
+                <span style="background:#eff6ff; color:#1d4ed8; padding:2px 8px; border-radius:4px; font-size:0.8rem; margin-right:6px;">v2.3.35</span> 
+                11/11/2026
+            </div>
+            <p style="margin:0; font-size:0.85rem; color:#475569;">Ajuste de visualización en planning: sala bajo nombre de terapeuta en sección salas, eliminación de horario en terapeutas y capacidad en salas</p>
+        </article>
+
+        <article class="manual-release" style="background:white; border:1px solid #e2e8f0; padding:14px; border-radius:8px; margin-top:10px;">
+            <div style="font-weight:700; color:#1e293b; font-size:0.9rem; margin-bottom:4px;">
+                <span style="background:#eff6ff; color:#1d4ed8; padding:2px 8px; border-radius:4px; font-size:0.8rem; margin-right:6px;">v2.3.34</span> 
+                11/11/2026
+            </div>
+            <p style="margin:0; font-size:0.85rem; color:#475569;">Prioridad de spa_item_master sobre spa_services en compatibilidad de salas (CHON, MAR, MARI)</p>
+        </article>
+
+        <article class="manual-release" style="background:white; border:1px solid #e2e8f0; padding:14px; border-radius:8px; margin-top:10px;">
+            <div style="font-weight:700; color:#1e293b; font-size:0.9rem; margin-bottom:4px;">
+                <span style="background:#eff6ff; color:#1d4ed8; padding:2px 8px; border-radius:4px; font-size:0.8rem; margin-right:6px;">v2.3.33</span> 
+                11/11/2026
+            </div>
+            <p style="margin:0; font-size:0.85rem; color:#475569;">Packs mixtos: Circuito Spa secundario y asignacion de hora pinchada al tratamiento de sala (masaje)</p>
+        </article>
+
+        <article class="manual-release" style="background:white; border:1px solid #e2e8f0; padding:14px; border-radius:8px; margin-top:10px;">
+            <div style="font-weight:700; color:#1e293b; font-size:0.9rem; margin-bottom:4px;">
+                <span style="background:#eff6ff; color:#1d4ed8; padding:2px 8px; border-radius:4px; font-size:0.8rem; margin-right:6px;">v2.3.32</span> 
+                11/11/2026
+            </div>
+            <p style="margin:0; font-size:0.85rem; color:#475569;">Correccion Suite Spa: 0 terapeutas requeridos en alquiler de Suite Spa sin masaje y exclusion estricta de personal</p>
+        </article>
+
+        <article class="manual-release" style="background:white; border:1px solid #e2e8f0; padding:14px; border-radius:8px; margin-top:10px;">
+            <div style="font-weight:700; color:#1e293b; font-size:0.9rem; margin-bottom:4px;">
+                <span style="background:#eff6ff; color:#1d4ed8; padding:2px 8px; border-radius:4px; font-size:0.8rem; margin-right:6px;">v2.3.31</span> 
+                11/11/2026
+            </div>
+            <p style="margin:0; font-size:0.85rem; color:#475569;">Corrección de autorrelleno de hora al pinchar en planning, servicio obligatorio, bloqueo de Circuito Spa en salas y unificación de tiempo completo y sala para rituales</p>
+        </article>
+
+        <article class="manual-release" style="background:white; border:1px solid #e2e8f0; padding:14px; border-radius:8px; margin-top:10px;">
+            <div style="font-weight:700; color:#1e293b; font-size:0.9rem; margin-bottom:4px;">
+                <span style="background:#eff6ff; color:#1d4ed8; padding:2px 8px; border-radius:4px; font-size:0.8rem; margin-right:6px;">v2.3.30</span> 
+                11/11/2026
+            </div>
+            <p style="margin:0; font-size:0.85rem; color:#475569;">Corregido PAX en tratamientos individuales: no se clasifican como packs, prevalece la capacidad de Items y el campo personas queda editable dentro del maximo configurado. Relax individual restablece 1 persona; packs y parejas conservan su modalidad.</p>
+        </article>
+
+        <article class="manual-release" style="background:white; border:1px solid #e2e8f0; padding:14px; border-radius:8px; margin-top:10px;">
+            <div style="font-weight:700; color:#1e293b; font-size:0.9rem; margin-bottom:4px;">
+                <span style="background:#eff6ff; color:#1d4ed8; padding:2px 8px; border-radius:4px; font-size:0.8rem; margin-right:6px;">v2.3.29</span> 
+                11/11/2026
+            </div>
+            <p style="margin:0; font-size:0.85rem; color:#475569;">Buscador en Ajustes Items/Pack y selector de tratamientos basado en items maestros: nombres compatibles, salas configuradas e identificador estable en nuevas reservas. Sin borrado de datos; Relax en Suite conservado pendiente de revisar su producto asociado.</p>
+        </article>
+
+        <article class="manual-release" style="background:white; border:1px solid #e2e8f0; padding:14px; border-radius:8px; margin-top:10px;">
+            <div style="font-weight:700; color:#1e293b; font-size:0.9rem; margin-bottom:4px;">
+                <span style="background:#eff6ff; color:#1d4ed8; padding:2px 8px; border-radius:4px; font-size:0.8rem; margin-right:6px;">v2.3.28</span> 
+                11/11/2026
+            </div>
+            <p style="margin:0; font-size:0.85rem; color:#475569;">Corrección de la validación de turnos pasados en handleFormSubmit (se eliminó la condición dependiente de un elemento DOM inexistente que puenteaba el bloqueo). Validación extendida a todas las fases de los packs para impedir guardar servicios a horas pasadas. Ajuste de hora inicial en packs al siguiente cuarto de hora futuro en lugar de 10:00h si esa hora ya transcurrió.</p>
+        </article>
+
+        <article class="manual-release" style="background:white; border:1px solid #e2e8f0; padding:14px; border-radius:8px; margin-top:10px;">
+            <div style="font-weight:700; color:#1e293b; font-size:0.9rem; margin-bottom:4px;">
+                <span style="background:#eff6ff; color:#1d4ed8; padding:2px 8px; border-radius:4px; font-size:0.8rem; margin-right:6px;">v2.3.27</span> 
+                11/11/2026
+            </div>
+            <p style="margin:0; font-size:0.85rem; color:#475569;">Módulo de ocupación interactiva del Spa en packs: botones con plazas libres/ocupadas por turno para elegir hora del circuito spa con un solo clic. Validación de disponibilidad de terapeutas ajustada a la hora real de la fase de tratamiento (no a la hora general). Corrección de asignación de sala en packs con Suite Spa.</p>
+        </article>
+
+        <article class="manual-release" style="background:white; border:1px solid #e2e8f0; padding:14px; border-radius:8px; margin-top:10px;">
+            <div style="font-weight:700; color:#1e293b; font-size:0.9rem; margin-bottom:4px;">
+                <span style="background:#eff6ff; color:#1d4ed8; padding:2px 8px; border-radius:4px; font-size:0.8rem; margin-right:6px;">v2.3.26</span> 
+                11/11/2026
+            </div>
+            <p style="margin:0; font-size:0.85rem; color:#475569;">Packs con Circuito Spa (Fantasía para dos, Especial Parejas...) ya se pueden reservar desde Sala VIP, Panacea o Suite. La fase de Spa se envía automáticamente a la agenda del Spa sin condicionar la sala del tratamiento.</p>
+        </article>
+
+        <article class="manual-release" style="background:white; border:1px solid #e2e8f0; padding:14px; border-radius:8px; margin-top:10px;">
+            <div style="font-weight:700; color:#1e293b; font-size:0.9rem; margin-bottom:4px;">
+                <span style="background:#eff6ff; color:#1d4ed8; padding:2px 8px; border-radius:4px; font-size:0.8rem; margin-right:6px;">v2.3.25</span> 
+                11/11/2026
+            </div>
+            <p style="margin:0; font-size:0.85rem; color:#475569;">Fix pack cancellation across all collections and enable independent per-service pack scheduling</p>
+        </article>
+
+        <article class="manual-release" style="background:white; border:1px solid #e2e8f0; padding:14px; border-radius:8px; margin-top:10px;">
+            <div style="font-weight:700; color:#1e293b; font-size:0.9rem; margin-bottom:4px;">
+                <span style="background:#eff6ff; color:#1d4ed8; padding:2px 8px; border-radius:4px; font-size:0.8rem; margin-right:6px;">v2.3.24</span> 
+                10/11/2026
+            </div>
+            <p style="margin:0; font-size:0.85rem; color:#475569;">Fix uniqueStaff scope in reservas-staff.js</p>
+        </article>
+
+        <article class="manual-release" style="background:white; border:1px solid #e2e8f0; padding:14px; border-radius:8px; margin-top:10px;">
+            <div style="font-weight:700; color:#1e293b; font-size:0.9rem; margin-bottom:4px;">
+                <span style="background:#eff6ff; color:#1d4ed8; padding:2px 8px; border-radius:4px; font-size:0.8rem; margin-right:6px;">v2.3.23</span> 
+                10/11/2026
+            </div>
+            <p style="margin:0; font-size:0.85rem; color:#475569;">Auto-assign available therapists to eliminate false conflict popups on saving reservations</p>
+        </article>
+
+        <article class="manual-release" style="background:white; border:1px solid #e2e8f0; padding:14px; border-radius:8px; margin-top:10px;">
+            <div style="font-weight:700; color:#1e293b; font-size:0.9rem; margin-bottom:4px;">
+                <span style="background:#eff6ff; color:#1d4ed8; padding:2px 8px; border-radius:4px; font-size:0.8rem; margin-right:6px;">v2.3.22</span> 
+                10/11/2026
+            </div>
+            <p style="margin:0; font-size:0.85rem; color:#475569;">Fix reservas-spa syntax, unify daily cash stats, enable 2 therapists in couples packs, zero-therapist packs validation, and room-service compatibility check</p>
+        </article>
+
+        <article class="manual-release" style="background:white; border:1px solid #e2e8f0; padding:14px; border-radius:8px; margin-top:10px;">
+            <div style="font-weight:700; color:#1e293b; font-size:0.9rem; margin-bottom:4px;">
+                <span style="background:#eff6ff; color:#1d4ed8; padding:2px 8px; border-radius:4px; font-size:0.8rem; margin-right:6px;">v2.3.21</span> 
+                10/11/2026
+            </div>
+            <p style="margin:0; font-size:0.85rem; color:#475569;">PayGold: correccion residual error modal, consistencia estado pagado particular, cache-busters v2.3.21 y activacion packs en salas</p>
+        </article>
+
+        <article class="manual-release" style="background:white; border:1px solid #e2e8f0; padding:14px; border-radius:8px; margin-top:10px;">
+            <div style="font-weight:700; color:#1e293b; font-size:0.9rem; margin-bottom:4px;">
+                <span style="background:#eff6ff; color:#1d4ed8; padding:2px 8px; border-radius:4px; font-size:0.8rem; margin-right:6px;">v2.3.20</span> 
+                10/11/2026
+            </div>
+            <p style="margin:0; font-size:0.85rem; color:#475569;">Ajuste de tarifas y desgloses de packs segun catalogo oficial</p>
+        </article>
+
+        <article class="manual-release" style="background:white; border:1px solid #e2e8f0; padding:14px; border-radius:8px; margin-top:10px;">
+            <div style="font-weight:700; color:#1e293b; font-size:0.9rem; margin-bottom:4px;">
+                <span style="background:#eff6ff; color:#1d4ed8; padding:2px 8px; border-radius:4px; font-size:0.8rem; margin-right:6px;">v2.3.19</span> 
+                10/11/2026
+            </div>
+            <p style="margin:0; font-size:0.85rem; color:#475569;">Desglose automatico de servicios, secuencias y tarifas para todos los packs del sistema</p>
+        </article>
+
+        <article class="manual-release" style="background:white; border:1px solid #e2e8f0; padding:14px; border-radius:8px; margin-top:10px;">
+            <div style="font-weight:700; color:#1e293b; font-size:0.9rem; margin-bottom:4px;">
+                <span style="background:#eff6ff; color:#1d4ed8; padding:2px 8px; border-radius:4px; font-size:0.8rem; margin-right:6px;">v2.3.18</span> 
+                10/11/2026
+            </div>
+            <p style="margin:0; font-size:0.85rem; color:#475569;">Panel lateral del dashboard minimizado por defecto</p>
+        </article>
+
+        <article class="manual-release" style="background:white; border:1px solid #e2e8f0; padding:14px; border-radius:8px; margin-top:10px;">
+            <div style="font-weight:700; color:#1e293b; font-size:0.9rem; margin-bottom:4px;">
+                <span style="background:#eff6ff; color:#1d4ed8; padding:2px 8px; border-radius:4px; font-size:0.8rem; margin-right:6px;">v2.3.17</span> 
+                10/11/2026
+            </div>
+            <p style="margin:0; font-size:0.85rem; color:#475569;">PayGold: correccion funcion checkReservation y ventana modal mas ancha y ergonomica</p>
+        </article>
+
+        <article class="manual-release" style="background:white; border:1px solid #e2e8f0; padding:14px; border-radius:8px; margin-top:10px;">
+            <div style="font-weight:700; color:#1e293b; font-size:0.9rem; margin-bottom:4px;">
+                <span style="background:#eff6ff; color:#1d4ed8; padding:2px 8px; border-radius:4px; font-size:0.8rem; margin-right:6px;">v2.3.16</span> 
+                10/11/2026
+            </div>
+            <p style="margin:0; font-size:0.85rem; color:#475569;">Correccion indicador de pago en dashboard y reservas para citas con precio sin precio_total explicito</p>
+        </article>
+
+        <article class="manual-release" style="background:white; border:1px solid #e2e8f0; padding:14px; border-radius:8px; margin-top:10px;">
+            <div style="font-weight:700; color:#1e293b; font-size:0.9rem; margin-bottom:4px;">
+                <span style="background:#eff6ff; color:#1d4ed8; padding:2px 8px; border-radius:4px; font-size:0.8rem; margin-right:6px;">v2.3.15</span> 
+                10/11/2026
+            </div>
+            <p style="margin:0; font-size:0.85rem; color:#475569;">Vision 15 dias: boton Guardar y abrir PayGold con reserva persistida, coleccion correcta y saldo pendiente</p>
+        </article>
+
+        <article class="manual-release" style="background:white; border:1px solid #e2e8f0; padding:14px; border-radius:8px; margin-top:10px;">
+            <div style="font-weight:700; color:#1e293b; font-size:0.9rem; margin-bottom:4px;">
+                <span style="background:#eff6ff; color:#1d4ed8; padding:2px 8px; border-radius:4px; font-size:0.8rem; margin-right:6px;">v2.3.14</span> 
+                10/11/2026
+            </div>
+            <p style="margin:0; font-size:0.85rem; color:#475569;">Panel lateral de notas y metricas con opcion de ocultar y expandir tabla del dashboard</p>
+        </article>
+
+        <article class="manual-release" style="background:white; border:1px solid #e2e8f0; padding:14px; border-radius:8px; margin-top:10px;">
+            <div style="font-weight:700; color:#1e293b; font-size:0.9rem; margin-bottom:4px;">
+                <span style="background:#eff6ff; color:#1d4ed8; padding:2px 8px; border-radius:4px; font-size:0.8rem; margin-right:6px;">v2.3.13</span> 
+                10/11/2026
+            </div>
+            <p style="margin:0; font-size:0.85rem; color:#475569;">Apertura de reservas: cargar configuracion y catalogos en paralelo y compartir lecturas iniciales de servicios y maestro sin cachear reservas</p>
+        </article>
+
+        <article class="manual-release" style="background:white; border:1px solid #e2e8f0; padding:14px; border-radius:8px; margin-top:10px;">
+            <div style="font-weight:700; color:#1e293b; font-size:0.9rem; margin-bottom:4px;">
+                <span style="background:#eff6ff; color:#1d4ed8; padding:2px 8px; border-radius:4px; font-size:0.8rem; margin-right:6px;">v2.3.12</span> 
+                10/11/2026
+            </div>
+            <p style="margin:0; font-size:0.85rem; color:#475569;">Arqueo y Cierre de Caja del Dia con desglose efectivo, tarjeta, pasarela y tienda virtual</p>
+        </article>
+
+        <article class="manual-release" style="background:white; border:1px solid #e2e8f0; padding:14px; border-radius:8px; margin-top:10px;">
+            <div style="font-weight:700; color:#1e293b; font-size:0.9rem; margin-bottom:4px;">
+                <span style="background:#eff6ff; color:#1d4ed8; padding:2px 8px; border-radius:4px; font-size:0.8rem; margin-right:6px;">v2.3.11</span> 
+                10/11/2026
+            </div>
+            <p style="margin:0; font-size:0.85rem; color:#475569;">Anadida tarjeta KPI Pagos Pasarela en el panel de inicio (dashboard) para contabilizar cobros por Redsys PayGold en reservas y bonos</p>
+        </article>
+
+        <article class="manual-release" style="background:white; border:1px solid #e2e8f0; padding:14px; border-radius:8px; margin-top:10px;">
+            <div style="font-weight:700; color:#1e293b; font-size:0.9rem; margin-bottom:4px;">
+                <span style="background:#eff6ff; color:#1d4ed8; padding:2px 8px; border-radius:4px; font-size:0.8rem; margin-right:6px;">v2.3.10</span> 
+                10/11/2026
+            </div>
+            <p style="margin:0; font-size:0.85rem; color:#475569;">Reserva desde bono: conservar codigo, cliente, servicio y personas al pasar del planning al formulario; aplicar vinculacion despues de cargar salas y servicios sin depender de memoria temporal</p>
+        </article>
+
+        <article class="manual-release" style="background:white; border:1px solid #e2e8f0; padding:14px; border-radius:8px; margin-top:10px;">
+            <div style="font-weight:700; color:#1e293b; font-size:0.9rem; margin-bottom:4px;">
+                <span style="background:#eff6ff; color:#1d4ed8; padding:2px 8px; border-radius:4px; font-size:0.8rem; margin-right:6px;">v2.3.9</span> 
+                10/11/2026
+            </div>
+            <p style="margin:0; font-size:0.85rem; color:#475569;">Precios de servicios: recuperar PVP del catalogo cuando el maestro no tiene tarifa positiva, normalizar nombres sin confundir duraciones y limpiar precio fijo anterior</p>
+        </article>
+
+        <article class="manual-release" style="background:white; border:1px solid #e2e8f0; padding:14px; border-radius:8px; margin-top:10px;">
+            <div style="font-weight:700; color:#1e293b; font-size:0.9rem; margin-bottom:4px;">
+                <span style="background:#eff6ff; color:#1d4ed8; padding:2px 8px; border-radius:4px; font-size:0.8rem; margin-right:6px;">v2.3.8</span> 
+                10/11/2026
+            </div>
+            <p style="margin:0; font-size:0.85rem; color:#475569;">Apertura del modulo de Ocupacion al reservar servicios de salas desde Bonos (con visualizacion de salas, disponibilidad y banner de reserva de bono), manteniendo Spa, Restaurante y Hotel en sus flujos especificos</p>
+        </article>
+
+        <article class="manual-release" style="background:white; border:1px solid #e2e8f0; padding:14px; border-radius:8px; margin-top:10px;">
+            <div style="font-weight:700; color:#1e293b; font-size:0.9rem; margin-bottom:4px;">
+                <span style="background:#eff6ff; color:#1d4ed8; padding:2px 8px; border-radius:4px; font-size:0.8rem; margin-right:6px;">v2.3.7</span> 
+                10/11/2026
+            </div>
+            <p style="margin:0; font-size:0.85rem; color:#475569;">Reservas: evitar apertura antes de cargar servicios, eliminar salas duplicadas del selector y ajustar PAX inicial de cabinas; manual con guia detallada de PayGold</p>
+        </article>
+
+        <article class="manual-release" style="background:white; border:1px solid #e2e8f0; padding:14px; border-radius:8px; margin-top:10px;">
+            <div style="font-weight:700; color:#1e293b; font-size:0.9rem; margin-bottom:4px;">
+                <span style="background:#eff6ff; color:#1d4ed8; padding:2px 8px; border-radius:4px; font-size:0.8rem; margin-right:6px;">v2.3.6</span> 
+                10/11/2026
+            </div>
+            <p style="margin:0; font-size:0.85rem; color:#475569;">Manual con todo el historial registrado, barra de carga por etapas reales y comprobacion de version publicada con aviso de error y reintento</p>
+        </article>
+
+        <article class="manual-release" style="background:white; border:1px solid #e2e8f0; padding:14px; border-radius:8px; margin-top:10px;">
+            <div style="font-weight:700; color:#1e293b; font-size:0.9rem; margin-bottom:4px;">
+                <span style="background:#eff6ff; color:#1d4ed8; padding:2px 8px; border-radius:4px; font-size:0.8rem; margin-right:6px;">v2.3.5</span> 
+                10/11/2026
+            </div>
+            <p style="margin:0; font-size:0.85rem; color:#475569;">Planning de salas: respetar horarios de apertura, domingos y fechas de cierre; excluir cierres de horas libres e impedir reservas desde franjas cerradas</p>
+        </article>
+
+        <article class="manual-release" style="background:white; border:1px solid #e2e8f0; padding:14px; border-radius:8px; margin-top:10px;">
+            <div style="font-weight:700; color:#1e293b; font-size:0.9rem; margin-bottom:4px;">
+                <span style="background:#eff6ff; color:#1d4ed8; padding:2px 8px; border-radius:4px; font-size:0.8rem; margin-right:6px;">v2.3.4</span> 
+                10/11/2026
+            </div>
+            <p style="margin:0; font-size:0.85rem; color:#475569;">Manual sincronizado automaticamente con las novedades y la version real; PDF desde el contenido actualizado y recarga sin cache</p>
+        </article>
+
+        <article class="manual-release" style="background:white; border:1px solid #e2e8f0; padding:14px; border-radius:8px; margin-top:10px;">
+            <div style="font-weight:700; color:#1e293b; font-size:0.9rem; margin-bottom:4px;">
+                <span style="background:#eff6ff; color:#1d4ed8; padding:2px 8px; border-radius:4px; font-size:0.8rem; margin-right:6px;">v2.3.3</span> 
+                10/11/2026
+            </div>
+            <p style="margin:0; font-size:0.85rem; color:#475569;">Correccion en selector de servicios: integracion completa de spa_services y spa_item_master para que Suite, Panacea, VIP, Cabinas y Peluqueria muestren siempre sus servicios</p>
+        </article>
+
+        <article class="manual-release" style="background:white; border:1px solid #e2e8f0; padding:14px; border-radius:8px; margin-top:10px;">
+            <div style="font-weight:700; color:#1e293b; font-size:0.9rem; margin-bottom:4px;">
+                <span style="background:#eff6ff; color:#1d4ed8; padding:2px 8px; border-radius:4px; font-size:0.8rem; margin-right:6px;">v2.3.2</span> 
+                10/11/2026
+            </div>
+            <p style="margin:0; font-size:0.85rem; color:#475569;">Rediseño visual de cuadraditos del planning: cabecera horaria con subdivisiones de 15 min, celdas táctiles con bordes y tarjetas de reserva con badges de hora y duración</p>
+        </article>
+
+        <article class="manual-release" style="background:white; border:1px solid #e2e8f0; padding:14px; border-radius:8px; margin-top:10px;">
+            <div style="font-weight:700; color:#1e293b; font-size:0.9rem; margin-bottom:4px;">
+                <span style="background:#eff6ff; color:#1d4ed8; padding:2px 8px; border-radius:4px; font-size:0.8rem; margin-right:6px;">v2.3.1</span> 
+                10/11/2026
+            </div>
+            <p style="margin:0; font-size:0.85rem; color:#475569;">Planning de Ocupacion: la ficha de reserva se abre directamente (sin panel lateral) y correccion del aviso de pax maximo segun la sala elegida</p>
+        </article>
+
+        <article class="manual-release" style="background:white; border:1px solid #e2e8f0; padding:14px; border-radius:8px; margin-top:10px;">
+            <div style="font-weight:700; color:#1e293b; font-size:0.9rem; margin-bottom:4px;">
+                <span style="background:#eff6ff; color:#1d4ed8; padding:2px 8px; border-radius:4px; font-size:0.8rem; margin-right:6px;">v2.3.0</span> 
+                10/11/2026
+            </div>
+            <p style="margin:0; font-size:0.85rem; color:#475569;">Nuevo Planning de Ocupacion: desplegables Salas (Cabinas, Suite, Panacea, VIP, Peluqueria) y Terapeutas, reserva en 1 clic, turnos y fechas pasadas oscurecidos y bloqueados</p>
+        </article>
+
+        <article class="manual-release" style="background:white; border:1px solid #e2e8f0; padding:14px; border-radius:8px; margin-top:10px;">
+            <div style="font-weight:700; color:#1e293b; font-size:0.9rem; margin-bottom:4px;">
+                <span style="background:#eff6ff; color:#1d4ed8; padding:2px 8px; border-radius:4px; font-size:0.8rem; margin-right:6px;">v2.2.2</span> 
+                10/11/2026
+            </div>
+            <p style="margin:0; font-size:0.85rem; color:#475569;">Apertura directa del formulario de reserva al pinchar casilla libre de agenda con sala en blanco (-- Seleccionar Sala --), selector completo de salas (Cabinas 1, 2, 3, Suite, Panacea, Sala VIP y Peluquería) y terapeuta, fecha y hora preseleccionados automáticamente sin bloqueos de turno pasado.</p>
+        </article>
+
+        <article class="manual-release" style="background:white; border:1px solid #e2e8f0; padding:14px; border-radius:8px; margin-top:10px;">
+            <div style="font-weight:700; color:#1e293b; font-size:0.9rem; margin-bottom:4px;">
+                <span style="background:#eff6ff; color:#1d4ed8; padding:2px 8px; border-radius:4px; font-size:0.8rem; margin-right:6px;">v2.2.1</span> 
+                10/11/2026
+            </div>
+            <p style="margin:0; font-size:0.85rem; color:#475569;">Limpieza estricta de bonos residuales en sessionStorage y corrección de precio y terapeuta en salas</p>
+        </article>
+
+        <article class="manual-release" style="background:white; border:1px solid #e2e8f0; padding:14px; border-radius:8px; margin-top:10px;">
+            <div style="font-weight:700; color:#1e293b; font-size:0.9rem; margin-bottom:4px;">
+                <span style="background:#eff6ff; color:#1d4ed8; padding:2px 8px; border-radius:4px; font-size:0.8rem; margin-right:6px;">v2.2.0</span> 
+                10/11/2026
+            </div>
+            <p style="margin:0; font-size:0.85rem; color:#475569;">Apertura directa de pantalla de reserva al hacer clic en casilla libre de la agenda de ocupación de terapeutas</p>
+        </article>
+
+        <article class="manual-release" style="background:white; border:1px solid #e2e8f0; padding:14px; border-radius:8px; margin-top:10px;">
+            <div style="font-weight:700; color:#1e293b; font-size:0.9rem; margin-bottom:4px;">
+                <span style="background:#eff6ff; color:#1d4ed8; padding:2px 8px; border-radius:4px; font-size:0.8rem; margin-right:6px;">v2.1.0</span> 
+                10/11/2026
+            </div>
+            <p style="margin:0; font-size:0.85rem; color:#475569;">Panel lateral integrado de reserva rápida (Drawer) para evitar ventanas duplicadas en puestos de trabajo</p>
+        </article>
+
+        <article class="manual-release" style="background:white; border:1px solid #e2e8f0; padding:14px; border-radius:8px; margin-top:10px;">
+            <div style="font-weight:700; color:#1e293b; font-size:0.9rem; margin-bottom:4px;">
+                <span style="background:#eff6ff; color:#1d4ed8; padding:2px 8px; border-radius:4px; font-size:0.8rem; margin-right:6px;">v2.0.6</span> 
+                09/11/2026
+            </div>
+            <p style="margin:0; font-size:0.85rem; color:#475569;">Registro automatico en tiempo real de pagos Redsys PayGold sin intervencion manual</p>
+        </article>
+
+        <article class="manual-release" style="background:white; border:1px solid #e2e8f0; padding:14px; border-radius:8px; margin-top:10px;">
+            <div style="font-weight:700; color:#1e293b; font-size:0.9rem; margin-bottom:4px;">
+                <span style="background:#eff6ff; color:#1d4ed8; padding:2px 8px; border-radius:4px; font-size:0.8rem; margin-right:6px;">v2.0.5</span> 
+                09/11/2026
+            </div>
+            <p style="margin:0; font-size:0.85rem; color:#475569;">Logo transparente Zenith (navegador y PWA), formato de pedido SPA-XXXX en Redsys y modal PayGold adaptado</p>
+        </article>
+
+        <article class="manual-release" style="background:white; border:1px solid #e2e8f0; padding:14px; border-radius:8px; margin-top:10px;">
+            <div style="font-weight:700; color:#1e293b; font-size:0.9rem; margin-bottom:4px;">
+                <span style="background:#eff6ff; color:#1d4ed8; padding:2px 8px; border-radius:4px; font-size:0.8rem; margin-right:6px;">v2.0.4</span> 
+                09/11/2026
+            </div>
+            <p style="margin:0; font-size:0.85rem; color:#475569;">Mejora comercial en mensaje PayGold (garantía 24h), badges de estado de pago en panel e indicadores visuales de cobro</p>
+        </article>
+
+        <article class="manual-release" style="background:white; border:1px solid #e2e8f0; padding:14px; border-radius:8px; margin-top:10px;">
+            <div style="font-weight:700; color:#1e293b; font-size:0.9rem; margin-bottom:4px;">
+                <span style="background:#eff6ff; color:#1d4ed8; padding:2px 8px; border-radius:4px; font-size:0.8rem; margin-right:6px;">v2.0.3</span> 
+                09/11/2026
+            </div>
+            <p style="margin:0; font-size:0.85rem; color:#475569;">Integración oficial de pasarela Redsys PayGold Cumbria Spa &amp; Hotel</p>
+        </article>
+
+        <article class="manual-release" style="background:white; border:1px solid #e2e8f0; padding:14px; border-radius:8px; margin-top:10px;">
+            <div style="font-weight:700; color:#1e293b; font-size:0.9rem; margin-bottom:4px;">
+                <span style="background:#eff6ff; color:#1d4ed8; padding:2px 8px; border-radius:4px; font-size:0.8rem; margin-right:6px;">v2.0.2</span> 
+                27/10/2026
+            </div>
+            <p style="margin:0; font-size:0.85rem; color:#475569;">Prueba de bump automático</p>
+        </article>
+
+        <article class="manual-release" style="background:white; border:1px solid #e2e8f0; padding:14px; border-radius:8px; margin-top:10px;">
+            <div style="font-weight:700; color:#1e293b; font-size:0.9rem; margin-bottom:4px;">
+                <span style="background:#eff6ff; color:#1d4ed8; padding:2px 8px; border-radius:4px; font-size:0.8rem; margin-right:6px;">v2.0.1</span> 
+                27/10/2026
+            </div>
+            <p style="margin:0; font-size:0.85rem; color:#475569;">Automatización del sistema de incremento de versiones</p>
+        </article>
+
+        <article class="manual-release" style="background:white; border:1px solid #e2e8f0; padding:14px; border-radius:8px; margin-top:10px;">
+            <div style="font-weight:700; color:#1e293b; font-size:0.9rem; margin-bottom:4px;">
+                <span style="background:#eff6ff; color:#1d4ed8; padding:2px 8px; border-radius:4px; font-size:0.8rem; margin-right:6px;">v2.0.0</span> 
+                27/10/2026
+            </div>
+            <p style="margin:0; font-size:0.85rem; color:#475569;">Unificación del versionado de todo el ecosistema Gest-Spa bajo una única versión global. Implementación del protocolo de incremento automático de versión y fecha ante cualquier cambio en cualquier módulo. Integración de la directriz en las normas de trabajo del agente (`.agent/working-criteria.md`).</p>
+        </article>
+</div>
+<!-- AUTO-RELEASES:END -->
+            </div>
+
+            <div style="text-align:center; color:#94a3b8; font-size:0.75rem; margin-top:40px; border-top:1px solid #e2e8f0; padding-top:20px;">
+                Manual de Operaciones & Formación · Cumbria Bienestar · Plataforma Gest-Spa / Zenith Manager
             </div>
 
         </div>
     </div>
 
-    <!-- Script Interactivo y Dinámico -->
+    <!-- Buscador interactivo -->
     <script>
-        // Buscador interactivo en vivo
         function filterManualContent(query) {
             const cleanQuery = query.trim().toLowerCase();
-            const elements = document.querySelectorAll('.step-box, .qa-card, .ui-mockup, .checklist-item, .manual-release');
+            const elements = document.querySelectorAll('.step-box, .qa-card, .ui-mockup, .checklist-item, .channel-card, .manual-release');
 
             if (!cleanQuery) {
                 elements.forEach(el => {
