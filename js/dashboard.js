@@ -404,26 +404,26 @@ function renderDashboard() {
         if (isGlobalSearch) {
             theadEl.innerHTML = `
                 <tr style="background: #f8fafc;">
-                    <th class="col-id" style="padding: 15px 20px; font-size: 0.8rem; color: #64748b; width: 75px; text-align: left;">ID</th>
-                    <th class="col-fecha" style="padding: 15px 20px; font-size: 0.8rem; color: #64748b; width: 90px; text-align: center;">FECHA</th>
-                    <th class="col-hora" style="padding: 15px 20px; font-size: 0.8rem; color: #64748b; width: 65px; text-align: center;">HORA</th>
-                    <th class="col-cliente" style="padding: 15px 20px; font-size: 0.8rem; color: #64748b; min-width: 140px; text-align: left;">CLIENTE</th>
-                    <th class="col-servicio" style="padding: 15px 20px; font-size: 0.8rem; color: #64748b; min-width: 150px; text-align: left;">SERVICIO</th>
-                    <th class="col-sala" style="padding: 15px 20px; font-size: 0.8rem; color: #64748b; width: 85px; text-align: left;">SALA</th>
-                    <th class="col-estado" style="padding: 15px 20px; font-size: 0.8rem; color: #64748b; width: 175px; text-align: center;">ESTADO</th>
-                    <th class="col-acciones" style="padding: 15px 20px; font-size: 0.8rem; color: #64748b; width: 130px; text-align: center;">ACCIONES</th>
+                    <th class="col-id" style="font-size: 0.8rem; color: #64748b;">ID</th>
+                    <th class="col-fecha" style="font-size: 0.8rem; color: #64748b;">FECHA</th>
+                    <th class="col-hora" style="font-size: 0.8rem; color: #64748b;">HORA</th>
+                    <th class="col-cliente" style="font-size: 0.8rem; color: #64748b;">CLIENTE</th>
+                    <th class="col-servicio" style="font-size: 0.8rem; color: #64748b;">SERVICIO</th>
+                    <th class="col-sala" style="font-size: 0.8rem; color: #64748b;">SALA</th>
+                    <th class="col-estado" style="font-size: 0.8rem; color: #64748b;">ESTADO</th>
+                    <th class="col-acciones" style="font-size: 0.8rem; color: #64748b;">ACCIONES</th>
                 </tr>`;
         } else {
             theadEl.innerHTML = `
                 <tr style="background: #f8fafc;">
-                    <th class="col-id" style="padding: 15px 20px; font-size: 0.8rem; color: #64748b; width: 75px; text-align: left;">ID</th>
-                    <th class="col-hora" style="padding: 15px 20px; font-size: 0.8rem; color: #64748b; width: 65px; text-align: center;">HORA</th>
-                    <th class="col-cliente" style="padding: 15px 20px; font-size: 0.8rem; color: #64748b; min-width: 140px; text-align: left;">CLIENTE</th>
-                    <th class="col-servicio" style="padding: 15px 20px; font-size: 0.8rem; color: #64748b; min-width: 150px; text-align: left;">SERVICIO</th>
-                    <th class="col-sala" style="padding: 15px 20px; font-size: 0.8rem; color: #64748b; width: 85px; text-align: left;">SALA</th>
-                    <th class="col-terapeuta" style="padding: 15px 20px; font-size: 0.8rem; color: #64748b; width: 85px; text-align: left;">TERAPEUTA</th>
-                    <th class="col-estado" style="padding: 15px 20px; font-size: 0.8rem; color: #64748b; width: 175px; text-align: center;">ESTADO</th>
-                    <th class="col-acciones" style="padding: 15px 20px; font-size: 0.8rem; color: #64748b; width: 130px; text-align: center;">ACCIONES</th>
+                    <th class="col-id" style="font-size: 0.8rem; color: #64748b;">ID</th>
+                    <th class="col-hora" style="font-size: 0.8rem; color: #64748b;">HORA</th>
+                    <th class="col-cliente" style="font-size: 0.8rem; color: #64748b;">CLIENTE</th>
+                    <th class="col-servicio" style="font-size: 0.8rem; color: #64748b;">SERVICIO</th>
+                    <th class="col-sala" style="font-size: 0.8rem; color: #64748b;">SALA</th>
+                    <th class="col-terapeuta" style="font-size: 0.8rem; color: #64748b;">TERAPEUTA</th>
+                    <th class="col-estado" style="font-size: 0.8rem; color: #64748b;">ESTADO</th>
+                    <th class="col-acciones" style="font-size: 0.8rem; color: #64748b;">ACCIONES</th>
                 </tr>`;
         }
     }
@@ -495,8 +495,50 @@ function renderDashboard() {
         // Robust check for paid amount / balance
         let paid = 0;
         const estadoPagoLower = String(c.estado_pago || '').toLowerCase().trim();
-        const origen = (c.origen || '').toLowerCase();
+
+        // Normalización inteligente y robusta del canal / origen
+        let rawOrigen = (c.origen || c.origin || c.channel || c.canal || '').toLowerCase().trim();
+        const bonoCode = (c.bono || c.num_bono || c.voucher || c.localizador || '').trim();
+
+        let origen = 'particular';
+        if (rawOrigen.includes('hotel') && (rawOrigen.includes('no') || rawOrigen.includes('not'))) {
+            origen = 'hotel_no_inc';
+        } else if (rawOrigen.includes('hotel')) {
+            origen = 'hotel_inc';
+        } else if (rawOrigen.includes('bono') || rawOrigen.includes('voucher') || !!bonoCode) {
+            origen = 'bono';
+        } else if (rawOrigen.includes('groupon')) {
+            origen = 'groupon';
+        } else if (rawOrigen.includes('smartbox')) {
+            origen = 'smartbox';
+        } else if (rawOrigen.includes('wonderbox')) {
+            origen = 'wonderbox';
+        } else if (rawOrigen.includes('ego')) {
+            origen = 'ego';
+        } else if (rawOrigen === 'sin_cargo' || c.sin_cargo === true) {
+            origen = 'sin_cargo';
+        } else if (rawOrigen) {
+            origen = rawOrigen;
+        }
+
         const isVoucherOrHotel = ['hotel_inc', 'bono', 'smartbox', 'wonderbox', 'ego', 'groupon'].includes(origen);
+
+        // Si la reserva particular no tiene precio guardado o está a 0€ sin ser de bono/pack/hotel/cortesía, recuperar tarifa catálogo
+        if (totalPrice <= 0 && !c.sin_cargo && !c.is_pack_element && !c.parent_id && !c.pack_origen && !isVoucherOrHotel) {
+            let catPrice = 0;
+            if (window.SpaServiceCatalog && typeof window.SpaServiceCatalog.resolve === 'function') {
+                const canonical = window.SpaServiceCatalog.resolve(c.servicio, window.allMasterItems || [], window.allServices || []);
+                catPrice = canonical ? parseFloat(canonical.precio || canonical.price_pax || canonical.price || 0) : 0;
+            }
+            if (catPrice <= 0 && window.allMasterItems) {
+                const mItem = window.allMasterItems.find(m => (m.name || m.nombre || '').toLowerCase() === (c.servicio || '').toLowerCase());
+                if (mItem) catPrice = parseFloat(mItem.price_pax || mItem.precio || mItem.price || 0) || 0;
+            }
+            if (catPrice > 0) {
+                const paxCount = parseInt(c.pax || 1, 10);
+                totalPrice = catPrice * paxCount;
+            }
+        }
 
         const hasRealPayment = (c.payment && typeof c.payment.paid === 'number' && c.payment.paid > 0);
         const isPayGoldPaid = (c.paygold_status === 'COBRADO' || c.paygold_status === 'PAGADO' || !!c.paygold_auth);
@@ -526,108 +568,109 @@ function renderDashboard() {
         const hasBalance = balanceAmount > 0.05 && !isVoucherOrHotel;
         const hasPayGold = !!(c.payment_link || c.paygold_link || c.paygold_order);
 
-        let paymentBadgeHtml = '';
-
-        // 1. HOTEL - INCLUIDO
-        if (origen === 'hotel_inc') {
-            paymentBadgeHtml = `
-                <span title="Hotel: Incluido en estancia (${c.hotel || 'Cumbria'} ${c.hab ? 'Hab ' + c.hab : ''})" style="display:inline-flex; align-items:center; gap:3px; background:#eff6ff; color:#1d4ed8; border:1px solid #93c5fd; padding:2px 6px; border-radius:6px; font-size:0.68rem; font-weight:700; white-space:nowrap;">
-                    <i class="fas fa-hotel" style="color:#2563eb;"></i> HOTEL INC.
-                </span>`;
-        }
-        // 2. HOTEL - NO INCLUIDO
-        else if (origen === 'hotel_no_inc') {
-            const hasPend = balanceAmount > 0.05;
-            const pendText = hasPend ? ` ${balanceAmount.toFixed(0)}€` : ' (PAGADO)';
-            paymentBadgeHtml = `
-                <span title="Hotel: NO incluido en estancia (${c.hotel || 'Cumbria'} ${c.hab ? 'Hab ' + c.hab : ''})${hasPend ? ' - Pendiente: ' + balanceAmount.toFixed(2) + '€' : ' - Pagado'}" style="display:inline-flex; align-items:center; gap:3px; background:#f5f3ff; color:#6d28d9; border:1px solid #c4b5fd; padding:2px 6px; border-radius:6px; font-size:0.68rem; font-weight:700; white-space:nowrap;">
-                    <i class="fas fa-bed" style="color:#7c3aed;"></i> HOT. NO INC.${pendText}
-                </span>`;
-        }
-        // 3. BONO SPA (INTERNO)
-        else if (origen === 'bono') {
-            const bonoNum = c.bono ? ` · ${c.bono}` : '';
-            paymentBadgeHtml = `
-                <span title="Bono Spa Cumbria${bonoNum}" style="display:inline-flex; align-items:center; gap:3px; background:#f0fdfa; color:#0f766e; border:1px solid #99f6e4; padding:2px 6px; border-radius:6px; font-size:0.68rem; font-weight:700; white-space:nowrap;">
-                    <i class="fas fa-ticket-alt" style="color:#0d9488;"></i> BONO SPA
-                </span>`;
-        }
-        // 4. GROUPON
-        else if (origen === 'groupon') {
-            paymentBadgeHtml = `
-                <span title="Plataforma Groupon" style="display:inline-flex; align-items:center; gap:3px; background:#f0fdf4; color:#15803d; border:1px solid #86efac; padding:2px 6px; border-radius:6px; font-size:0.68rem; font-weight:700; white-space:nowrap;">
-                    <i class="fas fa-tag" style="color:#16a34a;"></i> GROUPON
-                </span>`;
-        }
-        // 5. SMARTBOX
-        else if (origen === 'smartbox') {
-            paymentBadgeHtml = `
-                <span title="Cofre Regalo Smartbox" style="display:inline-flex; align-items:center; gap:3px; background:#fff7ed; color:#c2410c; border:1px solid #fdba74; padding:2px 6px; border-radius:6px; font-size:0.68rem; font-weight:700; white-space:nowrap;">
-                    <i class="fas fa-gift" style="color:#ea580c;"></i> SMARTBOX
-                </span>`;
-        }
-        // 6. WONDERBOX
-        else if (origen === 'wonderbox') {
-            paymentBadgeHtml = `
-                <span title="Cofre Regalo Wonderbox" style="display:inline-flex; align-items:center; gap:3px; background:#fefce8; color:#a16207; border:1px solid #fde047; padding:2px 6px; border-radius:6px; font-size:0.68rem; font-weight:700; white-space:nowrap;">
-                    <i class="fas fa-box-open" style="color:#ca8a04;"></i> WONDERBOX
-                </span>`;
-        }
-        // 7. EGO EXPERIENCIAS
-        else if (origen === 'ego') {
-            paymentBadgeHtml = `
-                <span title="Cofre Regalo Ego Experiencias" style="display:inline-flex; align-items:center; gap:3px; background:#fdf2f8; color:#be185d; border:1px solid #f472b6; padding:2px 6px; border-radius:6px; font-size:0.68rem; font-weight:700; white-space:nowrap;">
-                    <i class="fas fa-star" style="color:#db2777;"></i> EGO EXP.
-                </span>`;
-        }
         // 8. PAQUETE / PACK ORIGEN (Tratamiento incluido dentro de un paquete)
         const packOriginName = c.pack_origen || c.parent_service || c.pack_name
             || (c.is_pack_element && c.parent_name)
             || ((window.SpaServiceCatalog && typeof window.SpaServiceCatalog.findParentPacks === 'function')
                 ? window.SpaServiceCatalog.findParentPacks(c.servicio, window.allServices || [], window.SPA_PACKS_REGISTRY)[0]
                 : null);
-        const isPackIncluded = !!(c.is_pack_element || c.parent_id || c.pack_origen || (totalPrice === 0 && packOriginName));
+        const isPackIncluded = !isVoucherOrHotel && !!(c.is_pack_element || c.parent_id || c.pack_origen || (totalPrice === 0 && packOriginName));
 
-        if (isPackIncluded) {
+        let paymentBadgeHtml = '';
+
+        // 1. HOTEL - INCLUIDO (Azul Real)
+        if (origen === 'hotel_inc') {
+            paymentBadgeHtml = `
+                <span title="Hotel: Incluido en estancia (${c.hotel || 'Cumbria'} ${c.hab ? 'Hab ' + c.hab : ''})" style="display:inline-flex; align-items:center; gap:4px; background:#eff6ff; color:#1d4ed8; border:1px solid #93c5fd; padding:3px 8px; border-radius:6px; font-size:0.7rem; font-weight:700; white-space:nowrap;">
+                    <i class="fas fa-hotel" style="color:#2563eb;"></i> HOTEL INC.
+                </span>`;
+        }
+        // 2. HOTEL - NO INCLUIDO (Púrpura)
+        else if (origen === 'hotel_no_inc') {
+            const hasPend = balanceAmount > 0.05;
+            const pendText = hasPend ? ` ${balanceAmount.toFixed(0)}€` : ' (PAGADO)';
+            paymentBadgeHtml = `
+                <span title="Hotel: NO incluido en estancia (${c.hotel || 'Cumbria'} ${c.hab ? 'Hab ' + c.hab : ''})${hasPend ? ' - Pendiente: ' + balanceAmount.toFixed(2) + '€' : ' - Pagado'}" style="display:inline-flex; align-items:center; gap:4px; background:#f5f3ff; color:#6d28d9; border:1px solid #c4b5fd; padding:3px 8px; border-radius:6px; font-size:0.7rem; font-weight:700; white-space:nowrap;">
+                    <i class="fas fa-bed" style="color:#7c3aed;"></i> HOT. NO INC.${pendText}
+                </span>`;
+        }
+        // 3. BONO SPA (INTERNO - Azul Suave)
+        else if (origen === 'bono') {
+            const bonoNum = bonoCode ? ` · ${bonoCode}` : '';
+            paymentBadgeHtml = `
+                <span title="Bono Spa Cumbria${bonoNum}" style="display:inline-flex; align-items:center; gap:4px; background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; padding:3px 8px; border-radius:6px; font-size:0.7rem; font-weight:700; white-space:nowrap;">
+                    <i class="fas fa-ticket-alt" style="color:#2563eb;"></i> BONO
+                </span>`;
+        }
+        // 4. GROUPON (Verde Intenso)
+        else if (origen === 'groupon') {
+            paymentBadgeHtml = `
+                <span title="Plataforma Groupon" style="display:inline-flex; align-items:center; gap:4px; background:#f0fdf4; color:#15803d; border:1px solid #86efac; padding:3px 8px; border-radius:6px; font-size:0.7rem; font-weight:700; white-space:nowrap;">
+                    <i class="fas fa-tag" style="color:#16a34a;"></i> GROUPON
+                </span>`;
+        }
+        // 5. SMARTBOX (Naranja)
+        else if (origen === 'smartbox') {
+            paymentBadgeHtml = `
+                <span title="Cofre Regalo Smartbox" style="display:inline-flex; align-items:center; gap:4px; background:#fff7ed; color:#c2410c; border:1px solid #fdba74; padding:3px 8px; border-radius:6px; font-size:0.7rem; font-weight:700; white-space:nowrap;">
+                    <i class="fas fa-gift" style="color:#ea580c;"></i> SMARTBOX
+                </span>`;
+        }
+        // 6. WONDERBOX (Amarillo Dorado)
+        else if (origen === 'wonderbox') {
+            paymentBadgeHtml = `
+                <span title="Cofre Regalo Wonderbox" style="display:inline-flex; align-items:center; gap:4px; background:#fefce8; color:#a16207; border:1px solid #fde047; padding:3px 8px; border-radius:6px; font-size:0.7rem; font-weight:700; white-space:nowrap;">
+                    <i class="fas fa-box-open" style="color:#ca8a04;"></i> WONDERBOX
+                </span>`;
+        }
+        // 7. EGO EXPERIENCIAS (Rosa Fucsia)
+        else if (origen === 'ego') {
+            paymentBadgeHtml = `
+                <span title="Cofre Regalo Ego Experiencias" style="display:inline-flex; align-items:center; gap:4px; background:#fdf2f8; color:#be185d; border:1px solid #f472b6; padding:3px 8px; border-radius:6px; font-size:0.7rem; font-weight:700; white-space:nowrap;">
+                    <i class="fas fa-star" style="color:#db2777;"></i> EGO EXP.
+                </span>`;
+        }
+        // 8. PAQUETE / PACK ORIGEN
+        else if (isPackIncluded) {
             const packTitle = packOriginName || 'Pack multiservicio';
             paymentBadgeHtml = `
-                <span title="Tratamiento incluido en paquete: ${packTitle}" style="display:inline-flex; align-items:center; gap:3px; background:#fff7ed; color:#c2410c; border:1px solid #fed7aa; padding:2px 6px; border-radius:6px; font-size:0.68rem; font-weight:700; white-space:nowrap;">
+                <span title="Tratamiento incluido en paquete: ${packTitle}" style="display:inline-flex; align-items:center; gap:4px; background:#fff7ed; color:#c2410c; border:1px solid #fed7aa; padding:3px 8px; border-radius:6px; font-size:0.7rem; font-weight:700; white-space:nowrap;">
                     <i class="fas fa-box" style="color:#ea580c;"></i> PACK · ${packTitle}
                 </span>`;
         }
-        // 9. SIN CARGO / GRATUITA
-        else if (totalPrice === 0 || c.sin_cargo) {
+        // 9. SIN CARGO / GRATUITA (solo explícito con sin_cargo o autorización)
+        else if (c.sin_cargo === true || origen === 'sin_cargo' || !!(c.sin_cargo_autorizado || c.autorizado_por)) {
             const authName = c.sin_cargo_autorizado || c.autorizado_por || '';
             paymentBadgeHtml = `
-                <span title="Reserva Sin Cargo / Gratuita${authName ? ' - Autorizado por: ' + authName : ''}" style="display:inline-flex; align-items:center; gap:3px; background:#fef3c7; color:#92400e; border:1px solid #fcd34d; padding:2px 6px; border-radius:6px; font-size:0.68rem; font-weight:700; white-space:nowrap;">
+                <span title="Reserva Sin Cargo / Gratuita${authName ? ' - Autorizado por: ' + authName : ''}" style="display:inline-flex; align-items:center; gap:4px; background:#fef3c7; color:#92400e; border:1px solid #fcd34d; padding:3px 8px; border-radius:6px; font-size:0.7rem; font-weight:700; white-space:nowrap;">
                     <i class="fas fa-gift" style="color:#d97706;"></i> SIN CARGO${authName ? ' · ' + authName : ''}
                 </span>`;
         }
-        // 9. PAGADO (100%)
+        // 10. PAGADO (100% Pagado)
         else if (!hasBalance && totalPrice > 0) {
             paymentBadgeHtml = `
-                <span title="Total abonado: ${paid.toFixed(2)}€ (100% Pagado)" style="display:inline-flex; align-items:center; gap:3px; background:#ecfdf5; color:#047857; border:1px solid #a7f3d0; padding:2px 6px; border-radius:6px; font-size:0.68rem; font-weight:700; white-space:nowrap;">
+                <span title="Total abonado: ${paid.toFixed(2)}€ (100% Pagado)" style="display:inline-flex; align-items:center; gap:4px; background:#ecfdf5; color:#047857; border:1px solid #a7f3d0; padding:3px 8px; border-radius:6px; font-size:0.7rem; font-weight:700; white-space:nowrap;">
                     <i class="fas fa-check-circle" style="color:#10b981;"></i> PAGADO
                 </span>`;
         }
-        // 10. PAYGOLD PENDIENTE
+        // 11. PAYGOLD PENDIENTE
         else if (hasBalance && hasPayGold) {
             paymentBadgeHtml = `
-                <span title="Enlace Redsys PayGold generado - Pendiente de pago (${balanceAmount.toFixed(2)}€)" style="display:inline-flex; align-items:center; gap:3px; background:#fffbeb; color:#b45309; border:1px solid #fde68a; padding:2px 6px; border-radius:6px; font-size:0.68rem; font-weight:700; white-space:nowrap;">
+                <span title="Enlace Redsys PayGold generado - Pendiente de pago (${balanceAmount.toFixed(2)}€)" style="display:inline-flex; align-items:center; gap:4px; background:#fffbeb; color:#b45309; border:1px solid #fde68a; padding:3px 8px; border-radius:6px; font-size:0.7rem; font-weight:700; white-space:nowrap;">
                     <i class="fas fa-credit-card" style="color:#d97706;"></i> PAYGOLD ${balanceAmount.toFixed(0)}€
                 </span>`;
         }
-        // 11. PAGO PARCIAL
+        // 12. PAGO PARCIAL
         else if (hasBalance && paid > 0) {
             paymentBadgeHtml = `
-                <span title="Pagado: ${paid.toFixed(2)}€ - Pendiente: ${balanceAmount.toFixed(2)}€" style="display:inline-flex; align-items:center; gap:3px; background:#fff7ed; color:#c2410c; border:1px solid #fed7aa; padding:2px 6px; border-radius:6px; font-size:0.68rem; font-weight:700; white-space:nowrap;">
+                <span title="Pagado: ${paid.toFixed(2)}€ - Pendiente: ${balanceAmount.toFixed(2)}€" style="display:inline-flex; align-items:center; gap:4px; background:#fff7ed; color:#c2410c; border:1px solid #fed7aa; padding:3px 8px; border-radius:6px; font-size:0.7rem; font-weight:700; white-space:nowrap;">
                     <i class="fas fa-adjust" style="color:#f97316;"></i> PARCIAL ${balanceAmount.toFixed(0)}€
                 </span>`;
         }
-        // 12. PENDIENTE (TOTAL)
+        // 13. PENDIENTE (TOTAL)
         else if (hasBalance) {
             paymentBadgeHtml = `
-                <span title="Pendiente de pago: ${balanceAmount.toFixed(2)}€" style="display:inline-flex; align-items:center; gap:3px; background:#fef2f2; color:#b91c1c; border:1px solid #fecaca; padding:2px 6px; border-radius:6px; font-size:0.68rem; font-weight:700; white-space:nowrap;">
+                <span title="Pendiente de pago: ${balanceAmount.toFixed(2)}€" style="display:inline-flex; align-items:center; gap:4px; background:#fef2f2; color:#b91c1c; border:1px solid #fecaca; padding:3px 8px; border-radius:6px; font-size:0.7rem; font-weight:700; white-space:nowrap;">
                     <i class="fas fa-clock" style="color:#ef4444;"></i> PENDIENTE ${balanceAmount.toFixed(0)}€
                 </span>`;
         }

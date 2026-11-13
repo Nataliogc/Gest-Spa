@@ -499,7 +499,7 @@
         <!-- LEFT: Cumbria Logo -->
         <div style="display: flex; align-items: center; gap: 15px;">
             <img src="logo-spa.jpg" alt="Cumbria Bienestar" style="height: 65px; width: auto; object-fit: contain;">
-            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.42 (13/11/2026)">v2.3.42</span>
+            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.43 (13/11/2026)">v2.3.43</span>
         </div>
 
         <ul class="nav-links" style="flex:1;">
@@ -5273,37 +5273,9 @@
         function filterOriginOptions() {
             const origenSel = document.getElementById("res-origen");
             if (!origenSel) return;
-
-            const allowedOrigins = {
-                'suite': ['particular', 'hotel_inc', 'hotel_no_inc', 'bono'],
-                'panacea': ['particular', 'bono'],
-                'vip': ['particular', 'bono']
-            };
-
-            // Use currentModule.code (more reliable) or moduleType
-            const code = (window.currentModule && window.currentModule.code) ? window.currentModule.code : window.moduleType;
-            const allowed = allowedOrigins[code];
-
-            if (allowed) {
-                let currentValValid = false;
-                for (let i = 0; i < origenSel.options.length; i++) {
-                    const opt = origenSel.options[i];
-                    const isValid = allowed.includes(opt.value);
-                    opt.style.display = isValid ? "block" : "none";
-                    if (opt.selected && isValid) currentValValid = true;
-                }
-
-                // If current selection is invalid (hidden), switch to first allowed
-                if (!currentValValid) {
-                    if (allowed.includes('particular')) origenSel.value = 'particular';
-                    else origenSel.value = allowed[0];
-                    toggleRoomField(); // Refresh UI
-                }
-            } else {
-                // Show all
-                for (let i = 0; i < origenSel.options.length; i++) {
-                    origenSel.options[i].style.display = "block";
-                }
+            // Permitir siempre todos los orígenes en todas las salas y espacios
+            for (let i = 0; i < origenSel.options.length; i++) {
+                origenSel.options[i].style.display = "block";
             }
         }
 
@@ -6067,15 +6039,9 @@
 
             toggleRoomField();
 
-            // Filtrar Orígenes para Suite
+            // Asegurar todos los orígenes visibles
             const origenSel = document.getElementById("res-origen");
-            if (moduleType === 'suite') {
-                for (let i = 0; i < origenSel.options.length; i++) {
-                    const opt = origenSel.options[i];
-                    const valid = ['particular', 'hotel_inc', 'hotel_no_inc', 'bono'].includes(opt.value);
-                    opt.style.display = valid ? "block" : "none";
-                }
-            } else {
+            if (origenSel) {
                 for (let i = 0; i < origenSel.options.length; i++) {
                     origenSel.options[i].style.display = "block";
                 }

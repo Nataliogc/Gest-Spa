@@ -8,7 +8,7 @@ Este documento mantiene el **control de versión única y global** para todo el 
 
 | Parámetro | Valor Actual |
 | :--- | :--- |
-| **Versión Global del Sistema** | **`v2.3.42`** |
+| **Versión Global del Sistema** | **`v2.3.43`** |
 | **Fecha de Última Actualización** | **13/11/2026** |
 | **Estado General** | Operativo en Producción |
 
@@ -47,6 +47,14 @@ Cualquier cambio en los siguientes módulos impacta en la versión global:
 ---
 
 ## 📝 Historial Unificado de Versiones
+
+### [v2.3.43] - 13/11/2026
+- **Tipo:** PATCH
+- **Archivos:** `index.html`, `js/dashboard.js`, `reservas-salas.html`, `reservas-spa.html`, `reservas.html`, `styles.css`, `scripts/test-origin-and-table-layout.js`
+- **Descripción:** Corrección integral de orígenes de reservas, resolución de estados por canal y optimización proporcional de la distribución de la tabla:
+  1. **Disponibilidad Total de Orígenes en Todas las Salas:** Se eliminó la restricción que limitaba a Panacea y VIP a mostrar únicamente 'Particular' y 'Bono'. Ahora todas las salas (Panacea, VIP, Suite, Cabinas, Spa) disponen en sus desplegables de los 8 orígenes oficiales: Particular, Hotel - Incluido, Hotel - NO Incluidos, Bono Spa (Interno), Smartbox, Wonderbox, Ego Experiencias y Groupon.
+  2. **Resolución Inteligente de Estados y Píldoras en Dashboard:** Se corrigió el error donde reservas de Bono, Hotel o Cupones con importe 0.00€ se clasificaban erróneamente como `SIN CARGO`. Ahora el sistema detecta de forma robusta el origen (por valor de canal o presencia de localizador/código de bono), asignando a cada grupo su etiqueta y color correspondiente (`BONO`, `HOTEL INC.`, `HOT. NO INC.`, `GROUPON`, `SMARTBOX`, `WONDERBOX`, `EGO EXP.`), reservando `SIN CARGO` exclusivamente para cortesías explícitas o autorizadas.
+  3. **Distribución Visual Proporcional de la Tabla:** Se eliminó el layout rígido forzado que provocaba saltos de línea antiestéticos en el ID (`RS- 1UNK`) y truncado del texto en la cabecera `TERAPEUTA` (`TERAPEU`). Se ajustaron anchos mínimos con `white-space: nowrap` en columnas fijas y distribución compartida natural entre `CLIENTE` y `SERVICIO`, eliminando huecos vacíos y logrando un aspecto equilibrado y profesional.
 
 ### [v2.3.42] - 13/11/2026
 - **Tipo:** PATCH

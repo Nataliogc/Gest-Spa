@@ -566,22 +566,26 @@ th {
     text-overflow: ellipsis;
 }
 
-/* Dashboard Table Layout Estricto */
+/* Dashboard Table Layout Profesional y Proporcional */
 #dashboard-table {
     width: 100%;
-    table-layout: fixed;
     border-collapse: separate;
     border-spacing: 0;
 }
-#dashboard-table th.col-id, #dashboard-table td.col-id { width: 75px; text-align: left; }
-#dashboard-table th.col-fecha, #dashboard-table td.col-fecha { width: 90px; text-align: center; }
-#dashboard-table th.col-hora, #dashboard-table td.col-hora { width: 65px; text-align: center; }
-#dashboard-table th.col-cliente, #dashboard-table td.col-cliente { min-width: 140px; text-align: left; }
-#dashboard-table th.col-servicio, #dashboard-table td.col-servicio { min-width: 150px; text-align: left; }
-#dashboard-table th.col-sala, #dashboard-table td.col-sala { width: 85px; text-align: left; }
-#dashboard-table th.col-terapeuta, #dashboard-table td.col-terapeuta { width: 85px; text-align: left; }
-#dashboard-table th.col-estado, #dashboard-table td.col-estado { width: 175px; text-align: center; }
-#dashboard-table th.col-acciones, #dashboard-table td.col-acciones { width: 130px; text-align: center; }
+#dashboard-table th, #dashboard-table td {
+    padding: 10px 14px;
+    box-sizing: border-box;
+    vertical-align: middle;
+}
+#dashboard-table th.col-id, #dashboard-table td.col-id { width: 95px; min-width: 95px; white-space: nowrap; text-align: left; }
+#dashboard-table th.col-fecha, #dashboard-table td.col-fecha { width: 100px; min-width: 100px; white-space: nowrap; text-align: center; }
+#dashboard-table th.col-hora, #dashboard-table td.col-hora { width: 80px; min-width: 80px; white-space: nowrap; text-align: center; }
+#dashboard-table th.col-cliente, #dashboard-table td.col-cliente { min-width: 160px; text-align: left; }
+#dashboard-table th.col-servicio, #dashboard-table td.col-servicio { min-width: 170px; text-align: left; }
+#dashboard-table th.col-sala, #dashboard-table td.col-sala { width: 95px; min-width: 95px; white-space: nowrap; text-align: left; }
+#dashboard-table th.col-terapeuta, #dashboard-table td.col-terapeuta { width: 105px; min-width: 105px; white-space: nowrap; text-align: left; }
+#dashboard-table th.col-estado, #dashboard-table td.col-estado { width: 175px; min-width: 175px; white-space: nowrap; text-align: center; }
+#dashboard-table th.col-acciones, #dashboard-table td.col-acciones { width: 135px; min-width: 135px; white-space: nowrap; text-align: center; }
 
 tr:hover td {
     background: rgba(0, 0, 0, 0.02);
