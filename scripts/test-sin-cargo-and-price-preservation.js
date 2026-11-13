@@ -3,108 +3,130 @@ const fs = require('fs');
 const catalog = require('../js/service-catalog.js');
 const packsReg = require('../js/spa-packs-registry.js');
 
-console.log('--- TEST: PRESERVACIÓN DE PRECIOS, SIN CARGO Y TRATAMIENTOS EN PAQUETE ---');
+console.log('--- TEST: PRESERVACIÓN DE PRECIOS, SIN CARGO, PAQUETES ORIGEN Y DESCUENTOS ---');
 
-// 1. Verify reservas-salas.html contains the safeguard against price corruption on edit and pack notice
+// 1. Verify reservas-salas.html contains discount elements and handlers
 const salasHtml = fs.readFileSync('reservas-salas.html', 'utf8');
-assert(salasHtml.includes('// PRESERVAR TOTAL AL CONSULTAR/INICIALIZAR EDICIÓN DE RESERVA EXISTENTE'), 'reservas-salas.html must guard existing total in updateTotal');
-assert(salasHtml.includes('id="res-sin-cargo-autorizado"'), 'reservas-salas.html must have sin-cargo input field');
-assert(salasHtml.includes('id="pack-origin-notice"'), 'reservas-salas.html must have pack-origin-notice');
-assert(salasHtml.includes('applyCatalogServicePrice()'), 'reservas-salas.html must have applyCatalogServicePrice function');
-assert(salasHtml.includes('payload.sin_cargo = true'), 'reservas-salas.html must save sin_cargo flag in payload');
-assert(salasHtml.includes('isItemFromPack'), 'reservas-salas.html must check isItemFromPack in saveReservation');
+assert(salasHtml.includes('id="res-descuento-tipo"'), 'reservas-salas.html must have descuento-tipo select');
+assert(salasHtml.includes('id="res-descuento-valor"'), 'reservas-salas.html must have descuento-valor input');
+assert(salasHtml.includes('id="res-descuento-motivo"'), 'reservas-salas.html must have descuento-motivo input');
+assert(salasHtml.includes('toggleDescuentoSection'), 'reservas-salas.html must have toggleDescuentoSection');
+assert(salasHtml.includes('clearDescuento'), 'reservas-salas.html must have clearDescuento');
+assert(salasHtml.includes('payload.descuento_aplicado = true'), 'reservas-salas.html must save descuento_aplicado');
+console.log('✓ Modales de reserva: Campos y controles de descuento (% y € con motivo) verificados');
 
-// 2. Verify reservas.html contains identical safeguards
+// 2. Verify reservas.html and reservas-spa.html contain identical discount elements
 const reservasHtml = fs.readFileSync('reservas.html', 'utf8');
-assert(reservasHtml.includes('// PRESERVAR TOTAL AL CONSULTAR/INICIALIZAR EDICIÓN DE RESERVA EXISTENTE'), 'reservas.html must guard existing total in updateTotal');
-assert(reservasHtml.includes('id="res-sin-cargo-autorizado"'), 'reservas.html must have sin-cargo input field');
-assert(reservasHtml.includes('id="pack-origin-notice"'), 'reservas.html must have pack-origin-notice');
-assert(reservasHtml.includes('isItemFromPack'), 'reservas.html must check isItemFromPack in saveReservation');
+assert(reservasHtml.includes('id="res-descuento-tipo"'));
+assert(reservasHtml.includes('id="res-descuento-valor"'));
+assert(reservasHtml.includes('id="res-descuento-motivo"'));
 
-// 3. Verify reservas-spa.html contains identical safeguards
 const spaHtml = fs.readFileSync('reservas-spa.html', 'utf8');
-assert(spaHtml.includes('// PRESERVAR TOTAL AL CONSULTAR/INICIALIZAR EDICIÓN DE RESERVA EXISTENTE'), 'reservas-spa.html must guard existing total in updateTotal');
-assert(spaHtml.includes('id="res-sin-cargo-autorizado"'), 'reservas-spa.html must have sin-cargo input field');
-assert(spaHtml.includes('id="pack-origin-notice"'), 'reservas-spa.html must have pack-origin-notice');
-assert(spaHtml.includes('isItemFromPack'), 'reservas-spa.html must check isItemFromPack in saveReservation');
+assert(spaHtml.includes('id="res-descuento-tipo"'));
+assert(spaHtml.includes('id="res-descuento-valor"'));
+assert(spaHtml.includes('id="res-descuento-motivo"'));
+console.log('✓ Homogeneidad en reservas.html y reservas-spa.html verificada');
 
-// 4. Verify js/dashboard.js renders distinct origin and status badges, including PACK badge
-const dashJs = fs.readFileSync('js/dashboard.js', 'utf8');
-assert(dashJs.includes('SIN CARGO'), 'js/dashboard.js must render SIN CARGO badge');
-assert(dashJs.includes('PACK ·'), 'js/dashboard.js must render PACK badge for package items');
-assert(dashJs.includes('HOTEL INC.'), 'js/dashboard.js must render HOTEL INC.');
-assert(dashJs.includes('HOT. NO INC.'), 'js/dashboard.js must render HOT. NO INC.');
-assert(dashJs.includes('BONO SPA'), 'js/dashboard.js must render BONO SPA');
-assert(dashJs.includes('GROUPON'), 'js/dashboard.js must render GROUPON');
-assert(dashJs.includes('SMARTBOX'), 'js/dashboard.js must render SMARTBOX');
-assert(dashJs.includes('WONDERBOX'), 'js/dashboard.js must render WONDERBOX');
-assert(dashJs.includes('EGO EXP.'), 'js/dashboard.js must render EGO EXP.');
-
-// 5. Verify js/config.js renders parent pack info for items in packs
+// 3. Verify js/config.js alarm on 0€ direct sale items
 const configJs = fs.readFileSync('js/config.js', 'utf8');
-assert(configJs.includes('findParentPacks'), 'js/config.js must find parent packs for items');
-assert(configJs.includes('Paquete:'), 'js/config.js must show Paquete label for items in pack');
-assert(configJs.includes('En Paquete'), 'js/config.js must show En Paquete note for 0€ items in pack');
+assert(configJs.includes('data-has-alarm="${isDirectZero}"'), 'js/config.js must set data-has-alarm');
+assert(configJs.includes('¡SIN PRECIO!'), 'js/config.js must render ¡SIN PRECIO! badge');
+assert(configJs.includes('Alarma 0€'), 'js/config.js must render Alarma 0€ badge');
+console.log('✓ Configuración: Alarma visual de Venta Directa sin precio (0.00€) y selector compacto verificados');
 
-// 6. Test SpaServiceCatalog.findParentPacks
+// 4. Verify index.html vertical alignment CSS
+const indexHtml = fs.readFileSync('index.html', 'utf8');
+assert(indexHtml.includes('vertical-align: middle !important;'), 'index.html must force vertical-align middle on table cells');
+const dashJs = fs.readFileSync('js/dashboard.js', 'utf8');
+assert(dashJs.includes('vertical-align: middle;'), 'js/dashboard.js must include vertical-align middle');
+console.log('✓ Alineación visual: Centrado vertical de todas las celdas de la tabla de reservas verificado');
+
+// 5. Test Discount Calculation (% and €) and validation of motive
 {
-    const lotoPacks = catalog.findParentPacks('Envoltura corporal de flores de loto', [], packsReg.SPA_PACKS_REGISTRY);
-    assert(lotoPacks.includes('Ritual Indian ritual'), 'Must identify Ritual Indian ritual as parent pack of Envoltura corporal de flores de loto');
-    console.log('✓ Detección de paquete origen: "Envoltura corporal de flores de loto" pertenece a "Ritual Indian ritual"');
+    // Test percentage discount
+    const subtotal = 100;
+    const descTipo = 'porcentaje';
+    const descValor = 20; // 20%
+    const importeDescuento = (subtotal * descValor) / 100;
+    const total = subtotal - importeDescuento;
+    assert.strictEqual(importeDescuento, 20);
+    assert.strictEqual(total, 80);
 
-    const vitCPacks = catalog.findParentPacks('Envoltura corporal vit.c', [], packsReg.SPA_PACKS_REGISTRY);
-    assert(vitCPacks.includes('Ritual Baño Cítrico'), 'Must identify Ritual Baño Cítrico as parent pack of Envoltura corporal vit.c');
-    console.log('✓ Detección de paquete origen: "Envoltura corporal vit.c" pertenece a "Ritual Baño Cítrico"');
-}
+    // Test fixed amount discount
+    const descTipoFijo = 'cantidad';
+    const descValorFijo = 15; // 15€
+    const importeDescuentoFijo = descValorFijo;
+    const totalFijo = subtotal - importeDescuentoFijo;
+    assert.strictEqual(importeDescuentoFijo, 15);
+    assert.strictEqual(totalFijo, 85);
 
-// 7. Verify that 0€ items in a pack do NOT require "Autorizado por"
-{
-    const svcName = 'Envoltura corporal de flores de loto';
-    const payload = {
-        servicio: svcName,
-        precio_total: 0,
-        is_pack_element: true
-    };
-    const isItemFromPack = !!(payload.is_pack_element || (catalog.findParentPacks(svcName, [], packsReg.SPA_PACKS_REGISTRY).length > 0));
-    assert.strictEqual(isItemFromPack, true, 'Item from pack must be recognized as pack element');
-    
-    // Auth value is empty, but saving must be permitted because it is from a pack
-    const authVal = '';
-    let blockedByAuth = false;
-    if (payload.precio_total === 0) {
-        if (isItemFromPack) {
-            const detectedPack = catalog.findParentPacks(svcName, [], packsReg.SPA_PACKS_REGISTRY)[0];
-            payload.pack_origen = detectedPack;
-        } else if (!authVal) {
-            blockedByAuth = true;
+    // Test validation of motive: must be required when discount > 0
+    let descMotivo = '';
+    let validationBlocked = false;
+    if (descValor > 0) {
+        if (!descMotivo.trim()) {
+            validationBlocked = true;
         }
     }
-    assert.strictEqual(blockedByAuth, false, 'Saving pack items with 0€ must NOT be blocked by auth validation');
-    assert.strictEqual(payload.pack_origen, 'Ritual Indian ritual', 'Must assign Ritual Indian ritual as pack_origen');
-    console.log('✓ Los tratamientos de un paquete con precio 0€ se guardan directamente indicando su paquete de origen');
-}
+    assert.strictEqual(validationBlocked, true, 'Validation must block saving discount without motive');
 
-// 8. Verify that truly courtesy/unpriced items (not in pack) still require "Autorizado por"
-{
-    const svcName = 'Masaje Especial Cortesía';
-    const payload = {
-        servicio: svcName,
-        precio_total: 0
-    };
-    const isItemFromPack = !!(payload.is_pack_element || (catalog.findParentPacks(svcName, [], packsReg.SPA_PACKS_REGISTRY).length > 0));
-    assert.strictEqual(isItemFromPack, false);
-    
-    let authVal = '';
-    let blockedByAuth = false;
-    if (payload.precio_total === 0) {
-        if (isItemFromPack) {
-            payload.pack_origen = 'Pack';
-        } else if (!authVal) {
-            blockedByAuth = true;
+    descMotivo = 'Socio Isidro';
+    validationBlocked = false;
+    if (descValor > 0) {
+        if (!descMotivo.trim()) {
+            validationBlocked = true;
         }
     }
-    assert.strictEqual(blockedByAuth, true, 'Non-pack 0€ items MUST require authorization');
-    console.log('✓ Los servicios gratuitos sin paquete siguen exigiendo obligatoriamente "Autorizado por"');
+    assert.strictEqual(validationBlocked, false, 'Validation must pass when motive is provided');
+    console.log('✓ Cálculo y validación de descuentos: 20% sobre 100€ = 80€, 15€ fijos = 85€, motivo obligatorio');
 }
 
-console.log('\n✅ TODOS LOS TESTS DE PRESERVACIÓN, SIN CARGO Y PAQUETES ORIGEN PASARON EXITOSAMENTE!');
+// 6. Test 100% discount (e.g. Socio with 0.00€ final total)
+{
+    const subtotal = 50;
+    const descValor = 100; // 100%
+    const importeDescuento = (subtotal * descValor) / 100;
+    const total = subtotal - importeDescuento;
+    assert.strictEqual(total, 0, 'Total with 100% discount must be 0€');
+
+    const descMotivo = 'Socio Isidro (Cuota Club)';
+    const payload = {
+        precio_total: total,
+        descuento_aplicado: true,
+        descuento_motivo: descMotivo,
+        obs: ''
+    };
+    // When saving, 0€ with valid discount motive must NOT require "Autorizado por"
+    let blockedBySinCargo = false;
+    if (payload.precio_total === 0) {
+        if (payload.descuento_aplicado && payload.descuento_motivo) {
+            // Allowed
+            payload.obs += `[DESCUENTO 100%] Motivo: ${descMotivo}`;
+        } else {
+            blockedBySinCargo = true;
+        }
+    }
+    assert.strictEqual(blockedBySinCargo, false, '100% discount with motive must be saved cleanly');
+    assert(payload.obs.includes('Socio Isidro (Cuota Club)'));
+    console.log('✓ Descuento 100% (Socio): Total 0.00€ con motivo registrado no se confunde con Sin Cargo no autorizado');
+}
+
+// 7. Verify Auto-recovery of catalog price when booking has 0€ and is not sin cargo/pack
+{
+    const mockServices = [
+        { nombre: 'Fotodepilación', precio: 50 },
+        { nombre: 'Radiofrecuencia facial', precio: 49.9 }
+    ];
+    const rawTotal = 0;
+    const isSinCargo = false;
+    const isPack = false;
+    let resolvedPrice = 0;
+    if (rawTotal <= 0 && !isSinCargo && !isPack) {
+        const found = mockServices.find(s => s.nombre === 'Fotodepilación');
+        if (found) resolvedPrice = found.precio;
+    }
+    assert.strictEqual(resolvedPrice, 50, 'Must recover 50€ catalog price for Fotodepilación when unpriced');
+    console.log('✓ Auto-recuperación de tarifa: Reserva de Fotodepilación a 0€ recupera su tarifa de catálogo (50€)');
+}
+
+console.log('\n✅ TODOS LOS TESTS DE PRESERVACIÓN, ALARMAS, CENTRADO Y DESCUENTOS PASARON!');

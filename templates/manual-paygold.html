@@ -26,3 +26,56 @@
     <h3>Garantía de la cita y cancelaciones</h3>
     <p>El mensaje preparado para el cliente solicita el pago al menos 24 horas antes del servicio y advierte de una posible cancelación. Ese texto, por sí solo, no confirma que exista una cancelación automática programada. Si no consta el pago al acercarse la cita, revisa la reserva y aplica el procedimiento autorizado por el hotel.</p>
 </section>
+
+<!-- GUÍA DE DESCUENTOS Y CONTROL DE PRECIOS -->
+<section id="guia-descuentos" class="manual-guide" style="margin-top:25px; border-top:1px solid #e2e8f0; padding-top:20px;">
+    <h2><i class="fas fa-percentage" style="color:#6366f1;"></i> Sistema de Descuentos en Reservas (% y €)</h2>
+    <p><b>Para qué sirve:</b> Permite aplicar descuentos comerciales, promociones o tarifas especiales (por ejemplo a socios del club, personal o convenios) de forma controlada y con trazabilidad obligatoria.</p>
+    <h3>Cómo aplicar un descuento:</h3>
+    <ol>
+        <li>En el formulario de reserva (Salas, Spa o Cabinas), localiza el bloque <b>«Descuento Especial»</b> bajo las observaciones.</li>
+        <li>Pulsa <b>«+ Aplicar Descuento»</b> para desplegar los campos.</li>
+        <li>Selecciona el <b>Tipo</b>:
+            <ul>
+                <li><b>% Porcentaje:</b> Aplica un porcentaje de rebaja sobre el subtotal de la reserva (ej: <code>10</code> para 10%, <code>20</code> para 20%, <code>100</code> para 100% socios).</li>
+                <li><b>€ Importe fijo:</b> Resta una cantidad fija en euros (ej: <code>15.00€</code>).</li>
+            </ul>
+        </li>
+        <li>Introduce el <b>Valor</b> y comprueba el recálculo automático del Total en el pie de la ficha.</li>
+        <li><b>Indica obligatoriamente el Motivo del Descuento *:</b> Escribe la justificación (ej: <i>«Socio Isidro»</i>, <i>«Cortesía Dirección»</i>, <i>«Promoción apertura»</i>). El sistema <b>no permitirá guardar</b> un descuento sin motivo especificado.</li>
+        <li>Al guardar, el motivo y el importe descontado quedarán registrados en el historial de observaciones y en el control de auditoría de la reserva.</li>
+    </ol>
+</section>
+
+<!-- GUÍA DE TRATAMIENTOS DE PAQUETE Y PRESERVACIÓN DE PRECIOS -->
+<section id="guia-paquetes-precios" class="manual-guide" style="margin-top:25px; border-top:1px solid #e2e8f0; padding-top:20px;">
+    <h2><i class="fas fa-box-open" style="color:#ea580c;"></i> Tratamientos de Paquete vs. Reservas Sin Cargo</h2>
+    <p><b>Para qué sirve:</b> Evita confusiones entre citas gratuitas por cortesía y servicios que tienen precio 0.00 € por formar parte de un paquete ya facturado (ej. los tratamientos desglosados de un Ritual o Pack Multiservicio).</p>
+    <h3>Tratamientos incluidos en un paquete:</h3>
+    <ul>
+        <li>Cuando un tratamiento pertenece a un pack (ej. <i>Envoltura corporal de flores de loto</i> dentro de <i>Ritual Indian ritual</i>), su precio individual es 0.00 € porque el cobro se gestiona en la reserva principal.</li>
+        <li>El sistema detecta automáticamente su vinculación y muestra el distintivo <b><code>📦 PACK: [Nombre del Paquete]</code></b>.</li>
+        <li><b>No requiere autorización:</b> Al estar respaldado por el paquete de origen, no se exige el campo <i>«Autorizado por»</i>.</li>
+    </ul>
+    <h3>Reservas Sin Cargo / Gratuitas (Cortesías):</h3>
+    <ul>
+        <li>Si una reserva normal (sin paquete) tiene un importe final de 0.00 €, el sistema activa la protección de cortesía.</li>
+        <li>Es obligatorio rellenar el campo <b>«Autorizado por *»</b> (ej. <i>Dirección General</i>, <i>Dirección Comercial</i>). De lo contrario, el sistema impedirá su guardado para evitar servicios sin facturar por error.</li>
+    </ul>
+    <h3>Auto-recuperación de Tarifa de Catálogo:</h3>
+    <ul>
+        <li>Si una reserva particular antigua se abre con precio 0.00 € sin motivo, el sistema busca su tarifa oficial en el catálogo maestro y la asigna automáticamente para evitar que se cobre de menos.</li>
+    </ul>
+</section>
+
+<!-- GUÍA DE CONFIGURACIÓN Y ALARMAS DE CATÁLOGO -->
+<section id="guia-alarmas-catalogo" class="manual-guide" style="margin-top:25px; border-top:1px solid #e2e8f0; padding-top:20px;">
+    <h2><i class="fas fa-bell" style="color:#ef4444;"></i> Catálogo Maestro: Alarmas de Venta Directa y Canales</h2>
+    <p>En el menú <b>Configuración & Ajustes</b> (sección <i>Items de Compra / Pack</i>), el catálogo maestro cuenta con filtros y alertas automáticas para garantizar la coherencia comercial:</p>
+    <ul>
+        <li><b>🚨 ¡SIN PRECIO! (Alarma 0€):</b> Si un tratamiento está marcado como <b>Venta Directa</b> pero tiene tarifa <code>0.00 €</code>, la fila se resalta en naranja/rojo con la advertencia <i>«¡SIN PRECIO!»</i> para recordar al administrador que debe asignarle precio o pasarlo a <i>«Solo Pack»</i>.</li>
+        <li><b>Canal «Solo Pack»:</b> Reserva exclusiva para tratamientos que no se venden sueltos en recepción, sino únicamente dentro de paquetes y experiencias online.</li>
+        <li><b>Filtro Rápido por Alarma:</b> En el desplegable superior <i>Canal de Venta</i>, selecciona <b>«🚨 Alarma: Venta Directa 0€»</b> para auditar en 1 segundo todos los servicios que requieran fijar precio.</li>
+        <li><b>Paquete de Origen:</b> Cada elemento que forma parte de un ritual muestra la insignia <i>«📦 Paquete: [Nombre]»</i> bajo su nombre y el desglose de productos asociados al pulsar su contador.</li>
+    </ul>
+</section>

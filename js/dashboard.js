@@ -444,6 +444,23 @@ function renderDashboard() {
             const paxCount = parseInt(c.pax || 1, 10);
             totalPrice = (pPax > 0 && paxCount > 0) ? (pPax * paxCount) : 0;
         }
+        // Si la reserva particular no tiene precio guardado o está a 0€ sin ser de cortesía/pack, recuperar tarifa catálogo
+        const origenCheck = (c.origen || 'particular').toLowerCase();
+        if (totalPrice <= 0 && !c.sin_cargo && !c.is_pack_element && !c.parent_id && !c.pack_origen && !['hotel_inc', 'bono', 'smartbox', 'wonderbox', 'ego', 'groupon'].includes(origenCheck)) {
+            let catPrice = 0;
+            if (window.SpaServiceCatalog && typeof window.SpaServiceCatalog.resolve === 'function') {
+                const canonical = window.SpaServiceCatalog.resolve(c.servicio, window.allMasterItems || [], window.allServices || []);
+                catPrice = canonical ? parseFloat(canonical.precio || canonical.price_pax || canonical.price || 0) : 0;
+            }
+            if (catPrice <= 0 && window.allMasterItems) {
+                const mItem = window.allMasterItems.find(m => (m.name || m.nombre || '').toLowerCase() === (c.servicio || '').toLowerCase());
+                if (mItem) catPrice = parseFloat(mItem.price_pax || mItem.precio || mItem.price || 0) || 0;
+            }
+            if (catPrice > 0) {
+                const paxCount = parseInt(c.pax || 1, 10);
+                totalPrice = catPrice * paxCount;
+            }
+        }
 
         // Robust check for paid amount / balance
         let paid = 0;
@@ -589,21 +606,21 @@ function renderDashboard() {
         const payUrl = c.payment_link || c.paygold_link || '';
 
         return `
-            <tr style="${isNoShow ? 'opacity: 0.5;' : ''}">
-                <td style="font-size:0.8rem; color:#666;">${c.res_id || c.id.substr(0, 4)}</td>
-                ${isGlobalSearch ? `<td style="font-size:0.8rem;">${formatDateES(c.fecha)}</td>` : ''}
-                <td style="font-weight:bold; color:var(--accent);">${c.hora}</td>
-                <td ${isNoShow ? 'style="text-decoration: line-through;"' : ''}>${c.nombre}</td>
-                <td>${serviceName}</td>
-                <td style="font-size:0.8rem; color:#64748b;">${roomName}</td>
-                ${!isGlobalSearch ? `<td>${c.terapeuta || '—'}</td>` : ''}
-                <td style="text-align: center; white-space: nowrap;">
-                    <div style="display:inline-flex; align-items:center; justify-content:center; gap:6px;">
+            <tr style="${isNoShow ? 'opacity: 0.5;' : ''} vertical-align: middle;">
+                <td style="vertical-align: middle; font-size:0.8rem; color:#666;">${c.res_id || c.id.substr(0, 4)}</td>
+                ${isGlobalSearch ? `<td style="vertical-align: middle; font-size:0.8rem;">${formatDateES(c.fecha)}</td>` : ''}
+                <td style="vertical-align: middle; font-weight:bold; color:var(--accent);">${c.hora}</td>
+                <td style="vertical-align: middle; ${isNoShow ? 'text-decoration: line-through;' : ''}">${c.nombre}</td>
+                <td style="vertical-align: middle;">${serviceName}</td>
+                <td style="vertical-align: middle; font-size:0.8rem; color:#64748b;">${roomName}</td>
+                ${!isGlobalSearch ? `<td style="vertical-align: middle;">${c.terapeuta || '—'}</td>` : ''}
+                <td style="vertical-align: middle; text-align: center; white-space: nowrap;">
+                    <div style="display:inline-flex; align-items:center; justify-content:center; gap:6px; vertical-align: middle;">
                         ${statusIcon}
                         ${paymentBadgeHtml}
                     </div>
                 </td>
-                <td style="text-align:center;">
+                <td style="vertical-align: middle; text-align:center;">
                     ${isConfirmed && !isNoShow && !c.attended ? `
                         <button class="btn-icon" title="Confirmar Asistencia (Presentado)" onclick="markAttendance('${c.id}', '${c.moduleType}')" style="color:#f59e0b;">
                             <i class="fas fa-user-check"></i>

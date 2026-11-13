@@ -8,7 +8,7 @@ Este documento mantiene el **control de versión única y global** para todo el 
 
 | Parámetro | Valor Actual |
 | :--- | :--- |
-| **Versión Global del Sistema** | **`v2.3.40`** |
+| **Versión Global del Sistema** | **`v2.3.41`** |
 | **Fecha de Última Actualización** | **13/11/2026** |
 | **Estado General** | Operativo en Producción |
 
@@ -47,6 +47,16 @@ Cualquier cambio en los siguientes módulos impacta en la versión global:
 ---
 
 ## 📝 Historial Unificado de Versiones
+
+### [v2.3.41] - 13/11/2026
+- **Tipo:** PATCH
+- **Archivos:** `index.html`, `js/dashboard.js`, `reservas-salas.html`, `reservas.html`, `reservas-spa.html`, `configuracion.html`, `js/config.js`, `manual-usuario.html`, `scripts/test-sin-cargo-and-price-preservation.js`
+- **Descripción:** Implementación del sistema de descuentos en reservas, alarmas de venta directa sin precio, centrado de tabla y sincronización del manual:
+  1. **Descuentos en Reservas (% y €):** Nuevo bloque de descuento en modal de reserva que permite aplicar reducciones en porcentaje o importe fijo en euros, calculando en tiempo real el subtotal y total. Requiere obligatoriamente indicar el motivo (ej. Socio, Promoción, Cortesía, Convenio) para auditoría y persistencia.
+  2. **Alarma de Venta Directa sin Precio:** En `configuracion.html`, los tratamientos marcados como Venta Directa con tarifa 0.00 € muestran una alarma visual roja destacada `🚨 ¡SIN PRECIO!`, advertencia `Alarma 0€`, selector de canal de venta más compacto y nuevo filtro rápido por alarma en la cabecera.
+  3. **Auto-recuperación de Tarifa Oficial:** Al abrir o listar reservas particulares que no tenían importe guardado (0.00 €) y no eran cortesías ni packs, el sistema recupera automáticamente el precio de catálogo del servicio para evitar que queden incorrectamente a cero euros.
+  4. **Centrado Vertical de Celdas:** Alineación vertical perfecta (`vertical-align: middle`) en todas las celdas y filas de la tabla de reservas del dashboard (ID, hora, cliente, servicio, sala, terapeuta, estado e iconos).
+  5. **Actualización del Manual:** Sincronización completa de las guías de uso con los nuevos procesos de descuento, alarmas de catálogo y gestión de precios.
 
 ### [v2.3.40] - 13/11/2026
 - **Tipo:** PATCH

@@ -507,7 +507,8 @@ function filterMasterItems() {
     rows.forEach(row => {
         const textInputs = Array.from(row.querySelectorAll('input[type="text"]')).map(input => input.value).join(' ');
         const saleMode = row.dataset.saleMode || 'directa';
-        const matchesSale = (saleFilter === 'todos') || (saleMode === saleFilter);
+        const hasAlarm = row.dataset.hasAlarm === 'true';
+        const matchesSale = (saleFilter === 'todos') || (saleFilter === 'alarma' ? hasAlarm : saleMode === saleFilter);
         const text = normalize(textInputs);
         const matchesSearch = words.every(word => text.includes(word));
         row.hidden = !(matchesSale && matchesSearch);
@@ -563,6 +564,7 @@ function renderMasterItems() {
         // Modo de venta: Venta directa o solo paquetes de venta online
         const isSoloPack = item.pack_only === true || item.sale_mode === 'solo_pack' || item.standalone === false;
         const currentSaleMode = isSoloPack ? 'solo_pack' : 'directa';
+        const isDirectZero = !isSoloPack && (item.price_pax === 0 || !item.price_pax);
 
         // -- LOGICA MULTI-SELECT --
         // Determinar espacios seleccionados
@@ -585,7 +587,7 @@ function renderMasterItems() {
         }
 
         return `
-        <tr data-master-item data-sale-mode="${currentSaleMode}" style="border-bottom: 1px solid #f1f5f9;">
+        <tr data-master-item data-sale-mode="${currentSaleMode}" data-has-alarm="${isDirectZero}" style="border-bottom: 1px solid #f1f5f9;${isDirectZero ? ' background: #fffaf0;' : ''}">
             <td style="padding: 6px 2px;">
                 <input type="text" value="${item.code || ''}" placeholder="ID..." onchange="updateMasterItemField('${item.id}', 'code', this.value)" 
                     class="param-input" style="width:100%; font-size: 0.75rem;">
@@ -665,12 +667,16 @@ function renderMasterItems() {
             </td>
             <td style="padding: 6px 2px; text-align: center;">
                 <input type="number" step="0.01" value="${item.price_pax || 0}" onchange="updateMasterItemField('${item.id}', 'price_pax', parseFloat(this.value))" 
-                        class="param-input" style="width: 100%; text-align: center; color: var(--accent); font-weight: 700;" min="0">
-                ${((item.price_pax === 0 || !item.price_pax) && hasParentPacks) ? `
+                        class="param-input" style="width: 100%; text-align: center; font-weight: 700; ${isDirectZero ? 'border: 2px solid #ef4444; background: #fff5f5; color: #dc2626;' : 'color: var(--accent);'}" min="0">
+                ${isDirectZero ? `
+                    <span style="display: inline-flex; align-items: center; justify-content: center; gap: 3px; background: #fee2e2; color: #b91c1c; border: 1px solid #f87171; padding: 1px 4px; border-radius: 4px; font-size: 0.58rem; font-weight: 800; margin-top: 2px; text-transform: uppercase;" title="¡Alarma! Configurado como Venta Directa pero tiene precio 0€. Configure un precio o cámbielo a 'Solo Pack'">
+                        <i class="fas fa-exclamation-triangle" style="color: #ef4444;"></i> ¡SIN PRECIO!
+                    </span>
+                ` : (((item.price_pax === 0 || !item.price_pax) && hasParentPacks) ? `
                     <span style="display: block; font-size: 0.6rem; color: #b45309; font-weight: 700; margin-top: 2px;" title="Tratamiento sin precio individual: incluido en el paquete ${parentPacks.join(', ')}">
                         <i class="fas fa-box"></i> En Paquete
                     </span>
-                ` : ''}
+                ` : '')}
             </td>
             <td style="padding: 6px 2px; text-align: center;">
                 <select onchange="updateMasterItemField('${item.id}', 'agenda_required', this.value === 'true')" class="param-input" style="width: 100%;">
@@ -681,16 +687,20 @@ function renderMasterItems() {
             <td style="padding: 6px 2px; text-align: center;">
                 <select onchange="updateMasterItemSaleMode('${item.id}', this.value, this)" 
                         class="param-input" 
-                        title="${isSoloPack ? 'Solo se vende dentro de paquetes / packs de venta online' : (hasParentPacks ? 'Incluido en paquete. Se recomienda marcar "Solo Paquetes"' : 'Se puede vender directamente en recepción/reserva')}"
-                        style="width: 100%; font-size: 0.7rem; font-weight: 600; padding: 4px 2px; border-radius: 4px; cursor: pointer; transition: all 0.2s; ${isSoloPack ? 'background: #fffbeb; color: #b45309; border: 1px solid #fcd34d;' : 'background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0;'}">
+                        title="${isSoloPack ? 'Solo se vende dentro de paquetes / packs de venta online' : (isDirectZero ? '¡Alarma! Configurado como Venta Directa pero sin precio' : 'Se puede vender directamente en recepción/reserva')}"
+                        style="width: 82px; font-size: 0.65rem; font-weight: 700; padding: 2px 3px; height: 26px; border-radius: 4px; cursor: pointer; transition: all 0.2s; display: inline-block; ${isSoloPack ? 'background: #fffbeb; color: #b45309; border: 1px solid #fcd34d;' : (isDirectZero ? 'background: #fef2f2; color: #b91c1c; border: 2px solid #ef4444;' : 'background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0;')}">
                     <option value="directa" ${!isSoloPack ? 'selected' : ''}>Directa</option>
-                    <option value="solo_pack" ${isSoloPack ? 'selected' : ''}>Solo Paquetes</option>
+                    <option value="solo_pack" ${isSoloPack ? 'selected' : ''}>Solo Pack</option>
                 </select>
-                ${!isSoloPack && (item.price_pax === 0 || !item.price_pax) && hasParentPacks ? `
+                ${isDirectZero ? `
+                    <span style="display: block; font-size: 0.58rem; color: #dc2626; font-weight: 800; margin-top: 2px;" title="Alarma: Este servicio está en Venta Directa con precio 0€">
+                        <i class="fas fa-bell" style="color: #ef4444;"></i> Alarma 0€
+                    </span>
+                ` : (!isSoloPack && (item.price_pax === 0 || !item.price_pax) && hasParentPacks ? `
                     <span style="display: block; font-size: 0.58rem; color: #d97706; font-weight: 600; margin-top: 1px;" title="Tiene precio 0€ porque pertenece a un paquete">
                         ⚠️ De Paquete
                     </span>
-                ` : ''}
+                ` : '')}
             </td>
             <td style="padding: 6px 2px; text-align: center;">
                 <span onclick="showItemUsage('${item.id}', '${item.name.replace(/'/g, "\\'")}')"

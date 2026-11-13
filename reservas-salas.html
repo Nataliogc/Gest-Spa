@@ -499,7 +499,7 @@
         <!-- LEFT: Cumbria Logo -->
         <div style="display: flex; align-items: center; gap: 15px;">
             <img src="logo-spa.jpg" alt="Cumbria Bienestar" style="height: 65px; width: auto; object-fit: contain;">
-            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.39 (13/11/2026)">v2.3.39</span>
+            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.41 (13/11/2026)">v2.3.41</span>
         </div>
 
         <ul class="nav-links" style="flex:1;">
@@ -1036,6 +1036,47 @@
                                             Este servicio tiene precio 0.00€ porque está incluido y facturado en el paquete de origen.
                                         </div>
                                     </div>
+                                </div>
+                            </div>
+                            <!-- 🏷️ DESCUENTO EN RESERVA -->
+                            <div id="descuento-container"
+                                style="margin-top: 10px; background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 6px; padding: 10px;">
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <span style="font-size: 0.75rem; font-weight: 700; color: #475569; display: flex; align-items: center; gap: 6px;">
+                                        <i class="fas fa-tag" style="color: #6366f1;"></i> Descuento Especial
+                                    </span>
+                                    <button type="button" id="btn-toggle-descuento" onclick="toggleDescuentoSection()"
+                                        style="background: #eef2ff; color: #4f46e5; border: 1px solid #c7d2fe; padding: 2px 8px; border-radius: 4px; font-size: 0.7rem; font-weight: 700; cursor: pointer;">
+                                        <i class="fas fa-percent"></i> Aplicar Descuento
+                                    </button>
+                                </div>
+                                <div id="descuento-fields-wrapper" style="display: none; margin-top: 8px;">
+                                    <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                                        <div style="width: 105px;">
+                                            <label style="font-size: 0.68rem; font-weight: 700; color: #64748b; display: block; margin-bottom: 2px;">Tipo</label>
+                                            <select id="res-descuento-tipo" onchange="runUpdateTotal()" class="param-input" style="width: 100%; font-size: 0.75rem; padding: 3px 6px;">
+                                                <option value="porcentaje">% Porcentaje</option>
+                                                <option value="cantidad">€ Importe fijo</option>
+                                            </select>
+                                        </div>
+                                        <div style="width: 90px;">
+                                            <label style="font-size: 0.68rem; font-weight: 700; color: #64748b; display: block; margin-bottom: 2px;">Valor</label>
+                                            <input type="number" id="res-descuento-valor" min="0" step="0.01" placeholder="0" oninput="runUpdateTotal()"
+                                                class="param-input" style="width: 100%; font-size: 0.75rem; padding: 3px 6px; font-weight: 700; color: #4f46e5;">
+                                        </div>
+                                        <div style="flex: 1; min-width: 180px;">
+                                            <label style="font-size: 0.68rem; font-weight: 700; color: #64748b; display: block; margin-bottom: 2px;">Motivo del Descuento *</label>
+                                            <input type="text" id="res-descuento-motivo" placeholder="Ej: Socio Isidro, Promoción, Fidelidad..."
+                                                class="param-input" style="width: 100%; font-size: 0.75rem; padding: 3px 6px;">
+                                        </div>
+                                        <div style="display: flex; align-items: flex-end; padding-top: 16px;">
+                                            <button type="button" onclick="clearDescuento()" title="Eliminar descuento"
+                                                style="background: #f1f5f9; border: 1px solid #cbd5e1; color: #64748b; padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; cursor: pointer;">
+                                                <i class="fas fa-times"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div id="descuento-calc-summary" style="margin-top: 6px; font-size: 0.7rem; color: #4338ca; font-weight: 700; display: none;"></div>
                                 </div>
                             </div>
                             <div id="pp-history-container"
@@ -3707,6 +3748,32 @@
             }
         }
 
+
+        window.toggleDescuentoSection = function (forceShow) {
+            const wrap = document.getElementById("descuento-fields-wrapper");
+            const btn = document.getElementById("btn-toggle-descuento");
+            if (!wrap) return;
+            const shouldShow = (typeof forceShow === 'boolean') ? forceShow : (wrap.style.display === 'none');
+            wrap.style.display = shouldShow ? 'block' : 'none';
+            if (btn) btn.innerHTML = shouldShow ? '<i class="fas fa-chevron-up"></i> Ocultar' : '<i class="fas fa-percent"></i> Aplicar Descuento';
+            if (shouldShow) {
+                const valInp = document.getElementById("res-descuento-valor");
+                if (valInp && !valInp.value) valInp.focus();
+            }
+            if (typeof window.runUpdateTotal === 'function') window.runUpdateTotal();
+        };
+
+        window.clearDescuento = function () {
+            const valInp = document.getElementById("res-descuento-valor");
+            const motInp = document.getElementById("res-descuento-motivo");
+            const sumEl = document.getElementById("descuento-calc-summary");
+            if (valInp) valInp.value = '';
+            if (motInp) motInp.value = '';
+            if (sumEl) sumEl.style.display = 'none';
+            if (typeof window.toggleDescuentoSection === 'function') window.toggleDescuentoSection(false);
+            if (typeof window.runUpdateTotal === 'function') window.runUpdateTotal();
+        };
+
         function applyCatalogServicePrice() {
             const hint = document.getElementById("catalog-price-hint");
             const price = hint ? parseFloat(hint.dataset.catalogPrice) : 0;
@@ -5809,8 +5876,33 @@
             const savedPax = parseInt(res.pax) || 1;
             let savedPricePax = parseFloat(res.precio_pax !== undefined && res.precio_pax !== null ? res.precio_pax : (savedPax > 0 ? (savedTotal / savedPax) : 0));
             // Si hay un total guardado y el precio_pax guardado * pax no coincide con el total (ej. total 100€ con 2 pax y precio_pax 25€):
+            // Si la reserva particular estaba guardada a 0€ sin ser de cortesía/pack, auto-recuperar tarifa oficial de catálogo
+            if (savedTotal <= 0 && !res.sin_cargo && !res.descuento_aplicado && !res.is_pack_element && !res.parent_id && !res.pack_origen && (res.origen === 'particular' || res.origen === 'hotel_no_inc' || !res.origen)) {
+                let catPrice = 0;
+                if (window.SpaServiceCatalog && typeof window.SpaServiceCatalog.resolve === 'function') {
+                    const canonical = window.SpaServiceCatalog.resolve(res.servicio, window.masterItems || [], currentServices || []);
+                    catPrice = canonical ? parseFloat(canonical.precio || canonical.price_pax || canonical.price || 0) : 0;
+                }
+                if (catPrice <= 0 && window.masterItems) {
+                    const mItem = window.masterItems.find(m => (m.name || m.nombre || '').toLowerCase() === (res.servicio || '').toLowerCase());
+                    if (mItem) catPrice = parseFloat(mItem.price_pax || mItem.precio || mItem.price || 0) || 0;
+                }
+                if (catPrice > 0) {
+                    savedPricePax = catPrice;
+                    savedTotal = catPrice * savedPax;
+                }
+            }
             if (savedTotal > 0 && savedPax > 0 && Math.abs((savedPricePax * savedPax) - savedTotal) > 0.05) {
                 savedPricePax = savedTotal / savedPax;
+            }
+            // Cargar datos de descuento si existían
+            if (res.descuento_aplicado || (res.descuento_valor && res.descuento_valor > 0) || (res.descuento_importe && res.descuento_importe > 0)) {
+                if (document.getElementById("res-descuento-tipo")) document.getElementById("res-descuento-tipo").value = res.descuento_tipo || 'porcentaje';
+                if (document.getElementById("res-descuento-valor")) document.getElementById("res-descuento-valor").value = res.descuento_valor || res.descuento_importe || '';
+                if (document.getElementById("res-descuento-motivo")) document.getElementById("res-descuento-motivo").value = res.descuento_motivo || '';
+                if (typeof window.toggleDescuentoSection === 'function') window.toggleDescuentoSection(true);
+            } else {
+                if (typeof window.clearDescuento === 'function') window.clearDescuento();
             }
             document.getElementById("res-precio-pax").value = savedPricePax.toFixed(2);
             document.getElementById("res-precio-total").value = savedTotal.toFixed(2);
@@ -6815,8 +6907,40 @@
                 // GESTIÓN DE RESERVA SIN CARGO / GRATUITA
                 const sinCargoInp = document.getElementById("res-sin-cargo-autorizado");
                 const authVal = sinCargoInp ? sinCargoInp.value.trim() : "";
+                // Procesar Descuento si está indicado
+                const descValorInp = document.getElementById("res-descuento-valor");
+                const descMotivoInp = document.getElementById("res-descuento-motivo");
+                const descTipoInp = document.getElementById("res-descuento-tipo");
+                const descValor = descValorInp ? (parseFloat(descValorInp.value) || 0) : 0;
+                const descTipo = descTipoInp ? descTipoInp.value : 'porcentaje';
+                let hasDiscount = false;
+                if (descValor > 0) {
+                    const descMotivo = descMotivoInp ? descMotivoInp.value.trim() : "";
+                    if (!descMotivo) {
+                        alert("⚠️ Al aplicar un descuento debe indicar obligatoriamente el motivo del mismo (ej: 'Socio', 'Promoción', 'Fidelidad', etc.).");
+                        if (descMotivoInp) descMotivoInp.focus();
+                        isSavingReservation = false;
+                        return;
+                    }
+                    payload.descuento_aplicado = true;
+                    payload.descuento_tipo = descTipo;
+                    payload.descuento_valor = descValor;
+                    payload.descuento_motivo = descMotivo;
+                    hasDiscount = true;
+                    const descNote = `🏷️ [DESCUENTO ${descTipo === 'porcentaje' ? descValor + '%' : descValor.toFixed(2) + '€'}] Motivo: ${descMotivo}`;
+                    if (!payload.obs.includes(descNote)) {
+                        payload.obs = (payload.obs ? payload.obs + "\n" : "") + descNote;
+                    }
+                } else {
+                    payload.descuento_aplicado = false;
+                }
+
                 const isItemFromPack = !!(payload.is_pack_element || payload.parent_id || payload.pack_origen || payload.parent_service || (window.SpaServiceCatalog && typeof window.SpaServiceCatalog.findParentPacks === 'function' && window.SpaServiceCatalog.findParentPacks(svcName, currentServices, window.SPA_PACKS_REGISTRY).length > 0));
                 if ((finalOrigin === 'particular' || finalOrigin === 'hotel_no_inc') && payload.precio_total === 0) {
+                    if (hasDiscount) {
+                        // Descuento total aplicado con motivo registrado
+                        payload.sin_cargo = false;
+                    } else 
                     if (isItemFromPack) {
                         // Es un tratamiento incluido en un paquete/ritual, no requiere autorización sin cargo
                         const detectedPack = payload.pack_origen || payload.parent_service || (window.SpaServiceCatalog && typeof window.SpaServiceCatalog.findParentPacks === 'function' ? window.SpaServiceCatalog.findParentPacks(svcName, currentServices, window.SPA_PACKS_REGISTRY)[0] : '');
@@ -8228,6 +8352,29 @@
                 const pVal = parseFloat(item.querySelector(".custom-extra-price")?.value);
                 if (!isNaN(pVal)) total += pVal;
             });
+
+            // CÁLCULO DE DESCUENTO EN RESERVA
+            const descTipoInp = document.getElementById("res-descuento-tipo");
+            const descValorInp = document.getElementById("res-descuento-valor");
+            const descSummary = document.getElementById("descuento-calc-summary");
+            const descTipo = descTipoInp ? descTipoInp.value : 'porcentaje';
+            const descValor = descValorInp ? (parseFloat(descValorInp.value) || 0) : 0;
+            let importeDescuento = 0;
+            if (descValor > 0 && total > 0) {
+                if (descTipo === 'porcentaje') {
+                    importeDescuento = Math.min(total, (total * descValor) / 100);
+                } else {
+                    importeDescuento = Math.min(total, descValor);
+                }
+                const subtotalBase = total;
+                total = Math.max(0, subtotalBase - importeDescuento);
+                if (descSummary) {
+                    descSummary.style.display = "block";
+                    descSummary.innerHTML = `<i class="fas fa-check-circle" style="color:#10b981;"></i> Descuento: <strong>-${importeDescuento.toFixed(2)}€</strong> (${descTipo === 'porcentaje' ? descValor + '%' : descValor.toFixed(2) + '€'}) · Subtotal: ${subtotalBase.toFixed(2)}€ → <strong>Total: ${total.toFixed(2)}€</strong>`;
+                }
+            } else {
+                if (descSummary) descSummary.style.display = "none";
+            }
 
             if (totalInp) totalInp.value = total.toFixed(2);
 
