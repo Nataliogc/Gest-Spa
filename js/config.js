@@ -550,21 +550,15 @@ function renderMasterItems() {
             : [];
         const hasParentPacks = parentPacks.length > 0;
 
-        // Contar cuántos productos usan este item (catálogo + paquetes registry)
-        const catalogUsage = spaConfigState.catalogServices.filter(service => {
-            if (!service.items_incluidos || !Array.isArray(service.items_incluidos)) return false;
-            return service.items_incluidos.some(includedItem =>
-                includedItem.toLowerCase().trim() === item.name.toLowerCase().trim()
-            );
-        });
-        const allUsageNames = new Set(catalogUsage.map(s => s.nombre));
-        parentPacks.forEach(p => allUsageNames.add(p));
-        const usageCount = allUsageNames.size;
+        const usageCount = parentPacks.length;
 
-        // Modo de venta: Venta directa o solo paquetes de venta online
-        const isSoloPack = item.pack_only === true || item.sale_mode === 'solo_pack' || item.standalone === false;
+        // Modo de venta: Venta directa o solo paquetes
+        // SI ESTÁ DENTRO DE UN PACK, ES NORMAL QUE SEA 0€ (EL PRECIO LO COGE DEL PACK)
+        const isSoloPack = item.pack_only === true || item.sale_mode === 'solo_pack' || item.standalone === false || (hasParentPacks && (item.price_pax === 0 || !item.price_pax));
         const currentSaleMode = isSoloPack ? 'solo_pack' : 'directa';
-        const isDirectZero = !isSoloPack && (item.price_pax === 0 || !item.price_pax);
+
+        // La alarma de 0€ SOLO aplica si está en Venta Directa manual, NO pertenece a ningún paquete, y tiene precio 0€
+        const isDirectZero = !isSoloPack && !hasParentPacks && (item.price_pax === 0 || !item.price_pax);
 
         // -- LOGICA MULTI-SELECT --
         // Determinar espacios seleccionados
@@ -667,14 +661,14 @@ function renderMasterItems() {
             </td>
             <td style="padding: 6px 2px; text-align: center;">
                 <input type="number" step="0.01" value="${item.price_pax || 0}" onchange="updateMasterItemField('${item.id}', 'price_pax', parseFloat(this.value))" 
-                        class="param-input" style="width: 100%; text-align: center; font-weight: 700; ${isDirectZero ? 'border: 2px solid #ef4444; background: #fff5f5; color: #dc2626;' : 'color: var(--accent);'}" min="0">
+                        class="param-input" style="width: 100%; text-align: center; font-weight: 700; ${isDirectZero ? 'border: 2px solid #ef4444; background: #fff5f5; color: #dc2626;' : (hasParentPacks && (item.price_pax === 0 || !item.price_pax) ? 'color: #0284c7; background: #f0f9ff; border: 1px solid #bae6fd;' : 'color: var(--accent);')}" min="0">
                 ${isDirectZero ? `
                     <span style="display: inline-flex; align-items: center; justify-content: center; gap: 3px; background: #fee2e2; color: #b91c1c; border: 1px solid #f87171; padding: 1px 4px; border-radius: 4px; font-size: 0.58rem; font-weight: 800; margin-top: 2px; text-transform: uppercase;" title="¡Alarma! Configurado como Venta Directa pero tiene precio 0€. Configure un precio o cámbielo a 'Solo Pack'">
                         <i class="fas fa-exclamation-triangle" style="color: #ef4444;"></i> ¡SIN PRECIO!
                     </span>
                 ` : (((item.price_pax === 0 || !item.price_pax) && hasParentPacks) ? `
-                    <span style="display: block; font-size: 0.6rem; color: #b45309; font-weight: 700; margin-top: 2px;" title="Tratamiento sin precio individual: incluido en el paquete ${parentPacks.join(', ')}">
-                        <i class="fas fa-box"></i> En Paquete
+                    <span style="display: block; font-size: 0.6rem; color: #0284c7; font-weight: 700; margin-top: 2px;" title="Tratamiento sin precio individual: incluido en el paquete ${parentPacks.join(', ')}">
+                        <i class="fas fa-box-open"></i> En Pack (0€)
                     </span>
                 ` : '')}
             </td>
@@ -696,9 +690,9 @@ function renderMasterItems() {
                     <span style="display: block; font-size: 0.58rem; color: #dc2626; font-weight: 800; margin-top: 2px;" title="Alarma: Este servicio está en Venta Directa con precio 0€">
                         <i class="fas fa-bell" style="color: #ef4444;"></i> Alarma 0€
                     </span>
-                ` : (!isSoloPack && (item.price_pax === 0 || !item.price_pax) && hasParentPacks ? `
-                    <span style="display: block; font-size: 0.58rem; color: #d97706; font-weight: 600; margin-top: 1px;" title="Tiene precio 0€ porque pertenece a un paquete">
-                        ⚠️ De Paquete
+                ` : (hasParentPacks ? `
+                    <span style="display: block; font-size: 0.58rem; color: #0284c7; font-weight: 600; margin-top: 1px;" title="Incluido en el paquete: ${parentPacks.join(', ')}">
+                        📦 De Pack
                     </span>
                 ` : '')}
             </td>
@@ -779,6 +773,7 @@ async function updateMasterItemSaleMode(id, value, selectEl) {
         if (row) {
             row.dataset.saleMode = value;
         }
+        renderMasterItemsList();
 
         if (selectEl) {
             if (isSoloPack) {
@@ -865,30 +860,13 @@ function showItemUsage(itemId, itemName) {
         ? window.SpaServiceCatalog.findParentPacks(itemName, spaConfigState.catalogServices, window.SPA_PACKS_REGISTRY)
         : [];
 
-    // Encontrar productos de catálogo que usan este item
-    const usedByProducts = spaConfigState.catalogServices.filter(service => {
-        if (!service.items_incluidos || !Array.isArray(service.items_incluidos)) return false;
-        return service.items_incluidos.some(includedItem =>
-            includedItem.toLowerCase().trim() === itemName.toLowerCase().trim()
-        );
-    });
-
-    const lines = [];
-    usedByProducts.forEach(p => {
-        lines.push(`${lines.length + 1}. [Catálogo] ${p.nombre} (${p.precio}€)`);
-    });
-    parentPacks.forEach(packName => {
-        if (!usedByProducts.some(p => (p.nombre || '').toLowerCase() === packName.toLowerCase())) {
-            lines.push(`${lines.length + 1}. [Paquete / Ritual] ${packName}`);
-        }
-    });
-
-    if (lines.length === 0) {
-        showToast("Este item no está siendo usado por ningún producto o paquete", "info");
+    if (parentPacks.length === 0) {
+        showToast(`"${itemName}" es un servicio independiente (no forma parte de paquetes multiservicio)`, "info");
         return;
     }
 
-    alert(`📦 Paquetes y Productos que incluyen "${itemName}":\n\n${lines.join('\n')}\n\nTotal: ${lines.length} paquete(s) o producto(s)`);
+    const lines = parentPacks.map((packName, idx) => `${idx + 1}. [Paquete / Ritual] ${packName}`);
+    alert(`📦 Paquetes y Rituales que incluyen "${itemName}":\n\n${lines.join('\n')}\n\nTotal: ${lines.length} paquete(s)`);
 }
 
 

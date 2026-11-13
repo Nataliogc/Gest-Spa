@@ -474,23 +474,7 @@ function renderDashboard() {
             const paxCount = parseInt(c.pax || 1, 10);
             totalPrice = (pPax > 0 && paxCount > 0) ? (pPax * paxCount) : 0;
         }
-        // Si la reserva particular no tiene precio guardado o está a 0€ sin ser de cortesía/pack, recuperar tarifa catálogo
-        const origenCheck = (c.origen || 'particular').toLowerCase();
-        if (totalPrice <= 0 && !c.sin_cargo && !c.is_pack_element && !c.parent_id && !c.pack_origen && !['hotel_inc', 'bono', 'smartbox', 'wonderbox', 'ego', 'groupon'].includes(origenCheck)) {
-            let catPrice = 0;
-            if (window.SpaServiceCatalog && typeof window.SpaServiceCatalog.resolve === 'function') {
-                const canonical = window.SpaServiceCatalog.resolve(c.servicio, window.allMasterItems || [], window.allServices || []);
-                catPrice = canonical ? parseFloat(canonical.precio || canonical.price_pax || canonical.price || 0) : 0;
-            }
-            if (catPrice <= 0 && window.allMasterItems) {
-                const mItem = window.allMasterItems.find(m => (m.name || m.nombre || '').toLowerCase() === (c.servicio || '').toLowerCase());
-                if (mItem) catPrice = parseFloat(mItem.price_pax || mItem.precio || mItem.price || 0) || 0;
-            }
-            if (catPrice > 0) {
-                const paxCount = parseInt(c.pax || 1, 10);
-                totalPrice = catPrice * paxCount;
-            }
-        }
+        // Preservar precio exacto de reserva guardada (si es 0€, se respeta estrictamente)
 
         // Robust check for paid amount / balance
         let paid = 0;
@@ -499,6 +483,7 @@ function renderDashboard() {
         // Normalización inteligente y robusta del canal / origen
         let rawOrigen = (c.origen || c.origin || c.channel || c.canal || '').toLowerCase().trim();
         const bonoCode = (c.bono || c.num_bono || c.voucher || c.localizador || '').trim();
+        const isSocio = (c.nombre && /socio|socia/i.test(c.nombre)) || (c.observaciones && /socio|socia/i.test(c.observaciones)) || rawOrigen === 'socio';
 
         let origen = 'particular';
         if (rawOrigen.includes('hotel') && (rawOrigen.includes('no') || rawOrigen.includes('not'))) {
@@ -523,22 +508,7 @@ function renderDashboard() {
 
         const isVoucherOrHotel = ['hotel_inc', 'bono', 'smartbox', 'wonderbox', 'ego', 'groupon'].includes(origen);
 
-        // Si la reserva particular no tiene precio guardado o está a 0€ sin ser de bono/pack/hotel/cortesía, recuperar tarifa catálogo
-        if (totalPrice <= 0 && !c.sin_cargo && !c.is_pack_element && !c.parent_id && !c.pack_origen && !isVoucherOrHotel) {
-            let catPrice = 0;
-            if (window.SpaServiceCatalog && typeof window.SpaServiceCatalog.resolve === 'function') {
-                const canonical = window.SpaServiceCatalog.resolve(c.servicio, window.allMasterItems || [], window.allServices || []);
-                catPrice = canonical ? parseFloat(canonical.precio || canonical.price_pax || canonical.price || 0) : 0;
-            }
-            if (catPrice <= 0 && window.allMasterItems) {
-                const mItem = window.allMasterItems.find(m => (m.name || m.nombre || '').toLowerCase() === (c.servicio || '').toLowerCase());
-                if (mItem) catPrice = parseFloat(mItem.price_pax || mItem.precio || mItem.price || 0) || 0;
-            }
-            if (catPrice > 0) {
-                const paxCount = parseInt(c.pax || 1, 10);
-                totalPrice = catPrice * paxCount;
-            }
-        }
+        // Preservar precio exacto de reserva guardada (si es 0€, se respeta estrictamente)
 
         const hasRealPayment = (c.payment && typeof c.payment.paid === 'number' && c.payment.paid > 0);
         const isPayGoldPaid = (c.paygold_status === 'COBRADO' || c.paygold_status === 'PAGADO' || !!c.paygold_auth);
@@ -644,6 +614,13 @@ function renderDashboard() {
             paymentBadgeHtml = `
                 <span title="Reserva Sin Cargo / Gratuita${authName ? ' - Autorizado por: ' + authName : ''}" style="display:inline-flex; align-items:center; gap:4px; background:#fef3c7; color:#92400e; border:1px solid #fcd34d; padding:3px 8px; border-radius:6px; font-size:0.7rem; font-weight:700; white-space:nowrap;">
                     <i class="fas fa-gift" style="color:#d97706;"></i> SIN CARGO${authName ? ' · ' + authName : ''}
+                </span>`;
+        }
+        // 9.5 SOCIO CUMBRIA (Cuota de socio - Sin deuda de pago directo)
+        else if (isSocio && totalPrice <= 0) {
+            paymentBadgeHtml = `
+                <span title="Cliente Socio Club Cumbria (Cuota de socio)" style="display:inline-flex; align-items:center; gap:4px; background:#f0fdf4; color:#166534; border:1px solid #bbf7d0; padding:3px 8px; border-radius:6px; font-size:0.7rem; font-weight:700; white-space:nowrap;">
+                    <i class="fas fa-id-card" style="color:#16a34a;"></i> SOCIO
                 </span>`;
         }
         // 10. PAGADO (100% Pagado)

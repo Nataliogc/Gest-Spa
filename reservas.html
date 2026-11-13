@@ -498,7 +498,7 @@
         <!-- LEFT: Cumbria Logo -->
         <div style="display: flex; align-items: center; gap: 15px;">
             <img src="logo-spa.jpg" alt="Cumbria Bienestar" style="height: 65px; width: auto; object-fit: contain;">
-            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.44 (13/11/2026)">v2.3.44</span>
+            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.45 (13/11/2026)">v2.3.45</span>
         </div>
 
         <ul class="nav-links" style="flex:1;">
@@ -1510,7 +1510,15 @@
 
         function formatDateTime(isoStr) {
             if (!isoStr) return "";
-            const d = new Date(isoStr);
+            let d;
+            if (isoStr && typeof isoStr.toDate === 'function') {
+                d = isoStr.toDate();
+            } else if (isoStr && typeof isoStr.seconds === 'number') {
+                d = new Date(isoStr.seconds * 1000);
+            } else {
+                d = new Date(isoStr);
+            }
+            if (!d || isNaN(d.getTime())) return "";
             return d.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' }) +
                 ' ' + d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
         }
@@ -5086,7 +5094,7 @@
             btnCancel.style.display = isAnulada ? "none" : "block";
             if (btnReactivar) btnReactivar.style.display = isAnulada ? "block" : "none";
 
-            document.getElementById("res-id-display").textContent = res.res_id || "SIN ID";
+            document.getElementById("res-id-display").textContent = res.res_id || id || "SIN ID";
             document.getElementById("form-id").value = id;
             document.getElementById("form-date").value = res.fecha;
             document.getElementById("form-date").dataset.originalDate = res.fecha;
@@ -5143,9 +5151,12 @@
 
             // Audit Info
             let auditHtml = "";
-            if (res.created_at) auditHtml += `Creada: ${formatDateTime(res.created_at)}<br>`;
-            if (res.updated_at) auditHtml += `Modificada: ${formatDateTime(res.updated_at)}`;
-            if (res.cancelled_at && res.status === 'anulada') auditHtml += `<br>Anulada: ${formatDateTime(res.cancelled_at)}`;
+            const cDate = res.created_at ? formatDateTime(res.created_at) : "";
+            const uDate = res.updated_at ? formatDateTime(res.updated_at) : "";
+            const aDate = res.cancelled_at ? formatDateTime(res.cancelled_at) : "";
+            if (cDate) auditHtml += `Creada: ${cDate}<br>`;
+            if (uDate) auditHtml += `Modificada: ${uDate}`;
+            if (aDate && res.status === 'anulada') auditHtml += `<br>Anulada: ${aDate}`;
             document.getElementById("audit-info").innerHTML = auditHtml;
 
             window._isInitializingEdit = true;
@@ -5177,22 +5188,7 @@
             const savedPax = parseInt(res.pax) || 1;
             let savedPricePax = parseFloat(res.precio_pax !== undefined && res.precio_pax !== null ? res.precio_pax : (savedPax > 0 ? (savedTotal / savedPax) : 0));
             // Si hay un total guardado y el precio_pax guardado * pax no coincide con el total (ej. total 100€ con 2 pax y precio_pax 25€):
-            // Si la reserva particular estaba guardada a 0€ sin ser de cortesía/pack, auto-recuperar tarifa oficial de catálogo
-            if (savedTotal <= 0 && !res.sin_cargo && !res.descuento_aplicado && !res.is_pack_element && !res.parent_id && !res.pack_origen && (res.origen === 'particular' || res.origen === 'hotel_no_inc' || !res.origen)) {
-                let catPrice = 0;
-                if (window.SpaServiceCatalog && typeof window.SpaServiceCatalog.resolve === 'function') {
-                    const canonical = window.SpaServiceCatalog.resolve(res.servicio, window.masterItems || [], currentServices || []);
-                    catPrice = canonical ? parseFloat(canonical.precio || canonical.price_pax || canonical.price || 0) : 0;
-                }
-                if (catPrice <= 0 && window.masterItems) {
-                    const mItem = window.masterItems.find(m => (m.name || m.nombre || '').toLowerCase() === (res.servicio || '').toLowerCase());
-                    if (mItem) catPrice = parseFloat(mItem.price_pax || mItem.precio || mItem.price || 0) || 0;
-                }
-                if (catPrice > 0) {
-                    savedPricePax = catPrice;
-                    savedTotal = catPrice * savedPax;
-                }
-            }
+            // Preservar estrictamente el precio guardado de la reserva (0€ para socios o cortesías)
             if (savedTotal > 0 && savedPax > 0 && Math.abs((savedPricePax * savedPax) - savedTotal) > 0.05) {
                 savedPricePax = savedTotal / savedPax;
             }

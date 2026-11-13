@@ -139,17 +139,41 @@
             }
         }
 
-        // 1. Check catalog services (spa_services)
+        // 1. Check catalog services (spa_services) - SOLO paquetes reales y rituales (NO bonos ni variaciones individuales)
         if (Array.isArray(catalog)) {
             catalog.forEach(srv => {
                 const srvName = nameOf(srv);
                 if (!srvName) return;
+                const srvNameLower = srvName.toLowerCase();
+                
+                // EXCLUIR BONOS Y VALES MULTISESIÓN: Un bono de 10 sesiones no es un paquete
+                if (srv.es_bono === true || srv.tipo === 'bono' || srvNameLower.startsWith('bono') || srvNameLower.includes('sesion') || srvNameLower.includes('sesiones')) {
+                    return;
+                }
+                
+                // EXCLUIR SERVICIOS INDIVIDUALES POR ZONAS (ej. Fotodepilación facial, piernas, etc.)
+                if (srvNameLower.includes('facial, manos') || srvNameLower.includes('medias piernas') || srvNameLower.includes('piernas enteras') || srvNameLower.includes('abdomen, glúteos') || srvNameLower.includes('pecho, lumbar')) {
+                    return;
+                }
+
                 const items = [
                     ...(Array.isArray(srv.items_incluidos) ? srv.items_incluidos : []),
                     ...(Array.isArray(srv.secuencia) ? srv.secuencia.map(s => typeof s === 'string' ? s : nameOf(s)) : []),
                     ...(Array.isArray(srv.desglosados) ? srv.desglosados.map(s => typeof s === 'string' ? s : nameOf(s)) : [])
                 ];
-                items.forEach(inc => checkMatch(srvName, inc));
+
+                // Solo es paquete real si es explícitamente pack/ritual o combina al menos 2 fases distintas
+                const isPackOrRitual = srv.es_pack === true || srv.tipo === 'pack' || srv.categoria === 'packs' 
+                    || srvNameLower.includes('ritual') || srvNameLower.includes('pack') || srvNameLower.includes('experiencia') || srvNameLower.includes('pareja');
+                
+                if (!isPackOrRitual && items.length < 2) return;
+
+                items.forEach(inc => {
+                    // Un servicio no puede ser paquete de sí mismo
+                    if (normalize(srvName) !== targetNorm) {
+                        checkMatch(srvName, inc);
+                    }
+                });
             });
         }
 

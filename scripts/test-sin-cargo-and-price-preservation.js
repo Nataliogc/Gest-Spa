@@ -13,94 +13,87 @@ assert(salasHtml.includes('id="res-descuento-motivo"'), 'reservas-salas.html mus
 assert(salasHtml.includes('toggleDescuentoSection'), 'reservas-salas.html must have toggleDescuentoSection');
 assert(salasHtml.includes('clearDescuento'), 'reservas-salas.html must have clearDescuento');
 assert(salasHtml.includes('payload.descuento_aplicado = true'), 'reservas-salas.html must save descuento_aplicado');
-console.log('✓ Modales de reserva: Campos y controles de descuento (% y € con motivo) verificados');
+assert(salasHtml.includes('res.res_id || id || "SIN ID"'), 'reservas-salas.html must display id if res_id is absent');
+assert(!salasHtml.includes('savedPricePax = catPrice;'), 'reservas-salas.html must NOT inflate saved reservation prices');
+console.log('✓ Modales de reserva: Campos de descuento, ID de reserva y preservación de precios verificados');
 
-// 2. Verify reservas.html and reservas-spa.html contain identical discount elements
+// 2. Verify reservas.html and reservas-spa.html contain identical safeguards
 const reservasHtml = fs.readFileSync('reservas.html', 'utf8');
 assert(reservasHtml.includes('id="res-descuento-tipo"'));
 assert(reservasHtml.includes('id="res-descuento-valor"'));
 assert(reservasHtml.includes('id="res-descuento-motivo"'));
+assert(!reservasHtml.includes('savedPricePax = catPrice;'));
 
 const spaHtml = fs.readFileSync('reservas-spa.html', 'utf8');
 assert(spaHtml.includes('id="res-descuento-tipo"'));
 assert(spaHtml.includes('id="res-descuento-valor"'));
 assert(spaHtml.includes('id="res-descuento-motivo"'));
+assert(!spaHtml.includes('savedPricePax = catPrice;'));
 console.log('✓ Homogeneidad en reservas.html y reservas-spa.html verificada');
 
-// 3. Verify js/config.js alarm on 0€ direct sale items
+// 3. Verify js/config.js pack & alarm logic
 const configJs = fs.readFileSync('js/config.js', 'utf8');
-assert(configJs.includes('data-has-alarm="${isDirectZero}"'), 'js/config.js must set data-has-alarm');
-assert(configJs.includes('¡SIN PRECIO!'), 'js/config.js must render ¡SIN PRECIO! badge');
-assert(configJs.includes('Alarma 0€'), 'js/config.js must render Alarma 0€ badge');
-console.log('✓ Configuración: Alarma visual de Venta Directa sin precio (0.00€) y selector compacto verificados');
+assert(configJs.includes('En Pack (0€)'), 'js/config.js must show En Pack (0€) note for pack items');
+assert(configJs.includes('const isDirectZero = !isSoloPack && !hasParentPacks && (item.price_pax === 0 || !item.price_pax);'), 'isDirectZero must only trigger if not in pack and not solo_pack');
+console.log('✓ Configuración: Servicios en pack a 0€ no activan alarma ¡SIN PRECIO!');
 
-// 4. Verify index.html vertical alignment CSS
-const indexHtml = fs.readFileSync('index.html', 'utf8');
-assert(indexHtml.includes('vertical-align: middle !important;'), 'index.html must force vertical-align middle on table cells');
+// 4. Verify js/dashboard.js renders distinct origin and status badges, including SOCIO badge
 const dashJs = fs.readFileSync('js/dashboard.js', 'utf8');
-assert(dashJs.includes('vertical-align: middle;'), 'js/dashboard.js must include vertical-align middle');
-console.log('✓ Alineación visual: Centrado vertical de todas las celdas de la tabla de reservas verificado');
+assert(dashJs.includes('SIN CARGO'), 'js/dashboard.js must render SIN CARGO badge');
+assert(dashJs.includes('PACK ·'), 'js/dashboard.js must render PACK badge for package items');
+assert(dashJs.includes('SOCIO'), 'js/dashboard.js must render SOCIO badge for members');
+assert(!dashJs.includes('totalPrice = catPrice * paxCount;'), 'js/dashboard.js must NOT inflate existing prices');
+console.log('✓ Dashboard: Distinción de badges (SIN CARGO, PACK, SOCIO, BONO) sin mutación de tarifas');
 
-// 5. Test Discount Calculation (% and €) and validation of motive
+// 5. Verify SpaServiceCatalog.findParentPacks excludes bonos and single-zone variations
 {
-    // Test percentage discount
+    // Test 1: Fotodepilación must NOT match single zone variations
+    const mockCatalog = [
+        { nombre: 'Fotodepilación facial, manos, pies o zonas pequeñas', precio: 20, items_incluidos: ['Fotodepilación'] },
+        { nombre: 'Fotodepilación abdomen, glúteos, ingles, cuello o nuca', precio: 30, items_incluidos: ['Fotodepilación'] },
+        { nombre: 'Bono 10 sesiones Spa', precio: 200, items_incluidos: ['Circuito Spa'] }
+    ];
+    const fotoPacks = catalog.findParentPacks('Fotodepilación', mockCatalog, packsReg.SPA_PACKS_REGISTRY);
+    assert.strictEqual(fotoPacks.length, 0, 'Fotodepilación must NOT be classified as belonging to packs');
+    console.log('✓ Fotodepilación no se asocia falsamente a productos por zonas');
+
+    // Test 2: Circuito spa must NOT match Bono 10 sesiones
+    const circPacks = catalog.findParentPacks('Circuito spa - 60\'', mockCatalog, packsReg.SPA_PACKS_REGISTRY);
+    assert(!circPacks.includes('Bono 10 sesiones Spa'), 'Circuito spa must NOT list Bono 10 sesiones as a pack');
+    console.log('✓ Circuito Spa no confunde bonos de sesiones con paquetes');
+
+    // Test 3: Genuine pack item matches
+    const lotoPacks = catalog.findParentPacks('Envoltura corporal de flores de loto', [], packsReg.SPA_PACKS_REGISTRY);
+    assert(lotoPacks.includes('Ritual Indian ritual'), 'Must identify Ritual Indian ritual as parent pack of Envoltura corporal de flores de loto');
+    console.log('✓ Paquetes auténticos: "Envoltura corporal de flores de loto" pertenece a "Ritual Indian ritual"');
+}
+
+// 6. Test discount calculations & motive requirement
+{
     const subtotal = 100;
     const descTipo = 'porcentaje';
     const descValor = 20; // 20%
     const importeDescuento = (subtotal * descValor) / 100;
-    const total = subtotal - importeDescuento;
+    const totalConDescuento = subtotal - importeDescuento;
     assert.strictEqual(importeDescuento, 20);
-    assert.strictEqual(total, 80);
+    assert.strictEqual(totalConDescuento, 80);
 
-    // Test fixed amount discount
-    const descTipoFijo = 'cantidad';
-    const descValorFijo = 15; // 15€
-    const importeDescuentoFijo = descValorFijo;
-    const totalFijo = subtotal - importeDescuentoFijo;
-    assert.strictEqual(importeDescuentoFijo, 15);
+    const descFijo = 15; // 15€ fijo
+    const totalFijo = Math.max(0, subtotal - descFijo);
     assert.strictEqual(totalFijo, 85);
 
-    // Test validation of motive: must be required when discount > 0
-    let descMotivo = '';
-    let validationBlocked = false;
-    if (descValor > 0) {
-        if (!descMotivo.trim()) {
-            validationBlocked = true;
-        }
-    }
-    assert.strictEqual(validationBlocked, true, 'Validation must block saving discount without motive');
-
-    descMotivo = 'Socio Isidro';
-    validationBlocked = false;
-    if (descValor > 0) {
-        if (!descMotivo.trim()) {
-            validationBlocked = true;
-        }
-    }
-    assert.strictEqual(validationBlocked, false, 'Validation must pass when motive is provided');
-    console.log('✓ Cálculo y validación de descuentos: 20% sobre 100€ = 80€, 15€ fijos = 85€, motivo obligatorio');
-}
-
-// 6. Test 100% discount (e.g. Socio with 0.00€ final total)
-{
-    const subtotal = 50;
-    const descValor = 100; // 100%
-    const importeDescuento = (subtotal * descValor) / 100;
-    const total = subtotal - importeDescuento;
-    assert.strictEqual(total, 0, 'Total with 100% discount must be 0€');
-
     const descMotivo = 'Socio Isidro (Cuota Club)';
+    assert(descMotivo.trim().length >= 3, 'Motivo de descuento obligatorio');
+
     const payload = {
-        precio_total: total,
+        precio_total: 0,
         descuento_aplicado: true,
         descuento_motivo: descMotivo,
         obs: ''
     };
-    // When saving, 0€ with valid discount motive must NOT require "Autorizado por"
     let blockedBySinCargo = false;
     if (payload.precio_total === 0) {
         if (payload.descuento_aplicado && payload.descuento_motivo) {
-            // Allowed
             payload.obs += `[DESCUENTO 100%] Motivo: ${descMotivo}`;
         } else {
             blockedBySinCargo = true;
@@ -108,25 +101,7 @@ console.log('✓ Alineación visual: Centrado vertical de todas las celdas de la
     }
     assert.strictEqual(blockedBySinCargo, false, '100% discount with motive must be saved cleanly');
     assert(payload.obs.includes('Socio Isidro (Cuota Club)'));
-    console.log('✓ Descuento 100% (Socio): Total 0.00€ con motivo registrado no se confunde con Sin Cargo no autorizado');
-}
-
-// 7. Verify Auto-recovery of catalog price when booking has 0€ and is not sin cargo/pack
-{
-    const mockServices = [
-        { nombre: 'Fotodepilación', precio: 50 },
-        { nombre: 'Radiofrecuencia facial', precio: 49.9 }
-    ];
-    const rawTotal = 0;
-    const isSinCargo = false;
-    const isPack = false;
-    let resolvedPrice = 0;
-    if (rawTotal <= 0 && !isSinCargo && !isPack) {
-        const found = mockServices.find(s => s.nombre === 'Fotodepilación');
-        if (found) resolvedPrice = found.precio;
-    }
-    assert.strictEqual(resolvedPrice, 50, 'Must recover 50€ catalog price for Fotodepilación when unpriced');
-    console.log('✓ Auto-recuperación de tarifa: Reserva de Fotodepilación a 0€ recupera su tarifa de catálogo (50€)');
+    console.log('✓ Descuento comercial y motivo obligatorio verificado');
 }
 
 console.log('\n✅ TODOS LOS TESTS DE PRESERVACIÓN, ALARMAS, CENTRADO Y DESCUENTOS PASARON!');

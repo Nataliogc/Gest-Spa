@@ -8,7 +8,7 @@ Este documento mantiene el **control de versión única y global** para todo el 
 
 | Parámetro | Valor Actual |
 | :--- | :--- |
-| **Versión Global del Sistema** | **`v2.3.44`** |
+| **Versión Global del Sistema** | **`v2.3.45`** |
 | **Fecha de Última Actualización** | **13/11/2026** |
 | **Estado General** | Operativo en Producción |
 
@@ -48,10 +48,22 @@ Cualquier cambio en los siguientes módulos impacta en la versión global:
 
 ## 📝 Historial Unificado de Versiones
 
+### [v2.3.45] - 13/11/2026
+- **Tipo:** PATCH
+- **Archivos:** `js/config.js`, `js/dashboard.js`, `js/service-catalog.js`, `reservas-salas.html`, `reservas-spa.html`, `reservas.html`, `scripts/test-sin-cargo-and-price-preservation.js`
+- **Descripción:** Preservación estricta de tarifas en reservas guardadas, eliminación de falsas alarmas de precio en componentes de packs y diferenciación de socios:
+  1. **Preservación Estricta de Precios Guardados:** Se eliminó la sobreescritura automática que forzaba precios de catálogo en reservas históricas o guardadas a 0.00 € (como socios o cortesías). Al abrir o consultar el modal de edición, el precio guardado se mantiene 100% inalterado y no se inventan importes pendientes indebidos.
+  2. **Diferenciación de Clientes Socios (`SOCIO`):** En el Dashboard, los clientes socios del club (ej. 'pilar moreno socia', 'ISIDRO CRUZ(SOCIO)') con tratamientos a 0.00 € se identifican con la píldora verde `SOCIO`, sin generar estados erróneos de deuda ni 'Pagado' falso.
+  3. **Corrección de Paquetes vs Bonos vs Zonas:** Se restringió `findParentPacks` para que únicamente reconozca paquetes y rituales multiservicio auténticos (`SPA_PACKS_REGISTRY` y packs reales). Se excluyen de forma definitiva los bonos multisesión (ej. 'Bono 10 sesiones') y las variaciones de catálogo por zonas individuales (ej. 'Fotodepilación facial, piernas'), evitando que un servicio independiente como 'Fotodepilación' o 'Circuito spa' se etiquete falsamente como incluido en decenas de paquetes.
+  4. **Componentes de Packs a 0€ sin Alarma:** Tratamientos como 'Alojamiento y Desayuno' en 'Sueño para dos' o 'Envoltura de té matcha' en 'Ritual Asian Journey' tienen precio individual 0.00 € porque su cobro se realiza a través del paquete. Se suprimieron las alertas rojas `¡SIN PRECIO!` y `Alarma 0€` para elementos incluidos en packs, mostrándolos con distintivo informativo azul `En Pack (0€)` y modo `Solo Pack`.
+  5. **Corrección de Cabecera en Modales:** El encabezado del modal ahora muestra el ID real de la reserva cuando `res_id` no está definido, y el formateo de fecha auditada maneja objetos Timestamp de Firestore sin mostrar 'Invalid Date'.
+
 ### [v2.3.44] - 13/11/2026
 - **Tipo:** PATCH
 - **Archivos:** `manual-usuario.html`, `scripts/sync-manual.js`
-- **Descripción:** Mejora continua del sistema Gest-Spa
+- **Descripción:** Transformación del Manual de Usuario en Guía Integral de Capacitación & Operaciones para Nuevas Incorporaciones:
+  1. **Reestructuración en 14 Módulos Operativos:** Organización didáctica que abarca desde la navegación, código visual de estados, agendamiento de citas, los 8 orígenes oficiales, gestión de bonos, desgloses de packs, cobros con pasarela PayGold, gestión de descuentos comerciales, cuadrantes de personal y checklists de apertura y cierre.
+  2. **Reubicación del Historial de Versiones:** El historial técnico de versiones se trasladó al Anexo final (Módulo 14) con scroll independiente, permitiendo que las nuevas incorporaciones accedan inmediatamente al material formativo.
 
 ### [v2.3.43] - 13/11/2026
 - **Tipo:** PATCH
