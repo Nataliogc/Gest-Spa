@@ -4431,6 +4431,7 @@
                 if (isWaitlist) { badgeClass = "badge-waitlist"; badgeText = '<i class="fas fa-hourglass-half"></i> LISTA ESPERA'; }
 
                 const isNoShow = res.no_show === true || res.status === 'no_show';
+                const isExempt = ['hotel_inc', 'bono', 'smartbox', 'wonderbox', 'ego', 'groupon'].includes(res.origen);
 
                 return `
                 <tr id="res-${res.id}" class="${isAnulada ? 'cancelled-row' : ''} ${isWaitlist ? 'row-waitlist' : ''}" style="${isNoShow ? 'background: #fef2f2; border-left: 4px solid #ef4444;' : ''}">
@@ -4490,7 +4491,6 @@
                         }
 
                         const pending = Math.max(0, total - paid);
-                        const isExempt = ['hotel_inc', 'bono', 'smartbox', 'wonderbox', 'ego', 'groupon'].includes(res.origen);
 
                         if (isAnulada || isExempt) return '';
 
