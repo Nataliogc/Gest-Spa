@@ -8,8 +8,8 @@ Este documento mantiene el **control de versión única y global** para todo el 
 
 | Parámetro | Valor Actual |
 | :--- | :--- |
-| **Versión Global del Sistema** | **`v2.3.36`** |
-| **Fecha de Última Actualización** | **12/11/2026** |
+| **Versión Global del Sistema** | **`v2.3.40`** |
+| **Fecha de Última Actualización** | **13/11/2026** |
 | **Estado General** | Operativo en Producción |
 
 ---
@@ -47,6 +47,30 @@ Cualquier cambio en los siguientes módulos impacta en la versión global:
 ---
 
 ## 📝 Historial Unificado de Versiones
+
+### [v2.3.40] - 13/11/2026
+- **Tipo:** PATCH
+- **Archivos:** `configuracion.html`, `js/config.js`, `js/service-catalog.js`, `js/app-core.js`, `js/dashboard.js`, `reservas-salas.html`, `reservas.html`, `reservas-spa.html`, `scripts/test-pack-origin.js`, `scripts/test-sin-cargo-and-price-preservation.js`
+- **Descripción:** Identificación visual y vinculación automática del paquete de origen cuando un tratamiento tiene precio 0€ o pertenece a un pack:
+  1. **Configuración (`spa_item_master`):** Para cada item incluido en paquetes/rituales (ej. "Envoltura corporal de flores de loto" en "Ritual Indian ritual"), se muestra el distintivo `📦 Paquete: [Nombre]` bajo el nombre del servicio, aviso `📦 En Paquete` en la columna Precio/Pax si su precio es 0, y sugerencia `⚠️ De Paquete` en la columna Venta. El botón de usos (`PROD`) y el modal detallan todos los paquetes que lo incluyen.
+  2. **Modales de Reserva:** Al abrir o crear una reserva de un servicio incluido en paquete (o con total 0.00 € proveniente de pack), se muestra el bloque informativo de paquete de origen y distintivo `📦 PACK: [Nombre del Pack]`, suprimiendo la petición innecesaria de "Autorizado por" (ya que está facturado en el paquete de origen).
+  3. **Agenda y Dashboard:** Los elementos derivados de paquetes se rotulan con su distintivo `📦 PACK · [Nombre]` en lugar de clasificarse como "Sin Cargo".
+  4. **Persistencia:** Al desglosar y crear reservas automáticas de packs, cada reserva hija registra explícitamente `pack_origen`, `pack_name` y `parent_service`.
+
+### [v2.3.39] - 13/11/2026
+- **Tipo:** PATCH
+- **Archivos:** `js/service-catalog.js`, `scripts/test-sin-cargo-and-price-preservation.js`
+- **Descripción:** Resolución inteligente y difusa de nombres de servicios en el catálogo (ej. "ENVOLTURA VIT.C" emparejada con "Envoltura corporal vit.c" de 40€). Ignora omisiones de descriptores comunes como "corporal" o abreviaciones ("vit.c" vs "vitamina c"), permitiendo que las reservas antiguas o con nombres abreviados reconozcan su tarifa oficial de catálogo y activen el botón de 1-clic "Aplicar Tarifa Catálogo: 40.00€".
+
+### [v2.3.38] - 13/11/2026
+- **Tipo:** PATCH
+- **Archivos:** `js/dashboard.js`, `reservas-salas.html`, `reservas.html`, `reservas-spa.html`, `scripts/test-sin-cargo-and-price-preservation.js`
+- **Descripción:** Código de colores y distintivos visuales diferenciados por origen y estado de reserva: Hotel Incluido (Azul/Índigo), Hotel No Incluido (Violeta/Púrpura con importe pendiente), Bono Spa (Verde Teal), Groupon (Verde Menta), Smartbox (Naranja Cálido), Wonderbox (Dorado/Ámbar), Ego Experiencias (Fucsia/Rosa), Pagado (Verde Éxito), Pendiente (Rojo Alerta), Parcial (Naranja Intenso), PayGold (Ámbar Pasarela) y Sin Cargo (Miel/Regalo). Homogeneizado en Dashboard de Inicio y en las tablas de detalle de reservas.
+
+### [v2.3.37] - 13/11/2026
+- **Tipo:** PATCH
+- **Archivos:** `js/dashboard.js`, `reservas-salas.html`, `reservas-spa.html`, `reservas.html`, `scripts/test-sin-cargo-and-price-preservation.js`
+- **Descripción:** Corrección de preservación de precio/total guardado al consultar reservas en modal de edición (evita recálculo no deseado que reducía totales como PayGold 100€ a 50€). Implementación de soporte para reservas "Sin Cargo / Gratuita (0.00 €)" con campo obligatorio "Autorizado por", distintivo SIN CARGO en agenda y tabla, y asistente de 1-clic "Aplicar Tarifa Catálogo" cuando un servicio tiene precio oficial configurado en el catálogo maestro.
 
 ### [v2.3.36] - 12/11/2026
 - **Tipo:** PATCH

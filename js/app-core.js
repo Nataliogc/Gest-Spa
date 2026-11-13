@@ -393,6 +393,9 @@ window.createPackReservations = async function (parentData, childItems) {
 
         const childPayload = {
             parent_id: parentId,
+            parent_service: parentData.servicio || parentData.service || "",
+            pack_name: parentData.servicio || parentData.service || "",
+            pack_origen: parentData.servicio || parentData.service || "",
             pack_sequence_index: index,
             service_item: child.name,
             is_pack_element: true,

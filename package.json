@@ -1,6 +1,6 @@
 {
   "name": "gest-spa-zenith",
-  "version": "2.3.36",
+  "version": "2.3.40",
   "description": "Sistema de Gestión Cumbria Bienestar / Zenith Manager",
   "scripts": {
     "bump:version": "node scripts/bump-version.js patch",

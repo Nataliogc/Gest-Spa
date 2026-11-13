@@ -44,6 +44,31 @@
             const resolved = legacy.map(c => resolve(c, master)).filter(Boolean);
             if (resolved.length === legacy.length && resolved.length && resolved.every(m => m === resolved[0])) return resolved[0];
         }
+
+        // Simplified descriptor matching (e.g. "ENVOLTURA VIT.C" <-> "Envoltura corporal vit.c")
+        const simpleKey = key
+            .replace(/\b(corporal|facial|tratamiento|de|del|la|las|el|los|con|en)\b/g, '')
+            .replace(/\bvitamina\b/g, 'vit')
+            .replace(/\s+/g, ' ').trim();
+        if (simpleKey) {
+            const fuzzy = candidates.filter(m => {
+                const sCandidate = normalize(nameOf(m))
+                    .replace(/\b(corporal|facial|tratamiento|de|del|la|las|el|los|con|en)\b/g, '')
+                    .replace(/\bvitamina\b/g, 'vit')
+                    .replace(/\s+/g, ' ').trim();
+                if (sCandidate === simpleKey) return true;
+                if (Array.isArray(m.aliases) && m.aliases.some(a => {
+                    const sAlias = normalize(a)
+                        .replace(/\b(corporal|facial|tratamiento|de|del|la|las|el|los|con|en)\b/g, '')
+                        .replace(/\bvitamina\b/g, 'vit')
+                        .replace(/\s+/g, ' ').trim();
+                    return sAlias === simpleKey;
+                })) return true;
+                return false;
+            }).filter(compatible);
+            if (fuzzy.length === 1) return fuzzy[0];
+        }
+
         return null;
     }
     function space(value) {
@@ -90,6 +115,59 @@
         }
         return result;
     }
-    root.SpaServiceCatalog = { normalize, resolve, build, allows, space, spacesOf };
+    function findParentPacks(itemOrName, catalog = [], registry = null) {
+        const rawName = typeof itemOrName === 'string' ? itemOrName : nameOf(itemOrName);
+        const targetNorm = normalize(rawName);
+        if (!targetNorm) return [];
+
+        const exactPacks = new Set();
+        const fuzzyPacks = new Set();
+
+        function checkMatch(packName, incName) {
+            const incNorm = normalize(incName);
+            if (!incNorm) return;
+            if (incNorm === targetNorm) {
+                exactPacks.add(packName);
+                return;
+            }
+            const minLen = Math.min(incNorm.length, targetNorm.length);
+            const maxLen = Math.max(incNorm.length, targetNorm.length);
+            if (minLen >= 5 && (incNorm.includes(targetNorm) || targetNorm.includes(incNorm))) {
+                if (minLen / maxLen >= 0.55) {
+                    fuzzyPacks.add(packName);
+                }
+            }
+        }
+
+        // 1. Check catalog services (spa_services)
+        if (Array.isArray(catalog)) {
+            catalog.forEach(srv => {
+                const srvName = nameOf(srv);
+                if (!srvName) return;
+                const items = [
+                    ...(Array.isArray(srv.items_incluidos) ? srv.items_incluidos : []),
+                    ...(Array.isArray(srv.secuencia) ? srv.secuencia.map(s => typeof s === 'string' ? s : nameOf(s)) : []),
+                    ...(Array.isArray(srv.desglosados) ? srv.desglosados.map(s => typeof s === 'string' ? s : nameOf(s)) : [])
+                ];
+                items.forEach(inc => checkMatch(srvName, inc));
+            });
+        }
+
+        // 2. Check SPA_PACKS_REGISTRY
+        const packsReg = registry || (root.SPA_PACKS_REGISTRY ? root.SPA_PACKS_REGISTRY : null);
+        if (packsReg) {
+            Object.values(packsReg).forEach(pack => {
+                const pName = pack.nombre || pack.name || '';
+                if (!pName) return;
+                if (Array.isArray(pack.secuencia)) {
+                    pack.secuencia.forEach(sec => checkMatch(pName, sec.nombre || sec.name || ''));
+                }
+            });
+        }
+
+        if (exactPacks.size > 0) return Array.from(exactPacks);
+        return Array.from(fuzzyPacks);
+    }
+    root.SpaServiceCatalog = { normalize, resolve, build, allows, space, spacesOf, findParentPacks };
     if (typeof module !== 'undefined') module.exports = root.SpaServiceCatalog;
 })(typeof window !== 'undefined' ? window : globalThis);

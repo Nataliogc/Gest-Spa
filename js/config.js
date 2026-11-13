@@ -543,13 +543,22 @@ function renderMasterItems() {
     spaConfigState.masterItems.sort((a, b) => a.name.localeCompare(b.name));
 
     list.innerHTML = spaConfigState.masterItems.map(item => {
-        // Contar cuántos productos usan este item
-        const usageCount = spaConfigState.catalogServices.filter(service => {
+        // Encontrar paquetes / productos que incluyen este item
+        const parentPacks = (window.SpaServiceCatalog && typeof window.SpaServiceCatalog.findParentPacks === 'function')
+            ? window.SpaServiceCatalog.findParentPacks(item.name, spaConfigState.catalogServices, window.SPA_PACKS_REGISTRY)
+            : [];
+        const hasParentPacks = parentPacks.length > 0;
+
+        // Contar cuántos productos usan este item (catálogo + paquetes registry)
+        const catalogUsage = spaConfigState.catalogServices.filter(service => {
             if (!service.items_incluidos || !Array.isArray(service.items_incluidos)) return false;
             return service.items_incluidos.some(includedItem =>
                 includedItem.toLowerCase().trim() === item.name.toLowerCase().trim()
             );
-        }).length;
+        });
+        const allUsageNames = new Set(catalogUsage.map(s => s.nombre));
+        parentPacks.forEach(p => allUsageNames.add(p));
+        const usageCount = allUsageNames.size;
 
         // Modo de venta: Venta directa o solo paquetes de venta online
         const isSoloPack = item.pack_only === true || item.sale_mode === 'solo_pack' || item.standalone === false;
@@ -593,11 +602,19 @@ function renderMasterItems() {
                     <input type="text" value="${item.name}" onchange="updateMasterItemField('${item.id}', 'name', this.value)" 
                         class="param-input" style="width:100%; font-weight: 500;">
                 </div>
-                <div style="font-size: 0.6rem; color: #94a3b8; margin-left: 32px; text-transform: uppercase; font-weight: 700;">
-                    ${(() => {
+                <div style="margin-left: 32px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 2px;">
+                    <span style="font-size: 0.6rem; color: #94a3b8; text-transform: uppercase; font-weight: 700;">
+                        ${(() => {
                 const prot = window.getServiceProtocol ? window.getServiceProtocol(item.name) : { tratamiento: 'Varios' };
                 return prot.tratamiento;
             })()}
+                    </span>
+                    ${hasParentPacks ? `
+                        <span style="display: inline-flex; align-items: center; gap: 4px; background: #fffbeb; color: #b45309; border: 1px solid #fde68a; padding: 1px 6px; border-radius: 4px; font-size: 0.62rem; font-weight: 700;" 
+                              title="Tratamiento incluido en el paquete: ${parentPacks.join(', ')}">
+                            <i class="fas fa-box-open" style="color: #d97706;"></i> Paquete: <strong>${parentPacks.length === 1 ? parentPacks[0] : parentPacks[0] + ' (+' + (parentPacks.length - 1) + ')'}</strong>
+                        </span>
+                    ` : ''}
                 </div>
             </td>
             <td style="padding: 6px 2px; text-align: center;">
@@ -649,6 +666,11 @@ function renderMasterItems() {
             <td style="padding: 6px 2px; text-align: center;">
                 <input type="number" step="0.01" value="${item.price_pax || 0}" onchange="updateMasterItemField('${item.id}', 'price_pax', parseFloat(this.value))" 
                         class="param-input" style="width: 100%; text-align: center; color: var(--accent); font-weight: 700;" min="0">
+                ${((item.price_pax === 0 || !item.price_pax) && hasParentPacks) ? `
+                    <span style="display: block; font-size: 0.6rem; color: #b45309; font-weight: 700; margin-top: 2px;" title="Tratamiento sin precio individual: incluido en el paquete ${parentPacks.join(', ')}">
+                        <i class="fas fa-box"></i> En Paquete
+                    </span>
+                ` : ''}
             </td>
             <td style="padding: 6px 2px; text-align: center;">
                 <select onchange="updateMasterItemField('${item.id}', 'agenda_required', this.value === 'true')" class="param-input" style="width: 100%;">
@@ -659,11 +681,16 @@ function renderMasterItems() {
             <td style="padding: 6px 2px; text-align: center;">
                 <select onchange="updateMasterItemSaleMode('${item.id}', this.value, this)" 
                         class="param-input" 
-                        title="${isSoloPack ? 'Solo se vende dentro de paquetes / packs de venta online' : 'Se puede vender directamente en recepción/reserva'}"
+                        title="${isSoloPack ? 'Solo se vende dentro de paquetes / packs de venta online' : (hasParentPacks ? 'Incluido en paquete. Se recomienda marcar "Solo Paquetes"' : 'Se puede vender directamente en recepción/reserva')}"
                         style="width: 100%; font-size: 0.7rem; font-weight: 600; padding: 4px 2px; border-radius: 4px; cursor: pointer; transition: all 0.2s; ${isSoloPack ? 'background: #fffbeb; color: #b45309; border: 1px solid #fcd34d;' : 'background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0;'}">
                     <option value="directa" ${!isSoloPack ? 'selected' : ''}>Directa</option>
                     <option value="solo_pack" ${isSoloPack ? 'selected' : ''}>Solo Paquetes</option>
                 </select>
+                ${!isSoloPack && (item.price_pax === 0 || !item.price_pax) && hasParentPacks ? `
+                    <span style="display: block; font-size: 0.58rem; color: #d97706; font-weight: 600; margin-top: 1px;" title="Tiene precio 0€ porque pertenece a un paquete">
+                        ⚠️ De Paquete
+                    </span>
+                ` : ''}
             </td>
             <td style="padding: 6px 2px; text-align: center;">
                 <span onclick="showItemUsage('${item.id}', '${item.name.replace(/'/g, "\\'")}')"
@@ -824,7 +851,11 @@ function updateSummaryText(id, codes) {
 }
 
 function showItemUsage(itemId, itemName) {
-    // Encontrar productos que usan este item
+    const parentPacks = (window.SpaServiceCatalog && typeof window.SpaServiceCatalog.findParentPacks === 'function')
+        ? window.SpaServiceCatalog.findParentPacks(itemName, spaConfigState.catalogServices, window.SPA_PACKS_REGISTRY)
+        : [];
+
+    // Encontrar productos de catálogo que usan este item
     const usedByProducts = spaConfigState.catalogServices.filter(service => {
         if (!service.items_incluidos || !Array.isArray(service.items_incluidos)) return false;
         return service.items_incluidos.some(includedItem =>
@@ -832,17 +863,22 @@ function showItemUsage(itemId, itemName) {
         );
     });
 
-    if (usedByProducts.length === 0) {
-        showToast("Este item no está siendo usado por ningún producto", "info");
+    const lines = [];
+    usedByProducts.forEach(p => {
+        lines.push(`${lines.length + 1}. [Catálogo] ${p.nombre} (${p.precio}€)`);
+    });
+    parentPacks.forEach(packName => {
+        if (!usedByProducts.some(p => (p.nombre || '').toLowerCase() === packName.toLowerCase())) {
+            lines.push(`${lines.length + 1}. [Paquete / Ritual] ${packName}`);
+        }
+    });
+
+    if (lines.length === 0) {
+        showToast("Este item no está siendo usado por ningún producto o paquete", "info");
         return;
     }
 
-    // Crear mensaje con la lista de productos
-    const productList = usedByProducts
-        .map((p, i) => `${i + 1}. ${p.nombre} (${p.precio}€)`)
-        .join('\n');
-
-    alert(`📦 Productos que usan "${itemName}":\n\n${productList}\n\nTotal: ${usedByProducts.length} producto${usedByProducts.length !== 1 ? 's' : ''}`);
+    alert(`📦 Paquetes y Productos que incluyen "${itemName}":\n\n${lines.join('\n')}\n\nTotal: ${lines.length} paquete(s) o producto(s)`);
 }
 
 
