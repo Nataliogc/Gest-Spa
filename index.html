@@ -48,7 +48,7 @@
     <div class="sidebar">
         <div style="display: flex; align-items: center; gap: 15px;">
             <img src="logo-spa.jpg" alt="Cumbria Bienestar" style="height: 65px; width: auto; object-fit: contain;">
-            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.41 (13/11/2026)">v2.3.41</span>
+            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.42 (13/11/2026)">v2.3.42</span>
         </div>
 
         <ul class="nav-links" style="flex:1;">
@@ -214,23 +214,17 @@
                             style="flex: 1; padding: 0; border: none; box-shadow: none; background: transparent;">
                             <div class="table-wrapper"
                                 style="background: #fff; border-radius: 16px; border: 1px solid var(--border); box-shadow: 0 4px 20px rgba(0,0,0,0.03);">
-                                <table>
-                                    <thead>
+                                <table id="dashboard-table">
+                                    <thead id="dashboard-table-head">
                                         <tr style="background: #f8fafc;">
-                                            <th style="padding: 15px 20px; font-size: 0.8rem; color: #64748b;">ID</th>
-                                            <th style="padding: 15px 20px; font-size: 0.8rem; color: #64748b;">HORA</th>
-                                            <th style="padding: 15px 20px; font-size: 0.8rem; color: #64748b;">CLIENTE
-                                            </th>
-                                            <th style="padding: 15px 20px; font-size: 0.8rem; color: #64748b;">SERVICIO
-                                            </th>
-                                            <th style="padding: 15px 20px; font-size: 0.8rem; color: #64748b;">SALA
-                                            </th>
-                                            <th style="padding: 15px 20px; font-size: 0.8rem; color: #64748b;">TERAPEUTA
-                                            </th>
-                                            <th style="padding: 15px 20px; font-size: 0.8rem; color: #64748b;">ESTADO
-                                            </th>
-                                            <th style="padding: 15px 20px; font-size: 0.8rem; color: #64748b;">ACCIONES
-                                            </th>
+                                            <th class="col-id" style="padding: 15px 20px; font-size: 0.8rem; color: #64748b; width: 75px; text-align: left;">ID</th>
+                                            <th class="col-hora" style="padding: 15px 20px; font-size: 0.8rem; color: #64748b; width: 65px; text-align: center;">HORA</th>
+                                            <th class="col-cliente" style="padding: 15px 20px; font-size: 0.8rem; color: #64748b; min-width: 140px; text-align: left;">CLIENTE</th>
+                                            <th class="col-servicio" style="padding: 15px 20px; font-size: 0.8rem; color: #64748b; min-width: 150px; text-align: left;">SERVICIO</th>
+                                            <th class="col-sala" style="padding: 15px 20px; font-size: 0.8rem; color: #64748b; width: 85px; text-align: left;">SALA</th>
+                                            <th class="col-terapeuta" style="padding: 15px 20px; font-size: 0.8rem; color: #64748b; width: 85px; text-align: left;">TERAPEUTA</th>
+                                            <th class="col-estado" style="padding: 15px 20px; font-size: 0.8rem; color: #64748b; width: 175px; text-align: center;">ESTADO</th>
+                                            <th class="col-acciones" style="padding: 15px 20px; font-size: 0.8rem; color: #64748b; width: 130px; text-align: center;">ACCIONES</th>
                                         </tr>
                                     </thead>
                                     <tbody id="dashboard-table-body">

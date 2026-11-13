@@ -8,7 +8,7 @@ Este documento mantiene el **control de versión única y global** para todo el 
 
 | Parámetro | Valor Actual |
 | :--- | :--- |
-| **Versión Global del Sistema** | **`v2.3.41`** |
+| **Versión Global del Sistema** | **`v2.3.42`** |
 | **Fecha de Última Actualización** | **13/11/2026** |
 | **Estado General** | Operativo en Producción |
 
@@ -47,6 +47,15 @@ Cualquier cambio en los siguientes módulos impacta en la versión global:
 ---
 
 ## 📝 Historial Unificado de Versiones
+
+### [v2.3.42] - 13/11/2026
+- **Tipo:** PATCH
+- **Archivos:** `index.html`, `js/dashboard.js`, `styles.css`, `firebase-config.js`
+- **Descripción:** Corrección de desalineación de columnas en la tabla del Dashboard y sincronización de versión global única:
+  1. **Cuadrado y Alineación de Tabla Dashboard:** Se corrigió el desajuste donde la cabecera `ESTADO` quedaba vacía y la píldora de pago caía bajo `ACCIONES`. Se unificó el número exacto de columnas (8 cabeceras `<th>` y 8 celdas `<td>`), integrando el botón de ver detalles (ojo) dentro de la celda de acciones con layout flex. Se definieron anchos fijos y alineaciones idénticas (`col-id`, `col-hora`, `col-cliente`, `col-servicio`, `col-sala`, `col-terapeuta`, `col-estado`, `col-acciones`).
+  2. **Encabezados Dinámicos en Búsqueda Global:** Sincronización automática de `<thead>` para mostrar la columna `FECHA` en búsquedas globales sin romper la alineación con las filas de datos.
+  3. **Aislamiento de Reglas CSS Globales:** Las reglas de optimización de columnas `nth-child` que procedían de la tabla de bonos se encapsularon exclusivamente para `#vouchers-table-body`, evitando que afecten o descalabren la tabla principal del dashboard.
+  4. **Sincronización de Versión Global en `firebase-config.js`:** Se actualizó `window.GEST_SPA_VERSION` para que el distintivo de versión del encabezado muestre correctamente la versión actualizada `v2.3.42` en el navegador.
 
 ### [v2.3.41] - 13/11/2026
 - **Tipo:** PATCH

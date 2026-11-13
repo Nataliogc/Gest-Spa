@@ -540,27 +540,48 @@ th {
     /* Sombra para separar visualmente */
 }
 
-/* Optimización de columnas específicas */
-td:nth-child(1),
-th:nth-child(1) {
+/* Optimización de columnas específicas (Bonos) */
+#vouchers-table-body td:nth-child(1),
+#vouchers-table-body th:nth-child(1),
+.vouchers-table td:nth-child(1),
+.vouchers-table th:nth-child(1) {
     /* Bono */
     width: 120px;
     min-width: 120px;
     text-align: center;
 }
 
-td:nth-child(2) {
+#vouchers-table-body td:nth-child(2),
+.vouchers-table td:nth-child(2) {
     /* Producto */
     max-width: 250px;
 }
 
-td:nth-child(3) {
+#vouchers-table-body td:nth-child(3),
+.vouchers-table td:nth-child(3) {
     /* Email */
     max-width: 220px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
 }
+
+/* Dashboard Table Layout Estricto */
+#dashboard-table {
+    width: 100%;
+    table-layout: fixed;
+    border-collapse: separate;
+    border-spacing: 0;
+}
+#dashboard-table th.col-id, #dashboard-table td.col-id { width: 75px; text-align: left; }
+#dashboard-table th.col-fecha, #dashboard-table td.col-fecha { width: 90px; text-align: center; }
+#dashboard-table th.col-hora, #dashboard-table td.col-hora { width: 65px; text-align: center; }
+#dashboard-table th.col-cliente, #dashboard-table td.col-cliente { min-width: 140px; text-align: left; }
+#dashboard-table th.col-servicio, #dashboard-table td.col-servicio { min-width: 150px; text-align: left; }
+#dashboard-table th.col-sala, #dashboard-table td.col-sala { width: 85px; text-align: left; }
+#dashboard-table th.col-terapeuta, #dashboard-table td.col-terapeuta { width: 85px; text-align: left; }
+#dashboard-table th.col-estado, #dashboard-table td.col-estado { width: 175px; text-align: center; }
+#dashboard-table th.col-acciones, #dashboard-table td.col-acciones { width: 130px; text-align: center; }
 
 tr:hover td {
     background: rgba(0, 0, 0, 0.02);

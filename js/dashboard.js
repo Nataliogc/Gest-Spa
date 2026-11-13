@@ -398,6 +398,36 @@ function renderDashboard() {
         });
     }
 
+    // Sincronizar encabezados de tabla con modo de búsqueda
+    const theadEl = document.getElementById("dashboard-table-head");
+    if (theadEl) {
+        if (isGlobalSearch) {
+            theadEl.innerHTML = `
+                <tr style="background: #f8fafc;">
+                    <th class="col-id" style="padding: 15px 20px; font-size: 0.8rem; color: #64748b; width: 75px; text-align: left;">ID</th>
+                    <th class="col-fecha" style="padding: 15px 20px; font-size: 0.8rem; color: #64748b; width: 90px; text-align: center;">FECHA</th>
+                    <th class="col-hora" style="padding: 15px 20px; font-size: 0.8rem; color: #64748b; width: 65px; text-align: center;">HORA</th>
+                    <th class="col-cliente" style="padding: 15px 20px; font-size: 0.8rem; color: #64748b; min-width: 140px; text-align: left;">CLIENTE</th>
+                    <th class="col-servicio" style="padding: 15px 20px; font-size: 0.8rem; color: #64748b; min-width: 150px; text-align: left;">SERVICIO</th>
+                    <th class="col-sala" style="padding: 15px 20px; font-size: 0.8rem; color: #64748b; width: 85px; text-align: left;">SALA</th>
+                    <th class="col-estado" style="padding: 15px 20px; font-size: 0.8rem; color: #64748b; width: 175px; text-align: center;">ESTADO</th>
+                    <th class="col-acciones" style="padding: 15px 20px; font-size: 0.8rem; color: #64748b; width: 130px; text-align: center;">ACCIONES</th>
+                </tr>`;
+        } else {
+            theadEl.innerHTML = `
+                <tr style="background: #f8fafc;">
+                    <th class="col-id" style="padding: 15px 20px; font-size: 0.8rem; color: #64748b; width: 75px; text-align: left;">ID</th>
+                    <th class="col-hora" style="padding: 15px 20px; font-size: 0.8rem; color: #64748b; width: 65px; text-align: center;">HORA</th>
+                    <th class="col-cliente" style="padding: 15px 20px; font-size: 0.8rem; color: #64748b; min-width: 140px; text-align: left;">CLIENTE</th>
+                    <th class="col-servicio" style="padding: 15px 20px; font-size: 0.8rem; color: #64748b; min-width: 150px; text-align: left;">SERVICIO</th>
+                    <th class="col-sala" style="padding: 15px 20px; font-size: 0.8rem; color: #64748b; width: 85px; text-align: left;">SALA</th>
+                    <th class="col-terapeuta" style="padding: 15px 20px; font-size: 0.8rem; color: #64748b; width: 85px; text-align: left;">TERAPEUTA</th>
+                    <th class="col-estado" style="padding: 15px 20px; font-size: 0.8rem; color: #64748b; width: 175px; text-align: center;">ESTADO</th>
+                    <th class="col-acciones" style="padding: 15px 20px; font-size: 0.8rem; color: #64748b; width: 130px; text-align: center;">ACCIONES</th>
+                </tr>`;
+        }
+    }
+
     // Actualizar contador
     const countEl = document.getElementById("stat-reservas-pendientes");
     if (countEl && !isGlobalSearch) countEl.textContent = dataToShow.length;
@@ -607,49 +637,49 @@ function renderDashboard() {
 
         return `
             <tr style="${isNoShow ? 'opacity: 0.5;' : ''} vertical-align: middle;">
-                <td style="vertical-align: middle; font-size:0.8rem; color:#666;">${c.res_id || c.id.substr(0, 4)}</td>
-                ${isGlobalSearch ? `<td style="vertical-align: middle; font-size:0.8rem;">${formatDateES(c.fecha)}</td>` : ''}
-                <td style="vertical-align: middle; font-weight:bold; color:var(--accent);">${c.hora}</td>
-                <td style="vertical-align: middle; ${isNoShow ? 'text-decoration: line-through;' : ''}">${c.nombre}</td>
-                <td style="vertical-align: middle;">${serviceName}</td>
-                <td style="vertical-align: middle; font-size:0.8rem; color:#64748b;">${roomName}</td>
-                ${!isGlobalSearch ? `<td style="vertical-align: middle;">${c.terapeuta || '—'}</td>` : ''}
-                <td style="vertical-align: middle; text-align: center; white-space: nowrap;">
+                <td class="col-id" style="vertical-align: middle; font-size:0.8rem; color:#666; text-align:left;">${c.res_id || c.id.substr(0, 4)}</td>
+                ${isGlobalSearch ? `<td class="col-fecha" style="vertical-align: middle; font-size:0.8rem; text-align:center;">${formatDateES(c.fecha)}</td>` : ''}
+                <td class="col-hora" style="vertical-align: middle; font-weight:bold; color:var(--accent); text-align:center;">${c.hora}</td>
+                <td class="col-cliente" style="vertical-align: middle; text-align:left; ${isNoShow ? 'text-decoration: line-through;' : ''}">${c.nombre}</td>
+                <td class="col-servicio" style="vertical-align: middle; text-align:left;">${serviceName}</td>
+                <td class="col-sala" style="vertical-align: middle; font-size:0.8rem; color:#64748b; text-align:left;">${roomName}</td>
+                ${!isGlobalSearch ? `<td class="col-terapeuta" style="vertical-align: middle; text-align:left;">${c.terapeuta || '—'}</td>` : ''}
+                <td class="col-estado" style="vertical-align: middle; text-align: center; white-space: nowrap;">
                     <div style="display:inline-flex; align-items:center; justify-content:center; gap:6px; vertical-align: middle;">
                         ${statusIcon}
                         ${paymentBadgeHtml}
                     </div>
                 </td>
-                <td style="vertical-align: middle; text-align:center;">
-                    ${isConfirmed && !isNoShow && !c.attended ? `
-                        <button class="btn-icon" title="Confirmar Asistencia (Presentado)" onclick="markAttendance('${c.id}', '${c.moduleType}')" style="color:#f59e0b;">
-                            <i class="fas fa-user-check"></i>
+                <td class="col-acciones" style="vertical-align: middle; text-align:center; white-space: nowrap;">
+                    <div style="display:inline-flex; align-items:center; justify-content:center; gap:5px;">
+                        ${isConfirmed && !isNoShow && !c.attended ? `
+                            <button class="btn-icon" title="Confirmar Asistencia (Presentado)" onclick="markAttendance('${c.id}', '${c.moduleType}')" style="color:#f59e0b;">
+                                <i class="fas fa-user-check"></i>
+                            </button>
+                        ` : (c.attended ? `
+                            <button class="btn-icon" title="Asistencia confirmada - Desmarcar" onclick="unmarkAttendance('${c.id}', '${c.moduleType}')" style="color:#10b981;">
+                                <i class="fas fa-check-double"></i>
+                            </button>
+                        ` : (isNoShow ? `
+                            <button class="btn-icon" title="Desmarcar No Show" onclick="unmarkNoShow('${c.id}', '${c.moduleType}')" style="color:#6b7280;">
+                                <i class="fas fa-undo"></i>
+                            </button>
+                        ` : ''))}
+                        ${clientTel ? `
+                            <button class="btn-icon" title="${hasPayGold && hasBalance ? 'Enviar enlace PayGold por WhatsApp' : 'Enviar confirmación WhatsApp'}" onclick="sendWhatsAppConfirmation('${c.id}', '${clientTel}', '${(c.nombre || '').replace(/'/g, "\\'")}', '${c.fecha}', '${c.hora}', '${c.moduleType}', '${payUrl}', ${balanceAmount}, '${(c.servicio || serviceName || '').replace(/'/g, "\\'")}', ${c.pax || 1})" style="color:#25D366;">
+                                <i class="fab fa-whatsapp" style="font-size:1.1rem;"></i>
+                                ${c.whatsappSent ? '<i class="fas fa-check-circle" style="font-size:0.6rem; color:green; vertical-align:top;"></i>' : ''}
+                            </button>
+                        ` : ''}
+                        ${isConfirmed && !isNoShow && !c.attended ? `
+                            <button class="btn-icon" title="Marcar No Show" onclick="markAsNoShow('${c.id}', '${c.moduleType}')" style="color:#94a3b8; font-size:0.8rem;">
+                                <i class="fas fa-user-times"></i>
+                            </button>
+                        ` : ''}
+                        <button class="btn-icon" title="Ver detalles y control de pago" onclick="goToReservationDetail('${c.id}', '${c.moduleType}')">
+                            <i class="fas fa-eye"></i>
                         </button>
-                    ` : (c.attended ? `
-                        <button class="btn-icon" title="Asistencia confirmada - Desmarcar" onclick="unmarkAttendance('${c.id}', '${c.moduleType}')" style="color:#10b981;">
-                            <i class="fas fa-check-double"></i>
-                        </button>
-                    ` : (isNoShow ? `
-                        <button class="btn-icon" title="Desmarcar No Show" onclick="unmarkNoShow('${c.id}', '${c.moduleType}')" style="color:#6b7280;">
-                            <i class="fas fa-undo"></i>
-                        </button>
-                    ` : ''))}
-                    ${clientTel ? `
-                        <button class="btn-icon" title="${hasPayGold && hasBalance ? 'Enviar enlace PayGold por WhatsApp' : 'Enviar confirmación WhatsApp'}" onclick="sendWhatsAppConfirmation('${c.id}', '${clientTel}', '${(c.nombre || '').replace(/'/g, "\\'")}', '${c.fecha}', '${c.hora}', '${c.moduleType}', '${payUrl}', ${balanceAmount}, '${(c.servicio || serviceName || '').replace(/'/g, "\\'")}', ${c.pax || 1})" style="color:#25D366;">
-                            <i class="fab fa-whatsapp" style="font-size:1.1rem;"></i>
-                            ${c.whatsappSent ? '<i class="fas fa-check-circle" style="font-size:0.6rem; color:green; vertical-align:top;"></i>' : ''}
-                        </button>
-                    ` : ''}
-                    ${isConfirmed && !isNoShow && !c.attended ? `
-                        <button class="btn-icon" title="Marcar No Show" onclick="markAsNoShow('${c.id}', '${c.moduleType}')" style="color:#94a3b8; margin-left:5px; font-size:0.8rem;">
-                            <i class="fas fa-user-times"></i>
-                        </button>
-                    ` : ''}
-                </td>
-                <td>
-                    <button class="btn-icon" title="Ver detalles y control de pago" onclick="goToReservationDetail('${c.id}', '${c.moduleType}')">
-                        <i class="fas fa-eye"></i>
-                    </button>
+                    </div>
                 </td>
             </tr>`;
     }).join('');
