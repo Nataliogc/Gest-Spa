@@ -22,15 +22,16 @@ document.addEventListener("DOMContentLoaded", () => {
 function initDashboard() {
     updateDateDisplay();
 
-    // Initialize date picker to today (Local Time)
+    // Initialize date picker to URL ?date=... or today (Local Time)
     const datePicker = document.getElementById("dashboard-date-picker");
+    const urlDate = new URLSearchParams(window.location.search).get("date");
     let initialDate = "";
 
     if (datePicker) {
         const today = new Date();
         const localDate = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0');
-        datePicker.value = localDate;
-        initialDate = localDate;
+        initialDate = (urlDate && /^\d{4}-\d{2}-\d{2}$/.test(urlDate)) ? urlDate : localDate;
+        datePicker.value = initialDate;
     }
 
     cargarCitasHoy(initialDate);
@@ -140,6 +141,11 @@ async function cargarCitasHoy(date) {
                 const formattedDate = new Date(targetDate + 'T12:00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'long' });
                 titleEl.textContent = `Citas del ${formattedDate}`;
             }
+        }
+
+        // Sincronizar automáticamente fases pendientes de packs multiservicio para la fecha
+        if (typeof window.ensurePackChildrenSyncedForDate === 'function') {
+            await window.ensurePackChildrenSyncedForDate(targetDate);
         }
 
         // Cargar de todas las colecciones en paralelo
@@ -439,9 +445,19 @@ function renderDashboard() {
 
     tbody.innerHTML = dataToShow.map(c => {
         // Determine service name to display
-        let serviceName = c.servicio || c.service || '—';
-        if (serviceName === '—' && c.moduleType === 'spa') {
-            serviceName = 'Circuito Spa';
+        let rawSvc = c.servicio || c.service || '—';
+        if (rawSvc === '—' && c.moduleType === 'spa') {
+            rawSvc = 'Circuito Spa';
+        }
+        const itemSvc = c.service_item ? String(c.service_item).trim() : '';
+        const packLabel = String(c.pack_origen || c.parent_service || c.pack_name || '').trim();
+        let serviceName = rawSvc;
+        if (itemSvc && packLabel && itemSvc.toLowerCase() !== packLabel.toLowerCase()) {
+            const cleanPack = packLabel.replace(/^PACK\s*[-–—:]\s*/i, '').trim();
+            serviceName = `${itemSvc} <span style="display:inline-block; font-size:0.68rem; color:#b45309; background:#fffbeb; border:1px solid #fde68a; padding:1px 6px; border-radius:4px; margin-left:6px; font-weight:600; vertical-align:middle;"><i class="fas fa-layer-group"></i> PACK · ${cleanPack}</span>`;
+        } else if (packLabel && rawSvc.toLowerCase() !== packLabel.toLowerCase() && (c.is_pack_element || c.parent_id)) {
+            const cleanPack = packLabel.replace(/^PACK\s*[-–—:]\s*/i, '').trim();
+            serviceName = `${rawSvc} <span style="display:inline-block; font-size:0.68rem; color:#b45309; background:#fffbeb; border:1px solid #fde68a; padding:1px 6px; border-radius:4px; margin-left:6px; font-weight:600; vertical-align:middle;"><i class="fas fa-layer-group"></i> PACK · ${cleanPack}</span>`;
         }
 
         // Determine room/sala name
@@ -490,8 +506,6 @@ function renderDashboard() {
             origen = 'hotel_no_inc';
         } else if (rawOrigen.includes('hotel')) {
             origen = 'hotel_inc';
-        } else if (rawOrigen.includes('bono') || rawOrigen.includes('voucher') || !!bonoCode) {
-            origen = 'bono';
         } else if (rawOrigen.includes('groupon')) {
             origen = 'groupon';
         } else if (rawOrigen.includes('smartbox')) {
@@ -500,6 +514,8 @@ function renderDashboard() {
             origen = 'wonderbox';
         } else if (rawOrigen.includes('ego')) {
             origen = 'ego';
+        } else if (rawOrigen.includes('bono') || rawOrigen.includes('voucher') || !!bonoCode) {
+            origen = 'bono';
         } else if (rawOrigen === 'sin_cargo' || c.sin_cargo === true) {
             origen = 'sin_cargo';
         } else if (rawOrigen) {
@@ -792,17 +808,89 @@ async function buscarReservasGlobal(term) {
     }
 }
 
-// Navigate to reservation details
+// Navigate to reservation details (abre modal sobre el panel y al cerrar vuelve al panel)
 function goToReservationDetail(resId, moduleType) {
-    const cita = state.citas.find(c => c.id === resId);
+    const cita = state.citas.find(c => c.id === resId) || (state.searchCitas || []).find(c => c.id === resId);
     if (!cita) return;
 
-    // Si el moduleType ya viene en la cita (agregado en cargarCitasHoy), lo usamos
     const type = moduleType || cita.moduleType || 'spa';
+    let url = '';
+    if (type === 'spa') {
+        url = `reservas-spa.html?action=edit&id=${encodeURIComponent(cita.id)}&res_id=${encodeURIComponent(cita.id)}&date=${encodeURIComponent(cita.fecha)}&embedded=1&modal=1&from=panel`;
+    } else if (['cabina1', 'cabina2', 'cabina3', 'cabinas'].includes(type)) {
+        url = `reservas-salas.html?type=cabinas&action=edit&id=${encodeURIComponent(cita.id)}&res_id=${encodeURIComponent(cita.id)}&date=${encodeURIComponent(cita.fecha)}&embedded=1&modal=1&from=panel`;
+    } else {
+        url = `reservas-salas.html?type=${encodeURIComponent(type)}&action=edit&id=${encodeURIComponent(cita.id)}&res_id=${encodeURIComponent(cita.id)}&date=${encodeURIComponent(cita.fecha)}&embedded=1&modal=1&from=panel`;
+    }
 
-    // Redirect to reservas.html with type and date and res_id (for auto-open)
-    window.location.href = `reservas.html?type=${type}&date=${cita.fecha}&res_id=${cita.id}`;
+    openDashboardQuickForm(url);
 }
+
+function openDashboardQuickForm(url) {
+    const layer = document.getElementById('dashboard-quick-form-layer');
+    const frame = document.getElementById('dashboard-quick-form-frame');
+    const loader = document.getElementById('dashboard-quick-form-loader');
+    if (!layer || !frame) {
+        window.location.href = url.replace('&embedded=1&modal=1', '');
+        return;
+    }
+
+    if (loader) loader.style.display = 'flex';
+    frame.onload = null;
+    frame.src = url;
+    layer.style.display = 'block';
+
+    clearInterval(window._dashQfPoll);
+    const started = Date.now();
+    window._dashQfPoll = setInterval(() => {
+        if (layer.style.display === 'none') return clearInterval(window._dashQfPoll);
+        let visible = false;
+        try {
+            const m = frame.contentDocument && frame.contentDocument.getElementById('booking-modal');
+            visible = !!(m && m.style.display && m.style.display !== 'none');
+        } catch (e) { visible = true; }
+        if (visible) {
+            if (loader) loader.style.display = 'none';
+            clearInterval(window._dashQfPoll);
+        } else if (Date.now() - started > 12000) {
+            clearInterval(window._dashQfPoll);
+            if (loader) loader.style.display = 'none';
+        }
+    }, 100);
+}
+
+function closeDashboardQuickForm(refresh = true) {
+    const layer = document.getElementById('dashboard-quick-form-layer');
+    const frame = document.getElementById('dashboard-quick-form-frame');
+    if (!layer || layer.style.display === 'none') return;
+    layer.style.display = 'none';
+    if (frame) frame.src = 'about:blank';
+    if (refresh) {
+        const datePicker = document.getElementById("dashboard-date-picker");
+        const currentDate = datePicker ? datePicker.value : '';
+        setTimeout(() => cargarCitasHoy(currentDate), 200);
+    }
+}
+window.closeDashboardQuickForm = closeDashboardQuickForm;
+
+window.addEventListener('message', (event) => {
+    const d = event.data;
+    if (!d || typeof d !== 'object') return;
+    const frame = document.getElementById('dashboard-quick-form-frame');
+    if (!frame || event.source !== frame.contentWindow) return;
+    if (d.type === 'GEST_SPA_RESERVATION_SUCCESS' || d.type === 'GEST_SPA_CLOSE_DRAWER') {
+        closeDashboardQuickForm(true);
+    }
+});
+
+window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+        const layer = document.getElementById('dashboard-quick-form-layer');
+        if (layer && layer.style.display !== 'none') {
+            closeDashboardQuickForm(true);
+        }
+    }
+});
 
 window.sendWhatsAppConfirmation = async function (id, telefono, cliente, fecha, hora, moduleType, payUrl, balanceAmount, serviceName, pax) {
     if (!telefono || telefono.length < 9) {
