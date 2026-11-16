@@ -1940,7 +1940,12 @@
             // ... (rest of DOMContentLoaded) ...
 
             // INTEGRATION: Capture URL Params for Voucher Booking (e.g. from Mesa Chef)
+            if (urlParams.get('from') === 'panel' || urlParams.get('from') === 'dashboard' || ((urlParams.get('res_id') || urlParams.get('id')) && document.referrer && document.referrer.includes('index.html'))) {
+                window._openedFromPanel = true;
+                window._returnToPanelDate = urlParams.get('date') || urlParams.get('fecha') || initialDate;
+            }
             if (urlParams.get('action') === 'new' && urlParams.get('voucher')) {
+                window._isExplicitVoucherBooking = true;
                 const voucherData = {
                     cliente: urlParams.get('client') || '',
                     bono: urlParams.get('voucher') || '',
@@ -4160,7 +4165,27 @@
                 }
 
                 const duration = item.duracion || 60;
-                const suggestedTime = computedTimes[index] || baseTime;
+                let suggestedTime = computedTimes[index] || baseTime;
+                let itemDate = baseDate;
+                let isItemActive = true;
+                let existingDocId = null;
+                let existingCollection = null;
+
+                if (!isRitual && Array.isArray(window._editingPackSiblings) && window._editingPackSiblings.length > 0) {
+                    const matchedSib = window._editingPackSiblings.find(s =>
+                        s.pack_sequence_index === index ||
+                        String(s.service_item || s.servicio || '').toLowerCase() === String(item.nombre || '').toLowerCase() ||
+                        (assignedSpace === 'spa' && s._collection === 'reservas_spa')
+                    );
+                    if (matchedSib) {
+                        if (matchedSib.hora) suggestedTime = String(matchedSib.hora).replace(/h$/i, '').trim();
+                        if (matchedSib.fecha) itemDate = matchedSib.fecha;
+                        if (matchedSib.sala && assignedSpace !== 'spa') assignedSpace = String(matchedSib.sala).toLowerCase();
+                        isItemActive = matchedSib.status !== 'anulada';
+                        existingDocId = matchedSib.id;
+                        existingCollection = matchedSib._collection || getCollectionForSpace(assignedSpace);
+                    }
+                }
 
                 if (!isRitual) {
                     packItemsData.push({
@@ -4169,10 +4194,12 @@
                         collection: getCollectionForSpace(assignedSpace),
                         duracion: duration,
                         hora: suggestedTime,
-                        fecha: baseDate,
-                        active: true,
+                        fecha: itemDate,
+                        active: isItemActive,
                         index: index,
-                        terapeutas: item.terapeutas
+                        terapeutas: item.terapeutas,
+                        existingDocId: existingDocId,
+                        existingCollection: existingCollection
                     });
                 }
 
@@ -4208,9 +4235,9 @@
                     `;
                 } else {
                     html += `
-                        <div class="pack-item-row" id="pack-row-${index}" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 10px; margin-bottom: 6px; background: #ffffff; border-radius: 8px; border-left: 4px solid ${spaceBadgeColor}; box-shadow: 0 1px 3px rgba(0,0,0,0.06); transition: opacity 0.2s, background 0.2s;">
+                        <div class="pack-item-row" id="pack-row-${index}" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 10px; margin-bottom: 6px; background: ${isItemActive ? '#ffffff' : '#f1f5f9'}; opacity: ${isItemActive ? '1' : '0.45'}; border-radius: 8px; border-left: 4px solid ${spaceBadgeColor}; box-shadow: 0 1px 3px rgba(0,0,0,0.06); transition: opacity 0.2s, background 0.2s;">
                             <div style="display: flex; align-items: center; gap: 8px; flex-shrink: 0;">
-                                <input type="checkbox" id="pack-active-${index}" checked title="Incluir este servicio en la reserva" onchange="togglePackItemActive(${index}, this.checked)" style="width: 17px; height: 17px; accent-color: #059669; cursor: pointer;">
+                                <input type="checkbox" id="pack-active-${index}" ${isItemActive ? 'checked' : ''} title="Incluir este servicio en la reserva" onchange="togglePackItemActive(${index}, this.checked)" style="width: 17px; height: 17px; accent-color: #059669; cursor: pointer;">
                             </div>
                             <div style="flex: 1; min-width: 0;">
                                 <div style="font-weight: 700; font-size: 0.8rem; color: #1e293b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
@@ -4229,7 +4256,7 @@
                                     <label style="font-size: 0.65rem; color: #64748b; font-weight: 700;">Fecha:</label>
                                     <input type="date" 
                                            id="pack-date-${index}" 
-                                           value="${baseDate}" 
+                                           value="${itemDate}" 
                                            onchange="updatePackItemDate(${index}, this.value)"
                                            style="padding: 3px 5px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.74rem; font-weight: 600; width: 110px; color: #1e293b; background: #fff;">
                                 </div>
@@ -4546,6 +4573,11 @@
             const activeCode = currentModule.code;
 
             try {
+                // Sincronizar automáticamente fases pendientes de packs multiservicio para la fecha
+                if (typeof window.ensurePackChildrenSyncedForDate === 'function') {
+                    await window.ensurePackChildrenSyncedForDate(date);
+                }
+
                 // Cargar Notas del Día
                 loadDayNotes(date);
 
@@ -5857,7 +5889,12 @@
             }
             if (document.getElementById("res-hotel")) document.getElementById("res-hotel").value = res.hotel || "Cumbria";
             if (document.getElementById("res-hab")) document.getElementById("res-hab").value = res.hab || "";
-            if (document.getElementById("res-bono")) document.getElementById("res-bono").value = res.bono || "";
+            let resolvedBono = res.bono || res.localizador || res.num_bono || res.voucher || res.bono_id || res.codigo_bono || res.campoBono || res.referencia || "";
+            if (!resolvedBono && typeof window.recoverMissingBonoCode === 'function') {
+                resolvedBono = await window.recoverMissingBonoCode(res, res.collection || currentModule.collection);
+                if (resolvedBono) res.bono = resolvedBono;
+            }
+            if (document.getElementById("res-bono")) document.getElementById("res-bono").value = resolvedBono;
             document.getElementById("res-pax").value = res.pax;
             const savedTotal = parseFloat(res.precio_total !== undefined && res.precio_total !== null ? res.precio_total : (res.precio || (res.payment && res.payment.total) || 0));
             const savedPax = parseInt(res.pax) || 1;
@@ -5902,22 +5939,34 @@
             populateServices();
             renderComplementos();
 
+            // Si la reserva pertenece a un Pack Multiservicio, cargar sus fases hermanas y mostrar el pack completo
+            const candidatePackName = res.parent_service || res.pack_name || res.pack_origen || ((typeof window.isPackService === 'function' && window.isPackService(res.servicio)) ? res.servicio : '');
+            const matchedPackDef = (candidatePackName && typeof window.findPackDefinition === 'function') ? window.findPackDefinition(candidatePackName) : null;
+            if (matchedPackDef && matchedPackDef.categoria !== 'ritual' && Array.isArray(matchedPackDef.secuencia) && matchedPackDef.secuencia.length > 1 && typeof window.loadPackSiblingsForEdit === 'function') {
+                window._editingPackSiblings = await window.loadPackSiblingsForEdit(res);
+            } else {
+                window._editingPackSiblings = null;
+            }
+
+            const effectiveEditSvc = (matchedPackDef && matchedPackDef.categoria !== 'ritual' && Array.isArray(matchedPackDef.secuencia) && matchedPackDef.secuencia.length > 1)
+                ? ("PACK - " + matchedPackDef.nombre)
+                : (res.servicio || "Circuito Spa");
+
             if (document.getElementById("res-servicio")) {
-                const svc = res.servicio || "Circuito Spa";
-                document.getElementById("res-servicio").value = svc;
+                document.getElementById("res-servicio").value = effectiveEditSvc;
                 // Sync the search input text
                 const searchInp = document.getElementById("res-servicio-search");
-                if (searchInp) searchInp.value = svc;
+                if (searchInp) searchInp.value = effectiveEditSvc;
             }
 
             // FORCE ADD SERVICE IF MISSING (Prevent empty dropdown)
             const serviceDropdown = document.getElementById("res-servicio");
-            if (res.servicio && serviceDropdown.value === "" && !Array.from(serviceDropdown.options).some(o => o.value === res.servicio)) {
+            if (effectiveEditSvc && serviceDropdown.value === "" && !Array.from(serviceDropdown.options).some(o => o.value === effectiveEditSvc)) {
                 const opt = document.createElement("option");
-                opt.value = res.servicio;
-                opt.textContent = res.servicio; // Clean name, no scary suffix
+                opt.value = effectiveEditSvc;
+                opt.textContent = effectiveEditSvc; // Clean name, no scary suffix
                 serviceDropdown.appendChild(opt);
-                serviceDropdown.value = res.servicio;
+                serviceDropdown.value = effectiveEditSvc;
             }
             if (typeof updatePackInfo === 'function') updatePackInfo();
             if (document.getElementById("res-sesiones")) document.getElementById("res-sesiones").value = res.sesiones_consumidas || 1;
@@ -6321,6 +6370,7 @@
             window.currentEditingId = null; // Clear global ID
             window._autoOpenedEditId = null;
             window._isNewReservationOpening = false;
+            window._editingPackSiblings = null;
 
             // Clear Overbooking Globals
             window._spaOverbookingModeBase = null;
@@ -6343,11 +6393,18 @@
 
             // Si el usuario canceló manualmente y estamos dentro del Drawer, cerrar Drawer.
             // En modo solo formulario (modal=1) cerrar SIEMPRE la capa padre al cerrar la reserva.
-            const isModalOnly = document.body.classList.contains('is-modal-only');
+            const isModalOnly = document.body.classList.contains('is-modal-only') || window.location.search.includes('modal=1');
             if ((fromUserCancel || isModalOnly) && window.parent && window.parent !== window) {
                 try {
                     window.parent.postMessage({ type: 'GEST_SPA_CLOSE_DRAWER' }, '*');
                 } catch (eMsg) {}
+            }
+
+            // Si se abrió directamente desde el Panel (Dashboard) sin iframe, volver al Panel en la fecha consultada
+            if (window._openedFromPanel && window.self === window.top) {
+                const returnDate = document.getElementById("form-date")?.value || document.getElementById("main-date-picker")?.value || window._returnToPanelDate || '';
+                window.location.href = returnDate ? `index.html?date=${returnDate}` : 'index.html';
+                return;
             }
 
             // Clean URL params (id, res_id) to prevent reload-reopen
@@ -7014,8 +7071,11 @@
                     window._spaOverbookingModeBase = null;
                 }
 
-                // If this is a pack
-                if (window._packItems && window._packItems.length > 0 && !id) {
+                // If this is a pack (new creation or editing an existing pack reservation)
+                if ((!window._packItems || window._packItems.length === 0) && typeof updatePackInfo === 'function') {
+                    updatePackInfo();
+                }
+                if (window._packItems && window._packItems.length > 0) {
                     const activeItems = window._packItems.filter(item => item.active !== false);
                     if (activeItems.length === 0) {
                         alert("Debe seleccionar al menos un servicio del pack para reservar.");
@@ -7031,14 +7091,23 @@
                             if (payload.staff_id) { item.staff_id = payload.staff_id; item.staff_name = payload.staff_name; }
                             if (payload.staff_id2) { item.staff_id2 = payload.staff_id2; item.staff_name2 = payload.staff_name2; }
                             if (payload.terapeuta) item.terapeuta = payload.terapeuta;
+                            if (payload.terapeuta2) item.terapeuta2 = payload.terapeuta2;
                         }
                     });
                     try {
-                        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creando Pack...';
-                        const result = await window.createPackReservations(parentData, activeItems);
-                        showToast(`Pack creado: ${result.childIds.length} reserva(s)`, "success");
-                        if (payload.origen === 'bono' && payload.bono) updateVoucherSessions(payload.bono, 1, svcName).catch(console.warn);
-                        window._packItems = null; isSavingReservation = false; btn.disabled = false; btn.innerHTML = originalText;
+                        let result;
+                        if (!id) {
+                            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creando Pack...';
+                            result = await window.createPackReservations(parentData, activeItems);
+                            showToast(`Pack creado: ${result.childIds.length} reserva(s)`, "success");
+                            if (payload.origen === 'bono' && payload.bono) updateVoucherSessions(payload.bono, 1, svcName).catch(console.warn);
+                        } else {
+                            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Guardando Pack...';
+                            const existingRes = (currentData || []).find(r => r.id === id) || {};
+                            result = await window.syncPackReservationsOnEdit(id, existingRes, parentData, window._packItems, originalColl);
+                            showToast(`Pack actualizado (${result.childIds.length} servicio(s))`, "success");
+                        }
+                        window._packItems = null; window._editingPackSiblings = null; isSavingReservation = false; btn.disabled = false; btn.innerHTML = originalText;
                         if (window.parent && window.parent !== window) {
                             try {
                                 window.parent.postMessage({
@@ -8568,11 +8637,24 @@
                 if (service) {
                     const srvSel = document.getElementById("res-servicio");
                     if (srvSel) {
-                        srvSel.value = service;
+                        const cleanTarget = String(service).replace(/^PACK\s*[-–—:]\s*/i, '').trim().toLowerCase();
+                        const matchedOpt = Array.from(srvSel.options).find(opt => {
+                            const optVal = String(opt.value || '').trim();
+                            const optClean = optVal.replace(/^PACK\s*[-–—:]\s*/i, '').trim().toLowerCase();
+                            return optVal === service || optVal.toLowerCase() === String(service).trim().toLowerCase() || (cleanTarget && optClean === cleanTarget);
+                        });
+                        const finalSvcVal = matchedOpt ? matchedOpt.value : service;
+                        srvSel.value = finalSvcVal;
                         const searchInp = document.getElementById("res-servicio-search");
-                        if (searchInp) searchInp.value = service;
+                        if (searchInp) searchInp.value = finalSvcVal;
                     }
                 }
+
+                // Sincronizar desglose de Pack Multiservicio y selectores de terapeutas tras cargar el servicio
+                if (typeof updatePackInfo === 'function') updatePackInfo();
+                if (typeof updateStaffSelectorsVisibility === 'function') updateStaffSelectorsVisibility();
+                if (typeof syncServiceDuration === 'function') await syncServiceDuration();
+                if (typeof window.handleStaffFieldsChange === 'function') await window.handleStaffFieldsChange();
 
                 // 4. Forzar visualización directa del modal de reservas
                 const modal = document.getElementById("booking-modal");
