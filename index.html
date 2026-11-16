@@ -626,12 +626,22 @@
     <!-- Toast Container -->
     <div id="toast-container"></div>
 
+    <!-- Capa de consulta/edición rápida de reserva sobre el Panel -->
+    <div id="dashboard-quick-form-layer" style="display:none; position:fixed; inset:0; z-index:99990; background:rgba(15, 23, 42, 0.55); backdrop-filter:blur(2px);">
+        <div id="dashboard-quick-form-loader" style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:#fff; font-weight:700; font-size:0.95rem; gap:10px; pointer-events:none;">
+            <i class="fas fa-spinner fa-spin" style="font-size:1.3rem; color:#d4af37;"></i> Abriendo reserva...
+        </div>
+        <iframe id="dashboard-quick-form-frame" src="about:blank" style="width:100%; height:100%; border:none; background:transparent;"></iframe>
+    </div>
+
     <!-- Scripts -->
     <script src="firebase-config.js"></script>
-    <script src="js/app-core.js?v=2.3.28"></script>
+    <script src="js/spa-packs-registry.js?v=2.3.48"></script>
+    <script src="js/service-catalog.js?v=2.3.48"></script>
+    <script src="js/app-core.js?v=2.3.48"></script>
     <script src="js/services/paygoldService.js?v=2.3.21"></script>
     <script src="js/spa-paygold.js?v=2.3.21"></script>
-    <script src="js/dashboard.js"></script>
+    <script src="js/dashboard.js?v=2.3.48"></script>
 
 </body>
 
