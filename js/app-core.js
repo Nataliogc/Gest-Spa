@@ -690,10 +690,28 @@ window.syncPackReservationsOnEdit = async function (id, existingRes, payload, pa
  * (e.g. "PACK - Experiencia SPA en pareja" saved only in `reservas_vip`) has its companion
  * phase reservation(s) (e.g. "Circuito Spa" at 17:00 in `reservas_spa`) created in Firestore.
  */
-window.ensurePackChildrenSyncedForDate = async function (date) {
+const _syncedPackDatesInSession = new Set();
+window.ensurePackChildrenSyncedForDate = async function (date, preloadedDocs = null) {
     if (!date || !window.db) return [];
     const findPack = window.findPackDefinition;
     if (typeof findPack !== 'function') return [];
+
+    // Fast in-memory check when preloadedDocs are provided (e.g. from Dashboard):
+    // If no unsplit multi-service pack exists in preloadedDocs, return immediately in 0ms without querying Firestore!
+    if (Array.isArray(preloadedDocs) && preloadedDocs.length > 0) {
+        const needsSync = preloadedDocs.some(r => {
+            if (!r || r.status === 'anulada' || r.status === 'cancelled' || r.pack_children_synced) return false;
+            const rawSvc = r.pack_origen || r.parent_service || r.servicio || "";
+            const packDef = findPack(rawSvc);
+            return !!(packDef && packDef.categoria !== 'ritual' && Array.isArray(packDef.secuencia) && packDef.secuencia.length > 1);
+        });
+        if (!needsSync) {
+            _syncedPackDatesInSession.add(date);
+            return [];
+        }
+    } else if (_syncedPackDatesInSession.has(date)) {
+        return [];
+    }
 
     const ROOM_COLS = [
         "reservas_vip", "reservas_panacea", "reservas_suite",
@@ -701,14 +719,21 @@ window.ensurePackChildrenSyncedForDate = async function (date) {
     ];
 
     try {
-        const snaps = await Promise.all(ROOM_COLS.map(col => db.collection(col).where("fecha", "==", date).get()));
-        const allDocs = [];
-        snaps.forEach((snap, idx) => {
-            const col = ROOM_COLS[idx];
-            snap.forEach(doc => {
-                allDocs.push({ id: doc.id, _col: col, ...doc.data() });
+        let allDocs = [];
+        if (Array.isArray(preloadedDocs) && preloadedDocs.length > 0) {
+            allDocs = preloadedDocs.map(d => ({
+                ...d,
+                _col: d._col || d.collection || getCollectionForSpaceCore(d.moduleType || d.sala || 'spa')
+            }));
+        } else {
+            const snaps = await Promise.all(ROOM_COLS.map(col => db.collection(col).where("fecha", "==", date).get()));
+            snaps.forEach((snap, idx) => {
+                const col = ROOM_COLS[idx];
+                snap.forEach(doc => {
+                    allDocs.push({ id: doc.id, _col: col, ...doc.data() });
+                });
             });
-        });
+        }
 
         const createdCompanions = [];
 
@@ -881,6 +906,7 @@ window.ensurePackChildrenSyncedForDate = async function (date) {
                 rUpdates.bono = effectiveBono;
                 rUpdates.localizador = effectiveBono;
             }
+            Object.assign(r, rUpdates);
             batch.update(db.collection(r._col).doc(r.id), rUpdates);
             didWrite = true;
 
@@ -890,6 +916,7 @@ window.ensurePackChildrenSyncedForDate = async function (date) {
             }
         }
 
+        _syncedPackDatesInSession.add(date);
         return createdCompanions;
     } catch (err) {
         console.warn("[PACK AUTO-SYNC] Error syncing pack children for date:", date, err);

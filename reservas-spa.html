@@ -1664,10 +1664,39 @@
             });
         }
 
+        // Función pública para abrir al instante una reserva en un iframe pre-calentado (0ms espera de carga)
+        window.openQuickEditDirectly = async function (resObj) {
+            if (!resObj || !resObj.id) return;
+            const picker = document.getElementById("main-date-picker");
+            if (picker && resObj.fecha) picker.value = resObj.fecha;
+
+            const existingIdx = currentData.findIndex(r => r.id === resObj.id);
+            if (existingIdx >= 0) currentData[existingIdx] = { ...currentData[existingIdx], ...resObj };
+            else currentData.push(resObj);
+
+            await editBooking(resObj.id, resObj);
+
+            if (resObj.fecha) {
+                const col = resObj.collection || resObj._collection || currentModule.collection;
+                db.collection(col).where("fecha", "==", resObj.fecha).get().then(snap => {
+                    const fresh = [];
+                    snap.forEach(d => fresh.push({ id: d.id, ...d.data(), collection: col, _moduleCode: 'spa' }));
+                    if (fresh.length) {
+                        currentData = fresh;
+                        updateAvailableTimeSlots();
+                    }
+                }).catch(() => {});
+            }
+        };
+
         document.addEventListener("DOMContentLoaded", async () => {
             const urlParams = new URLSearchParams(window.location.search);
             const picker = document.getElementById("main-date-picker");
             const urlDate = urlParams.get('date');
+            const isModalOnlyOpen = document.documentElement.classList.contains('is-modal-only') || urlParams.get('modal') === '1';
+            const isPrewarm = urlParams.get('prewarm') === '1';
+            const resId = urlParams.get('res_id') || urlParams.get('id');
+
             // Use local date (not UTC) to avoid timezone issues around midnight
             const now = new Date();
             const localDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
@@ -1685,29 +1714,48 @@
             // Ajustar UI según modo
             if (currentModule.viewType === 'timeline') {
                 document.getElementById('slots-container').classList.add('timeline-view');
-                // Inyectar campo duración en modal si no existe
-                // The inputDuration is now directly in the HTML, so this is not needed.
-                // injectDurationField();
-
-                // Mostrar campo de terapeuta si el módulo lo requiere
                 if (currentModule.requiresStaff) {
                     initStaffField();
                 }
             }
 
-            await loadReservas(initialDate);
+            window._gestSpaQuickModalReady = true;
+
+            if (isPrewarm) {
+                return;
+            }
 
             if (urlParams.get('from') === 'panel' || urlParams.get('from') === 'dashboard' || ((urlParams.get('res_id') || urlParams.get('id')) && document.referrer && document.referrer.includes('index.html'))) {
                 window._openedFromPanel = true;
                 window._returnToPanelDate = urlParams.get('date') || urlParams.get('fecha') || initialDate;
             }
 
+            // VÍA ULTRARRÁPIDA (modal=1): Si venimos del Panel con los datos de la reserva en memoria,
+            // abrir la ventana modal inmediatamente sin esperar a renderizar las tablas ocultas de fondo.
+            if (isModalOnlyOpen && resId) {
+                let quickRes = null;
+                try {
+                    const rawQuick = sessionStorage.getItem('quickEditReservationData');
+                    if (rawQuick) {
+                        const parsed = JSON.parse(rawQuick);
+                        if (parsed && String(parsed.id) === String(resId)) {
+                            quickRes = parsed;
+                        }
+                    }
+                } catch (e) {}
+
+                if (quickRes) {
+                    await window.openQuickEditDirectly(quickRes);
+                    return;
+                }
+            }
+
+            await loadReservas(initialDate);
+
             // Manejar salto a reserva específica
-            const resId = urlParams.get('res_id') || urlParams.get('id');
             if (resId) {
                 const targetRes = currentData.find(r => r.id === resId);
                 if (targetRes) {
-                    const isModalOnlyOpen = document.documentElement.classList.contains('is-modal-only') || urlParams.get('modal') === '1';
                     if (isModalOnlyOpen) {
                         editBooking(resId);
                     } else {
@@ -4853,9 +4901,12 @@
 
             const timeSel = document.getElementById("form-time");
             timeSel.dataset.originalTime = res.hora;
-
-            // Poblar slots disponibles para esta fecha/reserva
-            await updateAvailableTimeSlots();
+            if (res.hora && !Array.from(timeSel.options).some(o => o.value === res.hora)) {
+                const initOpt = document.createElement("option");
+                initOpt.value = res.hora;
+                initOpt.textContent = `${res.hora}h`;
+                timeSel.appendChild(initOpt);
+            }
             timeSel.value = res.hora;
 
             // Verificar si la reserva es PASADA
@@ -4935,10 +4986,6 @@
             if (document.getElementById("res-hotel")) document.getElementById("res-hotel").value = res.hotel || "Cumbria";
             if (document.getElementById("res-hab")) document.getElementById("res-hab").value = res.hab || "";
             let resolvedBono = res.bono || res.localizador || res.num_bono || res.voucher || res.bono_id || res.codigo_bono || res.campoBono || res.referencia || "";
-            if (!resolvedBono && typeof window.recoverMissingBonoCode === 'function') {
-                resolvedBono = await window.recoverMissingBonoCode(res, res.collection || currentModule.collection);
-                if (resolvedBono) res.bono = resolvedBono;
-            }
             if (document.getElementById("res-bono")) document.getElementById("res-bono").value = resolvedBono;
             document.getElementById("res-pax").value = res.pax;
             const savedTotal = parseFloat(res.precio_total !== undefined && res.precio_total !== null ? res.precio_total : (res.precio || (res.payment && res.payment.total) || 0));
@@ -4975,8 +5022,6 @@
             // Try to match collection to a module
             if (res.collection) {
                 const matchedKey = Object.keys(window.MODULES || {}).find(k => window.MODULES[k].collection === res.collection);
-                // If found, use that module code. Special handling for Cabinas (they share collection but have distinct codes in UI if split, 
-                // but here we just need a valid room code for the dropdown)
                 if (matchedKey) resModule = matchedKey;
             }
             populateRoomOptions(resModule);
@@ -4986,11 +5031,7 @@
 
             const candidatePackName = res.parent_service || res.pack_name || res.pack_origen || ((typeof window.isPackService === 'function' && window.isPackService(res.servicio)) ? res.servicio : '');
             const matchedPackDef = (candidatePackName && typeof window.findPackDefinition === 'function') ? window.findPackDefinition(candidatePackName) : null;
-            if (matchedPackDef && matchedPackDef.categoria !== 'ritual' && Array.isArray(matchedPackDef.secuencia) && matchedPackDef.secuencia.length > 1 && typeof window.loadPackSiblingsForEdit === 'function') {
-                window._editingPackSiblings = await window.loadPackSiblingsForEdit(res);
-            } else {
-                window._editingPackSiblings = null;
-            }
+            window._editingPackSiblings = null;
 
             const effectiveEditSvc = (matchedPackDef && matchedPackDef.categoria !== 'ritual' && Array.isArray(matchedPackDef.secuencia) && matchedPackDef.secuencia.length > 1)
                 ? ("PACK - " + matchedPackDef.nombre)
@@ -5036,7 +5077,6 @@
                 });
             } else if (res.complementos && Array.isArray(res.complementos)) {
                 // Fallback for old format (Strings only)
-                // Try to match with checkboxes, if not, add as custom with 0 price (or try to guess?)
                 res.complementos.forEach(compName => {
                     const cb = document.querySelector(`.comp-checkbox[data-name="${compName}"]`);
                     if (cb) {
@@ -5061,17 +5101,9 @@
                 document.getElementById("inputDuration").value = dur;
             }
 
-            // LOAD STAFF OPTIONS NOW THAT ALL DATA IS SET
-            if (typeof window.handleStaffFieldsChange === 'function') {
-                await window.handleStaffFieldsChange();
-            }
-
             // FIX: Explicitly show/hide staff group in Edit Booking
-            // This ensures it appears even if it was hidden by default or by previous module context
             const staffGroup = document.getElementById("staff-selector-group");
             if (staffGroup) {
-                // Force show if module requires staff OR if we have staff data (fallback)
-                // This covers cases where we might be in 'Cabinas' wrapper but the specific reservation needs staff
                 const shouldShow = currentModule.requiresStaff || (res.staff_id || res.terapeuta);
                 staffGroup.style.display = shouldShow ? "block" : "none";
 
@@ -5081,45 +5113,6 @@
 
             // Ensure 2nd selector is visible/populated if needed before setting value
             updateStaffSelectorsVisibility();
-
-
-            // POPULATE STAFF
-            // POPULATE STAFF
-            if (document.getElementById("booking-staff")) {
-                const staffSel = document.getElementById("booking-staff");
-                if (res.staff_id) {
-                    staffSel.value = res.staff_id;
-                } else if (res.staff_name || res.terapeuta) {
-                    // Fallback: Try to match by name
-                    const nameToMatch = (res.staff_name || res.terapeuta).trim().toLowerCase();
-                    let found = false;
-                    for (let i = 0; i < staffSel.options.length; i++) {
-                        if (staffSel.options[i].text.trim().toLowerCase() === nameToMatch) {
-                            staffSel.selectedIndex = i;
-                            found = true;
-                            break;
-                        }
-                    }
-                    if (!found && res.terapeuta) {
-                        // If still not found (maybe inactive staff?), at least show it in the text input if available
-                        // (Handled by res-terapeuta below)
-                    }
-                }
-            }
-            if (document.getElementById("booking-staff-2")) {
-                const staffSel2 = document.getElementById("booking-staff-2");
-                if (res.staff_id2) {
-                    staffSel2.value = res.staff_id2;
-                } else if (res.staff_name2) {
-                    const nameToMatch = res.staff_name2.trim().toLowerCase();
-                    for (let i = 0; i < staffSel2.options.length; i++) {
-                        if (staffSel2.options[i].text.trim().toLowerCase() === nameToMatch) {
-                            staffSel2.selectedIndex = i;
-                            break;
-                        }
-                    }
-                }
-            }
 
             // Therapist Input Visibility (Edit Mode)
             const therapistInput = document.getElementById("res-terapeuta");
@@ -5132,11 +5125,6 @@
 
             toggleRoomField();
 
-
-            // Filtrar Orígenes: Delegado a filterOriginOptions() llamada anteriormente (línea 4494)
-            // Esto asegura que módulos como Panacea/VIP mantienen sus restricciones y no se resetean incorrectamente.
-
-
             // Ocultar precio por persona en Suite
             const pricePaxGroup = document.getElementById("price-group");
             if (pricePaxGroup) {
@@ -5145,18 +5133,84 @@
 
             // FORCE PRICE RE-CALCULATION (Fix for 0€ prices in SPA)
             if (currentModule.code === 'spa' && (parseFloat(res.precio_pax) === 0 || !res.precio_pax)) {
-                console.log("[DEBUG] Edit mode: Price is 0 for SPA, forcing re-calculation...");
                 updatePriceAutomation();
             }
 
             updateTotal(); // Final total sync
             window.updatePaymentControlBlock();
+
+            // MOSTRAR MODAL INMEDIATAMENTE (SÍNCRONO, 0ms espera de red)
             document.getElementById("booking-modal").style.display = "flex";
 
-            // Trigger balance check if it's a bono
-            if (res.origen === 'bono' && res.bono) {
-                validateBonoBalance(res.bono, id);
+            // Ejecutar en paralelo todas las comprobaciones de disponibilidad, recuperación de bono y pack
+            const asyncEditTasks = [];
+
+            asyncEditTasks.push(
+                updateAvailableTimeSlots().then(() => {
+                    timeSel.value = res.hora;
+                }).catch(e => console.warn("[editBooking] updateAvailableTimeSlots error:", e))
+            );
+
+            if (!resolvedBono && typeof window.recoverMissingBonoCode === 'function') {
+                asyncEditTasks.push(
+                    window.recoverMissingBonoCode(res, res.collection || currentModule.collection).then(recBono => {
+                        if (recBono) {
+                            res.bono = recBono;
+                            resolvedBono = recBono;
+                            if (document.getElementById("res-bono")) document.getElementById("res-bono").value = recBono;
+                            if (res.origen === 'bono') validateBonoBalance(recBono, id);
+                        }
+                    }).catch(() => {})
+                );
+            } else if (res.origen === 'bono' && resolvedBono) {
+                validateBonoBalance(resolvedBono, id);
             }
+
+            if (matchedPackDef && matchedPackDef.categoria !== 'ritual' && Array.isArray(matchedPackDef.secuencia) && matchedPackDef.secuencia.length > 1 && typeof window.loadPackSiblingsForEdit === 'function') {
+                asyncEditTasks.push(
+                    window.loadPackSiblingsForEdit(res).then(sibs => {
+                        window._editingPackSiblings = sibs;
+                        if (typeof updatePackInfo === 'function') updatePackInfo();
+                    }).catch(() => {})
+                );
+            }
+
+            if (typeof window.handleStaffFieldsChange === 'function') {
+                asyncEditTasks.push(
+                    window.handleStaffFieldsChange().then(() => {
+                        if (document.getElementById("booking-staff")) {
+                            const staffSel = document.getElementById("booking-staff");
+                            if (res.staff_id) {
+                                staffSel.value = res.staff_id;
+                            } else if (res.staff_name || res.terapeuta) {
+                                const nameToMatch = (res.staff_name || res.terapeuta).trim().toLowerCase();
+                                for (let i = 0; i < staffSel.options.length; i++) {
+                                    if (staffSel.options[i].text.trim().toLowerCase() === nameToMatch) {
+                                        staffSel.selectedIndex = i;
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                        if (document.getElementById("booking-staff-2")) {
+                            const staffSel2 = document.getElementById("booking-staff-2");
+                            if (res.staff_id2) {
+                                staffSel2.value = res.staff_id2;
+                            } else if (res.staff_name2) {
+                                const nameToMatch = res.staff_name2.trim().toLowerCase();
+                                for (let i = 0; i < staffSel2.options.length; i++) {
+                                    if (staffSel2.options[i].text.trim().toLowerCase() === nameToMatch) {
+                                        staffSel2.selectedIndex = i;
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    }).catch(() => {})
+                );
+            }
+
+            await Promise.all(asyncEditTasks);
             window._isInitializingEdit = false;
         }
 

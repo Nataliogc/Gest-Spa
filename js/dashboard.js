@@ -143,12 +143,7 @@ async function cargarCitasHoy(date) {
             }
         }
 
-        // Sincronizar automáticamente fases pendientes de packs multiservicio para la fecha
-        if (typeof window.ensurePackChildrenSyncedForDate === 'function') {
-            await window.ensurePackChildrenSyncedForDate(targetDate);
-        }
-
-        // Cargar de todas las colecciones en paralelo
+        // Cargar de todas las colecciones en paralelo (1 sola ronda de red)
         console.log(`Charging appointments for date: ${targetDate}`);
         const promises = collections.map(col => db.collection(col).where("fecha", "==", targetDate).get());
         const snapshots = await Promise.all(promises);
@@ -184,12 +179,33 @@ async function cargarCitasHoy(date) {
 
                 state.citas.push({
                     id: doc.id,
+                    _col: col,
+                    collection: col,
                     moduleType: moduleType,
                     roomVisual: derivedRoomName,
                     ...data
                 });
             });
         });
+
+        // Verificar en memoria (0ms) si algún pack multiservicio requiere generar su fase complementaria
+        if (typeof window.ensurePackChildrenSyncedForDate === 'function') {
+            const createdCompanions = await window.ensurePackChildrenSyncedForDate(targetDate, state.citas);
+            if (Array.isArray(createdCompanions) && createdCompanions.length > 0) {
+                createdCompanions.forEach(comp => {
+                    const col = comp._col || comp.collection || 'reservas_spa';
+                    let moduleType = 'spa';
+                    if (col === 'reservas_suite') moduleType = 'suite';
+                    else if (col === 'reservas_panacea') moduleType = 'panacea';
+                    else if (col === 'reservas_vip') moduleType = 'vip';
+                    else if (col === 'reservas_peluqueria') moduleType = 'peluqueria';
+                    state.citas.push({
+                        ...comp,
+                        moduleType
+                    });
+                });
+            }
+        }
 
         state.citas.sort((a, b) => a.hora.localeCompare(b.hora));
 
@@ -207,6 +223,7 @@ async function cargarCitasHoy(date) {
 
         renderDashboard();
         actualizarStatsInicio(targetDate);
+        setTimeout(prewarmDashboardQuickForms, 350);
     } catch (err) {
         console.error("Error cargando citas:", err);
     }
@@ -808,12 +825,31 @@ async function buscarReservasGlobal(term) {
     }
 }
 
-// Navigate to reservation details (abre modal sobre el panel y al cerrar vuelve al panel)
+// Pre-calentar iframes en segundo plano para apertura instantánea (<20ms) al consultar reservas
+let _dashQuickFormsPrewarmed = false;
+function prewarmDashboardQuickForms() {
+    if (_dashQuickFormsPrewarmed) return;
+    _dashQuickFormsPrewarmed = true;
+    const frameSalas = document.getElementById('dashboard-quick-form-frame');
+    const frameSpa = document.getElementById('dashboard-quick-form-frame-spa');
+    if (frameSalas && (!frameSalas.src || frameSalas.src === 'about:blank' || frameSalas.src.endsWith('about:blank'))) {
+        frameSalas.src = 'reservas-salas.html?type=cabinas&embedded=1&modal=1&prewarm=1&from=panel';
+    }
+    if (frameSpa && (!frameSpa.src || frameSpa.src === 'about:blank' || frameSpa.src.endsWith('about:blank'))) {
+        frameSpa.src = 'reservas-spa.html?embedded=1&modal=1&prewarm=1&from=panel';
+    }
+}
+
+// Navigate to reservation details (abre modal instantáneamente sobre el panel y al cerrar vuelve al panel)
 function goToReservationDetail(resId, moduleType) {
     const cita = state.citas.find(c => c.id === resId) || (state.searchCitas || []).find(c => c.id === resId);
     if (!cita) return;
 
     const type = moduleType || cita.moduleType || 'spa';
+    try {
+        sessionStorage.setItem('quickEditReservationData', JSON.stringify(cita));
+    } catch (e) {}
+
     let url = '';
     if (type === 'spa') {
         url = `reservas-spa.html?action=edit&id=${encodeURIComponent(cita.id)}&res_id=${encodeURIComponent(cita.id)}&date=${encodeURIComponent(cita.fecha)}&embedded=1&modal=1&from=panel`;
@@ -823,21 +859,39 @@ function goToReservationDetail(resId, moduleType) {
         url = `reservas-salas.html?type=${encodeURIComponent(type)}&action=edit&id=${encodeURIComponent(cita.id)}&res_id=${encodeURIComponent(cita.id)}&date=${encodeURIComponent(cita.fecha)}&embedded=1&modal=1&from=panel`;
     }
 
-    openDashboardQuickForm(url);
+    openDashboardQuickForm(url, cita, type);
 }
 
-function openDashboardQuickForm(url) {
+function openDashboardQuickForm(url, cita = null, type = 'spa') {
     const layer = document.getElementById('dashboard-quick-form-layer');
-    const frame = document.getElementById('dashboard-quick-form-frame');
+    const frameSalas = document.getElementById('dashboard-quick-form-frame');
+    const frameSpa = document.getElementById('dashboard-quick-form-frame-spa');
     const loader = document.getElementById('dashboard-quick-form-loader');
-    if (!layer || !frame) {
+    const isSpa = (type === 'spa');
+    const activeFrame = (isSpa && frameSpa) ? frameSpa : frameSalas;
+    const inactiveFrame = (isSpa && frameSpa) ? frameSalas : frameSpa;
+
+    if (!layer || !activeFrame) {
         window.location.href = url.replace('&embedded=1&modal=1', '');
         return;
     }
 
+    if (inactiveFrame) inactiveFrame.style.display = 'none';
+    activeFrame.style.display = 'block';
+
+    // Apertura instantánea (<20ms) si el iframe ya está pre-cargado en memoria
+    try {
+        if (cita && activeFrame.contentWindow && typeof activeFrame.contentWindow.openQuickEditDirectly === 'function' && activeFrame.contentWindow._gestSpaQuickModalReady) {
+            if (loader) loader.style.display = 'none';
+            layer.style.display = 'block';
+            activeFrame.contentWindow.openQuickEditDirectly(cita, type);
+            return;
+        }
+    } catch (e) {}
+
     if (loader) loader.style.display = 'flex';
-    frame.onload = null;
-    frame.src = url;
+    activeFrame.onload = null;
+    activeFrame.src = url;
     layer.style.display = 'block';
 
     clearInterval(window._dashQfPoll);
@@ -846,7 +900,7 @@ function openDashboardQuickForm(url) {
         if (layer.style.display === 'none') return clearInterval(window._dashQfPoll);
         let visible = false;
         try {
-            const m = frame.contentDocument && frame.contentDocument.getElementById('booking-modal');
+            const m = activeFrame.contentDocument && activeFrame.contentDocument.getElementById('booking-modal');
             visible = !!(m && m.style.display && m.style.display !== 'none');
         } catch (e) { visible = true; }
         if (visible) {
@@ -856,19 +910,25 @@ function openDashboardQuickForm(url) {
             clearInterval(window._dashQfPoll);
             if (loader) loader.style.display = 'none';
         }
-    }, 100);
+    }, 40);
 }
 
-function closeDashboardQuickForm(refresh = true) {
+function closeDashboardQuickForm(refresh = false) {
     const layer = document.getElementById('dashboard-quick-form-layer');
-    const frame = document.getElementById('dashboard-quick-form-frame');
     if (!layer || layer.style.display === 'none') return;
     layer.style.display = 'none';
-    if (frame) frame.src = 'about:blank';
+    // Ocultar el modal interno sin destruir el iframe pre-calentado
+    ['dashboard-quick-form-frame', 'dashboard-quick-form-frame-spa'].forEach(fid => {
+        try {
+            const f = document.getElementById(fid);
+            const m = f && f.contentDocument && f.contentDocument.getElementById('booking-modal');
+            if (m) m.style.display = 'none';
+        } catch (e) {}
+    });
     if (refresh) {
         const datePicker = document.getElementById("dashboard-date-picker");
         const currentDate = datePicker ? datePicker.value : '';
-        setTimeout(() => cargarCitasHoy(currentDate), 200);
+        setTimeout(() => cargarCitasHoy(currentDate), 100);
     }
 }
 window.closeDashboardQuickForm = closeDashboardQuickForm;
@@ -876,10 +936,14 @@ window.closeDashboardQuickForm = closeDashboardQuickForm;
 window.addEventListener('message', (event) => {
     const d = event.data;
     if (!d || typeof d !== 'object') return;
-    const frame = document.getElementById('dashboard-quick-form-frame');
-    if (!frame || event.source !== frame.contentWindow) return;
-    if (d.type === 'GEST_SPA_RESERVATION_SUCCESS' || d.type === 'GEST_SPA_CLOSE_DRAWER') {
+    const frameSalas = document.getElementById('dashboard-quick-form-frame');
+    const frameSpa = document.getElementById('dashboard-quick-form-frame-spa');
+    const isFromQuickFrame = (frameSalas && event.source === frameSalas.contentWindow) || (frameSpa && event.source === frameSpa.contentWindow);
+    if (!isFromQuickFrame) return;
+    if (d.type === 'GEST_SPA_RESERVATION_SUCCESS') {
         closeDashboardQuickForm(true);
+    } else if (d.type === 'GEST_SPA_CLOSE_DRAWER') {
+        closeDashboardQuickForm(!!d.refresh);
     }
 });
 
@@ -887,7 +951,7 @@ window.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
         const layer = document.getElementById('dashboard-quick-form-layer');
         if (layer && layer.style.display !== 'none') {
-            closeDashboardQuickForm(true);
+            closeDashboardQuickForm(false);
         }
     }
 });

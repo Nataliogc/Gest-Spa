@@ -1575,8 +1575,9 @@
                         console.log("Módulo activo (Dynamic):", currentModule.name);
 
                         // Force a reload of the view to reflect name changes
-                        // But only if we are on the view
-                        if (document.getElementById("slots-container")) {
+                        // But only if we are on the view (skip in modal-only mode)
+                        const isModalOnlyNow = document.documentElement.classList.contains('is-modal-only') || window.location.search.includes('modal=1');
+                        if (!isModalOnlyNow && document.getElementById("slots-container")) {
                             // Trigger refresh if we have a date
                             const datePicker = document.getElementById("main-date-picker");
                             if (datePicker && datePicker.value) {
@@ -1875,30 +1876,78 @@
             const initialDate = urlDate || localDate;
             picker.value = initialDate;
 
+            const isModalOnlyOpen = document.documentElement.classList.contains('is-modal-only') || urlParams.get('modal') === '1';
+            const isPrewarm = urlParams.get('prewarm') === '1';
+
+            window.openQuickEditDirectly = async function (resObj, modType) {
+                if (!resObj || !resObj.id) return;
+                const t = modType || resObj.moduleType || resObj.sala || 'cabinas';
+                if (window.MODULES && window.MODULES[t]) {
+                    currentModule = window.MODULES[t];
+                    window.currentModule = currentModule;
+                }
+                if (picker && resObj.fecha) picker.value = resObj.fecha;
+                if (!Array.isArray(currentData)) currentData = [];
+                const idx = currentData.findIndex(r => r.id === resObj.id);
+                if (idx >= 0) currentData[idx] = { ...currentData[idx], ...resObj };
+                else currentData.push(resObj);
+
+                window._autoOpenedEditId = resObj.id;
+                editBooking(resObj.id, resObj);
+
+                // Refresh room's reservations for that date in background for 100% live conflict accuracy
+                const coll = resObj.collection || resObj._collection || currentModule.collection;
+                if (coll && coll !== 'reservas_cabinas_placeholder' && resObj.fecha && window.db) {
+                    db.collection(coll).where("fecha", "==", resObj.fecha).get().then(snap => {
+                        const fresh = [];
+                        snap.forEach(d => fresh.push({ id: d.id, collection: coll, ...d.data() }));
+                        if (!fresh.some(r => r.id === resObj.id)) fresh.push(resObj);
+                        currentData = fresh;
+                    }).catch(() => {});
+                }
+            };
+
             try {
                 await Promise.all([
                     cargarSpaConfig(),
                     window.loadStaff(),
                     loadStaffConfig(),
-                    loadColors(),
+                    isModalOnlyOpen ? Promise.resolve() : loadColors(),
                     loadMasterItems(),
                     fetchBasePrice()
                 ]);
             } finally {
                 initialCatalogReads = null;
             }
+            window._gestSpaQuickModalReady = true;
             picker.addEventListener("change", () => loadReservas(picker.value));
 
             // Ajustar UI según modo
             if (currentModule.viewType === 'timeline') {
                 document.getElementById('slots-container').classList.add('timeline-view');
-                // Inyectar campo duración en modal si no existe
-                // The inputDuration is now directly in the HTML, so this is not needed.
-                // injectDurationField();
-
                 // Mostrar campo de terapeuta si el módulo lo requiere
                 if (currentModule.requiresStaff) {
                     initStaffField();
+                }
+            }
+
+            if (isPrewarm) {
+                return;
+            }
+
+            const resId = urlParams.get('res_id') || urlParams.get('id');
+            if (isModalOnlyOpen && resId) {
+                let quickRes = null;
+                try {
+                    const cachedStr = sessionStorage.getItem('quickEditReservationData');
+                    if (cachedStr) {
+                        const parsed = JSON.parse(cachedStr);
+                        if (parsed && parsed.id === resId) quickRes = parsed;
+                    }
+                } catch (e) {}
+                if (quickRes) {
+                    await window.openQuickEditDirectly(quickRes, urlParams.get('type'));
+                    return;
                 }
             }
 
@@ -1912,11 +1961,9 @@
             }
 
             // Manejar salto a reserva específica
-            const resId = urlParams.get('res_id') || urlParams.get('id');
             if (resId) {
                 const targetRes = currentData.find(r => r.id === resId);
                 if (targetRes) {
-                    const isModalOnlyOpen = document.documentElement.classList.contains('is-modal-only') || urlParams.get('modal') === '1';
                     if (isModalOnlyOpen && typeof window.autoOpenBookingFromUrl === 'function') {
                         window.autoOpenBookingFromUrl(resId, targetRes);
                     } else {
@@ -5813,10 +5860,10 @@
 
             const timeSel = document.getElementById("form-time");
             timeSel.dataset.originalTime = res.hora;
-
-            // Poblar slots disponibles para esta fecha/reserva
-            await updateAvailableTimeSlots();
-            timeSel.value = res.hora;
+            if (res.hora) {
+                timeSel.innerHTML = `<option value="${res.hora}">${res.hora}h</option>`;
+                timeSel.value = res.hora;
+            }
 
             // Verificar si la reserva es PASADA
             const now = new Date();
@@ -5895,10 +5942,6 @@
             if (document.getElementById("res-hotel")) document.getElementById("res-hotel").value = res.hotel || "Cumbria";
             if (document.getElementById("res-hab")) document.getElementById("res-hab").value = res.hab || "";
             let resolvedBono = res.bono || res.localizador || res.num_bono || res.voucher || res.bono_id || res.codigo_bono || res.campoBono || res.referencia || "";
-            if (!resolvedBono && typeof window.recoverMissingBonoCode === 'function') {
-                resolvedBono = await window.recoverMissingBonoCode(res, res.collection || currentModule.collection);
-                if (resolvedBono) res.bono = resolvedBono;
-            }
             if (document.getElementById("res-bono")) document.getElementById("res-bono").value = resolvedBono;
             document.getElementById("res-pax").value = res.pax;
             const savedTotal = parseFloat(res.precio_total !== undefined && res.precio_total !== null ? res.precio_total : (res.precio || (res.payment && res.payment.total) || 0));
@@ -5935,8 +5978,6 @@
             // Try to match collection to a module
             if (res.collection) {
                 const matchedKey = Object.keys(window.MODULES || {}).find(k => window.MODULES[k].collection === res.collection);
-                // If found, use that module code. Special handling for Cabinas (they share collection but have distinct codes in UI if split, 
-                // but here we just need a valid room code for the dropdown)
                 if (matchedKey) resModule = matchedKey;
             }
             populateRoomOptions(resModule);
@@ -5944,14 +5985,10 @@
             populateServices();
             renderComplementos();
 
-            // Si la reserva pertenece a un Pack Multiservicio, cargar sus fases hermanas y mostrar el pack completo
+            // Si la reserva pertenece a un Pack Multiservicio, mostrar el pack inmediatamente y cargar fases hermanas en paralelo
             const candidatePackName = res.parent_service || res.pack_name || res.pack_origen || ((typeof window.isPackService === 'function' && window.isPackService(res.servicio)) ? res.servicio : '');
             const matchedPackDef = (candidatePackName && typeof window.findPackDefinition === 'function') ? window.findPackDefinition(candidatePackName) : null;
-            if (matchedPackDef && matchedPackDef.categoria !== 'ritual' && Array.isArray(matchedPackDef.secuencia) && matchedPackDef.secuencia.length > 1 && typeof window.loadPackSiblingsForEdit === 'function') {
-                window._editingPackSiblings = await window.loadPackSiblingsForEdit(res);
-            } else {
-                window._editingPackSiblings = null;
-            }
+            window._editingPackSiblings = null;
 
             const effectiveEditSvc = (matchedPackDef && matchedPackDef.categoria !== 'ritual' && Array.isArray(matchedPackDef.secuencia) && matchedPackDef.secuencia.length > 1)
                 ? ("PACK - " + matchedPackDef.nombre)
@@ -5996,14 +6033,11 @@
                     }
                 });
             } else if (res.complementos && Array.isArray(res.complementos)) {
-                // Fallback for old format (Strings only)
-                // Try to match with checkboxes, if not, add as custom with 0 price (or try to guess?)
                 res.complementos.forEach(compName => {
                     const cb = document.querySelector(`.comp-checkbox[data-name="${compName}"]`);
                     if (cb) {
                         cb.checked = true;
                     } else {
-                        // If not in catalog, add as custom text
                         addCustomExtra(compName, 0);
                     }
                 });
@@ -6022,17 +6056,9 @@
                 document.getElementById("inputDuration").value = dur;
             }
 
-            // LOAD STAFF OPTIONS NOW THAT ALL DATA IS SET
-            if (typeof window.handleStaffFieldsChange === 'function') {
-                await window.handleStaffFieldsChange();
-            }
-
             // FIX: Explicitly show/hide staff group in Edit Booking
-            // This ensures it appears even if it was hidden by default or by previous module context
             const staffGroup = document.getElementById("staff-selector-group");
             if (staffGroup) {
-                // Force show if module requires staff OR if we have staff data (fallback)
-                // This covers cases where we might be in 'Cabinas' wrapper but the specific reservation needs staff
                 const shouldShow = currentModule.requiresStaff || (res.staff_id || res.terapeuta);
                 staffGroup.style.display = shouldShow ? "block" : "none";
 
@@ -6043,44 +6069,53 @@
             // Ensure 2nd selector is visible/populated if needed before setting value
             updateStaffSelectorsVisibility();
 
-
-            // POPULATE STAFF
-            // POPULATE STAFF
-            if (document.getElementById("booking-staff")) {
-                const staffSel = document.getElementById("booking-staff");
-                if (res.staff_id) {
-                    staffSel.value = res.staff_id;
-                } else if (res.staff_name || res.terapeuta) {
-                    // Fallback: Try to match by name
-                    const nameToMatch = (res.staff_name || res.terapeuta).trim().toLowerCase();
-                    let found = false;
-                    for (let i = 0; i < staffSel.options.length; i++) {
-                        if (staffSel.options[i].text.trim().toLowerCase() === nameToMatch) {
-                            staffSel.selectedIndex = i;
-                            found = true;
-                            break;
-                        }
+            // Pre-populate staff synchronously from allStaff so the modal opens with the therapist already shown
+            const applyStaffSelection = () => {
+                if (document.getElementById("booking-staff")) {
+                    const staffSel = document.getElementById("booking-staff");
+                    if (staffSel.options.length <= 1 && (res.staff_id || res.staff_name || res.terapeuta)) {
+                        const tmpOpt = document.createElement("option");
+                        tmpOpt.value = res.staff_id || res.staff_name || res.terapeuta;
+                        tmpOpt.textContent = res.staff_name || res.terapeuta || res.staff_id;
+                        staffSel.appendChild(tmpOpt);
                     }
-                    if (!found && res.terapeuta) {
-                        // If still not found (maybe inactive staff?), at least show it in the text input if available
-                        // (Handled by res-terapeuta below)
-                    }
-                }
-            }
-            if (document.getElementById("booking-staff-2")) {
-                const staffSel2 = document.getElementById("booking-staff-2");
-                if (res.staff_id2) {
-                    staffSel2.value = res.staff_id2;
-                } else if (res.staff_name2) {
-                    const nameToMatch = res.staff_name2.trim().toLowerCase();
-                    for (let i = 0; i < staffSel2.options.length; i++) {
-                        if (staffSel2.options[i].text.trim().toLowerCase() === nameToMatch) {
-                            staffSel2.selectedIndex = i;
-                            break;
+                    if (res.staff_id) {
+                        staffSel.value = res.staff_id;
+                    } else if (res.staff_name || res.terapeuta) {
+                        const nameToMatch = (res.staff_name || res.terapeuta).trim().toLowerCase();
+                        for (let i = 0; i < staffSel.options.length; i++) {
+                            if (staffSel.options[i].text.trim().toLowerCase() === nameToMatch) {
+                                staffSel.selectedIndex = i;
+                                break;
+                            }
                         }
                     }
                 }
-            }
+                if (document.getElementById("booking-staff-2")) {
+                    const staffSel2 = document.getElementById("booking-staff-2");
+                    if (staffSel2.options.length <= 1 && (res.staff_id2 || res.staff_name2 || res.terapeuta2)) {
+                        const tmpOpt2 = document.createElement("option");
+                        tmpOpt2.value = res.staff_id2 || res.staff_name2 || res.terapeuta2;
+                        tmpOpt2.textContent = res.staff_name2 || res.terapeuta2 || res.staff_id2;
+                        staffSel2.appendChild(tmpOpt2);
+                    }
+                    if (res.staff_id2) {
+                        staffSel2.value = res.staff_id2;
+                    } else if (res.staff_name2 || res.terapeuta2) {
+                        const nameToMatch = (res.staff_name2 || res.terapeuta2).trim().toLowerCase();
+                        for (let i = 0; i < staffSel2.options.length; i++) {
+                            if (staffSel2.options[i].text.trim().toLowerCase() === nameToMatch) {
+                                staffSel2.selectedIndex = i;
+                                break;
+                            }
+                        }
+                    }
+                }
+                if (isPast && !window._pastReservationUnlocked) {
+                    document.getElementById("booking-form")?.querySelectorAll("input, select, textarea").forEach(inp => inp.disabled = true);
+                }
+            };
+            applyStaffSelection();
 
             // Therapist Input Visibility (Edit Mode)
             const therapistInput = document.getElementById("res-terapeuta");
@@ -6116,12 +6151,53 @@
             updateTotal(); // Final total sync
             window.updatePaymentControlBlock();
             document.getElementById("booking-modal").style.display = "flex";
-
-            // Trigger balance check if it's a bono
-            if (res.origen === 'bono' && res.bono) {
-                validateBonoBalance(res.bono, id);
-            }
             window._isInitializingEdit = false;
+
+            // Ejecutar comprobaciones asíncronas de precisión en paralelo con el modal ya visible
+            const asyncEditTasks = [];
+            asyncEditTasks.push(
+                updateAvailableTimeSlots().then(() => {
+                    if (window.currentEditingId === id && res.hora) {
+                        timeSel.value = res.hora;
+                        if (isPast && !window._pastReservationUnlocked) timeSel.disabled = true;
+                    }
+                }).catch(() => {})
+            );
+            if (typeof window.handleStaffFieldsChange === 'function') {
+                asyncEditTasks.push(
+                    window.handleStaffFieldsChange().then(() => {
+                        if (window.currentEditingId === id) applyStaffSelection();
+                    }).catch(() => {})
+                );
+            }
+            if (!resolvedBono && typeof window.recoverMissingBonoCode === 'function') {
+                asyncEditTasks.push(
+                    window.recoverMissingBonoCode(res, res.collection || currentModule.collection).then(recovered => {
+                        if (recovered && window.currentEditingId === id) {
+                            res.bono = recovered;
+                            const bonoInp = document.getElementById("res-bono");
+                            if (bonoInp) bonoInp.value = recovered;
+                            if (res.origen === 'bono') validateBonoBalance(recovered, id);
+                        }
+                    }).catch(() => {})
+                );
+            } else if (res.origen === 'bono' && resolvedBono) {
+                validateBonoBalance(resolvedBono, id);
+            }
+            if (matchedPackDef && matchedPackDef.categoria !== 'ritual' && Array.isArray(matchedPackDef.secuencia) && matchedPackDef.secuencia.length > 1 && typeof window.loadPackSiblingsForEdit === 'function') {
+                asyncEditTasks.push(
+                    window.loadPackSiblingsForEdit(res).then(sibs => {
+                        if (window.currentEditingId === id && sibs && sibs.length > 0) {
+                            window._editingPackSiblings = sibs;
+                            if (typeof updatePackInfo === 'function') updatePackInfo();
+                            if (isPast && !window._pastReservationUnlocked) {
+                                document.getElementById("booking-form")?.querySelectorAll("input, select, textarea").forEach(inp => inp.disabled = true);
+                            }
+                        }
+                    }).catch(() => {})
+                );
+            }
+            await Promise.all(asyncEditTasks);
         }
 
         async function cancelBookingFromModal() {
