@@ -3483,27 +3483,6 @@ async function openVoucherManagement(code) {
         }
 
         headerTitle.appendChild(badge);
-
-        // === SELLO DE PROTECCIÓN (Visual indicator for manual updates) ===
-        if (v.manual_update || v.sync_locked) {
-            const lockBadge = document.createElement("span");
-            lockBadge.id = "vm-lock-badge";
-            lockBadge.innerHTML = '<i class="fas fa-shield-alt"></i> Datos Verificados & Protegidos'; // El "Sello"
-            lockBadge.style.fontSize = "0.65rem";
-            lockBadge.style.fontWeight = "700";
-            lockBadge.style.padding = "3px 10px";
-            lockBadge.style.borderRadius = "20px";
-            lockBadge.style.marginLeft = "10px";
-            lockBadge.style.background = "#dcfce7";
-            lockBadge.style.color = "#15803d";
-            lockBadge.style.border = "1.5px solid #86efac";
-            lockBadge.style.display = "inline-flex";
-            lockBadge.style.alignItems = "center";
-            lockBadge.style.gap = "4px";
-            lockBadge.style.boxShadow = "0 2px 4px rgba(0,0,0,0.05)";
-            lockBadge.title = "Este bono ha sido revisado y guardado. Sus datos (IDs, CLIENTE) no se sobrescribirán al refrescar.";
-            headerTitle.appendChild(lockBadge);
-        }
     }
     // ------------------------------------------
 
