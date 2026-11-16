@@ -990,22 +990,34 @@ window.recoverMissingBonoCode = async function (res, targetColl = null) {
 
         if (candidates.length === 0) return "";
 
-        // Prefer candidate matching the reservation's service or pack name
+        // Prefer candidate matching the reservation's service/pack name, exact client name, and active status
         const targetSvc = normStr(res.pack_origen || res.parent_service || res.servicio || "").replace(/^pack\s+/, "");
-        let best = candidates[0];
-        if (candidates.length > 1 && targetSvc) {
-            const svcMatched = candidates.find(v => {
-                const vp = normStr(v.producto || v.nombre || "");
-                return vp && (vp.includes(targetSvc) || targetSvc.includes(vp));
-            });
-            if (svcMatched) best = svcMatched;
-        }
+        const scored = candidates.map(v => {
+            let score = 0;
+            const vClient = normStr(v.cliente || v.comprador || v.beneficiario || v.nombre || "");
+            const vp = normStr(v.producto || v.nombre || "");
+            if (vClient === targetClient) score += 50;
+            else score += 10;
+            if (targetSvc && vp && (vp.includes(targetSvc) || targetSvc.includes(vp))) score += 100;
+            if (v.estado !== 'completed') score += 20;
+            return { v, score };
+        }).sort((a, b) => b.score - a.score);
 
+        const best = scored[0].v;
         const recovered = String(best.bono || best.codigo || best.localizador || best._id || "").trim();
         if (recovered && res.id) {
             const colToUpdate = targetColl || res.collection || res._collection || getCollectionForSpaceCore(res.sala);
             if (colToUpdate) {
                 db.collection(colToUpdate).doc(res.id).update({ bono: recovered, localizador: recovered }).catch(() => {});
+            }
+            const rootId = res.parent_id || String(res.id).replace(/_(spa|suite|vip|panacea|cabina\d*|peluqueria)(_\d+)?$/i, '');
+            if (rootId && rootId !== res.id) {
+                ['reservas_vip', 'reservas_panacea', 'reservas_suite', 'reservas_cabina1', 'reservas_cabina2', 'reservas_cabina3', 'reservas_spa'].forEach(c => {
+                    db.collection(c).doc(rootId).update({ bono: recovered, localizador: recovered }).catch(() => {});
+                });
+            }
+            if (rootId) {
+                db.collection('reservas_spa').doc(`${rootId}_spa`).update({ bono: recovered, localizador: recovered }).catch(() => {});
             }
         }
         return recovered;

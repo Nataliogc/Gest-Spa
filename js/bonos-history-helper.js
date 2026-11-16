@@ -1,41 +1,79 @@
-
 async function renderVoucherHistory(bonoCode, internalValidations = []) {
     console.log('[HISTORY] Render requested for:', bonoCode);
 
     const historyContainer = document.getElementById("vm-history-container");
     if (!historyContainer) {
         console.warn('[HISTORY] #vm-history-container not found.');
-        return;
+        return [];
     }
 
-    // Set structure if empty
+    const cleanBonoCode = String(bonoCode || '').trim();
+
+    // Set structure
     historyContainer.innerHTML = `
-        <h4 style="font-size: 0.75rem; text-transform:uppercase; color: #475569; margin-bottom: 8px; font-weight: 700; display:flex; align-items:center; gap:8px;">
-            <i class="fas fa-history"></i> Historial de Reservas
-            <span id="vm-history-loader" style="font-size:0.7rem; color:#94a3b8; font-weight:400; text-transform:none;"><i class="fas fa-spinner fa-spin"></i> Buscando...</span>
-        </h4>
-        <div id="vm-history-content"></div>
+        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 14px 16px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid #e2e8f0;">
+                <h4 style="font-size: 0.78rem; text-transform: uppercase; color: #1e293b; margin: 0; font-weight: 800; display: flex; align-items: center; gap: 8px; letter-spacing: 0.3px;">
+                    <i class="fas fa-history" style="color: #0ea5e9;"></i> Historial de Reservas
+                    <span id="vm-history-count-badge" style="display: none; background: #e0f2fe; color: #0369a1; font-size: 0.68rem; padding: 2px 8px; border-radius: 999px; font-weight: 700;">0</span>
+                </h4>
+                <span id="vm-history-loader" style="font-size: 0.72rem; color: #64748b; font-weight: 500;">
+                    <i class="fas fa-spinner fa-spin" style="color: #0ea5e9;"></i> Buscando reservas...
+                </span>
+            </div>
+            <div id="vm-history-content" style="display: flex; flex-direction: column; gap: 8px;"></div>
+        </div>
     `;
 
-    // Asegurar acceso a db
     const db = window.db || firebase.firestore();
 
     try {
         let allReservations = [];
-        // Colecciones donde buscar reservas
-        const collections = ['reservas_spa', 'reservas_suite', 'reservas_panacea', 'reservas_peluqueria', 'reservas_vip', 'reservas_restaurante', 'reservas_gimnasio', 'reservas_complementos', 'reservas_rest', 'reservas_menu', 'reservas', 'reservas_evento'];
+        // Todas las colecciones de reservas del sistema (incluyendo Cabinas 1, 2, 3 y Cabinas general)
+        const collections = [
+            'reservas_spa',
+            'reservas_suite',
+            'reservas_panacea',
+            'reservas_vip',
+            'reservas_cabina1',
+            'reservas_cabina2',
+            'reservas_cabina3',
+            'reservas_cabinas',
+            'reservas_peluqueria',
+            'reservas_restaurante',
+            'reservas_gimnasio',
+            'reservas_complementos',
+            'reservas_rest',
+            'reservas_menu',
+            'reservas',
+            'reservas_evento'
+        ];
 
-        console.log(`[HISTORY] Buscando historial para bono: '${bonoCode}'...`);
+        const spaAndRoomCols = [
+            'reservas_spa', 'reservas_suite', 'reservas_panacea', 'reservas_vip',
+            'reservas_cabina1', 'reservas_cabina2', 'reservas_cabina3', 'reservas_cabinas', 'reservas_peluqueria'
+        ];
 
-        // Obtener email del state para búsqueda de refuerzo
-        const clientEmail = (state.bonos.find(b => b.bono === bonoCode) || {}).email;
+        const voucherObj = (typeof state !== 'undefined' && Array.isArray(state.bonos))
+            ? (state.bonos.find(b => b.bono === cleanBonoCode || b.codigo === cleanBonoCode) || null)
+            : null;
+        const clientEmail = voucherObj ? voucherObj.email : null;
 
-        // Generar lista de códigos a buscar para cubrir variaciones (trim, sin espacios, sin WC)
+        // Generar lista de códigos a buscar para cubrir variaciones (trim, mayúsculas/minúsculas, sin espacios, sin WC)
         const codesToSearch = new Set();
-        codesToSearch.add(bonoCode);
-        codesToSearch.add(bonoCode.trim());
-        if (bonoCode.includes(' ')) codesToSearch.add(bonoCode.replace(/\s+/g, ''));
-        if (bonoCode.startsWith('WC')) codesToSearch.add(bonoCode.substring(2));
+        if (cleanBonoCode) {
+            codesToSearch.add(cleanBonoCode);
+            codesToSearch.add(cleanBonoCode.toUpperCase());
+            codesToSearch.add(cleanBonoCode.toLowerCase());
+            if (cleanBonoCode.includes(' ')) codesToSearch.add(cleanBonoCode.replace(/\s+/g, ''));
+            if (cleanBonoCode.toUpperCase().startsWith('WC')) codesToSearch.add(cleanBonoCode.substring(2));
+        }
+
+        const codesLowerSet = new Set(Array.from(codesToSearch).map(c => String(c).toLowerCase().trim()));
+        const matchesAnyCode = (val) => {
+            if (!val) return false;
+            return codesLowerSet.has(String(val).toLowerCase().trim());
+        };
 
         // Lanzar TODAS las consultas en paralelo para máxima velocidad
         const queryPromises = [];
@@ -43,21 +81,42 @@ async function renderVoucherHistory(bonoCode, internalValidations = []) {
         collections.forEach(col => {
             const colRef = db.collection(col);
 
-            // Consultas por código
-            codesToSearch.forEach(code => {
-                queryPromises.push(colRef.where("bono", "==", code).get().then(snap => ({ snap, col })).catch(e => ({ snap: [], col })));
+            codesToSearch.forEach(codeVariant => {
+                queryPromises.push(
+                    colRef.where("bono", "==", codeVariant).get()
+                        .then(snap => ({ snap, col }))
+                        .catch(() => ({ snap: [], col }))
+                );
+                if (spaAndRoomCols.includes(col)) {
+                    queryPromises.push(
+                        colRef.where("localizador", "==", codeVariant).get()
+                            .then(snap => ({ snap, col }))
+                            .catch(() => ({ snap: [], col }))
+                    );
+                }
             });
 
-            // En reservas de restaurante, también buscar por campoBono
             if (col === 'reservas_restaurante') {
-                codesToSearch.forEach(code => {
-                    queryPromises.push(colRef.where("campoBono", "==", code).get().then(snap => ({ snap, col })).catch(e => ({ snap: [], col })));
+                codesToSearch.forEach(codeVariant => {
+                    queryPromises.push(
+                        colRef.where("campoBono", "==", codeVariant).get()
+                            .then(snap => ({ snap, col }))
+                            .catch(() => ({ snap: [], col }))
+                    );
+                    queryPromises.push(
+                        colRef.where("referencia", "==", codeVariant).get()
+                            .then(snap => ({ snap, col }))
+                            .catch(() => ({ snap: [], col }))
+                    );
                 });
             }
 
-            // Consulta por email (si existe)
-            if (clientEmail) {
-                queryPromises.push(colRef.where("email", "==", clientEmail).get().then(snap => ({ snap, col })).catch(e => ({ snap: [], col })));
+            if (clientEmail && clientEmail.includes('@')) {
+                queryPromises.push(
+                    colRef.where("email", "==", clientEmail).get()
+                        .then(snap => ({ snap, col }))
+                        .catch(() => ({ snap: [], col }))
+                );
             }
         });
 
@@ -65,59 +124,100 @@ async function renderVoucherHistory(bonoCode, internalValidations = []) {
         const mesachefDb = typeof window.getMesachefFirestore === 'function' ? window.getMesachefFirestore() : null;
         if (mesachefDb) {
             const mCol = mesachefDb.collection('reservas_restaurante');
-            codesToSearch.forEach(code => {
-                queryPromises.push(mCol.where("campoBono", "==", code).get().then(snap => ({ snap, col: 'reservas_restaurante' })).catch(e => ({ snap: [], col: 'reservas_restaurante' })));
-                queryPromises.push(mCol.where("bono", "==", code).get().then(snap => ({ snap, col: 'reservas_restaurante' })).catch(e => ({ snap: [], col: 'reservas_restaurante' })));
+            codesToSearch.forEach(codeVariant => {
+                queryPromises.push(mCol.where("campoBono", "==", codeVariant).get().then(snap => ({ snap, col: 'reservas_restaurante' })).catch(() => ({ snap: [], col: 'reservas_restaurante' })));
+                queryPromises.push(mCol.where("bono", "==", codeVariant).get().then(snap => ({ snap, col: 'reservas_restaurante' })).catch(() => ({ snap: [], col: 'reservas_restaurante' })));
+                queryPromises.push(mCol.where("referencia", "==", codeVariant).get().then(snap => ({ snap, col: 'reservas_restaurante' })).catch(() => ({ snap: [], col: 'reservas_restaurante' })));
             });
         }
 
-        // Esperar a que terminen todas
         const results = await Promise.all(queryPromises);
         const addedIds = new Set();
 
+        const addReservationIfValid = (d, docId, col, forceMatch = false) => {
+            const reservationKey = `${col}:${d.external_id || docId}`;
+            if (addedIds.has(reservationKey) || addedIds.has(docId)) return;
+
+            const isCancelled = d.status === 'anulada' || d.estado === 'anulada' || d.estado === 'cancelada';
+            if (isCancelled) return;
+
+            const matchesCode = forceMatch ||
+                matchesAnyCode(d.bono) ||
+                matchesAnyCode(d.localizador) ||
+                matchesAnyCode(d.num_bono) ||
+                matchesAnyCode(d.voucher) ||
+                matchesAnyCode(d.bono_id) ||
+                matchesAnyCode(d.codigo_bono) ||
+                matchesAnyCode(d.campoBono) ||
+                matchesAnyCode(d.referencia);
+
+            if (matchesCode) {
+                let fechaNorm = d.fecha;
+                if (d.fecha && typeof d.fecha.toDate === 'function') {
+                    fechaNorm = d.fecha.toDate().toISOString().split('T')[0];
+                }
+                allReservations.push({
+                    ...d,
+                    fecha: fechaNorm,
+                    servicio: d.servicio || 'Menú en Restaurante',
+                    _col: col,
+                    id: docId
+                });
+                addedIds.add(reservationKey);
+                addedIds.add(docId);
+            }
+        };
+
         results.forEach(({ snap, col }) => {
             if (!snap || typeof snap.forEach !== 'function') return;
-            snap.forEach(doc => {
-                const d = doc.data();
-                const reservationKey = `${col}:${d.external_id || doc.id}`;
-                if (addedIds.has(reservationKey)) return;
-
-                // Filtrar anuladas y validar coincidencia si es por email
-                const isCancelled = d.status === 'anulada' || d.estado === 'anulada' || d.estado === 'cancelada';
-                if (!isCancelled) {
-                    const matchesCode = Array.from(codesToSearch).includes(d.bono) || 
-                                        Array.from(codesToSearch).includes(d.campoBono) || 
-                                        Array.from(codesToSearch).includes(d.referencia);
-
-                    if (matchesCode) {
-                        let fechaNorm = d.fecha;
-                        if (d.fecha && typeof d.fecha.toDate === 'function') {
-                            fechaNorm = d.fecha.toDate().toISOString().split('T')[0];
-                        }
-                        allReservations.push({ 
-                            ...d, 
-                            fecha: fechaNorm,
-                            servicio: d.servicio || 'Menú en Restaurante',
-                            _col: col, 
-                            id: doc.id 
-                        });
-                        addedIds.add(reservationKey);
-                        addedIds.add(doc.id);
-                    }
-                }
-            });
+            snap.forEach(doc => addReservationIfValid(doc.data(), doc.id, col, false));
         });
 
-        // 5. MERGE LOCAL PENDING RESERVATIONS (Sync Delay mitigation)
+        // EXPANSIÓN AUTOMÁTICA DE FASES HERMANAS DE PACKS:
+        // Si una fase del pack tiene el código de bono (ej. RS-BFKM_spa), traer también las demás fases del mismo pack (ej. RS-BFKM en Sala VIP)
+        const packDatesAndRoots = new Map();
+        allReservations.forEach(r => {
+            const rootId = r.parent_id || String(r.id || '').replace(/_(spa|suite|vip|panacea|cabina\d*|peluqueria)(_\d+)?$/i, '');
+            if (rootId && r.fecha) {
+                packDatesAndRoots.set(`${r.fecha}::${rootId}`, { date: r.fecha, rootId, client: (r.nombre || r.cliente || '').toLowerCase().trim() });
+            }
+        });
+
+        if (packDatesAndRoots.size > 0) {
+            const siblingPromises = [];
+            packDatesAndRoots.forEach(({ date, rootId, client }) => {
+                spaAndRoomCols.forEach(col => {
+                    siblingPromises.push(
+                        db.collection(col).where("fecha", "==", date).get()
+                            .then(snap => ({ snap, col, rootId, client }))
+                            .catch(() => ({ snap: [], col, rootId, client }))
+                    );
+                });
+            });
+            const sibResults = await Promise.all(siblingPromises);
+            sibResults.forEach(({ snap, col, rootId, client }) => {
+                if (!snap || typeof snap.forEach !== 'function') return;
+                snap.forEach(doc => {
+                    const d = doc.data();
+                    const docRoot = d.parent_id || String(doc.id || '').replace(/_(spa|suite|vip|panacea|cabina\d*|peluqueria)(_\d+)?$/i, '');
+                    const dClient = (d.nombre || d.cliente || '').toLowerCase().trim();
+                    if (docRoot === rootId || (client && dClient === client && (d.is_pack_child || d.is_pack_parent || d.parent_id))) {
+                        addReservationIfValid(d, doc.id, col, true);
+                        // Auto-reparar el código de bono en la fase hermana si estaba vacío
+                        if (!d.bono && cleanBonoCode) {
+                            db.collection(col).doc(doc.id).update({ bono: cleanBonoCode, localizador: cleanBonoCode }).catch(() => {});
+                        }
+                    }
+                });
+            });
+        }
+
+        // MERGE LOCAL PENDING RESERVATIONS (Sync Delay mitigation)
         if (window.apiLocal && typeof apiLocal.getPendingSync === 'function') {
             try {
                 const localPending = await apiLocal.getPendingSync('reservas');
-                const codesToSearchArray = Array.from(codesToSearch);
-
                 localPending.forEach(loc => {
-                    const locBono = (loc.bono || '');
-                    const matches = codesToSearchArray.includes(locBono) || codesToSearchArray.includes(locBono.replace(/\s+/g, ''));
-                    if (matches && !addedIds.has(loc.id)) {
+                    if (matchesAnyCode(loc.bono) && !addedIds.has(loc.id)) {
                         let col = loc.collection || 'reservas_spa';
                         if (loc.servicio && loc.servicio.toLowerCase().includes('suite')) col = 'reservas_suite';
                         allReservations.push({ ...loc, _col: col, _isLocal: true });
@@ -129,14 +229,11 @@ async function renderVoucherHistory(bonoCode, internalValidations = []) {
             }
         }
 
-        // --- MERGE INTERNAL VALIDATIONS ---
-        // ... (keep as is) ...
+        // MERGE INTERNAL VALIDATIONS
         if (internalValidations && internalValidations.length > 0) {
             internalValidations.forEach(item => {
                 if (item.validations && Array.isArray(item.validations)) {
                     item.validations.forEach(val => {
-                        // Mesachef callbacks are reservations, already queried above.
-                        // Do not count them again as manual hotel validations.
                         if (val.source === 'mesachef' || val.external_id) return;
                         const d = new Date(val.fecha_validacion || val.fecha);
                         if (isNaN(d.getTime())) return;
@@ -161,7 +258,7 @@ async function renderVoucherHistory(bonoCode, internalValidations = []) {
             });
         }
 
-        // Fix sorting logic (avoid mixing a and b)
+        // Ordenar por fecha y hora (más recientes o próximas primero)
         allReservations.sort((a, b) => {
             const dateA = new Date((a.fecha || '2000-01-01') + 'T' + (a.hora || '00:00'));
             const dateB = new Date((b.fecha || '2000-01-01') + 'T' + (b.hora || '00:00'));
@@ -169,209 +266,196 @@ async function renderVoucherHistory(bonoCode, internalValidations = []) {
         });
 
         const contentDiv = document.getElementById("vm-history-content");
-        document.getElementById("vm-history-loader").style.display = "none";
+        const loaderEl = document.getElementById("vm-history-loader");
+        const countBadge = document.getElementById("vm-history-count-badge");
+        if (loaderEl) loaderEl.style.display = "none";
+        if (countBadge) {
+            countBadge.textContent = `${allReservations.length} ${allReservations.length === 1 ? 'cita' : 'citas'}`;
+            countBadge.style.display = "inline-block";
+        }
 
         if (allReservations.length === 0) {
-            contentDiv.innerHTML = '<div style="font-size:0.85rem; color:#94a3b8; font-style:italic; padding: 10px; border: 1px dashed #e2e8f0; border-radius: 8px; text-align: center;">No hay reservas registradas.</div>';
+            const usedCount = voucherObj ? (parseInt(voucherObj.sesiones_usadas) || 0) : 0;
+            const isCompleted = voucherObj && (voucherObj.estado === 'completed' || usedCount > 0);
+            if (isCompleted) {
+                contentDiv.innerHTML = `
+                    <div style="font-size: 0.8rem; color: #475569; background: #fff; padding: 12px 14px; border: 1px dashed #cbd5e1; border-radius: 8px; display: flex; align-items: center; gap: 10px;">
+                        <i class="fas fa-info-circle" style="color: #0ea5e9; font-size: 1.1rem;"></i>
+                        <div>
+                            <div style="font-weight: 700; color: #334155;">Sin citas vinculadas con el código ${cleanBonoCode}</div>
+                            <div style="font-size: 0.73rem; color: #64748b; margin-top: 2px;">
+                                Este bono figura con <strong>${usedCount} ${usedCount === 1 ? 'sesión usada' : 'sesiones usadas'}</strong> (canjeado previamente o sin código asignado en la cita).
+                            </div>
+                        </div>
+                    </div>`;
+            } else {
+                contentDiv.innerHTML = `
+                    <div style="font-size: 0.82rem; color: #94a3b8; background: #fff; font-style: italic; padding: 14px; border: 1px dashed #cbd5e1; border-radius: 8px; text-align: center;">
+                        <i class="fas fa-calendar-times" style="margin-right: 6px; opacity: 0.7;"></i> No hay reservas registradas todavía para este bono.
+                    </div>`;
+            }
             return [];
         }
 
+        const todayISO = new Date().toISOString().split('T')[0];
+
         contentDiv.innerHTML = allReservations.map(res => {
-            const date = new Date(res.fecha).toLocaleDateString();
+            const dateParts = String(res.fecha || '').split('-');
+            const dateFormatted = dateParts.length === 3 ? `${dateParts[2]}/${dateParts[1]}/${dateParts[0]}` : (res.fecha || '-');
 
-            // Determinar Tipo
-            let typeLabel = "OTRO";
-            let typeColor = "#64748b"; // gray
+            let typeLabel = "RESERVA";
+            let typeColor = "#64748b";
+            let typeBg = "#f1f5f9";
 
-            if (res._col === 'reservas_spa') { typeLabel = "SPA"; typeColor = "#0ea5e9"; } // Sky blue
-            else if (res._col === 'reservas_suite') { typeLabel = "SUITE"; typeColor = "#8b5cf6"; } // Violet
-            else if (res._col === 'reservas_panacea' || res._col === 'reservas_vip') { typeLabel = "TRATAMIENTO"; typeColor = "#ec4899"; } // Pink
-            else if (res._col === 'reservas_peluqueria') { typeLabel = "PELUQUERÍA"; typeColor = "#f59e0b"; } // Amber
-            else if (res._col === 'reservas_gimnasio') { typeLabel = "GIMNASIO"; typeColor = "#6366f1"; } // Indigo
-            else if (res._col === 'reservas_complementos') { typeLabel = "COMPLEMENTO"; typeColor = "#f59e0b"; } // Amber
+            if (res._col === 'reservas_spa') { typeLabel = "SPA"; typeColor = "#0284c7"; typeBg = "#e0f2fe"; }
+            else if (res._col === 'reservas_suite') { typeLabel = "SUITE"; typeColor = "#7c3aed"; typeBg = "#ede9fe"; }
+            else if (res._col === 'reservas_vip') { typeLabel = "SALA VIP"; typeColor = "#d97706"; typeBg = "#fef3c7"; }
+            else if (res._col === 'reservas_panacea') { typeLabel = "PANACEA"; typeColor = "#db2777"; typeBg = "#fce7f3"; }
+            else if (res._col === 'reservas_cabina1') { typeLabel = "CABINA 1"; typeColor = "#be185d"; typeBg = "#fce7f3"; }
+            else if (res._col === 'reservas_cabina2') { typeLabel = "CABINA 2"; typeColor = "#6d28d9"; typeBg = "#ede9fe"; }
+            else if (res._col === 'reservas_cabina3') { typeLabel = "CABINA 3"; typeColor = "#1d4ed8"; typeBg = "#dbeafe"; }
+            else if (res._col === 'reservas_cabinas') { typeLabel = (res.sala || "CABINA").toUpperCase(); typeColor = "#4f46e5"; typeBg = "#e0e7ff"; }
+            else if (res._col === 'reservas_peluqueria') { typeLabel = "PELUQUERÍA"; typeColor = "#0d9488"; typeBg = "#ccfbf1"; }
+            else if (res._col === 'reservas_gimnasio') { typeLabel = "GIMNASIO"; typeColor = "#4f46e5"; typeBg = "#e0e7ff"; }
+            else if (res._col === 'reservas_complementos') { typeLabel = "COMPLEMENTO"; typeColor = "#d97706"; typeBg = "#fef3c7"; }
             else if (res._col === 'internal') {
                 const srv = (res.servicio || '').toLowerCase();
                 if (srv.includes('alojamiento') || srv.includes('hotel') || srv.includes('desayuno')) {
-                    typeLabel = "HOTEL";
-                    typeColor = "#6366f1"; // Indigo
+                    typeLabel = "HOTEL"; typeColor = "#4f46e5"; typeBg = "#e0e7ff";
                 } else {
-                    typeLabel = "CANJEADO";
-                    typeColor = "#10b981"; // Emerald
+                    typeLabel = "CANJEADO"; typeColor = "#059669"; typeBg = "#d1fae5";
                 }
             }
 
-            // Override for Restaurant services stored in SPA/Other collections
             const srvLower = (res.servicio || '').toLowerCase();
             let isRestaurant = false;
             if (['reservas_restaurante', 'reservas_rest', 'reservas_menu'].includes(res._col) ||
                 srvLower.includes('restaurante') || srvLower.includes('menu') || srvLower.includes('menú')) {
                 typeLabel = "RESTAURANTE";
-                typeColor = "#f97316"; // Orange
+                typeColor = "#ea580c";
+                typeBg = "#ffedd5";
                 isRestaurant = true;
             }
 
-            // Precio handling
-            let precioDisplay = res.precio_total ? parseFloat(res.precio_total).toFixed(2) + '€' : '-';
-            // Force "Incluido" for vouchers or Restaurant items in voucher view
-            if (res.origen === 'bono' || isRestaurant) {
-                precioDisplay = '<span style="color:#10b981; font-weight:600; font-size:0.75rem;">Incluido</span>';
-            }
-
-            // Friendly ID handling
             const safeId = res.id ? String(res.id) : '';
-            const displayId = res.id_reserva || res.localizador || res.numero_reserva || res.id_ticket || res.ticket_id || res.id_friendly || (safeId.length > 6 ? '#' + safeId.substring(0, 6) : '#' + safeId);
+            const displayId = res.res_id || res.id_reserva || res.numero_reserva || res.id_ticket || res.ticket_id || res.id_friendly || (safeId.length > 10 ? safeId.substring(0, 8) : safeId);
+            const therapistTxt = res.terapeuta || res.staff_name ? ` · <i class="fas fa-user-nurse" style="color:#64748b;"></i> ${res.terapeuta || res.staff_name}` : '';
+            const durTxt = res.duracion ? ` · ${res.duracion}'` : '';
+            const isPast = (res.fecha || '') < todayISO;
+            const statusPill = isPast
+                ? `<span style="background:#f1f5f9; color:#475569; border:1px solid #cbd5e1; font-size:0.65rem; font-weight:700; padding:2px 8px; border-radius:999px;">Realizada</span>`
+                : `<span style="background:#dcfce7; color:#15803d; border:1px solid #86efac; font-size:0.65rem; font-weight:700; padding:2px 8px; border-radius:999px;">Confirmada</span>`;
 
             if (res._col === 'internal') {
-                // Manual Validation Item - Show Alert with Details
-                const detailText = `
-DETALLES DE RESERVA HOTEL
---------------------------------
-Huésped: ${res.huesped || '-'}
-Pax: ${res.pax}
-Servicio: ${res.servicio}
-Fecha Entrada: ${res.fecha_alojamiento ? new Date(res.fecha_alojamiento).toLocaleDateString() : (res.fecha || '-')}
-Noches: 1
-Nº Reserva: ${res.reserva_hotel || '-'}
-Confirmada por: ${res.validado_por || 'Sistema'}
-                    `.trim();
-
+                const detailText = `DETALLES DE RESERVA HOTEL\n--------------------------------\nHuésped: ${res.huesped || '-'}\nPax: ${res.pax}\nServicio: ${res.servicio}\nFecha Entrada: ${res.fecha_alojamiento ? new Date(res.fecha_alojamiento).toLocaleDateString() : dateFormatted}\nNº Reserva: ${res.reserva_hotel || '-'}\nConfirmada por: ${res.validado_por || 'Sistema'}`;
                 return `
-                    <div onclick="alert(\`${detailText}\`)" style="display:flex; justify-content:space-between; align-items:center; padding: 10px 0; border-bottom: 1px solid #f1f5f9; cursor:pointer;" title="Ver Detalles">
-                        <div style="flex: 1;">
-                            <div style="display:flex; align-items:center; gap: 8px;">
-                                <span style="background:${typeColor}; color:white; font-size:0.65rem; padding: 2px 6px; border-radius:4px; font-weight:700;">${typeLabel}</span>
-                                <div style="font-weight:600; font-size:0.85rem; color:#1e293b;">
-                                    ${res.fecha_alojamiento ? new Date(res.fecha_alojamiento).toLocaleDateString() : date} <i class="fas fa-info-circle" style="font-size:0.7em; color:#94a3b8; margin-left:4px;"></i>
-                                </div>
+                    <div onclick="alert(${JSON.stringify(detailText).replace(/"/g, '&quot;')})"
+                         style="background:#fff; border:1px solid #e2e8f0; border-radius:8px; padding:10px 14px; display:flex; justify-content:space-between; align-items:center; gap:12px; cursor:pointer;">
+                        <div style="display:flex; flex-direction:column; gap:4px; flex:1;">
+                            <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                                <span style="background:${typeBg}; color:${typeColor}; border:1px solid ${typeColor}40; font-size:0.68rem; padding:2px 8px; border-radius:6px; font-weight:800;">${typeLabel}</span>
+                                <span style="font-weight:700; font-size:0.85rem; color:#0f172a;"><i class="fas fa-calendar-alt" style="color:#64748b; margin-right:4px;"></i>${dateFormatted}</span>
                             </div>
-                            <div style="font-size:0.75rem; color:#64748b; margin-top:2px;">
-                                ${res.servicio} (${res.pax} pax)
+                            <div style="font-size:0.8rem; color:#334155; font-weight:600;">
+                                ${res.servicio} <span style="color:#64748b; font-weight:500;">(${res.pax || 1} pax)</span>
                             </div>
                         </div>
-                        <div style="text-align:right;">
-                            <div style="font-weight:700; font-size:0.9rem; color:#334155;">${precioDisplay}</div>
-                            <span class="badge badge-green" style="font-size:0.65rem;">Validado</span>
+                        <div style="display:flex; align-items:center; gap:8px;">
+                            <span style="background:#d1fae5; color:#065f46; font-size:0.68rem; font-weight:700; padding:3px 8px; border-radius:999px;">Validado</span>
                         </div>
-                    </div>
-                    `;
-            } else if (isRestaurant) {
-                // RESTAURANT DISPLAY (No external link, show alert)
-                const detailText = `
-RESERVA DE RESTAURANTE
---------------------------------
-ID: ${displayId}
-Fecha: ${date} - ${res.hora}h
-Servicio: ${res.servicio}
-Pax: ${res.pax}
-Cliente: ${res.cliente || res.nombre || '-'}
-Teléfono: ${res.telefono || '-'}
-Observaciones: ${res.observaciones || '-'}
-                    `.trim();
+                    </div>`;
+            }
 
+            if (isRestaurant) {
+                const detailText = `RESERVA DE RESTAURANTE\n--------------------------------\nID: ${displayId}\nFecha: ${dateFormatted} - ${res.hora || ''}h\nServicio: ${res.servicio}\nPax: ${res.pax}\nCliente: ${res.cliente || res.nombre || '-'}`;
                 return `
-                    <div onclick="alert(\`${detailText}\`)" style="cursor:pointer; display:flex; justify-content:space-between; align-items:center; padding: 10px 0; border-bottom: 1px solid #f1f5f9;" title="Ver Detalles Restaurante">
-                        <div style="flex: 1;">
-                            <div style="display:flex; align-items:center; gap: 8px;">
-                                <span style="background:${typeColor}; color:white; font-size:0.65rem; padding: 2px 6px; border-radius:4px; font-weight:700;">${typeLabel}</span>
-                                <div style="font-weight:600; font-size:0.85rem; color:#1e293b;">
-                                    ${date} - ${res.hora}h <i class="fas fa-utensils" style="font-size:0.7em; color:#f97316; margin-left:4px;"></i>
-                                </div>
+                    <div onclick="alert(${JSON.stringify(detailText).replace(/"/g, '&quot;')})"
+                         style="background:#fff; border:1px solid #e2e8f0; border-radius:8px; padding:10px 14px; display:flex; justify-content:space-between; align-items:center; gap:12px; cursor:pointer;">
+                        <div style="display:flex; flex-direction:column; gap:4px; flex:1;">
+                            <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                                <span style="background:${typeBg}; color:${typeColor}; border:1px solid ${typeColor}40; font-size:0.68rem; padding:2px 8px; border-radius:6px; font-weight:800;">${typeLabel}</span>
+                                <span style="font-weight:700; font-size:0.85rem; color:#0f172a;"><i class="fas fa-calendar-day" style="color:#64748b; margin-right:4px;"></i>${dateFormatted} · ${res.hora || ''}h</span>
+                                <span style="font-family:monospace; font-size:0.7rem; background:#f1f5f9; color:#475569; padding:1px 6px; border-radius:4px;">${displayId}</span>
                             </div>
-                            <div style="font-size:0.75rem; color:#64748b; margin-top:2px;">
-                                ${res.servicio} (${res.pax} pax) <span style="color:#cbd5e1; margin-left:4px;">${displayId}</span>
+                            <div style="font-size:0.8rem; color:#334155; font-weight:600;">
+                                ${res.servicio} <span style="color:#64748b; font-weight:500;">· 👥 ${res.pax || 1} pax</span>
                             </div>
                         </div>
-                        <div style="text-align:right;">
-                            <div style="font-weight:700; font-size:0.9rem; color:#334155;">${precioDisplay}</div>
-                            ${res.fecha < new Date().toISOString().split('T')[0]
-                        ? '<span class="badge badge-gray" style="font-size:0.65rem;">Pasada</span>'
-                        : '<span class="badge badge-green" style="font-size:0.65rem;">Activa</span>'}
+                        <div style="display:flex; align-items:center; gap:8px;">
+                            ${statusPill}
                         </div>
-                    </div>
-                `;
-            } else {
-                // Standard Reservation - Link to Calendar
-                // Determinar módulo para el link
-                let moduleTypeForLink = 'spa';
+                    </div>`;
+            }
+
+            if (res._col === 'reservas_gimnasio' || res._col === 'reservas_complementos') {
+                const isGym = res._col === 'reservas_gimnasio';
+                return `
+                    <div style="background:#fff; border:1px solid #e2e8f0; border-radius:8px; padding:10px 14px; display:flex; justify-content:space-between; align-items:center; gap:12px;">
+                        <div style="display:flex; flex-direction:column; gap:4px; flex:1;">
+                            <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                                <span style="background:${typeBg}; color:${typeColor}; border:1px solid ${typeColor}40; font-size:0.68rem; padding:2px 8px; border-radius:6px; font-weight:800;">${typeLabel}</span>
+                                <span style="font-weight:700; font-size:0.85rem; color:#0f172a;">${dateFormatted} · ${res.hora || ''}h</span>
+                            </div>
+                            <div style="font-size:0.8rem; color:#334155; font-weight:600;">
+                                ${res.servicio} <span style="color:#64748b; font-weight:500;">· 👥 ${res.pax || 1} pax</span>
+                            </div>
+                        </div>
+                        <span style="background:#dbeafe; color:#1e40af; font-size:0.68rem; font-weight:700; padding:3px 8px; border-radius:999px;">${isGym ? 'Consumido' : 'Validado'}</span>
+                    </div>`;
+            }
+
+            // Reserva estándar de Spa o Salas
+            let targetUrl = `reservas-spa.html?action=edit&id=${encodeURIComponent(res.id)}&date=${encodeURIComponent(res.fecha)}&embedded=1&modal=1`;
+            if (res._col !== 'reservas_spa') {
+                let moduleTypeForLink = 'cabinas';
                 if (res._col === 'reservas_suite') moduleTypeForLink = 'suite';
                 else if (res._col === 'reservas_panacea') moduleTypeForLink = 'panacea';
                 else if (res._col === 'reservas_vip') moduleTypeForLink = 'vip';
                 else if (res._col === 'reservas_peluqueria') moduleTypeForLink = 'peluqueria';
+                targetUrl = `reservas-salas.html?type=${moduleTypeForLink}&action=edit&id=${encodeURIComponent(res.id)}&date=${encodeURIComponent(res.fecha)}&embedded=1&modal=1`;
+            }
 
-                if (res._col === 'reservas_gimnasio' || res._col === 'reservas_complementos') {
-                    // Visualización específica para Gimnasio y Complementos (sin link, solo confirmación)
-                    const isGym = res._col === 'reservas_gimnasio';
-                    const sessionInfo = res.sesion_actual ? `Sesión ${res.sesion_actual} de ${res.sesiones_totales}` : '';
-                    const remainingInfo = (res.sesiones_restantes !== undefined) ? `Quedan ${res.sesiones_restantes}` : '';
-                    const paxInfo = res.pax || 1;
-                    const icon = isGym ? 'fa-check-double' : 'fa-gift';
-                    const iconColor = isGym ? '#10b981' : '#f59e0b';
+            const escapedSvc = String(res.servicio || '').replace(/'/g, "\\'");
+            const escapedBono = String(cleanBonoCode || '').replace(/'/g, "\\'");
 
-                    return `
-                    <div style="display:flex; justify-content:space-between; align-items:flex-start; padding: 12px 4px; border-bottom: 1px solid #f1f5f9;" title="Consumo Confirmado">
-                        <div style="flex: 1;">
-                            <div style="display:flex; align-items:center; gap: 8px; margin-bottom:4px;">
-                                <span style="background:${typeColor}; color:white; font-size:0.65rem; padding: 2px 6px; border-radius:4px; font-weight:700;">${typeLabel}</span>
-                                <div style="font-weight:600; font-size:0.9rem; color:#1e293b;">
-                                    ${date} - ${res.hora}h <i class="fas ${icon}" style="font-size:0.7em; color:${iconColor}; margin-left:4px;"></i>
-                                </div>
-                            </div>
-                            <div style="font-size:0.8rem; color:#475569; margin-bottom:4px;">
-                                ${res.servicio} <span style="color:#94a3b8; font-size:0.75rem;">(${paxInfo} pax)</span>
-                            </div>
-                            ${sessionInfo ? `
-                                <div style="display:flex; gap:10px; align-items:center; margin-top:4px;">
-                                    <span style="font-size:0.75rem; font-weight:700; color:#2563eb; background:#eff6ff; padding:2px 8px; border-radius:12px; border:1px solid #dbeafe;">
-                                        ${sessionInfo}
-                                    </span>
-                                    <span style="font-size:0.75rem; font-weight:600; color:#64748b;">
-                                        ${remainingInfo}
-                                    </span>
-                                </div>
-                            ` : ''}
+            return `
+                <a href="${targetUrl}"
+                   onclick="if (typeof openReservationDrawer === 'function') { openReservationDrawer('${targetUrl}', { service: '${escapedSvc}', code: '${escapedBono}' }); return false; }"
+                   target="GestSpa_VentanaReservas"
+                   style="text-decoration:none; background:#fff; border:1px solid #e2e8f0; border-radius:8px; padding:10px 14px; display:flex; justify-content:space-between; align-items:center; gap:12px; cursor:pointer; transition:all 0.15s;"
+                   onmouseover="this.style.borderColor='#93c5fd'; this.style.boxShadow='0 2px 8px rgba(14,165,233,0.1)'"
+                   onmouseout="this.style.borderColor='#e2e8f0'; this.style.boxShadow='none'"
+                   title="Hacer clic para abrir la ficha de esta reserva">
+                    <div style="display:flex; flex-direction:column; gap:4px; flex:1; min-width:0;">
+                        <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                            <span style="background:${typeBg}; color:${typeColor}; border:1px solid ${typeColor}40; font-size:0.68rem; padding:2px 8px; border-radius:6px; font-weight:800;">${typeLabel}</span>
+                            <span style="font-weight:700; font-size:0.85rem; color:#0f172a;">
+                                <i class="fas fa-calendar-day" style="color:#0ea5e9; margin-right:4px;"></i>${dateFormatted} · <i class="fas fa-clock" style="color:#0ea5e9; margin-right:3px;"></i>${res.hora || '--:--'}h
+                            </span>
+                            <span style="font-family:monospace; font-size:0.7rem; font-weight:700; background:#f1f5f9; color:#475569; padding:2px 6px; border-radius:4px; border:1px solid #e2e8f0;">${displayId}</span>
                         </div>
-                        <div style="text-align:right;">
-                            <div style="font-weight:700; font-size:0.9rem; color:#334155;">${precioDisplay}</div>
-                            <span class="badge badge-blue" style="font-size:0.65rem; margin-top:4px; display:inline-block;">${isGym ? 'CONSUMIDO' : 'VALIDADO'}</span>
+                        <div style="font-size:0.82rem; color:#334155; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                            ${res.servicio} <span style="color:#64748b; font-weight:500;">· 👥 ${res.pax || 1} pax${durTxt}${therapistTxt}</span>
                         </div>
                     </div>
-                    `;
-                }
-
-                const escapedSvc = (res.servicio || '').replace(/'/g, "\\'");
-                return `
-                    <a href="reservas.html?date=${res.fecha}&id=${res.id}&type=${moduleTypeForLink}&embedded=1" 
-                       onclick="if (typeof openReservationDrawer === 'function') { openReservationDrawer('reservas.html?date=${res.fecha}&id=${res.id}&type=${moduleTypeForLink}&embedded=1', { service: '${escapedSvc}', code: '${code}' }); return false; }"
-                       target="GestSpa_VentanaReservas" 
-                       style="text-decoration:none; display:flex; justify-content:space-between; align-items:center; padding: 10px 0; border-bottom: 1px solid #f1f5f9; cursor:pointer;" 
-                       title="Ver en Calendario">
-                        <div style="flex: 1;">
-                            <div style="display:flex; align-items:center; gap: 8px;">
-                                <span style="background:${typeColor}; color:white; font-size:0.65rem; padding: 2px 6px; border-radius:4px; font-weight:700;">${typeLabel}</span>
-                                <div style="font-weight:600; font-size:0.85rem; color:#1e293b;">
-                                    ${date} - ${res.hora}h <i class="fas fa-external-link-alt" style="font-size:0.7em; color:#94a3b8; margin-left:4px;"></i>
-                                </div>
-                            </div>
-                            <div style="font-size:0.75rem; color:#64748b; margin-top:2px;">
-                                ${res.servicio} (${res.pax} pax) <span style="color:#cbd5e1; margin-left:4px;">${displayId}</span>
-                            </div>
-                        </div>
-                        <div style="text-align:right;">
-                            <div style="font-weight:700; font-size:0.9rem; color:#334155;">${precioDisplay}</div>
-                            ${res.fecha < new Date().toISOString().split('T')[0]
-                        ? '<span class="badge badge-gray" style="font-size:0.65rem;">Pasada</span>'
-                        : '<span class="badge badge-green" style="font-size:0.65rem;">Activa</span>'}
-                        </div>
-                    </a>
-                    `;
-            }
+                    <div style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
+                        ${statusPill}
+                        <span style="background:#f8fafc; color:#0284c7; border:1px solid #bae6fd; font-size:0.72rem; font-weight:700; padding:4px 10px; border-radius:6px; display:inline-flex; align-items:center; gap:5px;">
+                            Ver <i class="fas fa-external-link-alt" style="font-size:0.65rem;"></i>
+                        </span>
+                    </div>
+                </a>`;
         }).join('');
 
         return allReservations;
 
     } catch (err) {
         console.error("Error loading history:", err);
-        document.getElementById("vm-history-loader").innerText = "(Error al cargar)";
+        const loaderEl = document.getElementById("vm-history-loader");
+        if (loaderEl) {
+            loaderEl.style.display = "inline";
+            loaderEl.innerText = "(Error al cargar historial)";
+        }
         return [];
     }
 }
