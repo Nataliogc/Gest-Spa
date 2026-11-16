@@ -366,6 +366,25 @@ window.fetchDailyRevenue = async function (dateStr) {
  * @param {Array} childItems - Array of objects: { name, space, collection, hora, duracion, pax }
  * @returns {Object} { parentId, childIds }
  */
+window.generateResCode = function () {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    let res = '';
+    for (let i = 0; i < 4; i++) res += chars.charAt(Math.floor(Math.random() * chars.length));
+    return `RS-${res}`;
+};
+
+function getCollectionForSpaceCore(space) {
+    const spaceNorm = String(space || "").toLowerCase().trim();
+    if (spaceNorm === 'gym' || spaceNorm === 'gimnasio') return "reservas_gimnasio";
+    if (spaceNorm === 'vip') return "reservas_vip";
+    if (spaceNorm === 'suite') return "reservas_suite";
+    if (spaceNorm === 'panacea') return "reservas_panacea";
+    if (spaceNorm === 'peluqueria') return "reservas_peluqueria";
+    if (spaceNorm === 'cabina') return "reservas_cabina1";
+    if (spaceNorm.startsWith('cabina')) return `reservas_${spaceNorm}`;
+    return "reservas_spa";
+}
+
 window.createPackReservations = async function (parentData, childItems) {
     if (!parentData || !childItems || childItems.length === 0) {
         throw new Error("createPackReservations: Missing parent data or child items.");
@@ -375,30 +394,42 @@ window.createPackReservations = async function (parentData, childItems) {
     const parentRef = db.collection("spa_reservas_packs").doc();
     const parentId = parentRef.id;
     const childIds = [];
+    const sharedResId = parentData.res_id || window.generateResCode();
+    const nowIso = new Date().toISOString();
+    const packTitle = parentData.servicio || parentData.service || "";
+
+    // Identify primary phase (therapy/room phase first, fallback to index 0)
+    let primaryIdx = childItems.findIndex(c => (c.space || '').toLowerCase() !== 'spa');
+    if (primaryIdx === -1) primaryIdx = 0;
 
     // Create parent document
     const parentPayload = {
         ...parentData,
+        res_id: sharedResId,
         is_pack_parent: true,
         childs: [], // Will be updated after child creation
-        created_at: new Date().toISOString(),
+        created_at: nowIso,
         status: parentData.status || 'confirmada'
     };
 
     // Create child documents
     childItems.forEach((child, index) => {
-        const childCollection = child.collection || "spa_reservas";
+        const childCollection = child.collection || getCollectionForSpaceCore(child.space);
         const childRef = db.collection(childCollection).doc();
         childIds.push(childRef.id);
+        const isPrimary = (index === primaryIdx);
 
         const childPayload = {
+            res_id: sharedResId,
             parent_id: parentId,
-            parent_service: parentData.servicio || parentData.service || "",
-            pack_name: parentData.servicio || parentData.service || "",
-            pack_origen: parentData.servicio || parentData.service || "",
-            pack_sequence_index: index,
+            parent_service: packTitle,
+            pack_name: packTitle,
+            pack_origen: packTitle,
+            pack_sequence_index: child.index !== undefined ? child.index : index,
             service_item: child.name,
             is_pack_element: true,
+            pack_children_synced: true,
+            collection: childCollection,
             nombre: parentData.nombre,
             tel: parentData.tel || "",
             fecha: child.fecha || parentData.fecha,
@@ -410,14 +441,32 @@ window.createPackReservations = async function (parentData, childItems) {
             hotel: parentData.hotel || "",
             hab: parentData.hab || "",
             bono: parentData.bono || "",
-            status: 'confirmada',
-            created_at: new Date().toISOString(),
-            // Child has NO payment info
+            localizador: parentData.bono || "",
+            obs: parentData.obs || "",
+            complementos: isPrimary ? (parentData.complementos || []) : [],
+            extras_info: isPrimary ? (parentData.extras_info || []) : [],
+            precio_pax: isPrimary ? (parseFloat(parentData.precio_pax) || 0) : 0,
+            precio_total: isPrimary ? (parseFloat(parentData.precio_total) || 0) : 0,
+            sesiones_consumidas: isPrimary ? (parseInt(parentData.sesiones_consumidas) || 1) : 0,
+            status: parentData.status || 'confirmada',
+            created_at: nowIso,
+            updated_at: nowIso
         };
+
+        if (isPrimary) {
+            if (parentData.payment) childPayload.payment = parentData.payment;
+            if (parentData.estado_pago) childPayload.estado_pago = parentData.estado_pago;
+            if (parentData.descuento_aplicado) {
+                childPayload.descuento_aplicado = true;
+                childPayload.descuento_tipo = parentData.descuento_tipo || 'porcentaje';
+                childPayload.descuento_valor = parentData.descuento_valor || 0;
+                childPayload.descuento_motivo = parentData.descuento_motivo || '';
+            }
+        }
 
         // Sala y terapeutas de la fase (solo si se han indicado para esa fase)
         if (child.space) childPayload.sala = child.space;
-        ['staff_id', 'staff_name', 'staff_id2', 'staff_name2', 'terapeuta'].forEach(k => {
+        ['staff_id', 'staff_name', 'staff_id2', 'staff_name2', 'terapeuta', 'terapeuta2'].forEach(k => {
             if (child[k]) childPayload[k] = child[k];
         });
 
@@ -430,9 +479,513 @@ window.createPackReservations = async function (parentData, childItems) {
 
     await batch.commit();
 
-    console.log(`[PACK] Created parent ${parentId} with ${childIds.length} children:`, childIds);
+    console.log(`[PACK] Created parent ${parentId} (${sharedResId}) with ${childIds.length} children:`, childIds);
 
-    return { parentId, childIds };
+    return { parentId, childIds, res_id: sharedResId };
+};
+
+/**
+ * Loads all sibling reservation documents belonging to the same pack as `res`.
+ */
+window.loadPackSiblingsForEdit = async function (res) {
+    if (!res || !window.db) return [];
+    const ALL_COLS = [
+        "reservas_spa", "reservas_suite", "reservas_panacea", "reservas_vip",
+        "reservas_peluqueria", "reservas_cabina1", "reservas_cabina2", "reservas_cabina3"
+    ];
+    const results = new Map();
+    if (res.id) {
+        results.set(res.id, { ...res, _collection: res.collection || res._collection || getCollectionForSpaceCore(res.sala) });
+    }
+
+    const parentId = res.parent_id || res.id;
+    const resIdCode = res.res_id || "";
+    const fecha = res.fecha || "";
+    const clientNorm = String(res.nombre || "").trim().toLowerCase();
+
+    try {
+        const queries = [];
+        ALL_COLS.forEach(col => {
+            if (parentId) {
+                queries.push(
+                    db.collection(col).where("parent_id", "==", parentId).get()
+                        .then(snap => snap.forEach(d => results.set(d.id, { id: d.id, _collection: col, ...d.data() })))
+                        .catch(() => {})
+                );
+            }
+            if (fecha) {
+                queries.push(
+                    db.collection(col).where("fecha", "==", fecha).get()
+                        .then(snap => {
+                            snap.forEach(d => {
+                                const data = d.data();
+                                if (data.status === 'anulada') return;
+                                const sameParent = parentId && (data.parent_id === parentId || d.id === parentId);
+                                const sameResId = resIdCode && resIdCode.startsWith('RS-') && data.res_id === resIdCode;
+                                const sameClientPack = clientNorm && String(data.nombre || "").trim().toLowerCase() === clientNorm &&
+                                    (data.is_pack_element || data.parent_id || data.pack_origen || (typeof window.isPackService === 'function' && window.isPackService(data.servicio)));
+                                if (sameParent || sameResId || sameClientPack) {
+                                    results.set(d.id, { id: d.id, _collection: col, ...data });
+                                }
+                            });
+                        })
+                        .catch(() => {})
+                );
+            }
+        });
+        await Promise.all(queries);
+    } catch (e) {
+        console.warn("[PACK SIBLINGS] Error loading siblings:", e);
+    }
+
+    return Array.from(results.values());
+};
+
+/**
+ * Updates/creates all phases of a multi-service pack when editing an existing reservation.
+ */
+window.syncPackReservationsOnEdit = async function (id, existingRes, payload, packItems, originalColl = null) {
+    if (!id || !payload || !Array.isArray(packItems) || packItems.length === 0) {
+        throw new Error("syncPackReservationsOnEdit: Missing arguments.");
+    }
+
+    const parentId = existingRes?.parent_id || id;
+    const sharedResId = existingRes?.res_id || payload.res_id || window.generateResCode();
+    const packTitle = payload.servicio || existingRes?.pack_origen || existingRes?.parent_service || "";
+    const nowIso = new Date().toISOString();
+
+    // Load any existing siblings so we update in-place rather than duplicating
+    const siblings = await window.loadPackSiblingsForEdit({ ...existingRes, ...payload, id, parent_id: parentId, res_id: sharedResId });
+
+    // Determine which packItem corresponds to the currently edited document `id`
+    let primaryItem = packItems.find(it => it.existingDocId === id);
+    if (!primaryItem) {
+        const curRoom = String(payload.sala || "").toLowerCase();
+        primaryItem = packItems.find(it => String(it.space || "").toLowerCase() === curRoom || it.collection === payload.collection);
+    }
+    if (!primaryItem) {
+        primaryItem = packItems.find(it => String(it.space || "").toLowerCase() !== 'spa') || packItems[0];
+    }
+
+    const batch = db.batch();
+    const childIds = [];
+
+    for (const item of packItems) {
+        const idx = item.index !== undefined ? item.index : packItems.indexOf(item);
+        const itemColl = item.collection || getCollectionForSpaceCore(item.space);
+        const isPrimaryDoc = (item === primaryItem);
+
+        // Find if a sibling document already exists for this phase
+        let matchedSibling = null;
+        if (isPrimaryDoc) {
+            matchedSibling = { id, _collection: originalColl || payload.collection || itemColl };
+        } else if (item.existingDocId) {
+            matchedSibling = siblings.find(s => s.id === item.existingDocId) || { id: item.existingDocId, _collection: item.existingCollection || itemColl };
+        } else {
+            matchedSibling = siblings.find(s =>
+                s.id !== id && (
+                    s.pack_sequence_index === idx ||
+                    String(s.service_item || s.servicio || "").toLowerCase() === String(item.name || "").toLowerCase() ||
+                    (s._collection === itemColl && String(item.space || "").toLowerCase() === 'spa')
+                )
+            );
+        }
+
+        const targetDocId = isPrimaryDoc ? id : (matchedSibling ? matchedSibling.id : `${parentId}_phase_${idx}`);
+        const prevColl = matchedSibling ? matchedSibling._collection : itemColl;
+
+        if (item.active === false) {
+            if (matchedSibling) {
+                batch.update(db.collection(prevColl).doc(targetDocId), {
+                    status: 'anulada',
+                    cancelled_at: nowIso,
+                    updated_at: nowIso
+                });
+            }
+            continue;
+        }
+
+        childIds.push(targetDocId);
+        const needsStaff = (item.terapeutas !== undefined ? item.terapeutas > 0 : String(item.space || "").toLowerCase() !== 'spa');
+
+        const itemPayload = {
+            ...(isPrimaryDoc ? payload : {}),
+            res_id: sharedResId,
+            parent_id: parentId,
+            parent_service: packTitle,
+            pack_name: packTitle,
+            pack_origen: packTitle,
+            pack_sequence_index: idx,
+            service_item: item.name,
+            servicio: isPrimaryDoc ? (item.name || payload.servicio) : item.name,
+            is_pack_element: true,
+            pack_children_synced: true,
+            collection: itemColl,
+            sala: item.space || (isPrimaryDoc ? payload.sala : "spa"),
+            nombre: payload.nombre,
+            tel: payload.tel || "",
+            fecha: item.fecha || payload.fecha,
+            hora: item.hora || payload.hora,
+            duracion: parseInt(item.duracion) || (isPrimaryDoc ? payload.duracion : 60) || 60,
+            pax: payload.pax || 2,
+            origen: payload.origen,
+            hotel: payload.hotel || "",
+            hab: payload.hab || "",
+            bono: payload.bono || "",
+            localizador: payload.bono || "",
+            obs: payload.obs || "",
+            status: payload.status || 'confirmada',
+            updated_at: nowIso
+        };
+
+        if (!isPrimaryDoc) {
+            itemPayload.precio_pax = 0;
+            itemPayload.precio_total = 0;
+            itemPayload.sesiones_consumidas = 0;
+            if (!matchedSibling) itemPayload.created_at = nowIso;
+        }
+
+        if (needsStaff) {
+            itemPayload.staff_id = item.staff_id || payload.staff_id || null;
+            itemPayload.staff_name = item.staff_name || payload.staff_name || null;
+            itemPayload.staff_id2 = item.staff_id2 || payload.staff_id2 || null;
+            itemPayload.staff_name2 = item.staff_name2 || payload.staff_name2 || null;
+            itemPayload.terapeuta = item.terapeuta || payload.terapeuta || "";
+            itemPayload.terapeuta2 = item.terapeuta2 || payload.terapeuta2 || "";
+        } else {
+            itemPayload.staff_id = null;
+            itemPayload.staff_name = null;
+            itemPayload.staff_id2 = null;
+            itemPayload.staff_name2 = null;
+            itemPayload.terapeuta = "";
+            itemPayload.terapeuta2 = "";
+        }
+
+        if (prevColl && prevColl !== itemColl) {
+            batch.set(db.collection(itemColl).doc(targetDocId), itemPayload, { merge: true });
+            batch.delete(db.collection(prevColl).doc(targetDocId));
+        } else {
+            batch.set(db.collection(itemColl).doc(targetDocId), itemPayload, { merge: true });
+        }
+    }
+
+    // Update or create pack parent record
+    const parentRef = db.collection("spa_reservas_packs").doc(parentId);
+    batch.set(parentRef, {
+        ...payload,
+        res_id: sharedResId,
+        servicio: packTitle,
+        is_pack_parent: true,
+        childs: childIds,
+        updated_at: nowIso
+    }, { merge: true });
+
+    await batch.commit();
+    console.log(`[PACK EDIT SYNC] Synced pack ${parentId} (${sharedResId}) across ${childIds.length} active items:`, childIds);
+    return { parentId, childIds, res_id: sharedResId };
+};
+
+/**
+ * Automatically ensures that any single-document multi-service Pack reservation on `date`
+ * (e.g. "PACK - Experiencia SPA en pareja" saved only in `reservas_vip`) has its companion
+ * phase reservation(s) (e.g. "Circuito Spa" at 17:00 in `reservas_spa`) created in Firestore.
+ */
+window.ensurePackChildrenSyncedForDate = async function (date) {
+    if (!date || !window.db) return [];
+    const findPack = window.findPackDefinition;
+    if (typeof findPack !== 'function') return [];
+
+    const ROOM_COLS = [
+        "reservas_vip", "reservas_panacea", "reservas_suite",
+        "reservas_cabina1", "reservas_cabina2", "reservas_cabina3", "reservas_spa"
+    ];
+
+    try {
+        const snaps = await Promise.all(ROOM_COLS.map(col => db.collection(col).where("fecha", "==", date).get()));
+        const allDocs = [];
+        snaps.forEach((snap, idx) => {
+            const col = ROOM_COLS[idx];
+            snap.forEach(doc => {
+                allDocs.push({ id: doc.id, _col: col, ...doc.data() });
+            });
+        });
+
+        const createdCompanions = [];
+
+        for (const r of allDocs) {
+            if (r.status === 'anulada' || r.status === 'cancelled') continue;
+            if (r.pack_children_synced) continue;
+
+            const rawSvc = r.pack_origen || r.parent_service || r.servicio || "";
+            const packDef = findPack(rawSvc);
+            if (!packDef || packDef.categoria === 'ritual' || !Array.isArray(packDef.secuencia) || packDef.secuencia.length <= 1) {
+                continue;
+            }
+
+            // Compute times for each phase using the exact same rule as updatePackInfo()
+            const seq = packDef.secuencia;
+            const hasSpaPhase = seq.some(it => String(it.espacio || '').toLowerCase() === 'spa');
+            const therapyIndices = [];
+            seq.forEach((it, idx) => {
+                if (String(it.espacio || '').toLowerCase() !== 'spa' && it.requires_therapist !== false) {
+                    therapyIndices.push(idx);
+                }
+            });
+            const firstTherapyIdx = therapyIndices.length > 0 ? therapyIndices[0] : -1;
+
+            const baseTime = String(r.hora || "10:00").replace(/h$/i, '').trim();
+            const [bH, bM] = baseTime.split(':').map(Number);
+            const baseMin = (isNaN(bH) ? 10 : bH) * 60 + (isNaN(bM) ? 0 : bM);
+
+            const computedTimes = [];
+            if (hasSpaPhase && firstTherapyIdx !== -1 && r._col !== 'reservas_spa') {
+                let runningTherapyMin = baseMin;
+                let totalTherapyDuration = 0;
+                therapyIndices.forEach(tIdx => {
+                    const h = Math.floor(runningTherapyMin / 60) % 24;
+                    const m = runningTherapyMin % 60;
+                    computedTimes[tIdx] = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+                    const dur = parseInt(seq[tIdx].duracion) || 30;
+                    runningTherapyMin += dur;
+                    totalTherapyDuration += dur;
+                });
+
+                const obsLower = String(r.obs || r.observaciones || "").toLowerCase();
+                const forceAfter = /despu[eé]s\s*spa|spa\s*despu[eé]s/i.test(obsLower);
+                const forceBefore = /antes\s*spa|spa\s*antes/i.test(obsLower);
+
+                seq.forEach((it, idx) => {
+                    if (String(it.espacio || '').toLowerCase() === 'spa') {
+                        if (!forceAfter && (forceBefore || (idx < firstTherapyIdx && baseMin >= 11 * 60))) {
+                            const prevSlotMin = Math.floor((baseMin - 60) / 60) * 60;
+                            const pH = Math.floor(prevSlotMin / 60) % 24;
+                            computedTimes[idx] = `${String(pH).padStart(2, '0')}:00`;
+                        } else {
+                            const endTherapyMin = baseMin + totalTherapyDuration;
+                            const nextSlotMin = Math.ceil(endTherapyMin / 60) * 60;
+                            const nH = Math.floor(nextSlotMin / 60) % 24;
+                            computedTimes[idx] = `${String(nH).padStart(2, '0')}:00`;
+                        }
+                    }
+                });
+            } else {
+                let cumMin = 0;
+                seq.forEach((it, idx) => {
+                    const totalMin = baseMin + cumMin;
+                    const h = Math.floor(totalMin / 60) % 24;
+                    const m = totalMin % 60;
+                    computedTimes[idx] = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+                    cumMin += (parseInt(it.duracion) || 60) + 15;
+                });
+            }
+
+            // Identify which phase `r` itself represents
+            const rSpace = String(r.sala || r._col.replace('reservas_', '')).toLowerCase();
+            let myPhaseIdx = seq.findIndex(it => {
+                const sp = String(it.espacio || '').toLowerCase();
+                if (sp === rSpace) return true;
+                if (['panacea', 'vip', 'suite'].includes(sp) && ['panacea', 'vip', 'suite'].includes(rSpace)) return true;
+                if (sp === 'cabina' && rSpace.startsWith('cabina')) return true;
+                return false;
+            });
+            if (myPhaseIdx === -1) myPhaseIdx = firstTherapyIdx !== -1 ? firstTherapyIdx : 0;
+
+            const parentId = r.parent_id || r.id;
+            const sharedResId = r.res_id || window.generateResCode();
+            const packTitle = rawSvc.toUpperCase().startsWith('PACK') ? rawSvc : `PACK - ${packDef.nombre}`;
+            const clientNorm = String(r.nombre || "").trim().toLowerCase();
+
+            // Recover bono code if missing
+            let effectiveBono = String(r.bono || r.localizador || r.num_bono || r.voucher || "").trim();
+            if (!effectiveBono && typeof window.recoverMissingBonoCode === 'function') {
+                effectiveBono = await window.recoverMissingBonoCode(r, r._col);
+            }
+
+            const batch = db.batch();
+            let didWrite = false;
+
+            for (let idx = 0; idx < seq.length; idx++) {
+                if (idx === myPhaseIdx) continue;
+                const phase = seq[idx];
+                const phaseSpace = String(phase.espacio || 'spa').toLowerCase();
+                const phaseColl = getCollectionForSpaceCore(phaseSpace);
+                const companionId = `${parentId}_phase_${idx}`;
+
+                // Check if companion already exists in allDocs
+                const alreadyExists = allDocs.some(d =>
+                    d.id !== r.id &&
+                    d.status !== 'anulada' &&
+                    d._col === phaseColl && (
+                        d.id === companionId ||
+                        (d.parent_id && d.parent_id === parentId) ||
+                        (sharedResId && d.res_id === sharedResId) ||
+                        (clientNorm && String(d.nombre || "").trim().toLowerCase() === clientNorm)
+                    )
+                );
+
+                if (!alreadyExists) {
+                    const nowIso = new Date().toISOString();
+                    const companionPayload = {
+                        res_id: sharedResId,
+                        parent_id: parentId,
+                        parent_service: packTitle,
+                        pack_name: packTitle,
+                        pack_origen: packTitle,
+                        pack_sequence_index: idx,
+                        service_item: phase.nombre,
+                        servicio: phase.nombre,
+                        is_pack_element: true,
+                        pack_children_synced: true,
+                        collection: phaseColl,
+                        sala: phaseSpace,
+                        nombre: r.nombre || "",
+                        tel: r.tel || "",
+                        fecha: r.fecha,
+                        hora: computedTimes[idx] || r.hora,
+                        duracion: parseInt(phase.duracion) || 60,
+                        pax: parseInt(r.pax) || packDef.pax || 2,
+                        origen: r.origen || "particular",
+                        hotel: r.hotel || "",
+                        hab: r.hab || "",
+                        bono: effectiveBono,
+                        localizador: effectiveBono,
+                        obs: r.obs || "",
+                        precio_pax: 0,
+                        precio_total: 0,
+                        sesiones_consumidas: 0,
+                        status: r.status || 'confirmada',
+                        created_at: r.created_at || nowIso,
+                        updated_at: nowIso
+                    };
+                    batch.set(db.collection(phaseColl).doc(companionId), companionPayload, { merge: true });
+                    createdCompanions.push({ id: companionId, _col: phaseColl, ...companionPayload });
+                    allDocs.push({ id: companionId, _col: phaseColl, ...companionPayload });
+                    didWrite = true;
+                }
+            }
+
+            // Mark `r` as synced so we don't re-process it
+            const myPhase = seq[myPhaseIdx];
+            const rUpdates = {
+                res_id: sharedResId,
+                parent_id: parentId,
+                parent_service: packTitle,
+                pack_name: packTitle,
+                pack_origen: packTitle,
+                pack_sequence_index: myPhaseIdx,
+                service_item: myPhase ? myPhase.nombre : (r.service_item || r.servicio),
+                is_pack_element: true,
+                pack_children_synced: true
+            };
+            if (effectiveBono && !r.bono) {
+                rUpdates.bono = effectiveBono;
+                rUpdates.localizador = effectiveBono;
+            }
+            batch.update(db.collection(r._col).doc(r.id), rUpdates);
+            didWrite = true;
+
+            if (didWrite) {
+                await batch.commit();
+                console.log(`[PACK AUTO-SYNC] Synced missing pack phase(s) for ${r.nombre} (${sharedResId}) on ${date}`);
+            }
+        }
+
+        return createdCompanions;
+    } catch (err) {
+        console.warn("[PACK AUTO-SYNC] Error syncing pack children for date:", date, err);
+        return [];
+    }
+};
+
+/**
+ * Recovers a missing voucher/bono code for a reservation by checking alternate fields,
+ * parent pack document, observations, or matching client name in `spa_vouchers`.
+ */
+let _voucherRecoveryCache = null;
+window.recoverMissingBonoCode = async function (res, targetColl = null) {
+    if (!res) return "";
+    const direct = String(
+        res.bono || res.localizador || res.num_bono || res.voucher ||
+        res.bono_id || res.codigo_bono || res.campoBono || res.referencia || ""
+    ).trim();
+    if (direct) return direct;
+
+    // 1. Check observations for an explicit code
+    const obs = String(res.obs || res.observaciones || "");
+    const obsMatch = obs.match(/\b(LOC-[A-Z0-9-]+|WC-?\d{3,}|\d{5,}\/\d+|\d{4,}-\d+)\b/i);
+    if (obsMatch && obsMatch[1]) {
+        return obsMatch[1].trim();
+    }
+
+    if (!window.db) return "";
+
+    // 2. Check parent pack document if parent_id exists
+    if (res.parent_id) {
+        try {
+            const pDoc = await db.collection("spa_reservas_packs").doc(res.parent_id).get();
+            if (pDoc.exists) {
+                const pd = pDoc.data();
+                const pCode = String(pd.bono || pd.localizador || pd.num_bono || pd.voucher || "").trim();
+                if (pCode) return pCode;
+            }
+        } catch (e) {}
+    }
+
+    // 3. If origin is bono, look up in `spa_vouchers` by client name
+    const rawOrigin = String(res.origen || res.origin || "").toLowerCase();
+    const clientName = String(res.nombre || res.cliente || "").trim();
+    if (!clientName || (!rawOrigin.includes('bono') && !rawOrigin.includes('voucher'))) {
+        return "";
+    }
+
+    try {
+        if (!_voucherRecoveryCache) {
+            const snap = await db.collection("spa_vouchers").get();
+            _voucherRecoveryCache = [];
+            snap.forEach(doc => {
+                _voucherRecoveryCache.push({ _id: doc.id, ...doc.data() });
+            });
+        }
+
+        const normStr = (s) => String(s || "")
+            .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+            .toLowerCase().replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
+
+        const targetClient = normStr(clientName);
+        if (!targetClient || targetClient.length < 3) return "";
+
+        const candidates = _voucherRecoveryCache.filter(v => {
+            if (v.estado === 'anulado') return false;
+            const vClient = normStr(v.cliente || v.comprador || v.beneficiario || v.nombre || "");
+            if (!vClient) return false;
+            return vClient === targetClient || vClient.includes(targetClient) || targetClient.includes(vClient);
+        });
+
+        if (candidates.length === 0) return "";
+
+        // Prefer candidate matching the reservation's service or pack name
+        const targetSvc = normStr(res.pack_origen || res.parent_service || res.servicio || "").replace(/^pack\s+/, "");
+        let best = candidates[0];
+        if (candidates.length > 1 && targetSvc) {
+            const svcMatched = candidates.find(v => {
+                const vp = normStr(v.producto || v.nombre || "");
+                return vp && (vp.includes(targetSvc) || targetSvc.includes(vp));
+            });
+            if (svcMatched) best = svcMatched;
+        }
+
+        const recovered = String(best.bono || best.codigo || best.localizador || best._id || "").trim();
+        if (recovered && res.id) {
+            const colToUpdate = targetColl || res.collection || res._collection || getCollectionForSpaceCore(res.sala);
+            if (colToUpdate) {
+                db.collection(colToUpdate).doc(res.id).update({ bono: recovered, localizador: recovered }).catch(() => {});
+            }
+        }
+        return recovered;
+    } catch (e) {
+        console.warn("[BONO RECOVERY] Error searching spa_vouchers:", e);
+        return "";
+    }
 };
 
 /**

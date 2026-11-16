@@ -12,14 +12,23 @@
         set('res-sesiones', 1);
         const select = doc.getElementById('res-servicio');
         if (service && select) {
-            if (!Array.from(select.options).some(option => option.value === service)) {
+            const cleanTarget = String(service).replace(/^PACK\s*[-–—:]\s*/i, '').trim().toLowerCase();
+            const existingOpt = Array.from(select.options).find(option => {
+                const optVal = String(option.value || '').trim();
+                const optClean = optVal.replace(/^PACK\s*[-–—:]\s*/i, '').trim().toLowerCase();
+                return optVal === service || optVal.toLowerCase() === String(service).trim().toLowerCase() || (cleanTarget && optClean === cleanTarget);
+            });
+            if (existingOpt) {
+                select.value = existingOpt.value;
+                set('res-servicio-search', existingOpt.value);
+            } else {
                 const option = doc.createElement('option');
                 option.value = service;
                 option.textContent = service;
                 select.appendChild(option);
+                select.value = service;
+                set('res-servicio-search', service);
             }
-            select.value = service;
-            set('res-servicio-search', service);
         }
         const notice = doc.getElementById('bono-saldo-notice');
         if (notice) {
