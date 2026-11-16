@@ -507,7 +507,7 @@
     <div class="sidebar">
         <div style="display: flex; align-items: center; gap: 15px;">
             <img src="logo-spa.jpg" alt="Cumbria Bienestar" style="height: 65px; width: auto; object-fit: contain;">
-            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.47 (16/11/2026)">v2.3.47</span>
+            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.48 (16/11/2026)">v2.3.48</span>
         </div>
 
         <ul class="nav-links" style="flex:1;">
@@ -732,6 +732,14 @@
             updateDateDisplay();
             await Promise.all([loadColors(), loadRoomNames()]);
             await renderGrid();
+
+            // Pre-calentar iframe de formulario de salas para apertura instantánea (<20ms)
+            setTimeout(() => {
+                const frame = document.getElementById('quick-form-frame');
+                if (frame && (!frame.src || frame.src === 'about:blank' || frame.src.endsWith('about:blank'))) {
+                    frame.src = 'reservas-salas.html?type=cabinas&embedded=1&modal=1&prewarm=1';
+                }
+            }, 350);
 
             // Refresco automático cada minuto (oscurece turnos que van pasando y trae reservas nuevas)
             setInterval(() => {
@@ -1252,10 +1260,25 @@
         // === FORMULARIO DIRECTO (sin panel lateral) ===
         // Carga reservas-salas en modo "solo formulario" (modal=1) en una capa transparente
         // a pantalla completa: el usuario ve directamente la ficha de reserva sobre el planning.
-        function openQuickForm(url) {
+        function openQuickForm(url, bookingObj = null, modType = null) {
             const layer = document.getElementById('quick-form-layer');
             const frame = document.getElementById('quick-form-frame');
             const loader = document.getElementById('quick-form-loader');
+            clearInterval(window._qfPoll);
+
+            // Vía instantánea: si el iframe ya está pre-calentado y abrimos una reserva existente,
+            // abrimos la ficha síncronamente sin recargar el iframe ni mostrar "Abriendo reserva..."
+            if (bookingObj && frame && frame.contentWindow && frame.contentWindow._gestSpaQuickModalReady && typeof frame.contentWindow.openQuickEditDirectly === 'function') {
+                loader.style.display = 'none';
+                layer.style.display = 'block';
+                try {
+                    frame.contentWindow.openQuickEditDirectly(bookingObj, modType || 'cabinas');
+                    return;
+                } catch (err) {
+                    console.warn("Fallback a recarga de iframe en Ocupación:", err);
+                }
+            }
+
             loader.style.display = 'flex';
             frame.onload = null;
             frame.src = url;
@@ -1263,7 +1286,6 @@
 
             // Ocultar el "Abriendo reserva..." en cuanto la ficha está visible.
             // Si no llega a abrirse (p.ej. turno no válido), se cierra la capa para no bloquear el planning.
-            clearInterval(window._qfPoll);
             const started = Date.now();
             window._qfPoll = setInterval(() => {
                 if (layer.style.display === 'none') return clearInterval(window._qfPoll);
@@ -1279,16 +1301,26 @@
                     clearInterval(window._qfPoll);
                     closeQuickForm(false);
                 }
-            }, 100);
+            }, 40);
         }
 
-        function closeQuickForm(refresh = true) {
+        function closeQuickForm(refresh = false) {
+            clearInterval(window._qfPoll);
             const layer = document.getElementById('quick-form-layer');
             const frame = document.getElementById('quick-form-frame');
             if (layer.style.display === 'none') return;
             layer.style.display = 'none';
-            frame.src = 'about:blank';
-            if (refresh) setTimeout(() => renderGrid(true), 300);
+            try {
+                if (frame && frame.contentDocument) {
+                    const m = frame.contentDocument.getElementById('booking-modal');
+                    if (m) m.style.display = 'none';
+                }
+            } catch (e) {}
+            // Mantener vivo el iframe si ya está pre-calentado (y no venimos de una URL con action=new sin prewarm)
+            if (frame && (!frame.contentWindow || !frame.contentWindow._gestSpaQuickModalReady)) {
+                frame.src = 'reservas-salas.html?type=cabinas&embedded=1&modal=1&prewarm=1';
+            }
+            if (refresh) setTimeout(() => renderGrid(true), 150);
         }
 
         window.addEventListener('message', (event) => {
@@ -1312,12 +1344,12 @@
                 }
                 Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: `Reserva guardada${d.cliente ? ' · ' + d.cliente : ''}`, showConfirmButton: false, timer: 3000 });
             } else if (d.type === 'GEST_SPA_CLOSE_DRAWER') {
-                closeQuickForm(true);
+                closeQuickForm(!!d.refresh);
             }
         });
 
         window.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape') closeQuickForm(true);
+            if (e.key === 'Escape') closeQuickForm(false);
         });
 
         function newBookingForStaff(idx, time) {
@@ -1336,8 +1368,16 @@
         function openEdit(b) {
             const url = editUrlFor(b);
             const isSpa = (b._collection || '') === 'reservas_spa';
-            // Reservas de salas: abrir directamente la ficha de reserva
-            if (!isSpa) return openQuickForm(url + '&modal=1');
+            const mod = (b._collection || '').replace('reservas_', '');
+            try {
+                sessionStorage.setItem('quickEditReservationData', JSON.stringify({
+                    ...b,
+                    collection: b.collection || b._collection || `reservas_${mod || 'cabinas'}`,
+                    _moduleCode: mod || 'cabinas'
+                }));
+            } catch (e) {}
+            // Reservas de salas: abrir directamente la ficha de reserva al instante
+            if (!isSpa) return openQuickForm(url + '&modal=1', b, mod);
             // Circuito SPA (módulo aparte): se mantiene el panel lateral
             const info = { service: b.servicio || 'Reserva', client: b.nombre || '', type: 'spa' };
             if (typeof openReservationDrawer === 'function') {
