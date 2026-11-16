@@ -1912,21 +1912,26 @@
             }
 
             // Manejar salto a reserva específica
-            const resId = urlParams.get('res_id');
+            const resId = urlParams.get('res_id') || urlParams.get('id');
             if (resId) {
                 const targetRes = currentData.find(r => r.id === resId);
                 if (targetRes) {
-                    selectSlot(targetRes.hora, false, false);
-                    setTimeout(() => {
-                        const row = document.getElementById(`res-${resId}`);
-                        if (row) {
-                            row.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                            row.style.background = "rgba(212, 175, 55, 0.2)";
-                            setTimeout(() => row.style.background = "", 3000);
-                        }
-                        // Abrir modal automáticamente
-                        editBooking(resId);
-                    }, 600);
+                    const isModalOnlyOpen = document.documentElement.classList.contains('is-modal-only') || urlParams.get('modal') === '1';
+                    if (isModalOnlyOpen && typeof window.autoOpenBookingFromUrl === 'function') {
+                        window.autoOpenBookingFromUrl(resId, targetRes);
+                    } else {
+                        selectSlot(targetRes.hora, false, false);
+                        setTimeout(() => {
+                            const row = document.getElementById(`res-${resId}`);
+                            if (row) {
+                                row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                row.style.background = "rgba(212, 175, 55, 0.2)";
+                                setTimeout(() => row.style.background = "", 3000);
+                            }
+                            // Abrir modal automáticamente
+                            editBooking(resId);
+                        }, 600);
+                    }
                 }
             }
 
@@ -8509,7 +8514,9 @@
             if (dateParam) {
                 picker.value = dateParam;
                 // Wait slight for date picker to be ready if needed
-                if (action !== 'new') setTimeout(() => handleDateChange(dateParam), 100);
+                if (action !== 'new' && action !== 'edit' && !urlParams.get('res_id') && !urlParams.get('id')) {
+                    setTimeout(() => handleDateChange(dateParam), 100);
+                }
             } else if (picker && picker.value) {
                 updateDateDisplay(picker.value);
             }

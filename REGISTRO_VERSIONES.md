@@ -8,7 +8,7 @@ Este documento mantiene el **control de versión única y global** para todo el 
 
 | Parámetro | Valor Actual |
 | :--- | :--- |
-| **Versión Global del Sistema** | **`v2.3.47`** |
+| **Versión Global del Sistema** | **`v2.3.48`** |
 | **Fecha de Última Actualización** | **16/11/2026** |
 | **Estado General** | Operativo en Producción |
 
@@ -47,6 +47,16 @@ Cualquier cambio en los siguientes módulos impacta en la versión global:
 ---
 
 ## 📝 Historial Unificado de Versiones
+
+### [v2.3.48] - 16/11/2026
+- **Tipo:** PATCH
+- **Archivos:** `index.html`, `js/dashboard.js`, `js/app-core.js`, `js/voucher-booking-context.js`, `reservas-salas.html`, `reservas-spa.html`, `reservas.html`, `firebase-config.js`, `version.json`, `package.json`
+- **Descripción:** Sincronización integral de Packs Multiservicio, retorno directo al Panel al cerrar reservas, resolución exacta de orígenes (Smartbox/Wonderbox/Groupon/Ego vs Bono) y recuperación automática de número de bono:
+  1. **Desglose y Sincronización Real de Packs Multiservicio (Creación, Edición y Auto-reparación):** Se corrigió la condición `&& !id` en `handleFormSubmit` que impedía crear o actualizar el segundo servicio (ej. `Circuito Spa` a las 17:00) al editar un pack existente, y se añadió `ensurePackChildrenSyncedForDate` para generar automáticamente en `reservas_spa` las fases de Circuito Spa pendientes de packs ya agendados en sala (como `RS-BFKM` y `RS-8Q3I`), mostrándolas tanto en el Panel como en `Rva Circuito Spa`.
+  2. **Consulta desde el Panel con Retorno al Cerrar:** Al pulsar el icono de consulta (ojo) en el Panel (`index.html`), la ficha de reserva se abre en capa modal directa sobre el propio Panel y, al pulsar `CERRAR`, `SALIR`, `Escape` o `GUARDAR RESERVA`, vuelve inmediatamente al Panel manteniendo la fecha y filtros activos y refrescando los datos.
+  3. **Prioridad de Orígenes Externos (Smartbox, Wonderbox, Groupon, Ego) en el Panel:** Se corrigió en `js/dashboard.js` el orden de evaluación del origen para que la presencia de código de cupón en `bono` (ej. `267952730/529` en `RS-S01S`) no sobreescriba el origen `Smartbox` como `BONO`.
+  4. **Recuperación y Persistencia del Número de Bono (`BONO/CUPÓN`):** Se corrigió la limpieza prematura de `pendingVoucherBooking` al abrir reservas desde URL y se implementó `recoverMissingBonoCode` para recuperar automáticamente desde `spa_vouchers` (o campos alternativos `localizador`, `num_bono`, `voucher`) el código de bono en reservas de `Bono Spa (Interno)`.
+  5. **Exclusión de Servicios Únicos del Bloque Pack Multiservicio:** Sincronizada la validación `displayItems.length <= 1` en `reservas.html` y `reservas-spa.html` para que servicios de 1 sola fase (como `Masaje en Pareja - 60'`) no muestren el bloque `PACK MULTISERVICIO (1 servicio)`.
 
 ### [v2.3.47] - 16/11/2026
 - **Tipo:** PATCH
