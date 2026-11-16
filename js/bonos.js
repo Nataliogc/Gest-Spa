@@ -4546,11 +4546,15 @@ async function saveVoucherChanges() {
             const allItemsComplete = updates.items_desglosados.every(item => (item.used || 0) >= (item.sessions || item.sesiones || 1));
             const anyItemUsed = updates.items_desglosados.some(item => (item.used || 0) > 0);
             const itemsUsedSum = updates.items_desglosados.reduce((sum, item) => sum + (item.used || 0), 0);
+            const prevUsed = v ? (v.sesiones_usadas || 0) : 0;
+            const prevItemsUsed = (v && Array.isArray(v.items_desglosados))
+                ? v.items_desglosados.reduce((sum, item) => sum + (item.used || 0), 0)
+                : 0;
 
-            if (!allItemsComplete && (!v || v.estado !== 'completed') && updates.sesiones_usadas > itemsUsedSum) {
+            if (!allItemsComplete && (!v || v.estado !== 'completed') && updates.sesiones_usadas > prevUsed && (updates.sesiones_usadas - prevUsed) > (itemsUsedSum - prevItemsUsed)) {
                 if (typeof notifyManualRedemptionBlocked === 'function') notifyManualRedemptionBlocked();
                 const usedInput = document.getElementById("vm-sesiones-usadas");
-                if (usedInput) usedInput.value = itemsUsedSum;
+                if (usedInput) usedInput.value = prevUsed + Math.max(0, itemsUsedSum - prevItemsUsed);
                 return;
             }
 
