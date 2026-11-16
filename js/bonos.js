@@ -4541,32 +4541,47 @@ async function saveVoucherChanges() {
         // Priority: If already cancelled, preserve 'anulado'
         if (v && v.estado === 'anulado') {
             updates.estado = 'anulado';
+        } else if (updates.items_desglosados && updates.items_desglosados.length > 0) {
+            // PACK / DESGLOSE: Solo puede estar completado si TODOS los items tienen sus reservas/validaciones individuales
+            const allItemsComplete = updates.items_desglosados.every(item => (item.used || 0) >= (item.sessions || item.sesiones || 1));
+            const anyItemUsed = updates.items_desglosados.some(item => (item.used || 0) > 0);
+            const itemsUsedSum = updates.items_desglosados.reduce((sum, item) => sum + (item.used || 0), 0);
+
+            if (!allItemsComplete && (!v || v.estado !== 'completed') && updates.sesiones_usadas > itemsUsedSum) {
+                if (typeof notifyManualRedemptionBlocked === 'function') notifyManualRedemptionBlocked();
+                const usedInput = document.getElementById("vm-sesiones-usadas");
+                if (usedInput) usedInput.value = itemsUsedSum;
+                return;
+            }
+
+            if (allItemsComplete) {
+                updates.estado = 'completed';
+            } else if (v && v.estado === 'completed') {
+                // Preservar estado previo en bonos ya completados históricamente al editar otros datos
+                updates.estado = 'completed';
+            } else if (anyItemUsed) {
+                updates.estado = 'partially';
+            } else {
+                updates.estado = (v && v.estado) ? v.estado : 'pending';
+            }
         } else {
-            // Priority: If Global Counters say Completed (Used >= Total), force Completed.
+            // Sin desglose de items: impedir incrementar sesiones usadas manualmente sin reserva
+            if ((!v || v.estado !== 'completed') && updates.sesiones_usadas > (v?.sesiones_usadas || 0)) {
+                if (typeof notifyManualRedemptionBlocked === 'function') notifyManualRedemptionBlocked();
+                const usedInput = document.getElementById("vm-sesiones-usadas");
+                if (usedInput) usedInput.value = v?.sesiones_usadas || 0;
+                return;
+            }
+
             const globalComplete = updates.sesiones_usadas >= updates.sesiones_totales && updates.sesiones_totales > 0;
             const globalPartial = updates.sesiones_usadas > 0;
 
             if (globalComplete) {
                 updates.estado = 'completed';
-            } else if (updates.items_desglosados && updates.items_desglosados.length > 0) {
-                // PACK: Completo solo si TODOS los items están completos (y global no forzó completado)
-                const allItemsComplete = updates.items_desglosados.every(item => (item.used || 0) >= (item.sessions || 1));
-                const anyItemUsed = updates.items_desglosados.some(item => (item.used || 0) > 0);
-
-                if (allItemsComplete) {
-                    updates.estado = 'completed';
-                } else if (anyItemUsed) {
-                    updates.estado = 'partially';
-                } else {
-                    updates.estado = (v && v.estado) ? v.estado : 'pending';
-                }
+            } else if (globalPartial) {
+                updates.estado = 'partially';
             } else {
-                // Simple/Legacy logic
-                if (globalPartial) {
-                    updates.estado = 'partially';
-                } else {
-                    updates.estado = (v && v.estado) ? v.estado : 'pending';
-                }
+                updates.estado = (v && v.estado) ? v.estado : 'pending';
             }
         }
 
@@ -4630,10 +4645,14 @@ function isAccommodationVoucher(voucher) {
     return productName.includes('alojamiento') || productName.includes('desayuno');
 }
 
+window.notifyManualRedemptionBlocked = function () {
+    showToast("Nueva función: No se puede marcar como canjeado manualmente. Debes realizar las reservas individualmente desde cada servicio.", "warning");
+};
+
 function marcarCanjeado() {
     // Obtener datos del voucher actual
     const code = document.getElementById("vm-code").value;
-    const voucher = state.bonos.find(b => b.codigo === code);
+    const voucher = state.bonos.find(b => (b.bono || b.codigo) === code);
 
     // Detectar si es alojamiento
     if (voucher && isAccommodationVoucher(voucher)) {
@@ -4641,35 +4660,12 @@ function marcarCanjeado() {
         return;
     }
 
-    // Flujo normal para otros bonos
-    let used = parseInt(document.getElementById("vm-sesiones-usadas").value) || 0;
-    const total = parseInt(document.getElementById("vm-sesiones-total").value) || 1;
-    if (used < total) {
-        document.getElementById("vm-sesiones-usadas").value = used + 1;
-        saveVoucherChanges();
-    } else {
-        showToast("El bono ya está completo", "warning");
-    }
+    // Bloquear canje manual sin reserva individual
+    notifyManualRedemptionBlocked();
 }
 
 function marcarCompleto() {
-    const total = parseInt(document.getElementById("vm-sesiones-total").value) || 1;
-    document.getElementById("vm-sesiones-usadas").value = total;
-
-    // IMPORTANTE: También marcar todos los items individuales como completos si existen 
-    if (state.editingVoucherItems && state.editingVoucherItems.length > 0) {
-        state.editingVoucherItems.forEach(item => {
-            const sessionsTotal = item.sessions || item.sesiones || 1;
-            item.used = sessionsTotal;
-            item.usadas = sessionsTotal;
-        });
-        // Refrescar el desglose visual en el modal si es necesario
-        if (typeof renderEditableBreakdown === 'function') {
-            renderEditableBreakdown();
-        }
-    }
-
-    saveVoucherChanges();
+    notifyManualRedemptionBlocked();
 }
 
 async function reactivarBono() {

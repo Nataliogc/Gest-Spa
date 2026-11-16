@@ -8,8 +8,8 @@ Este documento mantiene el **control de versión única y global** para todo el 
 
 | Parámetro | Valor Actual |
 | :--- | :--- |
-| **Versión Global del Sistema** | **`v2.3.46`** |
-| **Fecha de Última Actualización** | **13/11/2026** |
+| **Versión Global del Sistema** | **`v2.3.47`** |
+| **Fecha de Última Actualización** | **16/11/2026** |
 | **Estado General** | Operativo en Producción |
 
 ---
@@ -47,6 +47,13 @@ Cualquier cambio en los siguientes módulos impacta en la versión global:
 ---
 
 ## 📝 Historial Unificado de Versiones
+
+### [v2.3.47] - 16/11/2026
+- **Tipo:** PATCH
+- **Archivos:** `bonos.html`, `js/bonos.js`
+- **Descripción:** Control de canje por reservas individuales y limpieza visual en ficha de bono:
+  1. **Bloqueo de Canje Manual:** El campo `Sesiones Usadas` pasa a ser de solo lectura y se bloquea el marcado manual como `CANJEADO` si no se han realizado las reservas individuales de cada servicio, mostrando un aviso informativo en pantalla y en el propio modal.
+  2. **Limpieza de Cabecera del Modal:** Se elimina el sello visual repetitivo `Datos Verificados & Protegidos` en la cabecera de *Gestionar Bono*, manteniendo la protección interna (`manual_update` y `sync_locked`) sin saturar la interfaz.
 
 ### [v2.3.46] - 13/11/2026
 - **Tipo:** PATCH
