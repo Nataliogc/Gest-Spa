@@ -156,10 +156,22 @@ async function renderVoucherHistory(bonoCode, internalValidations = []) {
                 if (d.fecha && typeof d.fecha.toDate === 'function') {
                     fechaNorm = d.fecha.toDate().toISOString().split('T')[0];
                 }
+                const isRestaurantCol = ['reservas_restaurante', 'reservas_rest', 'reservas_menu'].includes(col);
+                const defaultServiceByCol = {
+                    'reservas_spa': 'Circuito Spa',
+                    'reservas_suite': 'Suite Privada',
+                    'reservas_vip': 'Sala VIP',
+                    'reservas_panacea': 'Panacea',
+                    'reservas_peluqueria': 'Peluquería',
+                    'reservas_gimnasio': 'Gimnasio',
+                    'reservas_complementos': 'Complemento'
+                };
+                const fallbackService = isRestaurantCol ? 'Menú en Restaurante' : (defaultServiceByCol[col] || 'Reserva Spa');
+
                 allReservations.push({
                     ...d,
                     fecha: fechaNorm,
-                    servicio: d.servicio || 'Menú en Restaurante',
+                    servicio: d.servicio || d.tratamiento || d.producto || fallbackService,
                     _col: col,
                     id: docId
                 });
