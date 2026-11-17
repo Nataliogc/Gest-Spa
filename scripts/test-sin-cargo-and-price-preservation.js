@@ -63,9 +63,9 @@ console.log('✓ Dashboard: Distinción de badges (SIN CARGO, PACK, SOCIO, BONO)
     console.log('✓ Circuito Spa no confunde bonos de sesiones con paquetes');
 
     // Test 3: Genuine pack item matches
-    const lotoPacks = catalog.findParentPacks('Envoltura corporal de flores de loto', [], packsReg.SPA_PACKS_REGISTRY);
-    assert(lotoPacks.includes('Ritual Indian ritual'), 'Must identify Ritual Indian ritual as parent pack of Envoltura corporal de flores de loto');
-    console.log('✓ Paquetes auténticos: "Envoltura corporal de flores de loto" pertenece a "Ritual Indian ritual"');
+    const cuentoPacks = catalog.findParentPacks('Cuento para dos (Envoltura 45 min)', [], packsReg.SPA_PACKS_REGISTRY);
+    assert(cuentoPacks.includes('Cuento para dos'), 'Must identify Cuento para dos as parent pack of Cuento para dos (Envoltura 45 min)');
+    console.log('✓ Paquetes auténticos: "Cuento para dos (Envoltura 45 min)" pertenece a "Cuento para dos"');
 }
 
 // 6. Test discount calculations & motive requirement

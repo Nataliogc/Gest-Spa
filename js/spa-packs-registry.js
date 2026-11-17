@@ -30,7 +30,7 @@
             precio_defecto: 100.00,
             secuencia: [
                 { orden: 1, nombre: 'Baño Hidromasaje', espacio: 'suite', duracion: 30, requires_therapist: false, terapeutas: 0 },
-                { orden: 2, nombre: 'Masaje Oriental', espacio: 'suite', duracion: 30, requires_therapist: true, terapeutas: 2 }
+                { orden: 2, nombre: 'Relax Oriental (Masaje Relax 30 min)', espacio: 'suite', duracion: 30, requires_therapist: true, terapeutas: 2 }
             ]
         },
         'wc-6477': {
@@ -42,7 +42,7 @@
             precio_defecto: 130.00,
             secuencia: [
                 { orden: 1, nombre: 'Suite Spa', espacio: 'suite', duracion: 60, requires_therapist: false, terapeutas: 0 },
-                { orden: 2, nombre: 'Masaje Relax', espacio: 'suite', duracion: 30, requires_therapist: true, terapeutas: 2 }
+                { orden: 2, nombre: 'Encuentro Romántico (Masaje Relax 30 min)', espacio: 'suite', duracion: 30, requires_therapist: true, terapeutas: 2 }
             ]
         },
         'wc-6479': {
@@ -54,8 +54,7 @@
             precio_defecto: 150.00,
             secuencia: [
                 { orden: 1, nombre: 'Circuito Spa', espacio: 'spa', duracion: 60, requires_therapist: false, terapeutas: 0 },
-                { orden: 2, nombre: 'Masaje Relax', espacio: 'panacea', duracion: 30, requires_therapist: true, terapeutas: 2 },
-                { orden: 3, nombre: 'Envoltura corporal con masaje cráneo-facial', espacio: 'panacea', duracion: 60, requires_therapist: true, terapeutas: 2 }
+                { orden: 2, nombre: 'Especial Parejas (Masaje Relax + Envoltura)', espacio: 'panacea', duracion: 60, requires_therapist: true, terapeutas: 2 }
             ]
         },
         'wc-6481': {
@@ -106,7 +105,7 @@
             precio_defecto: 135.00,
             includes_restaurant: true,
             secuencia: [
-                { orden: 1, nombre: 'Suite Spa', espacio: 'suite', duracion: 60, requires_therapist: false, terapeutas: 0 }
+                { orden: 1, nombre: 'Tiempo para dos (Suite Spa 60 min)', espacio: 'suite', duracion: 60, requires_therapist: false, terapeutas: 0 }
             ]
         },
         'wc-6489': {
@@ -119,7 +118,7 @@
             includes_restaurant: true,
             secuencia: [
                 { orden: 1, nombre: 'Circuito Spa', espacio: 'spa', duracion: 60, requires_therapist: false, terapeutas: 0 },
-                { orden: 2, nombre: 'Masaje Cráneo-Facial', espacio: 'panacea', duracion: 30, requires_therapist: true, terapeutas: 2 }
+                { orden: 2, nombre: 'Cuento para dos (Envoltura 45 min)', espacio: 'panacea', duracion: 45, requires_therapist: true, terapeutas: 2 }
             ]
         },
         'wc-6529': {
@@ -154,7 +153,7 @@
             precio_defecto: 90.00,
             includes_restaurant: true,
             secuencia: [
-                { orden: 1, nombre: 'Circuito Spa', espacio: 'spa', duracion: 60, requires_therapist: false, terapeutas: 0 }
+                { orden: 1, nombre: 'SPA y Sabores (Circuito Spa 60 min)', espacio: 'spa', duracion: 60, requires_therapist: false, terapeutas: 0 }
             ]
         },
 
@@ -164,15 +163,13 @@
             nombre: 'Ritual Indian ritual',
             pax: 1,
             modalidad: 'individual',
-            categoria: 'ritual',
+            categoria: 'pack',
             precio_defecto: 110.00,
-            duracion_real: 120,
-            duracion_comercial: 100,
+            duracion_real: 90,
+            duracion_comercial: 90,
             secuencia: [
-                { orden: 1, nombre: 'Peeling con sal rosa del himalaya', espacio: 'panacea', duracion: 20, requires_therapist: true, terapeutas: 1 },
-                { orden: 2, nombre: 'Envoltura corporal de flores de loto', espacio: 'panacea', duracion: 30, requires_therapist: true, terapeutas: 1 },
-                { orden: 3, nombre: 'Masaje relax de cañas de bambú', espacio: 'panacea', duracion: 30, requires_therapist: true, terapeutas: 1 },
-                { orden: 4, nombre: 'Baño en bañera de hidromasaje', espacio: 'suite', duracion: 20, requires_therapist: false, terapeutas: 0 }
+                { orden: 1, nombre: 'Bañera de Hidromasaje', espacio: 'suite', duracion: 30, requires_therapist: false, terapeutas: 0 },
+                { orden: 2, nombre: 'Ritual Indian ritual', espacio: 'panacea', duracion: 60, requires_therapist: true, terapeutas: 1 }
             ]
         },
         'wc-6497': {
@@ -180,15 +177,13 @@
             nombre: 'Ritual Baño Cítrico',
             pax: 1,
             modalidad: 'individual',
-            categoria: 'ritual',
+            categoria: 'pack',
             precio_defecto: 120.00,
-            duracion_real: 120,
+            duracion_real: 90,
             duracion_comercial: 90,
             secuencia: [
-                { orden: 1, nombre: 'Peeling Corporal', espacio: 'panacea', duracion: 15, requires_therapist: true, terapeutas: 1 },
-                { orden: 2, nombre: 'Envoltura corporal vit.c', espacio: 'panacea', duracion: 25, requires_therapist: true, terapeutas: 1 },
-                { orden: 3, nombre: 'Masaje Relax', espacio: 'panacea', duracion: 30, requires_therapist: true, terapeutas: 1 },
-                { orden: 4, nombre: 'Baño en bañera de hidromasaje', espacio: 'suite', duracion: 20, requires_therapist: false, terapeutas: 0 }
+                { orden: 1, nombre: 'Bañera de Hidromasaje', espacio: 'suite', duracion: 30, requires_therapist: false, terapeutas: 0 },
+                { orden: 2, nombre: 'Ritual Baño Cítrico (Vit. C)', espacio: 'panacea', duracion: 60, requires_therapist: true, terapeutas: 1 }
             ]
         },
         'wc-6501': {
@@ -196,15 +191,27 @@
             nombre: 'Ritual Chocolaterapia',
             pax: 1,
             modalidad: 'individual',
-            categoria: 'ritual',
+            categoria: 'pack',
             precio_defecto: 110.00,
-            duracion_real: 120,
+            duracion_real: 90,
             duracion_comercial: 90,
             secuencia: [
-                { orden: 1, nombre: 'Peeling Corporal', espacio: 'panacea', duracion: 15, requires_therapist: true, terapeutas: 1 },
-                { orden: 2, nombre: 'Envoltura corporal chocolate', espacio: 'panacea', duracion: 25, requires_therapist: true, terapeutas: 1 },
-                { orden: 3, nombre: 'Masaje Relax', espacio: 'panacea', duracion: 30, requires_therapist: true, terapeutas: 1 },
-                { orden: 4, nombre: 'Baño en bañera de hidromasaje', espacio: 'suite', duracion: 20, requires_therapist: false, terapeutas: 0 }
+                { orden: 1, nombre: 'Bañera de Hidromasaje', espacio: 'suite', duracion: 30, requires_therapist: false, terapeutas: 0 },
+                { orden: 2, nombre: 'Ritual Chocolaterapia', espacio: 'panacea', duracion: 60, requires_therapist: true, terapeutas: 1 }
+            ]
+        },
+        'wc-ritual-oro': {
+            id: 'wc-ritual-oro',
+            nombre: 'Ritual Oro',
+            pax: 1,
+            modalidad: 'individual',
+            categoria: 'pack',
+            precio_defecto: 110.00,
+            duracion_real: 90,
+            duracion_comercial: 90,
+            secuencia: [
+                { orden: 1, nombre: 'Bañera de Hidromasaje', espacio: 'suite', duracion: 30, requires_therapist: false, terapeutas: 0 },
+                { orden: 2, nombre: 'Ritual Oro', espacio: 'panacea', duracion: 60, requires_therapist: true, terapeutas: 1 }
             ]
         },
 
@@ -230,7 +237,7 @@
             precio_defecto: 50.00,
             includes_restaurant: true,
             secuencia: [
-                { orden: 1, nombre: 'Circuito Spa', espacio: 'spa', duracion: 60, requires_therapist: false, terapeutas: 0 }
+                { orden: 1, nombre: 'SPA y Sabores (Circuito Spa 60 min)', espacio: 'spa', duracion: 60, requires_therapist: false, terapeutas: 0 }
             ]
         },
         'wc-6944': {
@@ -242,7 +249,7 @@
             precio_defecto: 60.00,
             secuencia: [
                 { orden: 1, nombre: 'Baño Hidromasaje', espacio: 'suite', duracion: 30, requires_therapist: false, terapeutas: 0 },
-                { orden: 2, nombre: 'Masaje Oriental', espacio: 'cabina', duracion: 30, requires_therapist: true, terapeutas: 1 }
+                { orden: 2, nombre: 'Relax Oriental (Masaje Relax 30 min)', espacio: 'cabina', duracion: 30, requires_therapist: true, terapeutas: 1 }
             ]
         },
         'wc-7305': {
@@ -252,11 +259,38 @@
             modalidad: 'individual',
             categoria: 'ritual',
             precio_defecto: 85.00,
+            duracion_real: 75,
+            duracion_comercial: 75,
+            secuencia: [
+                { orden: 1, nombre: 'Amazonian (Facial + Corporal)', espacio: 'cabina', duracion: 75, requires_therapist: true, terapeutas: 1 }
+            ]
+        },
+        'wc-asian-el': {
+            id: 'wc-asian-el',
+            nombre: 'Asian Journey Él',
+            pax: 1,
+            modalidad: 'individual',
+            categoria: 'pack',
+            precio_defecto: 90.00,
             duracion_real: 90,
             duracion_comercial: 90,
             secuencia: [
-                { orden: 1, nombre: 'Facial Completo', espacio: 'cabina', duracion: 45, requires_therapist: true, terapeutas: 1 },
-                { orden: 2, nombre: 'Corporal Hidratante', espacio: 'cabina', duracion: 45, requires_therapist: true, terapeutas: 1 }
+                { orden: 1, nombre: 'Bañera Hidromasaje', espacio: 'suite', duracion: 30, requires_therapist: false, terapeutas: 0 },
+                { orden: 2, nombre: 'Journey Él (Exfoliación + Masaje)', espacio: 'panacea', duracion: 60, requires_therapist: true, terapeutas: 1 }
+            ]
+        },
+        'wc-asian-ella': {
+            id: 'wc-asian-ella',
+            nombre: 'Asian Journey Ella',
+            pax: 1,
+            modalidad: 'individual',
+            categoria: 'pack',
+            precio_defecto: 90.00,
+            duracion_real: 90,
+            duracion_comercial: 90,
+            secuencia: [
+                { orden: 1, nombre: 'Bañera Hidromasaje', espacio: 'suite', duracion: 30, requires_therapist: false, terapeutas: 0 },
+                { orden: 2, nombre: 'Journey Ella (Envoltura + Masaje)', espacio: 'panacea', duracion: 60, requires_therapist: true, terapeutas: 1 }
             ]
         }
     };

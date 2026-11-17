@@ -11,7 +11,7 @@ const packs = packRegistry.SPA_PACKS_REGISTRY;
 const packKeys = Object.keys(packs);
 console.log(`Verificando los ${packKeys.length} packs estándar del sistema:`);
 
-assert.equal(packKeys.length, 18, 'Debe haber 18 packs registrados');
+assert.equal(packKeys.length, 21, 'Debe haber 21 packs registrados');
 
 // 1. Verificar cada pack del registro
 packKeys.forEach(key => {
@@ -58,8 +58,8 @@ assert.equal(cuentoData.includes_restaurant, true, 'Cuento para dos incluye rest
 assert.equal(cuentoData.secuencia.length, 2, 'Cuento para dos tiene 2 fases (Spa + Masaje)');
 assert.equal(cuentoData.secuencia[0].nombre, 'Circuito Spa');
 assert.equal(cuentoData.secuencia[0].duracion, 60);
-assert.equal(cuentoData.secuencia[1].nombre, 'Masaje Cráneo-Facial');
-assert.equal(cuentoData.secuencia[1].duracion, 30);
+assert.equal(cuentoData.secuencia[1].nombre, 'Cuento para dos (Envoltura 45 min)');
+assert.equal(cuentoData.secuencia[1].duracion, 45);
 assert.equal(cuentoData.secuencia[1].terapeutas, 2);
 console.log('  ✓ Secuencia y precio (135€) de Cuento para dos verificados con éxito');
 

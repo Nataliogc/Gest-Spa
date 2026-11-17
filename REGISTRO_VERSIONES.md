@@ -8,7 +8,7 @@ Este documento mantiene el **control de versión única y global** para todo el 
 
 | Parámetro | Valor Actual |
 | :--- | :--- |
-| **Versión Global del Sistema** | **`v2.3.54`** |
+| **Versión Global del Sistema** | **`v2.3.55`** |
 | **Fecha de Última Actualización** | **17/11/2026** |
 | **Estado General** | Operativo en Producción |
 
@@ -47,6 +47,22 @@ Cualquier cambio en los siguientes módulos impacta en la versión global:
 ---
 
 ## 📝 Historial Unificado de Versiones
+
+### [v2.3.55] - 17/11/2026
+- **Tipo:** MINOR
+- **Archivos:** `js/spa-packs-registry.js`, `reservas-salas.html`, `reservas-spa.html`, `scripts/test-all-packs.js`, `firebase-config.js`, `version.json`, `package.json`, `index.html`, `bonos.html`, `agenda-salas.html`, `js/dashboard.js`
+- **Descripción:** Estandarización exacta de todos los Packs y Rituales y nueva pestaña `+ Añadir Circuito Spa` en tratamientos:
+  1. **Secuencias y Duraciones Exactas en `SPA_PACKS_REGISTRY`:**
+     - `Relax Oriental`: Baño Hidromasaje (`30'`) + `Relax Oriental (Masaje Relax 30 min)` (`30'`).
+     - `Especial Parejas`: `Circuito Spa` (`60'`) + `Especial Parejas (Masaje Relax + Envoltura)` (`60'`).
+     - `Encuentro Romántico`: `Suite Spa` (`60'`) + `Encuentro Romántico (Masaje Relax 30 min)` (`30'`).
+     - `Cuento para dos`: `Circuito Spa` (`60'`) + `Cuento para dos (Envoltura 45 min)` (`45'`) + Menú Restaurante.
+     - `SPA y Sabores` (y `- Individual`): guarda en `reservas_spa` como `SPA y Sabores (Circuito Spa 60 min)` en lugar de `Circuito Spa` + Menú Restaurante.
+     - `Tiempo para dos`: `Tiempo para dos (Suite Spa 60 min)` (`60'`) + Menú Restaurante.
+     - `Rituales (Indian, Chocolaterapia, Baño Cítrico Vit. C, Oro)`: `Bañera de Hidromasaje` (`30'`) + `Nombre del Ritual` (`60'`).
+     - `Amazonian Discovery`: `Amazonian (Facial + Corporal)` (`75'`).
+     - `Asian Journey Él` / `Asian Journey Ella`: `Bañera Hidromasaje` (`30'`) + `Journey Él (Exfoliación + Masaje)` / `Journey Ella (Envoltura + Masaje)` (`60'`).
+  2. **Pestaña `+ Añadir Circuito Spa` en Reservas de Tratamientos (`reservas-salas.html`):** Nuevo botón en `Complementos` para reservar también el Circuito Spa (con selector de fecha, hora y plazas libres en vivo) desde cualquier masaje, envoltura o tratamiento individual, creando automáticamente la cita vinculada en `reservas_spa`.
 
 ### [v2.3.54] - 17/11/2026
 - **Tipo:** PATCH

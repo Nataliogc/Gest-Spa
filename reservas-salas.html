@@ -950,9 +950,30 @@
                         <div style="grid-column: 1 / -1; display: flex; gap: 12px; align-items: stretch; flex-wrap: wrap;">
                             <div id="complementos-container"
                                 style="display: none; flex: 1; min-width: 280px; padding: 8px 10px; background: #f8fafc; border-radius: 6px; border: 1px solid #edf2f7;">
-                                <label
-                                    style="font-size: 0.65rem; font-weight: 800; color: #64748b; text-transform: uppercase; margin-bottom: 4px; display: block;">Complementos</label>
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; gap: 6px; flex-wrap: wrap;">
+                                    <label
+                                        style="font-size: 0.65rem; font-weight: 800; color: #64748b; text-transform: uppercase; margin: 0;">Complementos</label>
+                                    <button type="button" id="btn-toggle-spa-addon" onclick="toggleSpaAddonTab()"
+                                        style="background: #eff6ff; color: #0284c7; border: 1px solid #bae6fd; padding: 2px 9px; border-radius: 6px; font-size: 0.7rem; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 5px;"
+                                        title="Reservar también Circuito Spa antes o después del tratamiento">
+                                        <i class="fas fa-water"></i> + Añadir Circuito Spa
+                                    </button>
+                                </div>
                                 <div id="complementos-list" style="display: flex; flex-wrap: wrap; gap: 8px;"></div>
+                                <div id="spa-addon-panel" style="display: none; margin-top: 8px; padding: 8px 10px; background: #eff6ff; border: 1px dashed #60a5fa; border-radius: 8px;">
+                                    <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 6px;">
+                                        <span style="font-size: 0.74rem; font-weight: 800; color: #1e40af;">
+                                            <i class="fas fa-water"></i> Circuito Spa (60') adicional
+                                        </span>
+                                        <div style="display: flex; align-items: center; gap: 6px;">
+                                            <input type="date" id="spa-addon-date" onchange="renderStandaloneSpaAddonChips()"
+                                                style="padding: 2px 5px; border: 1px solid #93c5fd; border-radius: 5px; font-size: 0.72rem; font-weight: 600; background: #fff;">
+                                            <input type="time" id="spa-addon-time" onchange="renderStandaloneSpaAddonChips()"
+                                                style="padding: 2px 5px; border: 1px solid #93c5fd; border-radius: 5px; font-size: 0.74rem; font-weight: 700; width: 78px; background: #fff;">
+                                        </div>
+                                    </div>
+                                    <div id="spa-addon-occ" style="font-size: 0.7rem; color: #1e3a8a;"></div>
+                                </div>
                             </div>
 
                             <div class="form-group" style="flex: 1; min-width: 280px; margin-bottom: 0;">
@@ -1365,7 +1386,7 @@
     <!-- Dexie loaded by db-local.js -->
     <!-- <script src="https://unpkg.com/dexie@latest/dist/dexie.js"></script> -->
     <script src="js/app-core.js?v=2.3.29"></script>
-    <script src="js/spa-packs-registry.js?v=2.3.53"></script>
+    <script src="js/spa-packs-registry.js?v=2.3.55"></script>
     <script src="js/service-catalog.js?v=1"></script>
     <script src="js/service-pricing.js?v=2.3.30"></script>
 
@@ -4605,6 +4626,79 @@
             }
         };
 
+        window.toggleSpaAddonTab = function (forceState = null) {
+            const panel = document.getElementById("spa-addon-panel");
+            const btn = document.getElementById("btn-toggle-spa-addon");
+            if (!panel || !btn) return;
+            const nextState = (forceState !== null) ? !!forceState : (panel.style.display === "none" || !panel.style.display);
+            window._spaAddonActive = nextState;
+            panel.style.display = nextState ? "block" : "none";
+            if (nextState) {
+                btn.style.background = "#0284c7";
+                btn.style.color = "#fff";
+                btn.innerHTML = '<i class="fas fa-check"></i> Circuito Spa añadido';
+                const dateEl = document.getElementById("spa-addon-date");
+                const timeEl = document.getElementById("spa-addon-time");
+                const baseDate = document.getElementById("form-date")?.value || new Date().toISOString().split('T')[0];
+                if (dateEl && !dateEl.value) dateEl.value = baseDate;
+                if (timeEl && !timeEl.value) {
+                    const formT = (document.getElementById("form-time")?.value || "17:00").replace(/h$/i, '').trim();
+                    const [fh] = formT.split(':').map(Number);
+                    const sugH = (!isNaN(fh) && fh >= 12) ? fh - 1 : (isNaN(fh) ? 16 : fh + 1);
+                    timeEl.value = `${String(sugH).padStart(2, '0')}:00`;
+                }
+                window.renderStandaloneSpaAddonChips();
+            } else {
+                btn.style.background = "#eff6ff";
+                btn.style.color = "#0284c7";
+                btn.innerHTML = '<i class="fas fa-water"></i> + Añadir Circuito Spa';
+            }
+        };
+
+        window.selectStandaloneSpaAddonSlot = function (time) {
+            const timeEl = document.getElementById("spa-addon-time");
+            if (timeEl) timeEl.value = time;
+            window.renderStandaloneSpaAddonChips();
+        };
+
+        window.renderStandaloneSpaAddonChips = async function () {
+            const box = document.getElementById("spa-addon-occ");
+            const date = document.getElementById("spa-addon-date")?.value;
+            const selected = (document.getElementById("spa-addon-time")?.value || "").replace(/h$/i, '').trim();
+            if (!box || !date) return;
+            box.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Consultando plazas del Spa...';
+            try {
+                const cfg = await getSpaOccupancyConfig();
+                const day = new Date(date + 'T12:00:00').getDay();
+                const dayKey = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'][day];
+                let slots = (cfg.schedules && Array.isArray(cfg.schedules[dayKey]) && cfg.schedules[dayKey].length)
+                    ? cfg.schedules[dayKey]
+                    : (day === 0 ? ["10:00", "11:00", "12:15", "13:30"] : ["10:00", "11:00", "12:15", "13:30", "15:45", "16:45", "18:00", "19:00", "20:30"]);
+                const snap = await db.collection("reservas_spa").where("fecha", "==", date).get();
+                const paxByTime = {};
+                snap.forEach(d => {
+                    const r = d.data();
+                    if (r.status !== 'anulada' && r.status !== 'lista_espera') {
+                        paxByTime[r.hora] = (paxByTime[r.hora] || 0) + (parseInt(r.pax) || 1);
+                    }
+                });
+                const pax = parseInt(document.getElementById("res-pax")?.value) || 2;
+                const cap = cfg.capacity || 20;
+                const chips = slots.map(t => {
+                    const used = paxByTime[t] || 0;
+                    const free = Math.max(0, cap - used);
+                    const isSel = t === selected;
+                    const ok = free >= pax;
+                    return `<button type="button" onclick="selectStandaloneSpaAddonSlot('${t}')"
+                        style="cursor:pointer; border:${isSel ? '2px solid #1d4ed8' : '1px solid ' + (ok ? '#86efac' : '#fca5a5')}; background:${ok ? '#dcfce7' : '#fee2e2'}; color:${ok ? '#166534' : '#991b1b'}; border-radius:6px; padding:2px 6px; font-size:0.68rem; font-weight:700; line-height:1.2;">
+                        ${t}<br><span style="font-weight:500;">${free} libres</span></button>`;
+                }).join('');
+                box.innerHTML = `<div style="display:flex; flex-wrap:wrap; gap:4px;">${chips}</div>`;
+            } catch (e) {
+                box.innerHTML = 'Elige fecha y hora arriba para el Circuito Spa.';
+            }
+        };
+
         window.togglePackItemActive = function (index, isActive) {
             if (window._packItems && window._packItems[index]) {
                 window._packItems[index].active = !!isActive;
@@ -5458,6 +5552,7 @@
         async function showBookingForm() {
             window._isInitializingEdit = false;
             window._currentPricingMode = null;
+            if (typeof window.toggleSpaAddonTab === 'function') window.toggleSpaAddonTab(false);
             if (!selectedTime) return;
 
             const dateStr = document.getElementById("main-date-picker").value;
@@ -7307,6 +7402,42 @@
                     // Sync reservation details to Mesachef
                     if (window.syncReservationToMesachef) {
                         await window.syncReservationToMesachef(savedId, payload);
+                    }
+
+                    // Crear reserva adicional de Circuito Spa si se activó la pestaña "+ Añadir Circuito Spa"
+                    if (window._spaAddonActive && (!window._packItems || window._packItems.length === 0)) {
+                        const spaDate = document.getElementById("spa-addon-date")?.value || payload.fecha;
+                        const spaTime = (document.getElementById("spa-addon-time")?.value || "").replace(/h$/i, '').trim();
+                        if (spaDate && spaTime) {
+                            const spaAddonPayload = {
+                                res_id: payload.res_id || savedId,
+                                parent_id: savedId,
+                                parent_service: payload.servicio,
+                                is_pack_child: true,
+                                collection: "reservas_spa",
+                                sala: "spa",
+                                nombre: payload.nombre,
+                                tel: payload.tel || "",
+                                fecha: spaDate,
+                                hora: spaTime,
+                                duracion: 60,
+                                pax: payload.pax || 2,
+                                servicio: "Circuito Spa",
+                                origen: payload.origen,
+                                hotel: payload.hotel || "",
+                                hab: payload.hab || "",
+                                bono: payload.bono || "",
+                                localizador: payload.bono || "",
+                                obs: payload.obs || "",
+                                precio_pax: 0,
+                                precio_total: 0,
+                                status: payload.status || "confirmada",
+                                created_at: new Date().toISOString(),
+                                updated_at: new Date().toISOString()
+                            };
+                            await db.collection("reservas_spa").doc(`${savedId}_spa_addon`).set(spaAddonPayload, { merge: true });
+                            showToast(`Circuito Spa añadido a las ${spaTime}h`, "success");
+                        }
                     }
                 } catch (fsErr) {
                     console.warn("Offline save:", fsErr);
