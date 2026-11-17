@@ -1218,6 +1218,112 @@ window.renderPackExternalExtrasHtml = function (hasRestaurant, hasHotel, hasCava
 };
 
 /**
+ * Syncs the "SPA y Sabores" quick toggle button in the Spa reservation modal.
+ */
+window.syncSpaSaboresUi = function () {
+    const wrap = document.getElementById('spa-sabores-toggle-wrap');
+    const btn = document.getElementById('btn-toggle-spa-sabores');
+    const badge = document.getElementById('spa-sabores-badge');
+    if (!wrap || !btn) return;
+
+    const isSpaModule = (typeof currentModule !== 'undefined' && currentModule && currentModule.code === 'spa');
+    wrap.style.display = isSpaModule ? 'flex' : 'none';
+    if (!isSpaModule) {
+        window._spaSaboresActive = false;
+        return;
+    }
+
+    const sel = document.getElementById('res-servicio');
+    const currentVal = (sel?.value || '').toLowerCase();
+    const isActive = currentVal.includes('sabores');
+    window._spaSaboresActive = isActive;
+
+    const pax = Math.max(1, parseInt(document.getElementById('res-pax')?.value || '2', 10) || 2);
+    if (isActive) {
+        btn.style.background = '#d97706';
+        btn.style.color = '#fff';
+        btn.style.borderColor = '#b45309';
+        btn.innerHTML = '<i class="fas fa-check"></i> SPA y Sabores incluido';
+        if (badge) {
+            badge.style.display = 'inline';
+            badge.textContent = pax === 1
+                ? 'Modo Individual (1 pax · 45€ · Menú Restaurante incluido)'
+                : `Modo Pareja (${pax} pax · Menú Restaurante incluido)`;
+        }
+    } else {
+        btn.style.background = '#fffbeb';
+        btn.style.color = '#b45309';
+        btn.style.borderColor = '#f59e0b';
+        btn.innerHTML = '<i class="fas fa-utensils"></i> + Añadir SPA y Sabores';
+        if (badge) {
+            badge.style.display = 'none';
+            badge.textContent = '';
+        }
+    }
+};
+
+/**
+ * Toggles "SPA y Sabores" in the Spa modal, auto-selecting 1 pax or 2 pax variant.
+ */
+window.toggleSpaSaboresMode = function (forceState = null) {
+    const sel = document.getElementById('res-servicio');
+    const searchInp = document.getElementById('res-servicio-search');
+    if (!sel) return;
+
+    const nextState = (forceState !== null) ? !!forceState : !window._spaSaboresActive;
+    const pax = Math.max(1, parseInt(document.getElementById('res-pax')?.value || '2', 10) || 2);
+    const options = Array.from(sel.options || []);
+
+    let targetOpt = null;
+    if (nextState) {
+        const saboresOpts = options.filter(o => (o.value || '').toLowerCase().includes('sabores'));
+        if (pax === 1) {
+            targetOpt = saboresOpts.find(o => o.value.toLowerCase().includes('individual') || parseInt(o.dataset?.paxMax || '0', 10) === 1)
+                || saboresOpts[0];
+        } else {
+            targetOpt = saboresOpts.find(o => !o.value.toLowerCase().includes('individual') && parseInt(o.dataset?.paxMax || '2', 10) >= 2)
+                || saboresOpts.find(o => !o.value.toLowerCase().includes('individual'))
+                || saboresOpts[0];
+        }
+        if (!targetOpt) {
+            const fallbackName = (pax === 1) ? 'SPA y Sabores - Individual' : 'SPA y Sabores';
+            const opt = document.createElement('option');
+            opt.value = fallbackName;
+            opt.textContent = fallbackName;
+            opt.dataset.paxMax = pax === 1 ? '1' : '2';
+            opt.dataset.duration = '60';
+            opt.dataset.precio = pax === 1 ? '45' : '90';
+            sel.appendChild(opt);
+            targetOpt = opt;
+        }
+    } else {
+        targetOpt = options.find(o => (o.value || '').toLowerCase().includes('circuito')) || options.find(o => o.value);
+    }
+
+    if (targetOpt) {
+        sel.value = targetOpt.value;
+        if (searchInp) searchInp.value = targetOpt.value;
+    }
+
+    window._spaSaboresActive = nextState;
+    window.syncSpaSaboresUi();
+
+    if (typeof updatePackInfo === 'function') updatePackInfo();
+    if (typeof updatePriceAutomation === 'function') updatePriceAutomation();
+    if (typeof syncServiceDuration === 'function') syncServiceDuration();
+};
+
+/**
+ * Re-evaluates "SPA y Sabores" variant when PAX changes in the Spa modal.
+ */
+window.onSpaPaxChange = function () {
+    const isSpaModule = (typeof currentModule !== 'undefined' && currentModule && currentModule.code === 'spa');
+    if (isSpaModule && window._spaSaboresActive) {
+        window.toggleSpaSaboresMode(true);
+    }
+};
+
+/**
  * Returns the base URL for shared assets (like bridge scripts)
  */
 window.getResourceBase = function () {

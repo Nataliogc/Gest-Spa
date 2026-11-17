@@ -8,7 +8,7 @@ Este documento mantiene el **control de versión única y global** para todo el 
 
 | Parámetro | Valor Actual |
 | :--- | :--- |
-| **Versión Global del Sistema** | **`v2.3.56`** |
+| **Versión Global del Sistema** | **`v2.3.57`** |
 | **Fecha de Última Actualización** | **17/11/2026** |
 | **Estado General** | Operativo en Producción |
 
@@ -47,6 +47,13 @@ Cualquier cambio en los siguientes módulos impacta en la versión global:
 ---
 
 ## 📝 Historial Unificado de Versiones
+
+### [v2.3.57] - 17/11/2026
+- **Tipo:** PATCH
+- **Archivos:** `agenda-salas.html`, `agenda-spa.html`, `agenda-terapeutas.html`, `catalogo.html`, `configuracion.html`, `disponibilidad-terapeutas.html`, `index.html`, `js/app-core.js`, `js/spa-packs-registry.js`, `personal.html`, `reservas-salas.html`, `reservas-spa.html`, `reservas.html`, `vision-general.html`
+- **Descripción:** Botón rápido `+ Añadir SPA y Sabores` en módulo SPA y enlace `Pedidos WC` en todo el menú GESTIÓN:
+  1. **Botón `+ Añadir SPA y Sabores` (`spa`):** Sustituido el selector completo de servicios en `spa` por un botón único que detecta automáticamente si es `1` persona (`SPA y Sabores - Individual`, 45€) o `2+` personas (`SPA y Sabores`, 90€) y recalcula al cambiar `PAX`.
+  2. **Menú GESTIÓN (`Pedidos WC`):** Añadido el acceso a `pedidos-wc.html` en el desplegable GESTIÓN de las 12 páginas donde faltaba.
 
 ### [v2.3.56] - 17/11/2026
 - **Tipo:** PATCH

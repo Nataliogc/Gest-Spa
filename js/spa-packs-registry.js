@@ -234,7 +234,7 @@
             pax: 1,
             modalidad: 'individual',
             categoria: 'pack',
-            precio_defecto: 50.00,
+            precio_defecto: 45.00,
             includes_restaurant: true,
             secuencia: [
                 { orden: 1, nombre: 'SPA y Sabores (Circuito Spa 60 min)', espacio: 'spa', duracion: 60, requires_therapist: false, terapeutas: 0 }
