@@ -1242,6 +1242,9 @@ window.renderPackExternalExtrasHtml = function (hasRestaurant, hasHotel, hasCava
 window.findMesachefReservations = async function (codes = [], context = {}) {
     const mesachefDb = typeof window.getMesachefFirestore === 'function' ? window.getMesachefFirestore() : null;
     if (!mesachefDb) return [];
+    if (typeof window.ensureMesachefAuth === 'function') {
+        await window.ensureMesachefAuth();
+    }
 
     const normText = (v) => (v || '').toString().trim().toLowerCase()
         .normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ');
@@ -2182,14 +2185,51 @@ const MESACHEF_FIREBASE_CONFIG = {
 };
 
 let _mesachefDbInstance = null;
+let _mesachefAuthPromise = null;
+
+window.getMesachefApp = function () {
+    if (typeof firebase === 'undefined') return null;
+    let app = (firebase.apps || []).find(a => a.name === 'mesachefApp');
+    if (!app) {
+        app = firebase.initializeApp(MESACHEF_FIREBASE_CONFIG, 'mesachefApp');
+    }
+    return app;
+};
+
+window.ensureMesachefAuth = async function () {
+    const app = window.getMesachefApp();
+    if (!app) return false;
+    if (typeof app.auth !== 'function') {
+        if (!document.querySelector('script[src*="firebase-auth-compat.js"]')) {
+            await new Promise((resolve) => {
+                const s = document.createElement('script');
+                s.src = 'https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js';
+                s.onload = resolve;
+                s.onerror = resolve;
+                document.head.appendChild(s);
+            });
+        }
+    }
+    if (typeof app.auth !== 'function') return false;
+    const auth = app.auth();
+    if (auth.currentUser) return true;
+    if (!_mesachefAuthPromise) {
+        _mesachefAuthPromise = auth.signInAnonymously()
+            .then(() => true)
+            .catch((err) => {
+                console.warn('[MESACHEF AUTH] Anonymous sign-in failed:', err);
+                _mesachefAuthPromise = null;
+                return false;
+            });
+    }
+    return _mesachefAuthPromise;
+};
+
 window.getMesachefFirestore = function () {
     if (_mesachefDbInstance) return _mesachefDbInstance;
-    if (typeof firebase === 'undefined') return null;
     try {
-        let app = (firebase.apps || []).find(a => a.name === 'mesachefApp');
-        if (!app) {
-            app = firebase.initializeApp(MESACHEF_FIREBASE_CONFIG, 'mesachefApp');
-        }
+        const app = window.getMesachefApp();
+        if (!app) return null;
         _mesachefDbInstance = app.firestore();
         return _mesachefDbInstance;
     } catch (e) {
@@ -2245,6 +2285,9 @@ window.syncReservationToMesachef = async function (id, payload) {
         const isRestaurantRelated = isRestaurantService || isRestaurantComplement || isRestaurantCollection;
 
         const mesachefDb = window.getMesachefFirestore();
+        if (mesachefDb && typeof window.ensureMesachefAuth === 'function') {
+            await window.ensureMesachefAuth();
+        }
 
         if (!isRestaurantRelated) {
             // If it is NOT restaurant-related, check if there's an existing document in Mesachef to remove
@@ -2365,6 +2408,9 @@ window.cancelReservationInMesachef = async function (id, extraCodes = [], contex
         }
 
         const mesachefDb = window.getMesachefFirestore();
+        if (mesachefDb && typeof window.ensureMesachefAuth === 'function') {
+            await window.ensureMesachefAuth();
+        }
         if (mesachefDb) {
             const codes = Array.from(new Set([id, ...(Array.isArray(extraCodes) ? extraCodes : [extraCodes])].map(c => (c || '').toString().trim()).filter(c => c && c.toUpperCase() !== 'NUEVA')));
             const matchedDocs = typeof window.findMesachefReservations === 'function'
@@ -2399,6 +2445,9 @@ window.deleteReservationInMesachef = async function (id, extraCodes = [], contex
         }
 
         const mesachefDb = window.getMesachefFirestore();
+        if (mesachefDb && typeof window.ensureMesachefAuth === 'function') {
+            await window.ensureMesachefAuth();
+        }
         if (mesachefDb) {
             const codes = Array.from(new Set([id, ...(Array.isArray(extraCodes) ? extraCodes : [extraCodes])].map(c => (c || '').toString().trim()).filter(c => c && c.toUpperCase() !== 'NUEVA')));
             const matchedDocs = typeof window.findMesachefReservations === 'function'
