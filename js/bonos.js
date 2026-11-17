@@ -53,6 +53,35 @@ function getPreviousDayYMD(dateYMD) {
     return getLocalDateYMD(date);
 }
 
+/**
+ * Calcula la fecha límite YYYY-MM-DD hacia atrás para el selector de rango.
+ */
+function getMonthsFilterCutoffYMD(monthsBack) {
+    const cutoffDate = new Date();
+    if (monthsBack < 1) {
+        const daysBack = Math.round(monthsBack * 30);
+        cutoffDate.setDate(cutoffDate.getDate() - daysBack);
+    } else {
+        cutoffDate.setMonth(cutoffDate.getMonth() - monthsBack);
+    }
+    return getLocalDateYMD(cutoffDate);
+}
+
+/**
+ * Sincroniza el selector de fecha específica al cambiar el rango (Solo hoy / Última semana / etc.).
+ */
+function onBonosRangeFilterChange() {
+    const filterMonthsSelect = document.getElementById('bonos-filter-months');
+    const dateInput = document.getElementById('voucher-date');
+    const monthsBack = filterMonthsSelect ? parseFloat(filterMonthsSelect.value) || 0 : 0;
+
+    if (dateInput) {
+        dateInput.value = monthsBack === 0 ? getLocalDateYMD() : '';
+    }
+
+    cargarBonos();
+}
+
 // --- DETECTOR DE CUOTA DE GOOGLE AGOTADA (Gestionado en app-core.js) ---
 
 
@@ -1611,40 +1640,21 @@ async function cargarBonos() {
         const datePickerValue = document.getElementById("voucher-date") ? document.getElementById("voucher-date").value : null;
 
 
-        // LOGIC FIX: Prioritize Range Dropdown (monthsBack) if selected (Value != 0)
-        // Only use Date Picker if Range is "Today" (0) or default.
-        // This prevents the default "Today" in date picker from overriding the "Last Year" selection.
-
         let cutoffStr;
 
-        if (monthsBack !== 0) {
-            // Priority 1: User selected a specific period (Week, Month, Year)
-            const cutoffDate = new Date();
-
-            // Si es 0.25 (semana), calcular 7 días atrás
-            if (monthsBack < 1) {
-                const daysBack = Math.round(monthsBack * 30); // 0.25 * 30 ≈ 7 días
-                cutoffDate.setDate(cutoffDate.getDate() - daysBack);
-                console.log(`[OPTIMIZACIÓN] Cargando bonos desde: últimos ${daysBack} días (Prioridad Rango)`);
-            } else {
-                cutoffDate.setMonth(cutoffDate.getMonth() - monthsBack);
-                console.log(`[OPTIMIZACIÓN] Cargando bonos desde: últimos ${monthsBack} meses (Prioridad Rango)`);
-            }
-            cutoffStr = cutoffDate.toISOString().split('T')[0];
-
-        } else if (datePickerValue) {
-            // Priority 2: Use selected date with a 1-day safety margin for UTC-stored online sales
+        if (datePickerValue) {
+            // Priority 1: Use selected date with a 1-day safety margin for UTC-stored online sales
             cutoffStr = getPreviousDayYMD(datePickerValue);
             console.log(`[OPTIMIZACIÓN] Usando fecha del selector con margen: >= ${cutoffStr} (día visible ${datePickerValue})`);
 
+        } else if (monthsBack !== 0) {
+            // Priority 2: User selected a specific period (Week, Month, Year)
+            cutoffStr = getMonthsFilterCutoffYMD(monthsBack);
+            console.log(`[OPTIMIZACIÓN] Cargando bonos desde ${cutoffStr} (Rango: ${monthsBack} meses)`);
+
         } else {
             // Priority 3: Default to Today-1
-            const today = new Date();
-            today.setDate(today.getDate() - 1); // MARGEN DE SEGURIDAD
-            const year = today.getFullYear();
-            const month = String(today.getMonth() + 1).padStart(2, '0');
-            const day = String(today.getDate()).padStart(2, '0');
-            cutoffStr = `${year}-${month}-${day}`;
+            cutoffStr = getPreviousDayYMD(getLocalDateYMD());
             console.log(`[OPTIMIZACIÓN] Cargando bonos desde (Hoy-1): ${cutoffStr}`);
         }
 
@@ -1779,21 +1789,9 @@ async function sincronizarConTienda(persistentData, btn, originalText) {
         } else if (datePickerValue) {
             cutoffStr = getPreviousDayYMD(datePickerValue);
         } else if (monthsBack === 0) {
-            const today = new Date();
-            today.setDate(today.getDate() - 1); // MARGEN DE SEGURIDAD
-            const year = today.getFullYear();
-            const month = String(today.getMonth() + 1).padStart(2, '0');
-            const day = String(today.getDate()).padStart(2, '0');
-            cutoffStr = `${year}-${month}-${day}`;
+            cutoffStr = getPreviousDayYMD(getLocalDateYMD());
         } else {
-            const cutoffDate = new Date();
-            if (monthsBack < 1) {
-                const daysBack = Math.round(monthsBack * 30);
-                cutoffDate.setDate(cutoffDate.getDate() - daysBack);
-            } else {
-                cutoffDate.setMonth(cutoffDate.getMonth() - monthsBack);
-            }
-            cutoffStr = cutoffDate.toISOString().split('T')[0];
+            cutoffStr = getMonthsFilterCutoffYMD(monthsBack);
         }
 
         // PRIORITY 1: Try optimized endpoint (direct, fast, cached)
@@ -2870,6 +2868,9 @@ function renderBonosFromState(missingNum = null) {
     const searchTerm = document.getElementById("voucher-search").value.toLowerCase();
     const filterStatus = document.getElementById("voucher-filter").value;
     const filterDate = document.getElementById("voucher-date").value;
+    const filterMonths = document.getElementById("bonos-filter-months")?.value;
+    const monthsBack = filterMonths ? parseFloat(filterMonths) || 0 : 0;
+    const rangeCutoffYMD = (!filterDate && monthsBack > 0) ? getMonthsFilterCutoffYMD(monthsBack) : null;
     const filterPayment = document.getElementById("filter-payment-status")?.value || '';
 
     // --- BOTÓN GLOBAL DE REPARACIÓN (Solo si hay basura en el estado) ---
@@ -2953,6 +2954,9 @@ function renderBonosFromState(missingNum = null) {
                     dateMatch = true;
                 }
             }
+        } else if (rangeCutoffYMD && b.fecha) {
+            const bDate = getVoucherLocalDateYMD(b.fecha);
+            dateMatch = (bDate >= rangeCutoffYMD);
         }
 
         // Estado (solo aplica si NO hay búsqueda por código)
