@@ -646,12 +646,14 @@ function simplifyNameForMatching(name) {
     // NUEVO: Eliminar sufijos de cantidad numéricos como (1), (2) que vienen de WooCommerce/Excel
     s = s.replace(/\(\d+\)/g, '');
 
-    // Eliminar prefijos de categoría si están presentes con guion
+    // Eliminar prefijos de categoría si están presentes con guion (sin descartar si el segundo tramo es solo duración, ej: "60'")
     if (s.includes(" - ")) {
         const parts = s.split(" - ");
-        // Si el primer tramo es genérico (ej: "Circuito SPA"), lo ignoramos para centrar en el producto real
-        if (parts.length > 1) s = parts[1];
-        else s = parts[0];
+        if (parts.length > 1 && !/^\d+['"]?\s*(min|minutos)?$/i.test(parts[1].trim())) {
+            s = parts[1];
+        } else {
+            s = parts[0];
+        }
     }
 
     // Limpieza final de espacios y guiones
@@ -3155,19 +3157,18 @@ function renderBonosFromState(missingNum = null) {
             <td style="padding: 10px 5px;"><img src="${thumbUrl}" referrerpolicy="no-referrer" style="width: 35px; height: 35px; object-fit: cover; border-radius: 4px; border: 1px solid #e2e8f0;"></td>
             <td style="font-weight:600">${b.bono || '-'}</td>
             <td>
+                ${(() => {
+                const displayProductName = (b.origen !== 'local' && catalogMatch && catalogMatch.nombre) ? catalogMatch.nombre : (b.producto || '-');
+                const prot = window.getServiceProtocol ? window.getServiceProtocol(displayProductName) : { color: '#cbd5e1', tratamiento: 'Normal' };
+                return `
                 <div style="display: flex; align-items: center; gap: 8px;">
-                    ${(() => {
-                const prot = window.getServiceProtocol ? window.getServiceProtocol(b.producto) : { color: '#cbd5e1' };
-                return `<span style="width: 10px; height: 10px; border-radius: 50%; background: ${prot.color}; flex-shrink: 0;" title="${prot.tratamiento}"></span>`;
-            })()}
-                    ${b.producto || '-'}
+                    <span style="width: 10px; height: 10px; border-radius: 50%; background: ${prot.color}; flex-shrink: 0;" title="${prot.tratamiento}"></span>
+                    ${displayProductName}
                 </div>
                 <div style="font-size: 0.65rem; color: #94a3b8; margin-left: 18px; text-transform: uppercase; font-weight: 700;">
-                    ${(() => {
-                const prot = window.getServiceProtocol ? window.getServiceProtocol(b.producto) : { tratamiento: 'Normal' };
-                return prot.tratamiento;
+                    ${prot.tratamiento}
+                </div>`;
             })()}
-                </div>
             </td>
             <td>${b.cliente || '-'}</td>
             <td>${formatDate(b.fecha || b.fecha_compra || b.date_created)}${expiryText}</td>
@@ -3570,8 +3571,15 @@ async function openVoucherManagement(code) {
         v.items_desglosados &&
         (v.items_desglosados.some(i => (i.name || '').toLowerCase().match(/(fantasía para dos|sueño para dos)/)) || v.items_desglosados.every(i => i.name === v.producto));
 
-    const hasRealBreakdown = !isBadFantasia && v.items_desglosados && v.items_desglosados.length > 0 &&
-        (v.origen === 'local' || !(v.items_desglosados.length === 1 && (v.items_desglosados[0].name === v.producto || v.items_desglosados[0].name === v.nombre)));
+    const catalogMatchForBreakdown = findCatalogProduct(v);
+    const catalogHasMultiItems = !!(catalogMatchForBreakdown && Array.isArray(catalogMatchForBreakdown.items_incluidos) && catalogMatchForBreakdown.items_incluidos.length > 1);
+    const singleUnexpandedOnlineItem = v.origen !== 'local' && v.items_desglosados && v.items_desglosados.length === 1 && (
+        catalogHasMultiItems ||
+        (v.items_desglosados[0].name || '').trim() === (v.producto || '').trim() ||
+        (v.items_desglosados[0].name || '').trim() === (v.nombre || '').trim()
+    );
+
+    const hasRealBreakdown = !isBadFantasia && v.items_desglosados && v.items_desglosados.length > 0 && !singleUnexpandedOnlineItem;
 
     if (hasRealBreakdown) {
         console.log('[BONO] Usando items_desglosados guardados:', v.items_desglosados.length, 'items');
@@ -3656,9 +3664,9 @@ async function openVoucherManagement(code) {
     if (detectedServices.length > 0) {
         const firstService = detectedServices[0];
 
-        // Buscar el producto principal (Pack) en el catálogo para obtener su imagen real
-        const packName = v.producto || firstService.name;
-        const packInCatalog = state.catalogProducts.find(p => p.nombre === packName);
+        // Buscar el producto principal (Pack) en el catálogo para obtener su nombre limpio e imagen real
+        const packInCatalog = catalogMatchForBreakdown || state.catalogProducts.find(p => p.nombre === (v.producto || firstService.name));
+        const packName = (v.origen !== 'local' && packInCatalog && packInCatalog.nombre) ? packInCatalog.nombre : (v.producto || firstService.name);
         const mainImage = (packInCatalog && packInCatalog.imagen) ? packInCatalog.imagen : (firstService.imagen || 'zenith-icon.png');
 
         // Configurar la tarjeta
@@ -3677,7 +3685,7 @@ async function openVoucherManagement(code) {
             descText += ` (${detectedServices.length} servicios)`;
         } else {
             // Si es solo uno, descripción normal
-            let rawDesc = firstService.descripcion || firstService.incluye || '';
+            let rawDesc = firstService.descripcion || firstService.incluye || packInCatalog?.descripcion || packInCatalog?.incluye || '';
             if (Array.isArray(rawDesc)) rawDesc = rawDesc.join(', ');
             descText = String(rawDesc || 'Sin descripción en catálogo');
         }
@@ -3769,7 +3777,17 @@ async function openVoucherManagement(code) {
             const isRest = spLow.includes('rest') || nmLow.includes('menú') || nmLow.includes('menu') || nmLow.includes('comida') || nmLow.includes('cena') || nmLow.includes('almuerzo');
             return !isComp && !isAccomm && !isGym && !isRest;
         });
-        const canBookFullPack = v.estado !== 'anulado' && (isPack || state.editingVoucherItems.length > 1) && pendingPackItems.length >= 2;
+        const pendingAllPackItems = state.editingVoucherItems.filter(it => {
+            const usedCnt = it.used || 0;
+            const totalCnt = it.sessions || 1;
+            if (usedCnt >= totalCnt) return false;
+            const rawSp = Array.isArray(it.space) ? it.space[0] : it.space;
+            const spLow = (typeof rawSp === 'string' ? rawSp : '').toLowerCase();
+            const nmLow = (it.name || it.nombre || '').toLowerCase();
+            const isComp = it.tipo === 'complemento' || it.reservable === false || spLow === 'complemento' || spLow === 'extra' || complementRegexHeader.test(nmLow);
+            return !isComp;
+        });
+        const canBookFullPack = v.estado !== 'anulado' && (isPack || state.editingVoucherItems.length > 1) && pendingPackItems.length >= 1 && pendingAllPackItems.length >= 2;
         const packProductName = v.producto || state.editingVoucherItems.find(i => i.parent_pack)?.parent_pack || state.editingVoucherItems[0]?.name || '';
         const packPax = parseInt(v.pax || v.pax_adultos || state.editingVoucherItems[0]?.pax) || 1;
 
