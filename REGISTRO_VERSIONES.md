@@ -8,7 +8,7 @@ Este documento mantiene el **control de versión única y global** para todo el 
 
 | Parámetro | Valor Actual |
 | :--- | :--- |
-| **Versión Global del Sistema** | **`v2.3.61`** |
+| **Versión Global del Sistema** | **`v2.3.62`** |
 | **Fecha de Última Actualización** | **17/11/2026** |
 | **Estado General** | Operativo en Producción |
 
@@ -47,6 +47,13 @@ Cualquier cambio en los siguientes módulos impacta en la versión global:
 ---
 
 ## 📝 Historial Unificado de Versiones
+
+### [v2.3.62] - 17/11/2026
+- **Tipo:** PATCH
+- **Archivos:** `js/app-core.js`
+- **Descripción:** Estado en vivo y anulación sincronizada con Mesachef (`js/app-core.js`):
+  1. **Indicador visual de reserva en Mesachef:** `refreshMesachefBookingStatus()` consulta `reservas_restaurante` por ID / `campoBono` y muestra en el modal si está `Reservado en Mesachef` (fecha, hora, turno, ref.), `Anulada` o `Pendiente de reservar` (refrescándose también al volver el foco desde Mesachef).
+  2. **Anulación bidireccional:** al anular o borrar una reserva en Gest-Spa, `syncReservationToMesachef()`, `cancelReservationInMesachef()` y `deleteReservationInMesachef()` anulan/eliminan también las reservas vinculadas por `campoBono` en Mesachef (`mesa-chef-prod`).
 
 ### [v2.3.61] - 17/11/2026
 - **Tipo:** PATCH

@@ -1209,15 +1209,96 @@ window.openMesachefFromPack = function (overrideService) {
  */
 window.renderPackExternalExtrasHtml = function (hasRestaurant, hasHotel, hasCava) {
     if (!hasRestaurant && !hasHotel && !hasCava) return '';
-    let html = `<div style="margin-top: 8px; padding: 6px 10px; background: #fefce8; border: 1px solid #fef08a; border-radius: 6px; display: flex; flex-direction: column; gap: 3px; font-size: 0.72rem; color: #854d0e;">`;
+    let html = `<div style="margin-top: 8px; padding: 6px 10px; background: #fefce8; border: 1px solid #fef08a; border-radius: 6px; display: flex; flex-direction: column; gap: 4px; font-size: 0.72rem; color: #854d0e;">`;
     if (hasRestaurant) {
-        html += `<div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:6px;"><span><i class="fas fa-utensils" style="color:#d97706; margin-right:5px;"></i> <strong>Restaurante:</strong> Incluye servicio de comida/menú en Restaurante Cumbria (gestión directa fuera de agenda SPA).</span><button type="button" onclick="window.openMesachefFromPack()" style="padding:3px 10px; background:#d97706; color:#fff; border:none; border-radius:5px; font-size:0.7rem; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:5px; white-space:nowrap;"><i class="fas fa-external-link-alt"></i> Reservar en Mesachef</button></div>`;
+        html += `<div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:6px;"><span><i class="fas fa-utensils" style="color:#d97706; margin-right:5px;"></i> <strong>Restaurante:</strong> Incluye servicio de comida/menú en Restaurante Cumbria (gestión directa fuera de agenda SPA).</span><button type="button" id="btn-open-mesachef-pack" onclick="window.openMesachefFromPack()" style="padding:3px 10px; background:#d97706; color:#fff; border:none; border-radius:5px; font-size:0.7rem; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:5px; white-space:nowrap;"><i class="fas fa-external-link-alt"></i> Reservar en Mesachef</button></div>`;
+        html += `<div id="mesachef-booking-status" style="font-size:0.7rem;"></div>`;
+        setTimeout(() => { if (typeof window.refreshMesachefBookingStatus === 'function') window.refreshMesachefBookingStatus(); }, 50);
     }
     if (hasHotel) html += `<div><i class="fas fa-hotel" style="color:#2563eb; margin-right:5px;"></i> <strong>Hotel:</strong> Incluye alojamiento en Hotel Cumbria.</div>`;
     if (hasCava) html += `<div><i class="fas fa-wine-bottle" style="color:#7c3aed; margin-right:5px;"></i> <strong>Detalle:</strong> Incluye botella de Cava.</div>`;
     html += `</div>`;
     return html;
 };
+
+/**
+ * Finds Mesachef restaurant reservations linked by document ID or campoBono codes.
+ */
+window.findMesachefReservations = async function (codes = []) {
+    const mesachefDb = typeof window.getMesachefFirestore === 'function' ? window.getMesachefFirestore() : null;
+    if (!mesachefDb) return [];
+    const cleanCodes = Array.from(new Set(codes.map(c => (c || '').trim()).filter(c => c && c.toUpperCase() !== 'NUEVA')));
+    if (cleanCodes.length === 0) return [];
+
+    const resultsMap = new Map();
+    for (const code of cleanCodes) {
+        try {
+            const byId = await mesachefDb.collection('reservas_restaurante').doc(code).get();
+            if (byId.exists) resultsMap.set(byId.id, { id: byId.id, ...byId.data() });
+        } catch (e) { /* ignore */ }
+    }
+    try {
+        const snap = await mesachefDb.collection('reservas_restaurante').where('campoBono', 'in', cleanCodes.slice(0, 10)).get();
+        snap.forEach(doc => resultsMap.set(doc.id, { id: doc.id, ...doc.data() }));
+    } catch (e) {
+        console.warn('[MESACHEF] Error querying campoBono:', e);
+    }
+    return Array.from(resultsMap.values());
+};
+
+/**
+ * Updates the Mesachef booking status badge inside the Gest-Spa reservation modal.
+ */
+window.refreshMesachefBookingStatus = async function () {
+    const box = document.getElementById('mesachef-booking-status');
+    if (!box) return;
+
+    const rawRef = (document.getElementById('res-id-display')?.textContent || '').trim();
+    const formId = (document.getElementById('form-id')?.value || '').trim();
+    const voucher = (document.getElementById('res-bono')?.value || '').trim();
+    const codes = [formId, rawRef, voucher].filter(c => c && c.toUpperCase() !== 'NUEVA');
+
+    if (codes.length === 0) {
+        box.innerHTML = `<span style="color:#92400e;"><i class="fas fa-info-circle"></i> Guarda la reserva primero o usa un bono para vincular la reserva de Mesachef.</span>`;
+        return;
+    }
+
+    box.innerHTML = `<span style="color:#64748b;"><i class="fas fa-spinner fa-spin"></i> Comprobando reserva en Mesachef...</span>`;
+    const docs = await window.findMesachefReservations(codes);
+    if (!document.getElementById('mesachef-booking-status')) return;
+
+    const active = docs.filter(d => !['anulada', 'cancelada'].includes((d.estado || '').toLowerCase()));
+    const btn = document.getElementById('btn-open-mesachef-pack');
+
+    if (active.length > 0) {
+        const r = active[0];
+        let fechaTxt = '';
+        try {
+            const d = r.fecha?.toDate ? r.fecha.toDate() : (r.fecha ? new Date(r.fecha) : null);
+            if (d && !isNaN(d.getTime())) fechaTxt = d.toLocaleDateString('es-ES');
+        } catch (e) { /* ignore */ }
+        const turnoTxt = r.turno ? ` (${r.turno === 'almuerzo' ? 'Almuerzo' : (r.turno === 'cena' ? 'Cena' : r.turno)})` : '';
+        const horaTxt = r.hora ? ` · ${r.hora}` : '';
+        const refTxt = r.referencia ? ` · Ref: ${r.referencia}` : '';
+        box.innerHTML = `<span style="display:inline-flex; align-items:center; gap:5px; padding:2px 8px; border-radius:5px; background:#dcfce7; color:#166534; font-weight:700; border:1px solid #86efac;"><i class="fas fa-check-circle"></i> Reservado en Mesachef: ${fechaTxt}${horaTxt}${turnoTxt}${refTxt}</span>`;
+        if (btn) btn.innerHTML = '<i class="fas fa-external-link-alt"></i> Nueva / Ver en Mesachef';
+    } else if (docs.length > 0) {
+        box.innerHTML = `<span style="display:inline-flex; align-items:center; gap:5px; padding:2px 8px; border-radius:5px; background:#fee2e2; color:#991b1b; font-weight:700; border:1px solid #fca5a5;"><i class="fas fa-times-circle"></i> Reserva en Mesachef anulada</span>`;
+        if (btn) btn.innerHTML = '<i class="fas fa-external-link-alt"></i> Reservar en Mesachef';
+    } else {
+        box.innerHTML = `<span style="display:inline-flex; align-items:center; gap:5px; padding:2px 8px; border-radius:5px; background:#fff7ed; color:#9a3412; font-weight:600; border:1px solid #fed7aa;"><i class="fas fa-clock"></i> Pendiente de reservar en Mesachef</span>`;
+        if (btn) btn.innerHTML = '<i class="fas fa-external-link-alt"></i> Reservar en Mesachef';
+    }
+};
+
+if (typeof window !== 'undefined' && !window._mesachefFocusListenerAdded) {
+    window._mesachefFocusListenerAdded = true;
+    window.addEventListener('focus', () => {
+        if (document.getElementById('mesachef-booking-status')) {
+            window.refreshMesachefBookingStatus();
+        }
+    });
+}
 
 /**
  * Resolves the exact "SPA y Sabores" service data and per-pax price for the given PAX.
@@ -2019,6 +2100,11 @@ window.getMesachefFirestore = function () {
 window.syncReservationToMesachef = async function (id, payload) {
     if (!id || !payload) return;
     try {
+        const statusNorm = (payload.status || payload.estado || '').toLowerCase();
+        if (statusNorm === 'anulada' || statusNorm === 'cancelada') {
+            await window.cancelReservationInMesachef(id, [payload.referencia, payload.bono, payload.codigo_bono, payload.localizador]);
+            return;
+        }
         const serviceName = (payload.servicio || '').toLowerCase();
         const complementos = payload.complementos || [];
         
@@ -2144,7 +2230,7 @@ window.syncReservationToMesachef = async function (id, payload) {
 /**
  * Cancels a spa reservation in Mesachef if it exists.
  */
-window.cancelReservationInMesachef = async function (id) {
+window.cancelReservationInMesachef = async function (id, extraCodes = []) {
     if (!id) return;
     try {
         const docRef = db.collection("reservas_restaurante").doc(id);
@@ -2166,11 +2252,26 @@ window.cancelReservationInMesachef = async function (id) {
 
         const mesachefDb = window.getMesachefFirestore();
         if (mesachefDb) {
+            const codes = Array.from(new Set([id, ...(Array.isArray(extraCodes) ? extraCodes : [extraCodes])].map(c => (c || '').trim()).filter(Boolean)));
             try {
-                await mesachefDb.collection("reservas_restaurante").doc(id).update(updatePayload);
-                console.log(`[MESACHEF SYNC] Cancelled reservation in Mesachef prod: ${id}`);
+                const directSnap = await mesachefDb.collection("reservas_restaurante").doc(id).get();
+                if (directSnap.exists) {
+                    await mesachefDb.collection("reservas_restaurante").doc(id).update(updatePayload);
+                    console.log(`[MESACHEF SYNC] Cancelled reservation in Mesachef prod by ID: ${id}`);
+                }
             } catch (prodErr) {
-                console.warn(`[MESACHEF SYNC] Could not cancel in Mesachef prod:`, prodErr);
+                console.warn(`[MESACHEF SYNC] Could not cancel by ID in Mesachef prod:`, prodErr);
+            }
+            if (codes.length > 0) {
+                try {
+                    const linkedSnap = await mesachefDb.collection("reservas_restaurante").where("campoBono", "in", codes.slice(0, 10)).get();
+                    for (const linkedDoc of linkedSnap.docs) {
+                        await linkedDoc.ref.update(updatePayload);
+                        console.log(`[MESACHEF SYNC] Cancelled linked reservation in Mesachef prod: ${linkedDoc.id}`);
+                    }
+                } catch (qErr) {
+                    console.warn(`[MESACHEF SYNC] Could not cancel linked reservations by campoBono in Mesachef prod:`, qErr);
+                }
             }
         }
     } catch (err) {
@@ -2181,7 +2282,7 @@ window.cancelReservationInMesachef = async function (id) {
 /**
  * Permanently deletes a spa reservation in Mesachef if it exists.
  */
-window.deleteReservationInMesachef = async function (id) {
+window.deleteReservationInMesachef = async function (id, extraCodes = []) {
     if (!id) return;
     try {
         const docRef = db.collection("reservas_restaurante").doc(id);
@@ -2193,11 +2294,23 @@ window.deleteReservationInMesachef = async function (id) {
 
         const mesachefDb = window.getMesachefFirestore();
         if (mesachefDb) {
+            const codes = Array.from(new Set([id, ...(Array.isArray(extraCodes) ? extraCodes : [extraCodes])].map(c => (c || '').trim()).filter(Boolean)));
             try {
                 await mesachefDb.collection("reservas_restaurante").doc(id).delete();
                 console.log(`[MESACHEF SYNC] Deleted reservation in Mesachef prod: ${id}`);
             } catch (prodErr) {
                 console.warn(`[MESACHEF SYNC] Could not delete from Mesachef prod:`, prodErr);
+            }
+            if (codes.length > 0) {
+                try {
+                    const linkedSnap = await mesachefDb.collection("reservas_restaurante").where("campoBono", "in", codes.slice(0, 10)).get();
+                    for (const linkedDoc of linkedSnap.docs) {
+                        await linkedDoc.ref.delete();
+                        console.log(`[MESACHEF SYNC] Deleted linked reservation in Mesachef prod: ${linkedDoc.id}`);
+                    }
+                } catch (qErr) {
+                    console.warn(`[MESACHEF SYNC] Could not delete linked reservations by campoBono:`, qErr);
+                }
             }
         }
     } catch (err) {
