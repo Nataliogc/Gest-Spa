@@ -8,7 +8,7 @@ Este documento mantiene el **control de versión única y global** para todo el 
 
 | Parámetro | Valor Actual |
 | :--- | :--- |
-| **Versión Global del Sistema** | **`v2.3.55`** |
+| **Versión Global del Sistema** | **`v2.3.56`** |
 | **Fecha de Última Actualización** | **17/11/2026** |
 | **Estado General** | Operativo en Producción |
 
@@ -47,6 +47,14 @@ Cualquier cambio en los siguientes módulos impacta en la versión global:
 ---
 
 ## 📝 Historial Unificado de Versiones
+
+### [v2.3.56] - 17/11/2026
+- **Tipo:** PATCH
+- **Archivos:** `js/app-core.js`, `reservas-salas.html`, `reservas-spa.html`, `reservas.html`
+- **Descripción:** Mejoras en la reserva de servicios extra, Restaurante (Mesachef) y `SPA y Sabores`:
+  1. **Visibilidad de `Complementos` y `+ Añadir Circuito Spa`:** Corregida la comprobación obsoleta de `.comp-checkbox` en `reservas-salas.html` y `reservas-spa.html` que ocultaba el bloque de `Complementos` en Cabinas/Salas.
+  2. **Enlace directo a Mesachef (`Reservar en Mesachef`):** Añadido `window.openMesachefFromPack()` y `window.renderPackExternalExtrasHtml()` en `js/app-core.js` y el botón en el aviso de Restaurante para packs multiservicio y packs de 1 fase con servicios externos (ej. `Tiempo para dos`).
+  3. **Selector de Servicio en módulo SPA:** Habilitado `#service-group` en el módulo `spa` (manteniendo `Circuito Spa` preseleccionado por defecto) para poder seleccionar `SPA y Sabores` y `SPA y Sabores - Individual` desde la sala de Spa.
 
 ### [v2.3.55] - 17/11/2026
 - **Tipo:** MINOR
