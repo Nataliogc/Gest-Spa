@@ -704,6 +704,7 @@
             const service = urlParams.get('service');
             const space = urlParams.get('space');
             const pax = urlParams.get('pax');
+            const isPack = urlParams.get('is_pack') === '1';
 
             if (voucher) {
                 window.currentVoucherBooking = {
@@ -711,7 +712,8 @@
                     client: client || '',
                     service: service || '',
                     space: space || '',
-                    pax: pax || '1'
+                    pax: pax || '1',
+                    is_pack: isPack
                 };
                 sessionStorage.setItem('pendingVoucherBooking', JSON.stringify({
                     cliente: client || '',
@@ -770,9 +772,9 @@
                         <i class="fas fa-ticket-alt"></i> BONO ${esc(vb.voucher)}
                     </span>
                     <div>
-                        <span>Reservando: <strong>${esc(vb.service || 'Servicio')}</strong>${paxTxt}${clientTxt}${spaceTxt}</span>
+                        <span>Reservando${vb.is_pack ? ' <strong style="background:#fef3c7;color:#92400e;padding:1px 6px;border-radius:4px;border:1px solid #fcd34d;font-size:0.75rem;">PACK COMPLETO</strong>' : ''}: <strong>${esc(vb.service || 'Servicio')}</strong>${paxTxt}${clientTxt}${spaceTxt}</span>
                         <div style="font-size: 0.78rem; color: #047857; margin-top: 3px;">
-                            <i class="fas fa-hand-pointer"></i> Haz clic en una casilla libre para asignar sala, fecha y turno a este servicio.
+                            <i class="fas fa-hand-pointer"></i> ${vb.is_pack ? 'Haz clic en una casilla libre para abrir la ficha y asignar sala, fecha y hora a todas las fases del pack.' : 'Haz clic en una casilla libre para asignar sala, fecha y turno a este servicio.'}
                         </div>
                     </div>
                 </div>
@@ -1250,7 +1252,7 @@
             let voucherParams = '';
             const vb = window.currentVoucherBooking;
             if (vb && vb.voucher) {
-                voucherParams = `&client=${encodeURIComponent(vb.client || '')}&service=${encodeURIComponent(vb.service || '')}&voucher=${encodeURIComponent(vb.voucher)}&pax=${encodeURIComponent(vb.pax || '1')}`;
+                voucherParams = `&client=${encodeURIComponent(vb.client || '')}&service=${encodeURIComponent(vb.service || '')}&voucher=${encodeURIComponent(vb.voucher)}&pax=${encodeURIComponent(vb.pax || '1')}${vb.is_pack ? '&is_pack=1' : ''}`;
             }
 
             const newBookingParams = {
@@ -1264,7 +1266,8 @@
                 client: (vb && vb.voucher) ? (vb.client || '') : '',
                 service: (vb && vb.voucher) ? (vb.service || '') : '',
                 voucher: (vb && vb.voucher) ? (vb.voucher || '') : '',
-                pax: (vb && vb.voucher) ? (vb.pax || '1') : ''
+                pax: (vb && vb.voucher) ? (vb.pax || '1') : '',
+                is_pack: (vb && vb.voucher && vb.is_pack) ? '1' : ''
             };
 
             const url = `reservas-salas.html?type=${targetType}&action=new&date=${currentDate}&time=${time}` +

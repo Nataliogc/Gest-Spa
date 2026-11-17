@@ -496,6 +496,99 @@ window.createPackReservations = async function (parentData, childItems) {
 };
 
 /**
+ * Updates voucher session usage when a multi-service pack is booked from a voucher.
+ */
+window.updateVoucherSessionsForPack = async function (bonoId, activeItems = []) {
+    if (!bonoId || !window.db) return;
+    const cleanBonoId = String(bonoId).trim();
+    if (!cleanBonoId) return;
+
+    try {
+        let vRef = db.collection("spa_vouchers").doc(cleanBonoId);
+        let vDoc = await vRef.get();
+        if (!vDoc.exists) {
+            const vDocSpace = await db.collection("spa_vouchers").doc(cleanBonoId + ' ').get();
+            if (vDocSpace.exists) {
+                vDoc = vDocSpace;
+                vRef = vDocSpace.ref;
+            }
+        }
+        if (!vDoc.exists) return;
+
+        const vData = vDoc.data();
+        const consumedCount = (Array.isArray(activeItems) && activeItems.length > 0) ? activeItems.length : 1;
+        const newUsedTotal = (vData.sesiones_usadas || 0) + consumedCount;
+        const updates = {
+            sesiones_usadas: newUsedTotal,
+            last_updated: new Date().toISOString()
+        };
+
+        const rawItems = Array.isArray(vData.items_desglosados)
+            ? vData.items_desglosados
+            : (Array.isArray(vData.desglosados) ? vData.desglosados : []);
+
+        if (rawItems.length > 0) {
+            const items = rawItems.map(it => ({ ...it }));
+            const complementRegex = /(botella|cava|vino|champagne|champán|ramo|flores|fruta|bombones|chocolate|detalle|benjamín|benjamin|regalo|extra|accesorio|toalla|albornoz|amenities|spa kit)/i;
+            const isItemReservableUnused = (it) => {
+                const used = it.used ?? it.usadas ?? 0;
+                const total = it.sessions ?? it.sesiones ?? 1;
+                if (used >= total) return false;
+                const nm = (it.name || it.nombre || '').toLowerCase();
+                const sp = (Array.isArray(it.space) ? it.space[0] : (it.space || '')).toLowerCase();
+                if (it.tipo === 'complemento' || it.reservable === false || sp === 'complemento' || sp === 'extra' || complementRegex.test(nm)) return false;
+                if (sp === 'gimnasio' || sp === 'gym' || sp.includes('hotel') || sp.includes('rest')) return false;
+                return true;
+            };
+
+            let anyMatched = false;
+            (activeItems || []).forEach(act => {
+                const actName = (act.name || act.nombre || '').toLowerCase().trim();
+                const actSpace = (act.space || act.espacio || '').toLowerCase().trim();
+
+                // 1. Exact or substring name match
+                let matchIdx = items.findIndex(it => {
+                    if (!isItemReservableUnused(it)) return false;
+                    const itName = (it.name || it.nombre || '').toLowerCase().trim();
+                    return itName && actName && (itName === actName || actName.includes(itName) || itName.includes(actName));
+                });
+
+                // 2. Space match fallback (e.g. "MASAJE RELAX 30 MIN EN SUITE" in panacea vs "Encuentro Romántico (Masaje Relax 30 min)" in panacea)
+                if (matchIdx === -1 && actSpace) {
+                    matchIdx = items.findIndex(it => {
+                        if (!isItemReservableUnused(it)) return false;
+                        const rawSp = Array.isArray(it.space) ? it.space[0] : (it.space || '');
+                        const itSpace = String(rawSp).toLowerCase().trim();
+                        return itSpace && (itSpace === actSpace || itSpace.includes(actSpace) || actSpace.includes(itSpace));
+                    });
+                }
+
+                // 3. First unused reservable item fallback
+                if (matchIdx === -1) {
+                    matchIdx = items.findIndex(it => isItemReservableUnused(it));
+                }
+
+                if (matchIdx !== -1) {
+                    const currentUsed = items[matchIdx].used ?? items[matchIdx].usadas ?? 0;
+                    items[matchIdx].used = currentUsed + 1;
+                    items[matchIdx].usadas = items[matchIdx].used;
+                    anyMatched = true;
+                }
+            });
+
+            if (anyMatched) {
+                updates.items_desglosados = items;
+            }
+        }
+
+        await vRef.update(updates);
+        console.log(`[BONO-PACK] Updated voucher ${cleanBonoId}: +${consumedCount} sessions (total used: ${newUsedTotal})`);
+    } catch (err) {
+        console.warn("[BONO-PACK] Error updating voucher sessions for pack:", err);
+    }
+};
+
+/**
  * Loads all sibling reservation documents belonging to the same pack as `res`.
  */
 window.loadPackSiblingsForEdit = async function (res) {

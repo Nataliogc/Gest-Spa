@@ -6100,7 +6100,13 @@
                             btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creando Pack...';
                             result = await window.createPackReservations(parentData, activeItems);
                             showToast(`Pack creado: ${result.childIds.length} reserva(s)`, "success");
-                            if (payload.origen === 'bono' && payload.bono) updateVoucherSessions(payload.bono, 1, svcName).catch(console.warn);
+                            if (payload.origen === 'bono' && payload.bono) {
+                                if (typeof window.updateVoucherSessionsForPack === 'function') {
+                                    await window.updateVoucherSessionsForPack(payload.bono, activeItems);
+                                } else {
+                                    await updateVoucherSessions(payload.bono, activeItems.length || 1, svcName).catch(console.warn);
+                                }
+                            }
                         } else {
                             btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Guardando Pack...';
                             const existingRes = (currentData || []).find(r => r.id === id) || {};
@@ -6112,6 +6118,7 @@
                             try {
                                 window.parent.postMessage({
                                     type: 'GEST_SPA_RESERVATION_SUCCESS',
+                                    voucher: payload.bono || '',
                                     cliente: payload.nombre,
                                     fecha: payload.fecha,
                                     isPack: true,

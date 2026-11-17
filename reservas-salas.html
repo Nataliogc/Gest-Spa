@@ -7085,12 +7085,22 @@
                     }
                     const vData = vDoc.data();
                     const totalSesiones = vData.sesiones_totales || 1;
-                    const snaps = await db.collection(currentModule.collection).where("bono", "==", bonoCode).get();
-                    let sesionesReservadas = 0;
-                    snaps.forEach(doc => { if (doc.id !== id && doc.data().status !== 'anulada') sesionesReservadas += (doc.data().sesiones_consumidas || 1); });
-                    if ((sesionesReservadas + currentSessionCount) > totalSesiones) {
-                        alert(`¡LÍMITE EXCEDIDO!\n\nEste bono tiene ${totalSesiones} sesiones.\nYa hay ${sesionesReservadas} usadas.\nNo se puede completar.`);
-                        isSavingReservation = false; btn.disabled = false; btn.innerHTML = originalText; return;
+                    const isPackBooking = !!(window._packItems && window._packItems.length > 0);
+                    if (isPackBooking) {
+                        const activePackCount = window._packItems.filter(it => it.active !== false).length || 1;
+                        const usedSoFar = vData.sesiones_usadas || 0;
+                        if ((usedSoFar + activePackCount) > totalSesiones) {
+                            alert(`¡LÍMITE EXCEDIDO!\n\nEste bono tiene ${totalSesiones} sesiones.\nYa hay ${usedSoFar} usadas y estás intentando reservar ${activePackCount} servicio(s) del pack.\nNo se puede completar.`);
+                            isSavingReservation = false; btn.disabled = false; btn.innerHTML = originalText; return;
+                        }
+                    } else {
+                        const snaps = await db.collection(currentModule.collection).where("bono", "==", bonoCode).get();
+                        let sesionesReservadas = 0;
+                        snaps.forEach(doc => { if (doc.id !== id && doc.data().status !== 'anulada') sesionesReservadas += (doc.data().sesiones_consumidas || 1); });
+                        if ((sesionesReservadas + currentSessionCount) > totalSesiones) {
+                            alert(`¡LÍMITE EXCEDIDO!\n\nEste bono tiene ${totalSesiones} sesiones.\nYa hay ${sesionesReservadas} usadas.\nNo se puede completar.`);
+                            isSavingReservation = false; btn.disabled = false; btn.innerHTML = originalText; return;
+                        }
                     }
                 }
 
@@ -7369,7 +7379,13 @@
                             btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creando Pack...';
                             result = await window.createPackReservations(parentData, activeItems);
                             showToast(`Pack creado: ${result.childIds.length} reserva(s)`, "success");
-                            if (payload.origen === 'bono' && payload.bono) updateVoucherSessions(payload.bono, 1, svcName).catch(console.warn);
+                            if (payload.origen === 'bono' && payload.bono) {
+                                if (typeof window.updateVoucherSessionsForPack === 'function') {
+                                    await window.updateVoucherSessionsForPack(payload.bono, activeItems);
+                                } else {
+                                    await updateVoucherSessions(payload.bono, activeItems.length || 1, svcName).catch(console.warn);
+                                }
+                            }
                         } else {
                             btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Guardando Pack...';
                             const existingRes = (currentData || []).find(r => r.id === id) || {};
@@ -7381,6 +7397,7 @@
                             try {
                                 window.parent.postMessage({
                                     type: 'GEST_SPA_RESERVATION_SUCCESS',
+                                    voucher: payload.bono || '',
                                     cliente: payload.nombre,
                                     fecha: payload.fecha,
                                     isPack: true,

@@ -1076,6 +1076,51 @@ async function goToReservation(client, service, code, space, pax, skipPaymentChe
     if (win) win.focus();
 }
 
+window.goToPackReservation = async function (encodedClient, encodedPackName, encodedCode, pax = 1) {
+    const client = decodeURIComponent(encodedClient || '');
+    const packName = decodeURIComponent(encodedPackName || '');
+    const code = decodeURIComponent(encodedCode || '');
+
+    if (!confirm(`¿Ir a Ocupación para reservar el pack completo '${packName}' para ${client || 'el cliente'}?`)) return;
+
+    const items = Array.isArray(state.editingVoucherItems) ? state.editingVoucherItems : [];
+    const complementKeywords = /(botella|cava|vino|champagne|champán|ramo|flores|fruta|bombones|chocolate|detalle|benjamín|benjamin|regalo|extra|accesorio|toalla|albornoz|amenities|spa kit)/i;
+    const reservableSpaces = items
+        .filter(it => {
+            const nameLower = (it.name || it.nombre || '').toLowerCase();
+            const rawSp = Array.isArray(it.space) ? it.space[0] : it.space;
+            const spLower = (typeof rawSp === 'string' ? rawSp : '').toLowerCase();
+            const isComp = it.tipo === 'complemento' || it.reservable === false || spLower === 'complemento' || spLower === 'extra' || complementKeywords.test(nameLower);
+            const isGym = spLower === 'gimnasio' || spLower === 'gym' || nameLower.includes('gimnasio');
+            const isHotelRest = spLower.includes('hotel') || spLower.includes('rest') || nameLower.includes('alojamiento') || nameLower.includes('desayuno') || nameLower.includes('menú') || nameLower.includes('menu') || nameLower.includes('comida') || nameLower.includes('cena');
+            return !isComp && !isGym && !isHotelRest && (it.used || 0) < (it.sessions || 1);
+        })
+        .map(it => {
+            const rawSp = Array.isArray(it.space) ? it.space[0] : it.space;
+            return (typeof rawSp === 'string' ? rawSp : '').toLowerCase().trim();
+        });
+
+    const allSpaOnly = reservableSpaces.length > 0 && reservableSpaces.every(sp => sp === 'spa');
+    const url = allSpaOnly
+        ? `reservas-spa.html?action=new&client=${encodeURIComponent(client)}&service=${encodeURIComponent(packName)}&voucher=${encodeURIComponent(code)}&pax=${encodeURIComponent(pax || 1)}&is_pack=1&embedded=1`
+        : `agenda-salas.html?action=new&client=${encodeURIComponent(client)}&service=${encodeURIComponent(packName)}&voucher=${encodeURIComponent(code)}&pax=${encodeURIComponent(pax || 1)}&is_pack=1&embedded=1`;
+
+    if (typeof openReservationDrawer === 'function') {
+        openReservationDrawer(url, {
+            client: client,
+            service: `PACK - ${packName}`,
+            code: code,
+            type: allSpaOnly ? 'spa' : 'ocupacion',
+            pax: pax,
+            isOcupacion: !allSpaOnly
+        });
+        return;
+    }
+
+    const win = window.open(url, 'GestSpa_VentanaReservas');
+    if (win) win.focus();
+};
+
 async function loadMasterItems() {
     try {
         const snapshot = await db.collection("spa_item_master").get();
@@ -3677,19 +3722,44 @@ async function openVoucherManagement(code) {
 
         const isEditable = v.origen === 'local' || (v.bono && v.bono.includes('exc.Loc'));
         const isPack = state.editingVoucherItems.some(i => i.parent_pack);
+        const complementRegexHeader = /(botella|cava|vino|champagne|champán|ramo|flores|fruta|bombones|chocolate|detalle|benjamín|benjamin|regalo|extra|accesorio|toalla|albornoz|amenities|spa kit)/i;
+        const pendingPackItems = state.editingVoucherItems.filter(it => {
+            const usedCnt = it.used || 0;
+            const totalCnt = it.sessions || 1;
+            if (usedCnt >= totalCnt) return false;
+            const rawSp = Array.isArray(it.space) ? it.space[0] : it.space;
+            const spLow = (typeof rawSp === 'string' ? rawSp : '').toLowerCase();
+            const nmLow = (it.name || it.nombre || '').toLowerCase();
+            const isComp = it.tipo === 'complemento' || it.reservable === false || spLow === 'complemento' || spLow === 'extra' || complementRegexHeader.test(nmLow);
+            const isAccomm = spLow.includes('hotel') || nmLow.includes('alojamiento') || nmLow.includes('desayuno');
+            const isGym = spLow === 'gimnasio' || spLow === 'gym' || nmLow.includes('gimnasio');
+            const isRest = spLow.includes('rest') || nmLow.includes('menú') || nmLow.includes('menu') || nmLow.includes('comida') || nmLow.includes('cena') || nmLow.includes('almuerzo');
+            return !isComp && !isAccomm && !isGym && !isRest;
+        });
+        const canBookFullPack = v.estado !== 'anulado' && (isPack || state.editingVoucherItems.length > 1) && pendingPackItems.length >= 2;
+        const packProductName = v.producto || state.editingVoucherItems.find(i => i.parent_pack)?.parent_pack || state.editingVoucherItems[0]?.name || '';
+        const packPax = parseInt(v.pax || v.pax_adultos || state.editingVoucherItems[0]?.pax) || 1;
 
         if (state.editingVoucherItems.length > 0 || isEditable) {
             listDiv.innerHTML = `
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px; gap:8px; flex-wrap:wrap;">
                 <div style="font-weight:700; color:#334155; font-size:0.75rem; text-transform:uppercase;">
                     ${isPack ? `<span style="background:#fef3c7; color:#92400e; padding:2px 6px; border-radius:4px; margin-right:6px; border:1px solid #fcd34d;">PACK</span>` : ''}
                     Items de Compra
                 </div>
-                ${isEditable ? `
-                    <button class="btn btn-sm btn-outline" onclick="addVoucherItem()" style="padding:2px 8px; font-size:0.7rem;">
-                        <i class="fas fa-plus"></i> Añadir
-                    </button>
-                ` : ''}
+                <div style="display:flex; align-items:center; gap:6px;">
+                    ${canBookFullPack ? `
+                        <button class="btn btn-sm" onclick="goToPackReservation('${encodeURIComponent(v.cliente || '').replace(/'/g, "%27")}', '${encodeURIComponent(packProductName).replace(/'/g, "%27")}', '${encodeURIComponent(v.bono || v.codigo || '').replace(/'/g, "%27")}', ${packPax})"
+                            style="padding:4px 12px; font-size:0.74rem; background:#f59e0b; color:#fff; border:none; border-radius:6px; font-weight:700; display:inline-flex; align-items:center; gap:6px; cursor:pointer; box-shadow:0 1px 2px rgba(0,0,0,0.1);">
+                            <i class="fas fa-calendar-check"></i> Reservar Pack Completo
+                        </button>
+                    ` : ''}
+                    ${isEditable ? `
+                        <button class="btn btn-sm btn-outline" onclick="addVoucherItem()" style="padding:2px 8px; font-size:0.7rem;">
+                            <i class="fas fa-plus"></i> Añadir
+                        </button>
+                    ` : ''}
+                </div>
             </div>
             
             ${isEditable ? `
