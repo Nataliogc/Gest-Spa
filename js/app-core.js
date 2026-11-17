@@ -1218,6 +1218,44 @@ window.renderPackExternalExtrasHtml = function (hasRestaurant, hasHotel, hasCava
 };
 
 /**
+ * Resolves the exact "SPA y Sabores" service data and per-pax price for the given PAX.
+ */
+window.resolveSpaSaboresData = function (pax) {
+    const p = Math.max(1, parseInt(pax, 10) || 2);
+    const catalog = (typeof currentServices !== 'undefined' && Array.isArray(currentServices)) ? currentServices : [];
+    const saboresList = catalog.filter(s => ((s.nombre || s.name || '').toLowerCase().includes('sabores')));
+
+    let unitPrice = 45;
+    let matched = null;
+    if (p === 1) {
+        matched = saboresList.find(s => parseInt(s.pax || s.pax_max || 0, 10) === 1 || (s.nombre || '').toLowerCase().includes('individual'));
+        if (matched && parseFloat(matched.precio || matched.price || 0) > 0) {
+            unitPrice = parseFloat(matched.precio || matched.price);
+        }
+    } else {
+        matched = saboresList.find(s => parseInt(s.pax || s.pax_max || 0, 10) >= 2 || !(s.nombre || '').toLowerCase().includes('individual'));
+        if (matched && parseFloat(matched.precio || matched.price || 0) > 0) {
+            const mPax = Math.max(1, parseInt(matched.pax || matched.pax_max || 2, 10) || 2);
+            unitPrice = parseFloat(matched.precio || matched.price) / mPax;
+        }
+    }
+
+    return {
+        ...(matched || {}),
+        nombre: p === 1 ? 'SPA y Sabores - Individual' : 'SPA y Sabores',
+        name: p === 1 ? 'SPA y Sabores - Individual' : 'SPA y Sabores',
+        pax: 1,
+        pax_max: 25,
+        precio: unitPrice,
+        price: unitPrice,
+        price_pax: unitPrice,
+        duracion: 60,
+        duration: 60,
+        includes_restaurant: true
+    };
+};
+
+/**
  * Syncs the "SPA y Sabores" quick toggle button in the Spa reservation modal.
  */
 window.syncSpaSaboresUi = function () {
@@ -1304,6 +1342,8 @@ window.toggleSpaSaboresMode = function (forceState = null) {
         sel.value = targetOpt.value;
         if (searchInp) searchInp.value = targetOpt.value;
     }
+    delete sel.dataset.pricingMode;
+    delete sel.dataset.fixedTotal;
 
     window._spaSaboresActive = nextState;
     window.syncSpaSaboresUi();

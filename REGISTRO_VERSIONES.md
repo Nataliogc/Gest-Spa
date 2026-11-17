@@ -8,7 +8,7 @@ Este documento mantiene el **control de versión única y global** para todo el 
 
 | Parámetro | Valor Actual |
 | :--- | :--- |
-| **Versión Global del Sistema** | **`v2.3.57`** |
+| **Versión Global del Sistema** | **`v2.3.58`** |
 | **Fecha de Última Actualización** | **17/11/2026** |
 | **Estado General** | Operativo en Producción |
 
@@ -47,6 +47,11 @@ Cualquier cambio en los siguientes módulos impacta en la versión global:
 ---
 
 ## 📝 Historial Unificado de Versiones
+
+### [v2.3.58] - 17/11/2026
+- **Tipo:** PATCH
+- **Archivos:** `js/app-core.js`, `reservas-salas.html`, `reservas-spa.html`, `reservas.html`
+- **Descripción:** Corrección de recálculo de importe al cambiar PAX con `SPA y Sabores`: eliminado el bloqueo `Precio Cerrado (Total)` (`fixedTotal: 90`) y añadido `window.resolveSpaSaboresData()` para calcular `45€/pax` (45€ para 1 pax, 90€ para 2 pax).
 
 ### [v2.3.57] - 17/11/2026
 - **Tipo:** PATCH
