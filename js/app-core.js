@@ -2467,3 +2467,140 @@ window.deleteReservationInMesachef = async function (id, extraCodes = [], contex
     }
 };
 
+/**
+ * Returns active Mesachef reservations linked to a Gest-Spa reservation and a readable summary.
+ */
+window.getActiveMesachefReservationsForRes = async function (id, resData = {}) {
+    if (typeof window.findMesachefReservations !== 'function') return { activeDocs: [], summary: '' };
+    const codes = [
+        id,
+        resData?.res_id,
+        resData?.referencia,
+        resData?.bono,
+        resData?.codigo_bono,
+        resData?.localizador
+    ].filter(Boolean);
+    const context = {
+        fecha: resData?.fecha || '',
+        nombre: resData?.nombre || resData?.cliente || '',
+        telefono: resData?.tel || resData?.telefono || ''
+    };
+    const docs = await window.findMesachefReservations(codes, context);
+    const activeDocs = docs.filter(d => !['anulada', 'cancelada'].includes((d.estado || '').toLowerCase()));
+    if (activeDocs.length === 0) return { activeDocs: [], summary: '' };
+
+    const r = activeDocs[0];
+    let fechaTxt = '';
+    try {
+        const d = r.fecha?.toDate ? r.fecha.toDate() : (r.fecha ? new Date(r.fecha) : null);
+        if (d && !isNaN(d.getTime())) fechaTxt = d.toLocaleDateString('es-ES');
+    } catch (e) { /* ignore */ }
+    const turnoTxt = r.turno ? ` (${r.turno === 'almuerzo' ? 'Almuerzo' : (r.turno === 'cena' ? 'Cena' : r.turno)})` : '';
+    const horaTxt = r.hora ? ` · ${r.hora}` : '';
+    const refTxt = r.referencia ? ` · Ref: ${r.referencia}` : '';
+    return {
+        activeDocs,
+        summary: `${fechaTxt}${horaTxt}${turnoTxt}${refTxt}`.replace(/^\s*·\s*/, '')
+    };
+};
+
+/**
+ * Prompts the user when date or time changes on an edited reservation that has an active Mesachef booking.
+ */
+window.promptMesachefOnDateTimeChange = async function ({ id, payload, oldDate, newDate, oldTime, newTime }) {
+    if (!id || !payload) return;
+    const normOldTime = (oldTime || '').replace(/h$/i, '').trim();
+    const normNewTime = (newTime || '').replace(/h$/i, '').trim();
+    const dateChanged = Boolean(oldDate && newDate && oldDate !== newDate);
+    const timeChanged = Boolean(normOldTime && normNewTime && normOldTime !== normNewTime);
+    if (!dateChanged && !timeChanged) return;
+
+    const { activeDocs, summary } = await window.getActiveMesachefReservationsForRes(id, {
+        ...payload,
+        fecha: oldDate || payload.fecha
+    });
+    if (!activeDocs || activeDocs.length === 0 || typeof Swal === 'undefined') return;
+
+    const fmtDate = (iso) => {
+        if (!iso || !iso.includes('-')) return iso || '';
+        const [y, m, d] = iso.split('-');
+        return `${d}/${m}/${y}`;
+    };
+    const openMesachefHome = () => {
+        const base = (typeof window.getBaseURL === 'function' ? window.getBaseURL('mesachef') : '') || 'https://nataliogc.github.io/Mesachef/';
+        const finalUrl = `${base.replace(/\/+$/, '')}/restaurante.html`;
+        const win = window.open(finalUrl, 'GestSpa_Mesachef');
+        if (win) win.focus();
+    };
+
+    if (dateChanged) {
+        const res = await Swal.fire({
+            title: 'Reserva en Mesachef vinculada',
+            icon: 'question',
+            html: `<div style="font-size:0.92rem; line-height:1.5; color:#334155;">
+                Has cambiado la fecha del Spa del <strong>${fmtDate(oldDate)}</strong> al <strong>${fmtDate(newDate)}</strong>.<br><br>
+                <span style="display:inline-block; padding:6px 10px; border-radius:6px; background:#fef3c7; border:1px solid #fcd34d; color:#92400e; font-size:0.85rem;">
+                    <i class="fas fa-utensils"></i> Mesachef actual: <strong>${summary || 'Reserva activa'}</strong>
+                </span><br><br>
+                ¿Quieres cambiar también la fecha en Mesachef?
+            </div>`,
+            showConfirmButton: true,
+            confirmButtonText: 'Cambiar fecha en Mesachef',
+            confirmButtonColor: '#d97706',
+            showDenyButton: true,
+            denyButtonText: 'Abrir Mesachef',
+            denyButtonColor: '#0f172a',
+            showCancelButton: true,
+            cancelButtonText: 'Mantener igual'
+        });
+
+        if (res.isConfirmed) {
+            const mesachefDb = window.getMesachefFirestore();
+            if (mesachefDb) {
+                if (typeof window.ensureMesachefAuth === 'function') await window.ensureMesachefAuth();
+                const newTs = (typeof firebase !== 'undefined' && firebase.firestore?.Timestamp)
+                    ? firebase.firestore.Timestamp.fromDate(new Date(newDate))
+                    : newDate;
+                const upd = {
+                    fecha: newTs,
+                    updatedAt: (typeof firebase !== 'undefined' && firebase.firestore?.FieldValue)
+                        ? firebase.firestore.FieldValue.serverTimestamp()
+                        : new Date().toISOString()
+                };
+                for (const doc of activeDocs) {
+                    try {
+                        await mesachefDb.collection('reservas_restaurante').doc(doc.id).update(upd);
+                    } catch (e) {
+                        console.warn('[MESACHEF] Error updating date in Mesachef:', e);
+                    }
+                }
+                if (typeof showToast === 'function') showToast(`Fecha actualizada en Mesachef al ${fmtDate(newDate)}`, 'success');
+            }
+        } else if (res.isDenied) {
+            openMesachefHome();
+        }
+    } else if (timeChanged) {
+        const res = await Swal.fire({
+            title: '¿Cambiar hora en Mesachef?',
+            icon: 'info',
+            html: `<div style="font-size:0.92rem; line-height:1.5; color:#334155;">
+                Has cambiado la hora del Spa de <strong>${normOldTime}h</strong> a <strong>${normNewTime}h</strong>.<br><br>
+                <span style="display:inline-block; padding:6px 10px; border-radius:6px; background:#fef3c7; border:1px solid #fcd34d; color:#92400e; font-size:0.85rem;">
+                    <i class="fas fa-utensils"></i> Mesachef actual: <strong>${summary || 'Reserva activa'}</strong>
+                </span><br><br>
+                ¿Quieres abrir Mesachef para modificar también la reserva del restaurante?
+            </div>`,
+            showConfirmButton: true,
+            confirmButtonText: 'Abrir Mesachef',
+            confirmButtonColor: '#d97706',
+            showCancelButton: true,
+            cancelButtonText: 'No, mantener hora'
+        });
+
+        if (res.isConfirmed) {
+            openMesachefHome();
+        }
+    }
+};
+
+

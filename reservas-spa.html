@@ -5338,9 +5338,17 @@
 
             // 2. If this is a pack PARENT, use cascade cancellation
             if (resData.is_pack_parent && resData.childs && resData.childs.length > 0) {
+                let mesachefNoticeHtml = '';
+                if (window.getActiveMesachefReservationsForRes) {
+                    const mc = await window.getActiveMesachefReservationsForRes(id, resData);
+                    if (mc.activeDocs.length > 0) {
+                        mesachefNoticeHtml = `<div style="margin-top:10px; padding:8px 10px; border-radius:6px; background:#fef3c7; border:1px solid #fcd34d; color:#92400e; font-size:0.85rem;"><strong>⚠️ También se anulará la reserva en Mesachef:</strong><br>${mc.summary || 'Reserva activa vinculada'}</div>`;
+                    }
+                }
+
                 const result = await Swal.fire({
                     title: `Anular Pack Completo?`,
-                    text: `Esta acción cancelará este pack y sus ${resData.childs.length} elementos vinculados.`,
+                    html: `Esta acción cancelará este pack y sus ${resData.childs.length} elementos vinculados.${mesachefNoticeHtml}`,
                     icon: 'warning',
                     showCancelButton: true,
                     confirmButtonColor: '#d33',
@@ -5380,9 +5388,16 @@
             // =============================================
 
             // Standard single reservation cancellation
+            let mesachefCancelHtml = '';
+            if (window.getActiveMesachefReservationsForRes) {
+                const mc = await window.getActiveMesachefReservationsForRes(id, resData);
+                if (mc.activeDocs.length > 0) {
+                    mesachefCancelHtml = `<div style="margin-top:10px; padding:8px 10px; border-radius:6px; background:#fef3c7; border:1px solid #fcd34d; color:#92400e; font-size:0.85rem;"><strong>⚠️ También se anulará la reserva en Mesachef:</strong><br>${mc.summary || 'Reserva activa vinculada'}</div>`;
+                }
+            }
             const result = await Swal.fire({
                 title: '¿Anular Reserva?',
-                text: "La reserva pasará a estado Anulada pero no se borrará del historial.",
+                html: `La reserva pasará a estado Anulada pero no se borrará del historial.${mesachefCancelHtml}`,
                 icon: 'warning',
                 showCancelButton: true,
                 confirmButtonColor: '#ef4444',
@@ -6152,6 +6167,16 @@
                     // Sync reservation details to Mesachef
                     if (window.syncReservationToMesachef) {
                         await window.syncReservationToMesachef(savedId, payload);
+                    }
+                    if (id && window.promptMesachefOnDateTimeChange) {
+                        await window.promptMesachefOnDateTimeChange({
+                            id: savedId,
+                            payload,
+                            oldDate: document.getElementById("form-date")?.dataset?.originalDate || '',
+                            newDate: payload.fecha,
+                            oldTime: document.getElementById("form-time")?.dataset?.originalTime || '',
+                            newTime: payload.hora
+                        });
                     }
                 } catch (fsErr) {
                     console.warn("Offline save:", fsErr);
