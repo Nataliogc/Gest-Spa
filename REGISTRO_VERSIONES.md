@@ -8,7 +8,7 @@ Este documento mantiene el **control de versión única y global** para todo el 
 
 | Parámetro | Valor Actual |
 | :--- | :--- |
-| **Versión Global del Sistema** | **`v2.3.50`** |
+| **Versión Global del Sistema** | **`v2.3.51`** |
 | **Fecha de Última Actualización** | **17/11/2026** |
 | **Estado General** | Operativo en Producción |
 
@@ -47,6 +47,13 @@ Cualquier cambio en los siguientes módulos impacta en la versión global:
 ---
 
 ## 📝 Historial Unificado de Versiones
+
+### [v2.3.51] - 17/11/2026
+- **Tipo:** PATCH
+- **Archivos:** `reservas-salas.html`, `js/app-core.js`, `js/bonos.js`, `firebase-config.js`, `version.json`, `package.json`, `index.html`, `bonos.html`, `agenda-salas.html`
+- **Descripción:** Corrección de error `Assignment to constant variable` al abrir nueva reserva en iframe pre-calentado y tolerancia a fallos de proxies CORS en Bonos:
+  1. **Corrección `let moduleType` en `reservas-salas.html`:** Se cambió `const moduleType` a `let moduleType` para permitir el cambio dinámico de módulo dentro de `openQuickNewDirectly()` y `openQuickEditDirectly()` sin lanzar `TypeError: Assignment to constant variable`.
+  2. **Fetch Directo + Tolerancia a Fallos CORS en Bonos (`js/app-core.js`, `js/bonos.js`):** `fetchBonosWithFallback()` intenta primero la conexión directa antes de recurrir a proxies CORS externos, y `cargarBonos()` captura los errores de `sincronizarConTienda()` para mantener visibles los bonos de Firestore aunque los proxies de WooCommerce devuelvan `403`.
 
 ### [v2.3.50] - 17/11/2026
 - **Tipo:** PATCH

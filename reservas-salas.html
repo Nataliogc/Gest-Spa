@@ -1472,7 +1472,7 @@
 
         // Detectar módulo actual (cabinas por defecto aquí)
         const urlParams = new URLSearchParams(window.location.search);
-        const moduleType = urlParams.get('type') || 'cabinas';
+        let moduleType = urlParams.get('type') || 'cabinas';
         window.currentModule = MODULES[moduleType] || MODULES['cabinas'];
         let currentModule = window.currentModule;
 

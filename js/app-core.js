@@ -128,6 +128,17 @@ window.fetchBonosWithFallback = async function (params = {}, timeout = 10000) {
 
     const errors = [];
 
+    // Try direct fetch first (works when server allows CORS)
+    try {
+        const directRes = await fetchWithTimeout(targetUrl, {}, Math.min(timeout, 6000));
+        if (directRes.ok) {
+            return await directRes.json();
+        }
+        errors.push({ proxy: 'Direct', error: `HTTP Error: ${directRes.status}` });
+    } catch (directErr) {
+        errors.push({ proxy: 'Direct', error: directErr.message });
+    }
+
     // Try each CORS proxy in sequence
     for (const proxy of CORS_PROXIES) {
         try {

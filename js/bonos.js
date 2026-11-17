@@ -1663,9 +1663,16 @@ async function cargarBonos() {
         renderBonosFromState();
         updateCount();
 
-        // 2. Sincronización WooCommerce (solo si hay conexión)
+        // 2. Sincronización WooCommerce (solo si hay conexión, sin bloquear los bonos ya cargados de Firestore)
         if (typeof getBonoEndpoint === 'function') {
-            await sincronizarConTienda(persistentData, btn, originalText);
+            try {
+                await sincronizarConTienda(persistentData, btn, originalText);
+            } catch (syncErr) {
+                console.warn("[SYNC] Sincronización con tienda no disponible:", syncErr.message);
+                if (typeof showToast === 'function') {
+                    showToast("Bonos locales cargados (tienda online sin respuesta)", "warning");
+                }
+            }
             if (btn) {
                 btn.disabled = false;
                 btn.innerHTML = btn.dataset.originalText || originalText;
