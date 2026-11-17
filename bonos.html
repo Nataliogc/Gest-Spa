@@ -297,6 +297,9 @@
                                 <p id="vm-cat-desc"
                                     style="font-size: 0.72rem; color: #475569; margin: 4px 0 0 0; line-height: 1.35;">
                                 </p>
+                                <div id="vm-discount-badge"
+                                    style="display: none; margin-top: 6px; padding: 5px 8px; background: #fef2f2; border: 1px solid #fecaca; border-radius: 6px; font-size: 0.72rem; color: #b91c1c; font-weight: 600; line-height: 1.35;">
+                                </div>
                             </div>
                         </div>
                         <input type="text" id="vm-producto" class="param-input" readonly
@@ -530,6 +533,16 @@
                                     <option value="4">4 Personas</option>
                                 </select>
                             </div>
+                        </div>
+
+                        <!-- MOTIVO DEL DESCUENTO (Obligatorio si Dto. > 0) -->
+                        <div id="lv-discount-reason-container" class="form-group" style="display: none; margin-top: 10px;">
+                            <label style="font-size: 0.8rem; color: #be123c; font-weight: 600;">
+                                Motivo del descuento <span style="color:red">*</span>
+                            </label>
+                            <input type="text" id="lv-discount-reason" class="param-input"
+                                placeholder="Ej: Tarifa socio, cortesía dirección, promoción..."
+                                style="margin-top: 5px; border-color: #fda4af; background: #fff1f2;">
                         </div>
 
                         <button type="button" class="btn btn-primary" onclick="addToCartLocal()"

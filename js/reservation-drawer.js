@@ -25,15 +25,24 @@
         currentVoucherCode = info.code || null;
         window._activeDrawerVoucher = currentVoucherCode;
 
+        const safeDecode = (val) => {
+            if (!val) return '';
+            try {
+                return decodeURIComponent(val);
+            } catch (e) {
+                return String(val);
+            }
+        };
+
         // Configurar Títulos
         const isOcupacion = !!(info.isOcupacion || url.includes('agenda-salas.html'));
         if (titleEl) {
-            const svc = info.service ? decodeURIComponent(info.service) : 'Reserva de Servicio';
+            const svc = info.service ? safeDecode(info.service) : 'Reserva de Servicio';
             titleEl.textContent = isOcupacion ? `Ocupación Salas: ${svc}` : `Reserva Rápida: ${svc}`;
         }
         if (subtitleEl) {
-            const client = info.client ? decodeURIComponent(info.client) : '';
-            const code = info.code ? decodeURIComponent(info.code) : '';
+            const client = info.client ? safeDecode(info.client) : '';
+            const code = info.code ? safeDecode(info.code) : '';
             const parts = [];
             if (code) parts.push(`Bono: ${code}`);
             if (client) parts.push(`Cliente: ${client}`);

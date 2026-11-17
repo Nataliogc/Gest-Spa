@@ -3684,6 +3684,35 @@ async function openVoucherManagement(code) {
 
         document.getElementById("vm-cat-desc").textContent = descText;
 
+        const discountBadge = document.getElementById("vm-discount-badge");
+        if (discountBadge) {
+            const pctMatch = String(v.producto || '').match(/\(-\s*(\d+(?:\.\d+)?)\s*%\)/);
+            const pctVal = parseFloat(v.discount_percent_max) || parseFloat(v.discount_rate) || (pctMatch ? parseFloat(pctMatch[1]) : 0);
+            const reasonVal = String(v.discount_reason || '').trim();
+
+            if (pctVal > 0 || reasonVal) {
+                const pctText = pctVal > 0 ? `-${pctVal}%` : '';
+                const reasonText = reasonVal ? `Motivo: ${reasonVal}` : 'Sin motivo especificado';
+                discountBadge.textContent = '';
+                const icon = document.createElement('i');
+                icon.className = 'fas fa-tag';
+                icon.style.marginRight = '4px';
+                discountBadge.appendChild(icon);
+                discountBadge.appendChild(document.createTextNode('Dto.'));
+                if (pctText) {
+                    discountBadge.appendChild(document.createTextNode(' '));
+                    const strong = document.createElement('strong');
+                    strong.textContent = pctText;
+                    discountBadge.appendChild(strong);
+                }
+                discountBadge.appendChild(document.createTextNode(` · ${reasonText}`));
+                discountBadge.style.display = 'block';
+            } else {
+                discountBadge.style.display = 'none';
+                discountBadge.textContent = '';
+            }
+        }
+
         catalogInfo.style.display = 'block';
     } else {
         console.log("No se encontraron servicios para este bono");
@@ -5248,6 +5277,11 @@ function openLocalVoucherModal() {
     // Reset inputs
     document.getElementById("lv-product-details").style.display = 'none';
     document.getElementById("lv-price").value = '';
+    document.getElementById("lv-discount").value = '0';
+    const discountReasonInput = document.getElementById("lv-discount-reason");
+    if (discountReasonInput) discountReasonInput.value = '';
+    const discountReasonContainer = document.getElementById("lv-discount-reason-container");
+    if (discountReasonContainer) discountReasonContainer.style.display = 'none';
     document.getElementById("lv-sessions").value = 1;
     document.getElementById("lv-pax").value = "1";
     document.getElementById("lv-product-custom").style.display = 'none';
@@ -5614,6 +5648,12 @@ function checkCustomProduct(select) {
 
 // Función para recalcular precio con descuento
 window.updateLocalPriceWithDiscount = () => {
+    const discount = parseFloat(document.getElementById("lv-discount").value) || 0;
+    const reasonContainer = document.getElementById("lv-discount-reason-container");
+    if (reasonContainer) {
+        reasonContainer.style.display = discount > 0 ? 'block' : 'none';
+    }
+
     // Si es producto custom, el precio base es el que pone el usuario, el descuento aplica sobre eso?
     // Habitualmente en custom, pones el precio final directamente. 
     // Pero si el usuario quiere usar el campo dto, lo permitimos.
@@ -5638,7 +5678,6 @@ window.updateLocalPriceWithDiscount = () => {
         return;
     }
 
-    const discount = parseFloat(document.getElementById("lv-discount").value) || 0;
     const finalPrice = basePrice * (1 - (discount / 100));
 
     document.getElementById("lv-price").value = finalPrice.toFixed(2);
@@ -5659,6 +5698,13 @@ function addToCartLocal() {
     const sessions = parseInt(document.getElementById("lv-sessions").value) || 1;
     const pax = parseInt(document.getElementById("lv-pax").value) || 1;
     const discountVal = parseFloat(document.getElementById("lv-discount").value) || 0;
+    const discountReasonInput = document.getElementById("lv-discount-reason");
+    const discountReason = discountReasonInput ? discountReasonInput.value.trim() : '';
+
+    if (discountVal > 0 && !discountReason) {
+        if (discountReasonInput) discountReasonInput.focus();
+        return showToast("Debes indicar el motivo del descuento", "warning");
+    }
 
     console.log("[CART] Adding:", name, "Pax:", pax, "Dto:", discountVal);
 
@@ -5733,6 +5779,7 @@ function addToCartLocal() {
         originalProduct: selected.custom ? null : { ...selected },
         items_breakdown: items,
         discount_percent: discountVal,
+        discount_reason: discountVal > 0 ? discountReason : '',
         added_at: new Date().toISOString()
     });
 
@@ -5751,6 +5798,11 @@ function addToCartLocal() {
 
     const discountInput = document.getElementById("lv-discount");
     if (discountInput) discountInput.value = "0";
+
+    const resetReasonInput = document.getElementById("lv-discount-reason");
+    if (resetReasonInput) resetReasonInput.value = "";
+    const resetReasonContainer = document.getElementById("lv-discount-reason-container");
+    if (resetReasonContainer) resetReasonContainer.style.display = "none";
 
     const sessionsInput = document.getElementById("lv-sessions");
     if (sessionsInput) sessionsInput.value = 1;
@@ -5786,6 +5838,7 @@ function renderLVCart() {
                 <img src="${itemImg}" style="width: 38px; height: 38px; object-fit: cover; border-radius: 6px;">
                 <div style="flex: 1; overflow: hidden;">
                     <div style="font-weight: 700; font-size: 0.85rem; color: #1e293b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${item.name}</div>
+                    ${item.discount_percent > 0 && item.discount_reason ? `<div style="font-size: 0.7rem; color: #be123c; font-weight: 600;">Motivo dto.: ${String(item.discount_reason).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}</div>` : ''}
                     <div style="font-size: 0.75rem; color: #64748b;">
                         ${(() => {
                 const isRestaurant = item.isExtra || (item.name || '').toLowerCase().includes('menú') || (item.name || '').toLowerCase().includes('restaurante');
@@ -5873,6 +5926,10 @@ async function createLocalVoucher() {
     });
 
     const discountPercent = state.lvCart.length > 0 ? Math.max(...state.lvCart.map(i => parseFloat(i.discount_percent) || 0)) : 0;
+    const discountReasons = state.lvCart
+        .filter(i => (parseFloat(i.discount_percent) || 0) > 0 && i.discount_reason)
+        .map(i => i.discount_reason.trim());
+    const discountReason = [...new Set(discountReasons)].join(' | ');
 
     const now = new Date();
     const newVoucher = {
@@ -5893,6 +5950,7 @@ async function createLocalVoucher() {
         items_desglosados: allItems,
         // DISCOUNT PERSISTENCE
         discount_percent_max: discountPercent,
+        discount_reason: discountReason,
         discount_total_amount: state.lvCart.reduce((sum, i) => {
             const rawPrice = (i.originalProduct ? parseFloat(i.originalProduct.precio) : i.price) || i.price;
             const diff = (rawPrice - i.price) * i.sessions;
