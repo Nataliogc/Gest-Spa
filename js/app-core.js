@@ -1163,6 +1163,61 @@ window.getBaseURL = function (moduleName) {
 };
 
 /**
+ * Opens Mesachef restaurant booking page pre-filled with the current reservation modal data.
+ */
+window.openMesachefFromPack = function (overrideService) {
+    const base = (typeof window.getBaseURL === 'function' ? window.getBaseURL('mesachef') : '') || 'https://nataliogc.github.io/Mesachef/';
+    const basePath = `${base.replace(/\/+$/, '')}/restaurante.html`;
+
+    const client = (document.getElementById('res-nombre')?.value || '').trim();
+    const phone = (document.getElementById('res-tel')?.value || '').trim();
+    const pax = document.getElementById('res-pax')?.value || 1;
+    const date = (document.getElementById('form-date')?.value || '').trim();
+    const voucher = (document.getElementById('res-bono')?.value || '').trim();
+    const hotel = (document.getElementById('res-hotel')?.value || 'Cumbria').trim();
+    const service = (overrideService || document.getElementById('res-servicio-search')?.value || document.getElementById('res-servicio')?.value || 'Restaurante').trim();
+
+    const params = new URLSearchParams({
+        client,
+        service,
+        voucher,
+        space: 'Restaurante',
+        pax,
+        phone,
+        hotel,
+        date,
+        source: 'pack'
+    });
+
+    const finalUrl = `${basePath}?${params.toString()}`;
+    const win = window.open(finalUrl, 'GestSpa_Mesachef');
+    if (!win || win.closed || typeof win.closed === 'undefined') {
+        if (typeof showToast === 'function') {
+            showToast(`⚠️ El navegador bloqueó la apertura de Mesachef. <a href="${finalUrl}" target="_blank" style="color:#fff;text-decoration:underline;font-weight:bold;margin-left:8px;">Haz clic aquí para abrirlo</a>`, 'warning', 15000);
+        } else {
+            window.location.href = finalUrl;
+        }
+    } else {
+        win.focus();
+    }
+};
+
+/**
+ * Renders the external extras notice (Restaurante/Mesachef, Hotel, Cava) for pack modals.
+ */
+window.renderPackExternalExtrasHtml = function (hasRestaurant, hasHotel, hasCava) {
+    if (!hasRestaurant && !hasHotel && !hasCava) return '';
+    let html = `<div style="margin-top: 8px; padding: 6px 10px; background: #fefce8; border: 1px solid #fef08a; border-radius: 6px; display: flex; flex-direction: column; gap: 3px; font-size: 0.72rem; color: #854d0e;">`;
+    if (hasRestaurant) {
+        html += `<div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:6px;"><span><i class="fas fa-utensils" style="color:#d97706; margin-right:5px;"></i> <strong>Restaurante:</strong> Incluye servicio de comida/menú en Restaurante Cumbria (gestión directa fuera de agenda SPA).</span><button type="button" onclick="window.openMesachefFromPack()" style="padding:3px 10px; background:#d97706; color:#fff; border:none; border-radius:5px; font-size:0.7rem; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:5px; white-space:nowrap;"><i class="fas fa-external-link-alt"></i> Reservar en Mesachef</button></div>`;
+    }
+    if (hasHotel) html += `<div><i class="fas fa-hotel" style="color:#2563eb; margin-right:5px;"></i> <strong>Hotel:</strong> Incluye alojamiento en Hotel Cumbria.</div>`;
+    if (hasCava) html += `<div><i class="fas fa-wine-bottle" style="color:#7c3aed; margin-right:5px;"></i> <strong>Detalle:</strong> Incluye botella de Cava.</div>`;
+    html += `</div>`;
+    return html;
+};
+
+/**
  * Returns the base URL for shared assets (like bridge scripts)
  */
 window.getResourceBase = function () {
