@@ -5494,7 +5494,11 @@
 
                 // Delete from Mesachef if it exists there
                 if (window.deleteReservationInMesachef) {
-                    await window.deleteReservationInMesachef(id);
+                    await window.deleteReservationInMesachef(
+                        id,
+                        res ? [res.res_id, res.referencia, res.bono, res.codigo_bono, res.localizador] : [],
+                        res ? { fecha: res.fecha, nombre: res.nombre || res.cliente, telefono: res.tel || res.telefono } : {}
+                    );
                 }
 
                 loadReservas(document.getElementById("main-date-picker").value);

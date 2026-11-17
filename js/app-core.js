@@ -1120,6 +1120,20 @@ window.cancelPackReservation = async function (parentId, specificChildId = null)
 
     await batch.commit();
     console.log(`[PACK] Cancelled parent ${parentId} and ${updatedIds.size} children.`);
+
+    if (typeof window.cancelReservationInMesachef === 'function') {
+        const pData = (parentDoc && parentDoc.exists) ? parentDoc.data() : {};
+        await window.cancelReservationInMesachef(
+            parentId,
+            [...updatedIds, pData.res_id, pData.referencia, pData.bono, pData.codigo_bono, pData.localizador],
+            {
+                fecha: pData.fecha,
+                nombre: pData.nombre || pData.cliente,
+                telefono: pData.tel || pData.telefono
+            }
+        );
+    }
+
     return { parentId, cancelledCount: updatedIds.size };
 };
 
@@ -1222,27 +1236,106 @@ window.renderPackExternalExtrasHtml = function (hasRestaurant, hasHotel, hasCava
 };
 
 /**
- * Finds Mesachef restaurant reservations linked by document ID or campoBono codes.
+ * Finds Mesachef restaurant reservations linked by document ID, voucher/reference fields,
+ * or fallback date + client/phone match when created manually.
  */
-window.findMesachefReservations = async function (codes = []) {
+window.findMesachefReservations = async function (codes = [], context = {}) {
     const mesachefDb = typeof window.getMesachefFirestore === 'function' ? window.getMesachefFirestore() : null;
     if (!mesachefDb) return [];
-    const cleanCodes = Array.from(new Set(codes.map(c => (c || '').trim()).filter(c => c && c.toUpperCase() !== 'NUEVA')));
-    if (cleanCodes.length === 0) return [];
+
+    const normText = (v) => (v || '').toString().trim().toLowerCase()
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ');
+    const normPhone = (v) => {
+        const d = (v || '').toString().replace(/\D/g, '');
+        return d.length >= 9 ? d.slice(-9) : d;
+    };
+    const toIsoDate = (f) => {
+        if (!f) return '';
+        if (typeof f === 'string') return f.slice(0, 10);
+        try {
+            const dt = f.toDate ? f.toDate() : new Date(f);
+            if (!isNaN(dt.getTime())) {
+                const y = dt.getFullYear();
+                const m = String(dt.getMonth() + 1).padStart(2, '0');
+                const d = String(dt.getDate()).padStart(2, '0');
+                return `${y}-${m}-${d}`;
+            }
+        } catch (e) { /* ignore */ }
+        return '';
+    };
+
+    const rawCodes = (Array.isArray(codes) ? codes : [codes])
+        .map(c => (c || '').toString().trim())
+        .filter(c => c && !['NUEVA', 'SIN ID', '?'].includes(c.toUpperCase()));
+    const cleanCodes = Array.from(new Set(rawCodes));
+    const upperCodes = Array.from(new Set(cleanCodes.flatMap(c => [c, c.toUpperCase()])));
+    const upperCodeSet = new Set(cleanCodes.map(c => c.toUpperCase()));
 
     const resultsMap = new Map();
+    const col = mesachefDb.collection('reservas_restaurante');
+
     for (const code of cleanCodes) {
         try {
-            const byId = await mesachefDb.collection('reservas_restaurante').doc(code).get();
+            const byId = await col.doc(code).get();
             if (byId.exists) resultsMap.set(byId.id, { id: byId.id, ...byId.data() });
         } catch (e) { /* ignore */ }
     }
-    try {
-        const snap = await mesachefDb.collection('reservas_restaurante').where('campoBono', 'in', cleanCodes.slice(0, 10)).get();
-        snap.forEach(doc => resultsMap.set(doc.id, { id: doc.id, ...doc.data() }));
-    } catch (e) {
-        console.warn('[MESACHEF] Error querying campoBono:', e);
+
+    if (upperCodes.length > 0) {
+        const codeFields = ['campoBono', 'bono', 'referencia', 'external_id'];
+        const chunks = [];
+        for (let i = 0; i < upperCodes.length; i += 10) {
+            chunks.push(upperCodes.slice(i, i + 10));
+        }
+        await Promise.all(chunks.flatMap(chunk =>
+            codeFields.map(async (field) => {
+                try {
+                    const snap = await col.where(field, 'in', chunk).get();
+                    snap.forEach(doc => resultsMap.set(doc.id, { id: doc.id, ...doc.data() }));
+                } catch (e) {
+                    console.warn(`[MESACHEF] Error querying ${field}:`, e);
+                }
+            })
+        ));
     }
+
+    // Fallback: if no code match, inspect reservations on the same date (notes code or phone/client match)
+    const ctxFecha = toIsoDate(context?.fecha);
+    const ctxPhone = normPhone(context?.telefono);
+    const ctxName = normText(context?.nombre);
+    if (resultsMap.size === 0 && ctxFecha && (ctxPhone.length >= 6 || ctxName.length >= 3 || cleanCodes.length > 0)) {
+        try {
+            const [y, m, d] = ctxFecha.split('-').map(Number);
+            if (y && m && d && typeof firebase !== 'undefined' && firebase.firestore?.Timestamp) {
+                const start = firebase.firestore.Timestamp.fromDate(new Date(y, m - 1, d - 1, 0, 0, 0));
+                const end = firebase.firestore.Timestamp.fromDate(new Date(y, m - 1, d + 1, 23, 59, 59));
+                const dateSnap = await col.where('fecha', '>=', start).where('fecha', '<=', end).get();
+                dateSnap.forEach(doc => {
+                    const data = doc.data() || {};
+                    const docCodes = [data.campoBono, data.bono, data.referencia, data.external_id]
+                        .map(v => (v || '').toString().trim().toUpperCase())
+                        .filter(Boolean);
+                    const notesUpper = (typeof data.notas === 'string' ? data.notas : '').toUpperCase();
+                    const codeInFields = docCodes.some(dc => upperCodeSet.has(dc));
+                    const codeInNotes = Array.from(upperCodeSet).some(c => c.length >= 4 && notesUpper.includes(c));
+
+                    const docFecha = toIsoDate(data.fecha);
+                    const docPhone = normPhone(data.telefono);
+                    const docName = normText(data.nombre || data.cliente);
+                    const sameDate = !docFecha || docFecha === ctxFecha;
+                    const phoneMatch = ctxPhone.length >= 6 && docPhone === ctxPhone;
+                    const nameMatch = ctxName.length >= 3 && docName && (docName === ctxName || docName.includes(ctxName) || ctxName.includes(docName));
+
+                    if (codeInFields || codeInNotes || (sameDate && (phoneMatch || nameMatch))) {
+                        resultsMap.set(doc.id, { id: doc.id, ...data });
+                    }
+                });
+            }
+        } catch (e) {
+            console.warn('[MESACHEF] Error in date fallback query:', e);
+        }
+    }
+
     return Array.from(resultsMap.values());
 };
 
@@ -1256,15 +1349,21 @@ window.refreshMesachefBookingStatus = async function () {
     const rawRef = (document.getElementById('res-id-display')?.textContent || '').trim();
     const formId = (document.getElementById('form-id')?.value || '').trim();
     const voucher = (document.getElementById('res-bono')?.value || '').trim();
-    const codes = [formId, rawRef, voucher].filter(c => c && c.toUpperCase() !== 'NUEVA');
+    const codes = [formId, rawRef, voucher].filter(c => c && !['NUEVA', 'SIN ID'].includes(c.toUpperCase()));
 
-    if (codes.length === 0) {
+    const context = {
+        fecha: (document.getElementById('form-date')?.value || '').trim(),
+        nombre: (document.getElementById('res-nombre')?.value || '').trim(),
+        telefono: (document.getElementById('res-tel')?.value || '').trim()
+    };
+
+    if (codes.length === 0 && !context.fecha) {
         box.innerHTML = `<span style="color:#92400e;"><i class="fas fa-info-circle"></i> Guarda la reserva primero o usa un bono para vincular la reserva de Mesachef.</span>`;
         return;
     }
 
     box.innerHTML = `<span style="color:#64748b;"><i class="fas fa-spinner fa-spin"></i> Comprobando reserva en Mesachef...</span>`;
-    const docs = await window.findMesachefReservations(codes);
+    const docs = await window.findMesachefReservations(codes, context);
     if (!document.getElementById('mesachef-booking-status')) return;
 
     const active = docs.filter(d => !['anulada', 'cancelada'].includes((d.estado || '').toLowerCase()));
@@ -1286,7 +1385,7 @@ window.refreshMesachefBookingStatus = async function () {
         box.innerHTML = `<span style="display:inline-flex; align-items:center; gap:5px; padding:2px 8px; border-radius:5px; background:#fee2e2; color:#991b1b; font-weight:700; border:1px solid #fca5a5;"><i class="fas fa-times-circle"></i> Reserva en Mesachef anulada</span>`;
         if (btn) btn.innerHTML = '<i class="fas fa-external-link-alt"></i> Reservar en Mesachef';
     } else {
-        box.innerHTML = `<span style="display:inline-flex; align-items:center; gap:5px; padding:2px 8px; border-radius:5px; background:#fff7ed; color:#9a3412; font-weight:600; border:1px solid #fed7aa;"><i class="fas fa-clock"></i> Pendiente de reservar en Mesachef</span>`;
+        box.innerHTML = `<span style="display:inline-flex; align-items:center; gap:5px; padding:2px 8px; border-radius:5px; background:#fff7ed; color:#9a3412; font-weight:600; border:1px solid #fed7aa;"><i class="fas fa-clock"></i> Pendiente de reservar en Mesachef <button type="button" onclick="window.refreshMesachefBookingStatus()" title="Comprobar de nuevo" style="background:none;border:none;color:#9a3412;cursor:pointer;padding:0 2px;margin-left:4px;"><i class="fas fa-sync-alt"></i></button></span>`;
         if (btn) btn.innerHTML = '<i class="fas fa-external-link-alt"></i> Reservar en Mesachef';
     }
 };
@@ -1296,6 +1395,13 @@ if (typeof window !== 'undefined' && !window._mesachefFocusListenerAdded) {
     window.addEventListener('focus', () => {
         if (document.getElementById('mesachef-booking-status')) {
             window.refreshMesachefBookingStatus();
+        }
+    });
+    window.addEventListener('message', (event) => {
+        if (event.data && event.data.type === 'RESTAURANT_RESERVATION_CREATED') {
+            if (document.getElementById('mesachef-booking-status')) {
+                window.refreshMesachefBookingStatus();
+            }
         }
     });
 }
@@ -2102,7 +2208,15 @@ window.syncReservationToMesachef = async function (id, payload) {
     try {
         const statusNorm = (payload.status || payload.estado || '').toLowerCase();
         if (statusNorm === 'anulada' || statusNorm === 'cancelada') {
-            await window.cancelReservationInMesachef(id, [payload.referencia, payload.bono, payload.codigo_bono, payload.localizador]);
+            await window.cancelReservationInMesachef(
+                id,
+                [payload.res_id, payload.referencia, payload.bono, payload.codigo_bono, payload.localizador],
+                {
+                    fecha: payload.fecha,
+                    nombre: payload.nombre || payload.cliente,
+                    telefono: payload.tel || payload.telefono
+                }
+            );
             return;
         }
         const serviceName = (payload.servicio || '').toLowerCase();
@@ -2230,7 +2344,7 @@ window.syncReservationToMesachef = async function (id, payload) {
 /**
  * Cancels a spa reservation in Mesachef if it exists.
  */
-window.cancelReservationInMesachef = async function (id, extraCodes = []) {
+window.cancelReservationInMesachef = async function (id, extraCodes = [], context = {}) {
     if (!id) return;
     try {
         const docRef = db.collection("reservas_restaurante").doc(id);
@@ -2252,25 +2366,17 @@ window.cancelReservationInMesachef = async function (id, extraCodes = []) {
 
         const mesachefDb = window.getMesachefFirestore();
         if (mesachefDb) {
-            const codes = Array.from(new Set([id, ...(Array.isArray(extraCodes) ? extraCodes : [extraCodes])].map(c => (c || '').trim()).filter(Boolean)));
-            try {
-                const directSnap = await mesachefDb.collection("reservas_restaurante").doc(id).get();
-                if (directSnap.exists) {
-                    await mesachefDb.collection("reservas_restaurante").doc(id).update(updatePayload);
-                    console.log(`[MESACHEF SYNC] Cancelled reservation in Mesachef prod by ID: ${id}`);
-                }
-            } catch (prodErr) {
-                console.warn(`[MESACHEF SYNC] Could not cancel by ID in Mesachef prod:`, prodErr);
-            }
-            if (codes.length > 0) {
+            const codes = Array.from(new Set([id, ...(Array.isArray(extraCodes) ? extraCodes : [extraCodes])].map(c => (c || '').toString().trim()).filter(c => c && c.toUpperCase() !== 'NUEVA')));
+            const matchedDocs = typeof window.findMesachefReservations === 'function'
+                ? await window.findMesachefReservations(codes, context)
+                : [];
+            for (const matched of matchedDocs) {
+                if (['anulada', 'cancelada'].includes((matched.estado || '').toLowerCase())) continue;
                 try {
-                    const linkedSnap = await mesachefDb.collection("reservas_restaurante").where("campoBono", "in", codes.slice(0, 10)).get();
-                    for (const linkedDoc of linkedSnap.docs) {
-                        await linkedDoc.ref.update(updatePayload);
-                        console.log(`[MESACHEF SYNC] Cancelled linked reservation in Mesachef prod: ${linkedDoc.id}`);
-                    }
-                } catch (qErr) {
-                    console.warn(`[MESACHEF SYNC] Could not cancel linked reservations by campoBono in Mesachef prod:`, qErr);
+                    await mesachefDb.collection("reservas_restaurante").doc(matched.id).update(updatePayload);
+                    console.log(`[MESACHEF SYNC] Cancelled reservation in Mesachef prod: ${matched.id}`);
+                } catch (prodErr) {
+                    console.warn(`[MESACHEF SYNC] Could not cancel ${matched.id} in Mesachef prod:`, prodErr);
                 }
             }
         }
@@ -2282,7 +2388,7 @@ window.cancelReservationInMesachef = async function (id, extraCodes = []) {
 /**
  * Permanently deletes a spa reservation in Mesachef if it exists.
  */
-window.deleteReservationInMesachef = async function (id, extraCodes = []) {
+window.deleteReservationInMesachef = async function (id, extraCodes = [], context = {}) {
     if (!id) return;
     try {
         const docRef = db.collection("reservas_restaurante").doc(id);
@@ -2294,22 +2400,16 @@ window.deleteReservationInMesachef = async function (id, extraCodes = []) {
 
         const mesachefDb = window.getMesachefFirestore();
         if (mesachefDb) {
-            const codes = Array.from(new Set([id, ...(Array.isArray(extraCodes) ? extraCodes : [extraCodes])].map(c => (c || '').trim()).filter(Boolean)));
-            try {
-                await mesachefDb.collection("reservas_restaurante").doc(id).delete();
-                console.log(`[MESACHEF SYNC] Deleted reservation in Mesachef prod: ${id}`);
-            } catch (prodErr) {
-                console.warn(`[MESACHEF SYNC] Could not delete from Mesachef prod:`, prodErr);
-            }
-            if (codes.length > 0) {
+            const codes = Array.from(new Set([id, ...(Array.isArray(extraCodes) ? extraCodes : [extraCodes])].map(c => (c || '').toString().trim()).filter(c => c && c.toUpperCase() !== 'NUEVA')));
+            const matchedDocs = typeof window.findMesachefReservations === 'function'
+                ? await window.findMesachefReservations(codes, context)
+                : [];
+            for (const matched of matchedDocs) {
                 try {
-                    const linkedSnap = await mesachefDb.collection("reservas_restaurante").where("campoBono", "in", codes.slice(0, 10)).get();
-                    for (const linkedDoc of linkedSnap.docs) {
-                        await linkedDoc.ref.delete();
-                        console.log(`[MESACHEF SYNC] Deleted linked reservation in Mesachef prod: ${linkedDoc.id}`);
-                    }
-                } catch (qErr) {
-                    console.warn(`[MESACHEF SYNC] Could not delete linked reservations by campoBono:`, qErr);
+                    await mesachefDb.collection("reservas_restaurante").doc(matched.id).delete();
+                    console.log(`[MESACHEF SYNC] Deleted reservation in Mesachef prod: ${matched.id}`);
+                } catch (prodErr) {
+                    console.warn(`[MESACHEF SYNC] Could not delete ${matched.id} from Mesachef prod:`, prodErr);
                 }
             }
         }
