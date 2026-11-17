@@ -57,21 +57,36 @@ async function handleStaffFieldsChange() {
     const svcField = document.getElementById("res-servicio") || document.getElementById("res-servicio-search");
     const svcName = (svcField?.value || "").trim().toLowerCase();
     const pax = parseInt(document.getElementById("res-pax")?.value) || 1;
-    const isSuiteNoMassage = (svcName.includes('suite') || roomCode === 'suite') && !svcName.includes('masaje') && !svcName.includes('massage');
     const isSpaCircuit = svcName.includes('circuito spa') || roomCode === 'spa';
     const isGym = svcName.includes('gimnasio') || svcName.includes('gym') || roomCode === 'gimnasio';
 
     let requiresStaff = (window.currentModule && window.currentModule.requiresStaff !== false);
     let requiredTherapistsCount = 1;
 
-    if (isSuiteNoMassage || isSpaCircuit || isGym) {
-        requiresStaff = false;
-        requiredTherapistsCount = 0;
-    } else if (window.masterItems && window.SpaServiceCatalog) {
-        const item = window.SpaServiceCatalog.resolve(svcName, window.masterItems, window.currentServices || []);
-        if (item && item.required_therapists !== undefined) {
-            requiredTherapistsCount = parseInt(item.required_therapists) || 0;
-            if (requiredTherapistsCount === 0) requiresStaff = false;
+    // Prioridad 1: Packs y Rituales del Registro Unificado
+    const cleanPackName = svcName.replace(/^pack\s*[-–—:]\s*/i, '').trim();
+    const packData = (typeof window.getPackFullData === 'function' && cleanPackName)
+        ? window.getPackFullData(cleanPackName, window.currentServices || [], window.masterItems || [])
+        : null;
+
+    if (packData && Array.isArray(packData.secuencia) && packData.secuencia.length > 0) {
+        const counts = packData.secuencia.map(s => {
+            if (s.terapeutas !== undefined) return parseInt(s.terapeutas) || 0;
+            return s.requires_therapist !== false ? 1 : 0;
+        });
+        requiredTherapistsCount = Math.max(0, ...counts);
+        requiresStaff = requiredTherapistsCount > 0;
+    } else {
+        const isSuiteNoMassage = (svcName.includes('suite') || roomCode === 'suite') && !svcName.includes('masaje') && !svcName.includes('massage');
+        if (isSuiteNoMassage || isSpaCircuit || isGym) {
+            requiresStaff = false;
+            requiredTherapistsCount = 0;
+        } else if (window.masterItems && window.SpaServiceCatalog) {
+            const item = window.SpaServiceCatalog.resolve(svcName, window.masterItems, window.currentServices || []);
+            if (item && item.required_therapists !== undefined) {
+                requiredTherapistsCount = parseInt(item.required_therapists) || 0;
+                if (requiredTherapistsCount === 0) requiresStaff = false;
+            }
         }
     }
 

@@ -8,10 +8,11 @@
     <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
     <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
     <link rel="shortcut icon" href="favicon.ico">
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="styles.css?v=2.3.53">
     <script>
         if (new URLSearchParams(window.location.search).get('modal') === '1') {
             document.documentElement.classList.add('is-modal-only');
+            document.addEventListener('DOMContentLoaded', () => document.body.classList.add('is-modal-only'));
         }
     </script>
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&display=swap"
@@ -727,16 +728,16 @@
         </div>
     </main>
 
-    <!-- MODAL RESERVA ULTRA-COMPACT -->
+    <!-- MODAL RESERVA ANCHO Y DISTRIBUIDO -->
     <div id="booking-modal" class="modal">
         <div class="modal-content"
-            style="max-width: 1050px; width: 95vw; padding: 0; border-radius: 12px; max-height: 90vh; overflow: hidden; display: flex; flex-direction: column;">
+            style="max-width: 1340px; width: 96vw; padding: 0; border-radius: 14px; max-height: 94vh; margin: auto; overflow: hidden; display: flex; flex-direction: column;">
 
             <form id="booking-form"
                 style="display: flex; flex-direction: column; flex: 1; overflow: hidden; margin: 0;">
 
                 <!-- HEADER & SCROLLABLE CONTENT -->
-                <div style="flex: 1; overflow-y: auto; padding: 15px 20px; background: #fff;">
+                <div style="flex: 1; overflow-y: auto; padding: 12px 18px; background: #fff;">
 
                     <!-- HEADER -->
                     <div
@@ -764,7 +765,7 @@
 
                     <!-- MAIN FIELDS GRID -->
                     <div id="booking-form-grid"
-                        style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; background: #fff; padding: 15px; border-radius: 10px; border: 1px solid #edf2f7; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
+                        style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px; background: #fff; padding: 12px 14px; border-radius: 10px; border: 1px solid #edf2f7; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
 
                         <!-- ROW 1: DATE | TIME | PAX | MIN | ORIGEN -->
                         <div style="display: flex; gap: 8px; align-items: flex-end; grid-column: 1 / -1;">
@@ -946,34 +947,37 @@
                             style="display: none; grid-column: 1 / -1; padding: 10px 15px; background: #fffcf0; border: 1px solid #fef3c7; border-left: 4px solid #f59e0b; border-radius: 8px; font-size: 0.82rem; color: #92400e; margin-bottom: 5px;">
                         </div>
 
-                        <!-- ROW 5: COMPLEMENTOS (Full Width) -->
-                        <div id="complementos-container"
-                            style="display: none; grid-column: 1 / -1; padding: 10px; background: #f8fafc; border-radius: 6px; border: 1px solid #edf2f7; margin-top: 5px;">
-                            <label
-                                style="font-size: 0.65rem; font-weight: 800; color: #64748b; text-transform: uppercase; margin-bottom: 5px; display: block;">Complementos</label>
-                            <div id="complementos-list" style="display: flex; flex-wrap: wrap; gap: 8px;"></div>
+                        <!-- ROW 5 & 6: COMPLEMENTOS + OBSERVACIONES (En paralelo si ambos visibles) -->
+                        <div style="grid-column: 1 / -1; display: flex; gap: 12px; align-items: stretch; flex-wrap: wrap;">
+                            <div id="complementos-container"
+                                style="display: none; flex: 1; min-width: 280px; padding: 8px 10px; background: #f8fafc; border-radius: 6px; border: 1px solid #edf2f7;">
+                                <label
+                                    style="font-size: 0.65rem; font-weight: 800; color: #64748b; text-transform: uppercase; margin-bottom: 4px; display: block;">Complementos</label>
+                                <div id="complementos-list" style="display: flex; flex-wrap: wrap; gap: 8px;"></div>
+                            </div>
+
+                            <div class="form-group" style="flex: 1; min-width: 280px; margin-bottom: 0;">
+                                <label
+                                    style="font-size: 0.65rem; font-weight: 800; color: #4a5568; text-transform: uppercase; margin-bottom: 3px;">Observaciones</label>
+                                <textarea id="res-obs" placeholder="Notas..."
+                                    style="width: 100%; min-height: 52px; padding: 6px 8px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 0.85rem; resize: vertical; background: #fff;"></textarea>
+                            </div>
                         </div>
 
-                        <!-- ROW 6: OBSERVACIONES (Full Width) -->
-                        <div class="form-group" style="grid-column: 1 / -1; margin-bottom: 0;">
-                            <label
-                                style="font-size: 0.65rem; font-weight: 800; color: #4a5568; text-transform: uppercase; margin-bottom: 4px;">Observaciones</label>
-                            <textarea id="res-obs" placeholder="Notas..."
-                                style="width: 100%; min-height: 80px; padding: 8px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 0.85rem; resize: vertical; background: #fff;"></textarea>
-                        </div>
+                        <!-- ROW 7: PACK MULTISERVICIO + CONTROL DE PAGO (En paralelo para ver todo a simple vista) -->
+                        <div style="grid-column: 1 / -1; display: flex; gap: 12px; align-items: flex-start; flex-wrap: wrap;">
+                            <!-- PACK ITEMS PREVIEW -->
+                            <div id="pack-includes-container"
+                                style="display: none; flex: 1.25; min-width: 340px; padding: 8px 10px; background: linear-gradient(135deg, #fff7ed 0%, #fef3c7 100%); border-radius: 8px; font-size: 0.75rem; border: 1px dashed #f97316;">
+                                <h4 style="margin: 0 0 5px 0; font-size: 0.75rem; font-weight: 800; color: #c2410c;">
+                                    PACK MULTISERVICIO <span id="pack-item-count"></span>
+                                </h4>
+                                <div id="pack-items-schedule"></div>
+                            </div>
 
-                        <!-- PACK ITEMS PREVIEW -->
-                        <div id="pack-includes-container"
-                            style="display: none; padding: 8px; background: linear-gradient(135deg, #fff7ed 0%, #fef3c7 100%); border-radius: 6px; font-size: 0.75rem; grid-column: 1 / -1; border: 1px dashed #f97316;">
-                            <h4 style="margin: 0 0 5px 0; font-size: 0.75rem; font-weight: 800; color: #c2410c;">
-                                PACK MULTISERVICIO <span id="pack-item-count"></span>
-                            </h4>
-                            <div id="pack-items-schedule"></div>
-                        </div>
-
-                        <!-- 💳 CONTROL DE PAGO (Particular / Pago Directo) -->
-                        <div id="pago-particular-block"
-                            style="display:none; grid-column: 1 / -1; border-left: 4px solid #f59e0b; padding: 12px; margin-top: 10px; background: #fffcf0; border-radius: 0 8px 8px 0;">
+                            <!-- 💳 CONTROL DE PAGO (Particular / Pago Directo) -->
+                            <div id="pago-particular-block"
+                                style="display:none; flex: 1; min-width: 310px; border-left: 4px solid #f59e0b; padding: 10px 12px; margin-top: 0; background: #fffcf0; border-radius: 0 8px 8px 0;">
                             <h4
                                 style="margin: 0 0 10px 0; font-size: 0.7rem; font-weight: 800; color: #92400e; display: flex; align-items: center; gap: 8px;">
                                 <i class="fas fa-credit-card"></i> 💳 CONTROL DE PAGO
@@ -1091,6 +1095,7 @@
                                 style="margin-top: 8px; font-size: 0.65rem; color: #92400e; font-style: italic; display: none;">
                             </div>
                         </div>
+                        </div> <!-- Fin ROW 7 (Pack + Control de Pago) -->
 
                         <!-- AVISO DE CONFLICTO / ALTERNATIVAS -->
                         <div id="conflict-warning-container"
@@ -1361,7 +1366,7 @@
     <!-- Dexie loaded by db-local.js -->
     <!-- <script src="https://unpkg.com/dexie@latest/dist/dexie.js"></script> -->
     <script src="js/app-core.js?v=2.3.29"></script>
-    <script src="js/spa-packs-registry.js?v=2.3.52"></script>
+    <script src="js/spa-packs-registry.js?v=2.3.53"></script>
     <script src="js/service-catalog.js?v=1"></script>
     <script src="js/service-pricing.js?v=2.3.30"></script>
 

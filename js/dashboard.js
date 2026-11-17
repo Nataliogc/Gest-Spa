@@ -833,10 +833,10 @@ function prewarmDashboardQuickForms() {
     const frameSalas = document.getElementById('dashboard-quick-form-frame');
     const frameSpa = document.getElementById('dashboard-quick-form-frame-spa');
     if (frameSalas && (!frameSalas.src || frameSalas.src === 'about:blank' || frameSalas.src.endsWith('about:blank'))) {
-        frameSalas.src = 'reservas-salas.html?type=cabinas&embedded=1&modal=1&prewarm=1&from=panel';
+        frameSalas.src = 'reservas-salas.html?type=cabinas&embedded=1&modal=1&prewarm=1&from=panel&_v=2.3.54';
     }
     if (frameSpa && (!frameSpa.src || frameSpa.src === 'about:blank' || frameSpa.src.endsWith('about:blank'))) {
-        frameSpa.src = 'reservas-spa.html?embedded=1&modal=1&prewarm=1&from=panel';
+        frameSpa.src = 'reservas-spa.html?embedded=1&modal=1&prewarm=1&from=panel&_v=2.3.54';
     }
 }
 

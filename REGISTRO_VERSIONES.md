@@ -8,7 +8,7 @@ Este documento mantiene el **control de versión única y global** para todo el 
 
 | Parámetro | Valor Actual |
 | :--- | :--- |
-| **Versión Global del Sistema** | **`v2.3.52`** |
+| **Versión Global del Sistema** | **`v2.3.54`** |
 | **Fecha de Última Actualización** | **17/11/2026** |
 | **Estado General** | Operativo en Producción |
 
@@ -47,6 +47,20 @@ Cualquier cambio en los siguientes módulos impacta en la versión global:
 ---
 
 ## 📝 Historial Unificado de Versiones
+
+### [v2.3.54] - 17/11/2026
+- **Tipo:** PATCH
+- **Archivos:** `reservas-staff.js`, `reservas-salas.html`, `agenda-salas.html`, `js/dashboard.js`, `firebase-config.js`, `version.json`, `package.json`, `index.html`, `bonos.html`
+- **Descripción:** Corrección integral de terapeutas en packs de Suite/Salas y agrupación de tratamientos consecutivos en la misma sala:
+  1. **Detección Real de Terapeutas para Packs en Suite (`reservas-staff.js`):** Se priorizó la comprobación de `getPackFullData()` sobre `isSuiteNoMassage` en `handleStaffFieldsChange()`, evitando que packs con tratamientos en `SUITE SPA` (como `PACK - Especial Parejas`, `PACK - Relax Oriental`, `PACK - Encuentro Romántico`, etc.) muestren `"No requiere terapeuta"` cuando requieren 2 terapeutas.
+  2. **Agrupación de Fases Consecutivas en la Misma Sala y Duración Real de Sala (`reservas-salas.html`):** En `updatePackInfo()`, las fases consecutivas de tratamiento con terapeuta en la misma sala (como la fase 2 `Masaje Relax 30'` + fase 3 `Envoltura corporal 60'` de `Especial Parejas`) se unifican en un único bloque **`Especial Parejas · 90' · 2 Terapeutas`**, y `syncServiceDuration()` asigna al campo `MIN` la duración real de ocupación de la sala (`90'` en lugar de `150'`), manteniendo `Circuito Spa (60')` como cita independiente en `SPA`.
+
+### [v2.3.53] - 17/11/2026
+- **Tipo:** PATCH
+- **Archivos:** `reservas-salas.html`, `reservas-spa.html`, `agenda-salas.html`, `js/dashboard.js`, `firebase-config.js`, `version.json`, `package.json`, `index.html`, `bonos.html`
+- **Descripción:** Rediseño ancho y centrado de la ficha de reserva (`#booking-modal`) para ver todo a simple vista sin desplazamiento y cache-busting en iframes pre-calentados:
+  1. **Ventana Más Ancha, Centrada y Distribuida (`1340px`, `96vw`, `max-height: 94vh`):** Se aplicó `body.is-modal-only` al cargar en modo modal para centrar la ficha perfectamente en pantalla y se distribuyeron en paralelo `Complementos` + `Observaciones` y `PACK MULTISERVICIO` + `CONTROL DE PAGO`, manteniendo todo el formulario y la botonera inferior visibles a simple vista.
+  2. **Refresco de Caché en Iframes Pre-calentados (`_v=2.3.53`):** Se añadió parámetro de versión a los iframes pre-calentados en `agenda-salas.html` y `js/dashboard.js` y a `styles.css` / `spa-packs-registry.js` para asegurar la carga inmediata de `Masaje Oriental` en `Relax Oriental`.
 
 ### [v2.3.52] - 17/11/2026
 - **Tipo:** PATCH
