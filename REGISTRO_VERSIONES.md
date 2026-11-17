@@ -8,7 +8,7 @@ Este documento mantiene el **control de versión única y global** para todo el 
 
 | Parámetro | Valor Actual |
 | :--- | :--- |
-| **Versión Global del Sistema** | **`v2.3.62`** |
+| **Versión Global del Sistema** | **`v2.3.63`** |
 | **Fecha de Última Actualización** | **17/11/2026** |
 | **Estado General** | Operativo en Producción |
 
@@ -47,6 +47,14 @@ Cualquier cambio en los siguientes módulos impacta en la versión global:
 ---
 
 ## 📝 Historial Unificado de Versiones
+
+### [v2.3.63] - 17/11/2026
+- **Tipo:** PATCH
+- **Archivos:** `js/bonos.js`, `agenda-salas.html`, `js/app-core.js`, `reservas-salas.html`, `reservas-spa.html`
+- **Descripción:** Reserva completa de packs desde el módulo de Bonos (`Gestionar Bono`), replicando el flujo `PACK MULTISERVICIO` de venta directa:
+  1. **Botón `Reservar Pack Completo` (`js/bonos.js`):** en bonos de tipo pack con al menos 2 servicios reservables pendientes, abre Ocupación (`agenda-salas.html` o `reservas-spa.html`) con `is_pack=1`, el bono, el cliente y las plazas preseleccionadas.
+  2. **Banner de pack en Ocupación (`agenda-salas.html`):** muestra el distintivo `PACK COMPLETO` y propaga `is_pack=1` al formulario de reserva.
+  3. **Validación y canje completo de sesiones (`js/app-core.js`, `reservas-salas.html`, `reservas-spa.html`):** valida el saldo frente a los servicios activos del pack y descuenta todas las sesiones reservadas en `sesiones_usadas` e `items_desglosados` mediante `updateVoucherSessionsForPack()`.
 
 ### [v2.3.62] - 17/11/2026
 - **Tipo:** PATCH
