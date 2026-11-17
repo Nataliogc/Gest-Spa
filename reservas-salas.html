@@ -500,7 +500,7 @@
         <!-- LEFT: Cumbria Logo -->
         <div style="display: flex; align-items: center; gap: 15px;">
             <img src="logo-spa.jpg" alt="Cumbria Bienestar" style="height: 65px; width: auto; object-fit: contain;">
-            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.58 (17/11/2026)">v2.3.58</span>
+            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.60 (17/11/2026)">v2.3.60</span>
         </div>
 
         <ul class="nav-links" style="flex:1;">
@@ -3696,7 +3696,7 @@
 
                     } else {
                         // PER PERSON MODE
-                        if (currentModule.code === 'spa') {
+                        if (currentModule.code === 'spa' && !svcName.toLowerCase().includes('sabores')) {
                             // Spa Logic (existing)
                             const dateStr = document.getElementById("form-date")?.value;
                             const dateObj = dateStr ? new Date(dateStr + 'T12:00:00') : new Date();

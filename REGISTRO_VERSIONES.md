@@ -8,7 +8,7 @@ Este documento mantiene el **control de versión única y global** para todo el 
 
 | Parámetro | Valor Actual |
 | :--- | :--- |
-| **Versión Global del Sistema** | **`v2.3.58`** |
+| **Versión Global del Sistema** | **`v2.3.60`** |
 | **Fecha de Última Actualización** | **17/11/2026** |
 | **Estado General** | Operativo en Producción |
 
@@ -47,6 +47,16 @@ Cualquier cambio en los siguientes módulos impacta en la versión global:
 ---
 
 ## 📝 Historial Unificado de Versiones
+
+### [v2.3.60] - 17/11/2026
+- **Tipo:** PATCH
+- **Archivos:** `agenda-salas.html`, `agenda-spa.html`, `agenda-terapeutas.html`, `bonos.html`, `catalogo.html`, `configuracion.html`, `disponibilidad-terapeutas.html`, `firebase-config.js`, `index.html`, `js/app-core.js`, `manual-usuario.html`, `package.json`, `pedidos-wc.html`, `personal.html`, `reservas-salas.html`, `reservas-spa.html`, `reservas.html`, `version.json`, `vision-general.html`
+- **Descripción:** Integración de `Reservar en Mesachef` con `source=bono` y referencia de reserva (`RS-...`) como `voucher` para que Mesachef autorrellene cliente, teléfono, pax y marque `SPA/BONO` + `Servicio Incluido`; sincronizado el botón `SPA y Sabores` también al editar reservas.
+
+### [v2.3.59] - 17/11/2026
+- **Tipo:** PATCH
+- **Archivos:** `reservas-salas.html`, `reservas-spa.html`, `reservas.html`
+- **Descripción:** Corrección de precio unitario para `SPA y Sabores` en módulo `spa`: evitado que la tarifa dinámica de Circuito Spa (`25€`) sobrescriba `price_pax` (`45€`) al calcular `45€ × PAX` (45€ para 1 pax, 90€ para 2 pax).
 
 ### [v2.3.58] - 17/11/2026
 - **Tipo:** PATCH
