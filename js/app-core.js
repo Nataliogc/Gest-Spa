@@ -1174,14 +1174,15 @@ window.openMesachefFromPack = function (overrideService) {
     const pax = document.getElementById('res-pax')?.value || 1;
     const date = (document.getElementById('form-date')?.value || '').trim();
     const voucher = (document.getElementById('res-bono')?.value || '').trim();
-    const resRef = (document.getElementById('res-id-display')?.textContent || '').trim();
+    const rawRef = (document.getElementById('res-id-display')?.textContent || '').trim();
+    const resRef = (rawRef && rawRef.toUpperCase() !== 'NUEVA') ? rawRef : '';
     const hotel = (document.getElementById('res-hotel')?.value || 'Cumbria').trim();
     const service = (overrideService || document.getElementById('res-servicio-search')?.value || document.getElementById('res-servicio')?.value || 'Restaurante').trim();
 
     const params = new URLSearchParams({
         client,
         service,
-        voucher: voucher || resRef || service,
+        voucher: voucher || resRef,
         space: 'Restaurante',
         pax,
         phone,

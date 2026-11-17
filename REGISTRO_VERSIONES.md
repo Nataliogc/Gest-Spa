@@ -8,7 +8,7 @@ Este documento mantiene el **control de versión única y global** para todo el 
 
 | Parámetro | Valor Actual |
 | :--- | :--- |
-| **Versión Global del Sistema** | **`v2.3.60`** |
+| **Versión Global del Sistema** | **`v2.3.61`** |
 | **Fecha de Última Actualización** | **17/11/2026** |
 | **Estado General** | Operativo en Producción |
 
@@ -47,6 +47,11 @@ Cualquier cambio en los siguientes módulos impacta en la versión global:
 ---
 
 ## 📝 Historial Unificado de Versiones
+
+### [v2.3.61] - 17/11/2026
+- **Tipo:** PATCH
+- **Archivos:** `js/app-core.js`
+- **Descripción:** Evitado enviar `"NUEVA"` como `voucher` al abrir Mesachef desde una reserva aún no guardada en `window.openMesachefFromPack()`.
 
 ### [v2.3.60] - 17/11/2026
 - **Tipo:** PATCH
