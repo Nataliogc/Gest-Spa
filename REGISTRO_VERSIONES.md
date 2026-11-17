@@ -8,7 +8,7 @@ Este documento mantiene el **control de versión única y global** para todo el 
 
 | Parámetro | Valor Actual |
 | :--- | :--- |
-| **Versión Global del Sistema** | **`v2.3.51`** |
+| **Versión Global del Sistema** | **`v2.3.52`** |
 | **Fecha de Última Actualización** | **17/11/2026** |
 | **Estado General** | Operativo en Producción |
 
@@ -47,6 +47,11 @@ Cualquier cambio en los siguientes módulos impacta en la versión global:
 ---
 
 ## 📝 Historial Unificado de Versiones
+
+### [v2.3.52] - 17/11/2026
+- **Tipo:** PATCH
+- **Archivos:** `js/spa-packs-registry.js`, `js/spa-phase4-corrections.js`, `reservas-salas.html`, `reservas-spa.html`, `firebase-config.js`, `version.json`, `package.json`, `index.html`, `bonos.html`, `agenda-salas.html`
+- **Descripción:** Corrección de la 2.ª fase de los packs `Relax Oriental` y `Relax Oriental - Individual`: se sustituyó `Masaje Relax` por **`Masaje Oriental`** en `SPA_PACKS_REGISTRY` (`wc-6475` y `wc-6944`) y `PACK_SEQUENCES`.
 
 ### [v2.3.51] - 17/11/2026
 - **Tipo:** PATCH

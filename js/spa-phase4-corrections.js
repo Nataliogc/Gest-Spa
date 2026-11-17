@@ -102,7 +102,7 @@ const PACK_SEQUENCES = {
         modalidad: 'pareja',
         secuencia: [
             { orden: 1, nombre: 'Baño Hidromasaje', espacio: 'suite', duracion: 30, requires_therapist: false, terapeutas: 0 },
-            { orden: 2, nombre: 'Masaje Relax', espacio: 'suite', duracion: 30, requires_therapist: true, terapeutas: 2 }
+            { orden: 2, nombre: 'Masaje Oriental', espacio: 'suite', duracion: 30, requires_therapist: true, terapeutas: 2 }
         ]
     },
     'wc-6477': { // Encuentro Romántico
@@ -275,7 +275,7 @@ const PACK_SEQUENCES = {
         modalidad: 'individual',
         secuencia: [
             { orden: 1, nombre: 'Baño Hidromasaje', espacio: 'suite', duracion: 30, requires_therapist: false, terapeutas: 0 },
-            { orden: 2, nombre: 'Masaje Relax', espacio: 'cabina', duracion: 30, requires_therapist: true, terapeutas: 1 }
+            { orden: 2, nombre: 'Masaje Oriental', espacio: 'cabina', duracion: 30, requires_therapist: true, terapeutas: 1 }
         ]
     },
     'wc-7305': { // Ritual Amazonian Discovery
