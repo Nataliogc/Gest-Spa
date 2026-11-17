@@ -507,7 +507,7 @@
     <div class="sidebar">
         <div style="display: flex; align-items: center; gap: 15px;">
             <img src="logo-spa.jpg" alt="Cumbria Bienestar" style="height: 65px; width: auto; object-fit: contain;">
-            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.48 (16/11/2026)">v2.3.48</span>
+            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.50 (17/11/2026)">v2.3.50</span>
         </div>
 
         <ul class="nav-links" style="flex:1;">
@@ -1252,22 +1252,35 @@
                 voucherParams = `&client=${encodeURIComponent(vb.client || '')}&service=${encodeURIComponent(vb.service || '')}&voucher=${encodeURIComponent(vb.voucher)}&pax=${encodeURIComponent(vb.pax || '1')}`;
             }
 
+            const newBookingParams = {
+                action: 'new',
+                type: targetType,
+                date: currentDate,
+                time: time,
+                room: room || '',
+                staff_id: staffId || '',
+                staff_name: staffName || '',
+                client: (vb && vb.voucher) ? (vb.client || '') : '',
+                service: (vb && vb.voucher) ? (vb.service || '') : '',
+                voucher: (vb && vb.voucher) ? (vb.voucher || '') : '',
+                pax: (vb && vb.voucher) ? (vb.pax || '1') : ''
+            };
+
             const url = `reservas-salas.html?type=${targetType}&action=new&date=${currentDate}&time=${time}` +
                 `&room=${encodeURIComponent(room)}&staff_id=${encodeURIComponent(staffId)}&staff_name=${encodeURIComponent(staffName)}${voucherParams}&embedded=1&modal=1`;
-            openQuickForm(url);
+            openQuickForm(url, null, targetType, newBookingParams);
         }
 
         // === FORMULARIO DIRECTO (sin panel lateral) ===
         // Carga reservas-salas en modo "solo formulario" (modal=1) en una capa transparente
         // a pantalla completa: el usuario ve directamente la ficha de reserva sobre el planning.
-        function openQuickForm(url, bookingObj = null, modType = null) {
+        function openQuickForm(url, bookingObj = null, modType = null, newBookingParams = null) {
             const layer = document.getElementById('quick-form-layer');
             const frame = document.getElementById('quick-form-frame');
             const loader = document.getElementById('quick-form-loader');
             clearInterval(window._qfPoll);
 
-            // Vía instantánea: si el iframe ya está pre-calentado y abrimos una reserva existente,
-            // abrimos la ficha síncronamente sin recargar el iframe ni mostrar "Abriendo reserva..."
+            // Vía instantánea 1: editar reserva existente en iframe pre-calentado (0ms espera)
             if (bookingObj && frame && frame.contentWindow && frame.contentWindow._gestSpaQuickModalReady && typeof frame.contentWindow.openQuickEditDirectly === 'function') {
                 loader.style.display = 'none';
                 layer.style.display = 'block';
@@ -1275,7 +1288,19 @@
                     frame.contentWindow.openQuickEditDirectly(bookingObj, modType || 'cabinas');
                     return;
                 } catch (err) {
-                    console.warn("Fallback a recarga de iframe en Ocupación:", err);
+                    console.warn("Fallback a recarga de iframe en Ocupación (edit):", err);
+                }
+            }
+
+            // Vía instantánea 2: crear nueva reserva en iframe pre-calentado (0ms espera)
+            if (newBookingParams && frame && frame.contentWindow && frame.contentWindow._gestSpaQuickModalReady && typeof frame.contentWindow.openQuickNewDirectly === 'function') {
+                loader.style.display = 'none';
+                layer.style.display = 'block';
+                try {
+                    frame.contentWindow.openQuickNewDirectly(newBookingParams);
+                    return;
+                } catch (err) {
+                    console.warn("Fallback a recarga de iframe en Ocupación (new):", err);
                 }
             }
 

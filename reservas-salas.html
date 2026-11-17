@@ -1885,6 +1885,7 @@
                 if (window.MODULES && window.MODULES[t]) {
                     currentModule = window.MODULES[t];
                     window.currentModule = currentModule;
+                    moduleType = t;
                 }
                 if (picker && resObj.fecha) picker.value = resObj.fecha;
                 if (!Array.isArray(currentData)) currentData = [];
@@ -1903,6 +1904,36 @@
                         snap.forEach(d => fresh.push({ id: d.id, collection: coll, ...d.data() }));
                         if (!fresh.some(r => r.id === resObj.id)) fresh.push(resObj);
                         currentData = fresh;
+                    }).catch(() => {});
+                }
+            };
+
+            window.openQuickNewDirectly = async function (paramsObj = {}) {
+                const t = paramsObj.type || paramsObj.room || 'cabinas';
+                const resolvedType = ['suite', 'panacea', 'vip', 'peluqueria', 'cabina1', 'cabina2', 'cabina3'].includes(String(t).toLowerCase())
+                    ? (['cabina1', 'cabina2', 'cabina3'].includes(String(t).toLowerCase()) ? 'cabinas' : String(t).toLowerCase())
+                    : 'cabinas';
+                if (window.MODULES && window.MODULES[resolvedType]) {
+                    currentModule = window.MODULES[resolvedType];
+                    window.currentModule = currentModule;
+                    moduleType = resolvedType;
+                }
+                const targetDate = paramsObj.date || initialDate;
+                if (picker && targetDate) picker.value = targetDate;
+
+                await window.openNewReservationFromUrl(paramsObj);
+
+                // Cargar reservas del día en segundo plano para máxima precisión de huecos
+                const roomKey = String(paramsObj.room || resolvedType).toLowerCase();
+                const coll = (window.MODULES && window.MODULES[roomKey] && window.MODULES[roomKey].collection !== 'reservas_cabinas_placeholder')
+                    ? window.MODULES[roomKey].collection
+                    : currentModule.collection;
+                if (coll && coll !== 'reservas_cabinas_placeholder' && targetDate && window.db) {
+                    db.collection(coll).where("fecha", "==", targetDate).get().then(snap => {
+                        const fresh = [];
+                        snap.forEach(d => fresh.push({ id: d.id, collection: coll, ...d.data() }));
+                        currentData = fresh;
+                        updateAvailableTimeSlots();
                     }).catch(() => {});
                 }
             };
@@ -1949,6 +1980,15 @@
                     await window.openQuickEditDirectly(quickRes, urlParams.get('type'));
                     return;
                 }
+            }
+
+            if (isModalOnlyOpen && urlParams.get('action') === 'new') {
+                if (typeof window.openNewReservationFromUrl === 'function') {
+                    await window.openNewReservationFromUrl();
+                }
+                // Cargar reservas del día en segundo plano sin bloquear el modal
+                loadReservas(initialDate).catch(() => {});
+                return;
             }
 
             await loadReservas(initialDate);
@@ -5499,27 +5539,20 @@
             const timeSel = document.getElementById("form-time");
             timeSel.dataset.originalTime = selectedTime;
 
-            // Forzar actualización de slots disponibles
-            await updateAvailableTimeSlots();
-
-            // Garantizar que la hora de la que venimos quede seleccionada sí o sí
+            // Garantizar síncronamente que la hora seleccionada esté disponible de inmediato (0ms espera)
             if (selectedTime) {
-                timeSel.value = selectedTime;
-                if (timeSel.value !== selectedTime) {
+                if (!Array.from(timeSel.options).some(o => o.value === selectedTime)) {
                     const opt = document.createElement("option");
                     opt.value = selectedTime;
                     opt.textContent = selectedTime + 'h';
                     timeSel.appendChild(opt);
-                    timeSel.value = selectedTime;
                 }
+                timeSel.value = selectedTime;
             }
 
             if (typeof updatePackInfo === 'function') {
                 updatePackInfo();
             }
-
-            // Re-setup form classes
-            // document.getElementById("booking-form").className = "form-grid-premium"; // Removed because we use inline styles for the modern wide layout
 
             // Reset fields (with null checks for optional fields)
             document.getElementById("res-nombre").value = "";
@@ -5575,13 +5608,6 @@
                 updateTotal();
             }
 
-            // Duration input visibility and value
-            const durInput = document.getElementById("inputDuration");
-            if (durInput) {
-                // If it's a private module, default is 60, otherwise 60 or based on service
-                // ...
-            }
-
             // STAFF SELECTOR VISIBILITY
             const staffGroup = document.getElementById("staff-selector-group");
             const bookingStaff = document.getElementById("booking-staff");
@@ -5591,11 +5617,6 @@
                 if (requiresStaffNow) {
                     staffGroup.style.display = "block";
                     bookingStaff.required = true;
-
-                    // Trigger initial load of available staff
-                    if (typeof window.handleStaffFieldsChange === 'function') {
-                        await window.handleStaffFieldsChange();
-                    }
                 } else {
                     staffGroup.style.display = "none";
                     bookingStaff.required = false;
@@ -5607,7 +5628,6 @@
             if (therapistInput) {
                 const therapistGroup = therapistInput.closest('.form-group');
                 if (therapistGroup) {
-                    // Hide if module doesn't require staff (like SPA)
                     therapistGroup.style.display = requiresStaffNow ? "block" : "none";
                 }
             }
@@ -5633,21 +5653,14 @@
 
             // --- PELUQUERIA SPECIFIC UI ---
             if (moduleType === 'peluqueria' || currentModule.code === 'peluqueria') {
-                // 1. Title is set above
-
-                // 2. Hide Complementos
                 const compContainer = document.getElementById("complementos-container");
                 if (compContainer) compContainer.style.setProperty('display', 'none', 'important');
-
-                // 3. PAX = 0
                 const paxInput = document.getElementById("res-pax");
                 if (paxInput) paxInput.value = 0;
             } else {
-                // Restore Complementos visibility logic (renderComplementos handles block/none but we ensure we don't force hide)
                 const compContainer = document.getElementById("complementos-container");
                 if (compContainer) {
                     compContainer.style.removeProperty('display');
-                    // Re-evaluate display based on content (simple check)
                     if (compContainer.querySelectorAll('.comp-checkbox').length > 0) {
                         compContainer.style.display = 'block';
                     } else {
@@ -5661,9 +5674,7 @@
             const hasExplicitVoucher = !!(currentUrlParams.get('voucher') || window._isExplicitVoucherBooking);
             const pending = hasExplicitVoucher ? sessionStorage.getItem('pendingVoucherBooking') : null;
 
-            // Si hay un bono residual en memoria pero la reserva actual NO es de bono, limpiarlo de inmediato
             if (!hasExplicitVoucher && sessionStorage.getItem('pendingVoucherBooking')) {
-                console.log("[CLEANUP] Eliminando bono residual de sessionStorage para no contaminar reserva directa");
                 sessionStorage.removeItem('pendingVoucherBooking');
                 const staleNotice = document.getElementById("bono-saldo-notice");
                 if (staleNotice) {
@@ -5680,36 +5691,25 @@
                 document.getElementById("res-origen").value = "bono";
                 document.getElementById("res-bono").value = data.bono || "";
 
-                // Set Service explicitly (ROBUST)
                 if (data.producto) {
                     const svcSelect = document.getElementById("res-servicio");
                     const targetVal = data.producto;
-
-                    // Check if exists
                     let exists = Array.from(svcSelect.options).some(o => o.value === targetVal);
-
                     if (!exists) {
-                        console.warn("Force adding missing service option:", targetVal);
                         const newOpt = document.createElement("option");
                         newOpt.value = targetVal;
                         newOpt.textContent = targetVal;
                         svcSelect.appendChild(newOpt);
                     }
-
                     svcSelect.value = targetVal;
-
-                    // Update search input as well
                     const searchInp = document.getElementById("res-servicio-search");
                     if (searchInp) searchInp.value = targetVal;
-
-                    // Trigger change events
                     if (typeof updatePackInfo === 'function') updatePackInfo();
                     if (typeof updatePriceAutomation === 'function') updatePriceAutomation();
                 }
 
                 document.getElementById("res-obs").value = `Reserva de bono: ${data.producto}`;
 
-                // --- INFO EXTRA DEL BONO ---
                 const bonoNotice = document.getElementById("bono-saldo-notice");
                 if (bonoNotice) {
                     let infoHtml = `<i class="fas fa-info-circle"></i> <b>Bono:</b> ${data.bono} | <b>Producto:</b> ${data.producto}`;
@@ -5721,14 +5721,11 @@
                     bonoNotice.style.display = "block";
                 }
 
-                // Calcular sesiones por defecto según pax/sesión del bono (mínimo 1)
                 const pax = parseInt(document.getElementById("res-pax").value) || 1;
                 const paxPerSession = data.pax_por_sesion || 1;
                 document.getElementById("res-sesiones").value = Math.ceil(pax / paxPerSession);
 
-                toggleRoomField(); // Update fields visibility based on new origin
-
-                // Consumir de memoria para no dejar rastro
+                toggleRoomField();
                 sessionStorage.removeItem('pendingVoucherBooking');
                 window._isExplicitVoucherBooking = false;
             }
@@ -5739,12 +5736,34 @@
             // Habilitar todo (por si estaba bloqueado por una reserva pasada)
             const formInputs = document.getElementById("booking-form").querySelectorAll("input, select, textarea");
             formInputs.forEach(input => input.disabled = false);
-            const saveBtn = document.getElementById("btn-save-booking");
-            if (saveBtn) saveBtn.style.display = "block";
+            const saveBtnFinal = document.getElementById("btn-save-booking");
+            if (saveBtnFinal) saveBtnFinal.style.display = "block";
 
             window.updatePaymentControlBlock();
             updateStaffSelectorsVisibility();
+
+            // MOSTRAR MODAL INMEDIATAMENTE (SÍNCRONO, 0ms espera de red)
             document.getElementById("booking-modal").style.display = "flex";
+
+            // Ejecutar actualización de slots y terapeutas en paralelo en segundo plano
+            const bgNewTasks = [];
+            bgNewTasks.push(
+                updateAvailableTimeSlots().then(() => {
+                    if (selectedTime) {
+                        if (!Array.from(timeSel.options).some(o => o.value === selectedTime)) {
+                            const opt = document.createElement("option");
+                            opt.value = selectedTime;
+                            opt.textContent = selectedTime + 'h';
+                            timeSel.appendChild(opt);
+                        }
+                        timeSel.value = selectedTime;
+                    }
+                }).catch(() => {})
+            );
+            if (requiresStaffNow && typeof window.handleStaffFieldsChange === 'function') {
+                bgNewTasks.push(window.handleStaffFieldsChange().catch(() => {}));
+            }
+            Promise.all(bgNewTasks);
 
             // === SPA COURTESY WARNING UI ===
             // Remove previous warning if exists
@@ -8601,13 +8620,15 @@
 
         });
 
-        // Definición global del manejador de nueva reserva para apertura directa de modal
-        window.openNewReservationFromUrl = async function () {
+        // Definición global del manejador de nueva reserva para apertura directa de modal (0ms espera)
+        window.openNewReservationFromUrl = async function (overrideParams = null) {
             if (window._isNewReservationOpening) return;
             window._isNewReservationOpening = true;
 
             try {
-                const urlParams = new URLSearchParams(window.location.search);
+                const urlParams = overrideParams
+                    ? new URLSearchParams(Object.entries(overrideParams).filter(([, v]) => v !== undefined && v !== null && v !== ''))
+                    : new URLSearchParams(window.location.search);
                 const client = urlParams.get('client');
                 const service = urlParams.get('service');
                 const voucher = urlParams.get('voucher');
@@ -8639,7 +8660,7 @@
                     }));
                 }
 
-                // Abrir el formulario modal directamente
+                // Abrir el formulario modal directamente (síncrono, 0ms espera)
                 await showBookingForm();
 
                 // 1. Selector de Sala: Dejar en blanco (-- Seleccionar Sala --) o asignar si vino especificada
@@ -8667,49 +8688,16 @@
                 const voucherContext = applyVoucherBookingContext(urlParams, document);
                 if (voucherContext) {
                     toggleRoomField();
-                    await updatePriceAutomation();
+                    updatePriceAutomation();
                     document.getElementById('res-pax').value = voucherContext.pax;
                     document.getElementById('res-sesiones').value = 1;
                     updateTotal();
-                    await syncServiceDuration();
-                }
-
-                // 2. Selector de Terapeuta: Asegurar visibilidad, carga y preselección
-                const staffGroup = document.getElementById("staff-selector-group");
-                if (staffGroup) staffGroup.style.display = "block";
-                const bookingStaff = document.getElementById("booking-staff");
-                if (bookingStaff) {
-                    bookingStaff.required = true;
-                    if (typeof window.handleStaffFieldsChange === 'function') {
-                        await window.handleStaffFieldsChange();
-                    }
-
-                    if (staffParam || staffNameParam) {
-                        let matchedStaff = false;
-                        for (let opt of bookingStaff.options) {
-                            if (staffParam && opt.value === staffParam) {
-                                bookingStaff.value = opt.value;
-                                matchedStaff = true;
-                                break;
-                            }
-                        }
-                        if (!matchedStaff && staffNameParam) {
-                            const targetNameLower = staffNameParam.toLowerCase().trim();
-                            for (let opt of bookingStaff.options) {
-                                const optTextLower = opt.textContent.toLowerCase().trim();
-                                if (optTextLower === targetNameLower || optTextLower.startsWith(targetNameLower) || optTextLower.includes(targetNameLower)) {
-                                    bookingStaff.value = opt.value;
-                                    matchedStaff = true;
-                                    break;
-                                }
-                            }
-                        }
-                    }
+                    if (typeof syncServiceDuration === 'function') syncServiceDuration();
                 }
 
                 const resTerapeutaInp = document.getElementById("res-terapeuta");
-                if (resTerapeutaInp && staffNameParam) {
-                    resTerapeutaInp.value = staffNameParam;
+                if (resTerapeutaInp) {
+                    resTerapeutaInp.value = staffNameParam || "";
                 }
 
                 // 3. Preseleccionar datos adicionales si vienen en URL
@@ -8736,16 +8724,51 @@
                 // Sincronizar desglose de Pack Multiservicio y selectores de terapeutas tras cargar el servicio
                 if (typeof updatePackInfo === 'function') updatePackInfo();
                 if (typeof updateStaffSelectorsVisibility === 'function') updateStaffSelectorsVisibility();
-                if (typeof syncServiceDuration === 'function') await syncServiceDuration();
-                if (typeof window.handleStaffFieldsChange === 'function') await window.handleStaffFieldsChange();
 
-                // 4. Forzar visualización directa del modal de reservas
+                // 4. Forzar visualización directa e inmediata del modal de reservas
                 const modal = document.getElementById("booking-modal");
                 if (modal) {
                     modal.style.display = "flex";
                 }
+
+                // 2. Selector de Terapeuta: Cargar y preseleccionar en paralelo sin bloquear la apertura visual
+                const staffGroup = document.getElementById("staff-selector-group");
+                if (staffGroup) staffGroup.style.display = "block";
+                const bookingStaff = document.getElementById("booking-staff");
+                if (bookingStaff) {
+                    bookingStaff.required = true;
+                    const selectStaffOpt = () => {
+                        if (staffParam || staffNameParam) {
+                            let matchedStaff = false;
+                            for (let opt of bookingStaff.options) {
+                                if (staffParam && opt.value === staffParam) {
+                                    bookingStaff.value = opt.value;
+                                    matchedStaff = true;
+                                    break;
+                                }
+                            }
+                            if (!matchedStaff && staffNameParam) {
+                                const targetNameLower = staffNameParam.toLowerCase().trim();
+                                for (let opt of bookingStaff.options) {
+                                    const optTextLower = opt.textContent.toLowerCase().trim();
+                                    if (optTextLower === targetNameLower || optTextLower.startsWith(targetNameLower) || optTextLower.includes(targetNameLower)) {
+                                        bookingStaff.value = opt.value;
+                                        matchedStaff = true;
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    };
+                    selectStaffOpt();
+                    if (typeof window.handleStaffFieldsChange === 'function') {
+                        window.handleStaffFieldsChange().then(selectStaffOpt).catch(() => {});
+                    }
+                }
             } catch (err) {
                 console.error("[openNewReservationFromUrl] Error:", err);
+            } finally {
+                window._isNewReservationOpening = false;
             }
         };
 

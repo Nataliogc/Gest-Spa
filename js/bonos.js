@@ -3823,35 +3823,39 @@ async function openVoucherManagement(code) {
                 }
 
                 if (isEditable) {
+                    const usagePill = isComplete
+                        ? `<span style="font-size:0.65rem; font-weight:700; background:#dcfce7; color:#15803d; border:1px solid #86efac; padding:2px 7px; border-radius:999px; white-space:nowrap;"><i class="fas fa-check"></i> ${used}/${total}</span>`
+                        : `<span style="font-size:0.65rem; font-weight:700; background:#f1f5f9; color:#475569; border:1px solid #cbd5e1; padding:2px 7px; border-radius:999px; white-space:nowrap;">${used}/${total} ses.</span>`;
                     return `
-                        <div style="background:#f8fafc; padding:8px; margin-bottom:8px; border-radius:6px; border:1px solid #e2e8f0;">
-                        <div style="display:flex; gap:4px; margin-bottom:6px;">
-                            <input type="text" value="${item.name}" onchange="updateVoucherItemName(${idx}, this.value)" 
-                                placeholder="Nombre servicio..." list="catalog-datalist"
-                                style="flex:1; padding:4px; font-size:0.75rem; border:1px solid #cbd5e1; border-radius:4px; font-weight:600;">
-                            <button onclick="removeVoucherItem(${idx})" style="background:none; border:none; color:#ef4444; padding:0 4px; cursor:pointer;">
-                                <i class="fas fa-trash"></i>
-                            </button>
-                        </div>
-                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <div style="background:${isComplete ? '#f0fdf4' : '#f8fafc'}; padding:8px 12px; margin-bottom:6px; border-radius:8px; border:1px solid ${isComplete ? '#86efac' : '#e2e8f0'}; display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;">
+                            <div style="display:flex; align-items:center; gap:6px; flex:1; min-width:220px;">
+                                <input type="text" value="${item.name}" onchange="updateVoucherItemName(${idx}, this.value)" 
+                                    placeholder="Nombre servicio..." list="catalog-datalist"
+                                    style="flex:1; padding:5px 8px; font-size:0.8rem; border:1px solid #cbd5e1; border-radius:6px; font-weight:700; color:#0f172a; background:#fff;">
+                            </div>
                             <div style="display:flex; align-items:center; gap:8px;">
-                                <div style="display:flex; align-items:center; gap:2px;">
+                                ${usagePill}
+                                <div style="display:flex; align-items:center; gap:3px; background:#fff; padding:2px 6px; border-radius:6px; border:1px solid #cbd5e1;">
                                     <input type="number" value="${total}" onchange="updateVoucherItemSession(${idx}, this.value)" 
-                                        style="width:35px; padding:2px; font-size:0.7rem; border:1px solid #cbd5e1; border-radius:4px; text-align:center;">
-                                    <span style="font-size:0.65rem; color:#64748b;">${itemName.toLowerCase().includes('menú') || itemName.toLowerCase().includes('restaurante') ? 'pers.' : 'ses.'}</span>
+                                        style="width:32px; padding:2px; font-size:0.75rem; border:none; text-align:center; font-weight:700;">
+                                    <span style="font-size:0.65rem; color:#64748b; font-weight:600;">${itemName.toLowerCase().includes('menú') || itemName.toLowerCase().includes('restaurante') ? 'pers.' : 'ses.'}</span>
                                 </div>
-                                <div style="display:flex; align-items:center; gap:2px;">
-                                    <input type="number" value="${item.pax || 1}" onchange="updateVoucherItemPax(${idx}, this.value); this.parentElement.parentElement.parentElement.querySelector('button[onclick^=goToReservation]').setAttribute('onclick', \`goToReservation('\${encodeURIComponent('${v.cliente || ''}').replace(/'/g, "%27")}', '\${encodeURIComponent(state.editingVoucherItems[${idx}].name || '').replace(/'/g, "%27")}', '\${encodeURIComponent('${v.bono || v.codigo || ''}').replace(/'/g, "%27")}', '\${encodeURIComponent(state.editingVoucherItems[${idx}].space || '').replace(/'/g, "%27")}', \${this.value})\`);" 
-                                        style="width:35px; padding:2px; font-size:0.7rem; border:1px solid #cbd5e1; border-radius:4px; text-align:center;">
-                                    <span style="font-size:0.65rem; color:#64748b;">pax</span>
+                                <div style="display:flex; align-items:center; gap:3px; background:#fff; padding:2px 6px; border-radius:6px; border:1px solid #cbd5e1;">
+                                    <input type="number" value="${item.pax || 1}" onchange="updateVoucherItemPax(${idx}, this.value); const b = this.closest('div[style*=justify-content]').querySelector('button[onclick^=goToReservation]'); if(b) b.setAttribute('onclick', \`goToReservation('\${encodeURIComponent('${v.cliente || ''}').replace(/'/g, "%27")}', '\${encodeURIComponent(state.editingVoucherItems[${idx}].name || '').replace(/'/g, "%27")}', '\${encodeURIComponent('${v.bono || v.codigo || ''}').replace(/'/g, "%27")}', '\${encodeURIComponent(state.editingVoucherItems[${idx}].space || '').replace(/'/g, "%27")}', \${this.value})\`);" 
+                                        style="width:32px; padding:2px; font-size:0.75rem; border:none; text-align:center; font-weight:700;">
+                                    <span style="font-size:0.65rem; color:#64748b; font-weight:600;">pax</span>
                                 </div>
-                                <div style="font-size:0.65rem; color:#64748b;">
-                                    <i class="fas fa-map-marker-alt"></i> ${spaceName}
+                                <span style="font-size:0.7rem; color:#475569; font-weight:600; background:#e2e8f0; padding:3px 8px; border-radius:6px; text-transform:uppercase;">
+                                    <i class="fas fa-map-marker-alt" style="color:#64748b;"></i> ${spaceName}
+                                </span>
+                                <div style="display:flex; gap:4px; align-items:center;">
+                                    ${buttonsHtml}
+                                    <button onclick="removeVoucherItem(${idx})" title="Eliminar servicio" style="background:#fef2f2; border:1px solid #fecaca; color:#ef4444; width:26px; height:26px; border-radius:6px; cursor:pointer; display:inline-flex; align-items:center; justify-content:center;">
+                                        <i class="fas fa-trash" style="font-size:0.7rem;"></i>
+                                    </button>
                                 </div>
                             </div>
-                            <div style="display:flex; gap:4px;">${buttonsHtml}</div>
-                        </div>
-                    </div > `;
+                        </div>`;
                 }
 
                 return `
@@ -4242,57 +4246,49 @@ async function openVoucherManagement(code) {
 
         if (history && history.length > 0) {
             console.log('[BONO] Sincronizando items con historial:', history.length, 'reservas');
+            const normMatchSvc = (str) => String(str || '')
+                .toLowerCase()
+                .replace(/\s*-\s*\d+\s*['"minutos]*/gi, '')
+                .replace(/\s+/g, ' ')
+                .trim();
+
             state.editingVoucherItems.forEach(item => {
-                const iName = (item.name || '').toLowerCase().trim();
+                const iName = normMatchSvc(item.name);
 
                 // Count reservations that match this item
                 const validReservations = history.filter(h => {
-                    // Filter out cancellations (already done in helper but safe to check)
                     if (h.status === 'anulada') return false;
 
-                    // Name match
-                    // Name match
-                    const hName = (h.servicio || '').toLowerCase().trim();
+                    const hName = normMatchSvc(h.servicio);
 
-                    // 1. Exact match or contains
-                    // Ensure overlap is significant (not just one letter matching or something weird, though trim handles empty)
                     let nameMatch = false;
-                    if (hName) { // Only check if name exists to prevent "".includes(...) = true
-                        nameMatch = hName === iName || hName.includes(iName) || iName.includes(hName);
+                    if (hName && iName) {
+                        nameMatch = hName === iName || hName.includes(iName) || iName.includes(hName) ||
+                            (iName.includes('masaje') && hName.includes('masaje'));
                     }
 
-                    // 2. Space match (Restringido)
-                    // No usar spaceMatch genérico para Spa, ya que cruza Masajes con Circuitos
-                    // 2. Space match (Multi-Space Aware)
                     let spaceMatch = false;
                     const allowed = item.allowedSpaces || (item.space ? [item.space] : []);
 
                     for (const rawS of allowed) {
-                        const s = rawS.toLowerCase();
+                        const s = String(rawS || '').toLowerCase();
 
-                        // Para Hotel, suele ser único item, así que es más seguro
                         if (s === 'hotel' && ((h.origen || '').toLowerCase().includes('hotel') || hName.includes('alojamiento') || hName.includes('hotel'))) {
                             spaceMatch = true;
                         }
 
-                        // FIX: Restaurant Matching Logic
-                        const hSrv = (h.servicio || '').toLowerCase(); // DEFINE hSrv FIRST
-
-                        // Allow match if collection is restaurant-related OR service name is clearly restaurant
+                        const hSrv = (h.servicio || '').toLowerCase();
                         const isRestCollection = ['reservas_restaurante', 'reservas_rest', 'reservas_menu', 'reservas', 'reservas_evento'].includes(h._col);
                         const isRestName = hSrv.includes('restaurante') || hSrv.includes('menu') || hSrv.includes('menú') || hSrv.includes('almuerzo') || hSrv.includes('cena');
-
-                        // Check if ITEM is restaurant related (by THIS space OR by name)
                         const isItemRest = (s === 'restaurante' || s === 'rest' || s === 'restauracion') || iName.includes('restaurante') || iName.includes('menu') || iName.includes('menú');
 
-                        if (isItemRest) {
-                            if (isRestCollection || isRestName) spaceMatch = true;
+                        if (isItemRest && (isRestCollection || isRestName)) {
+                            spaceMatch = true;
                         }
 
-                        // Para Spa/Masaje, confiamos en el nombre. 
-                        // Solo si el item es MUY genérico (ej: "Bono Spa") habilitamos match por colección
-                        // Evitamos match si es Restaurante
-                        if (s === 'spa' && h._col === 'reservas_spa' && !isRestName) spaceMatch = true;
+                        if (s === 'spa' && h._col === 'reservas_spa' && !isRestName && (iName.includes('circuito') || iName.includes('spa'))) {
+                            spaceMatch = true;
+                        }
 
                         if (spaceMatch) break;
                     }
@@ -4405,22 +4401,11 @@ async function openVoucherManagement(code) {
         }
     }, 100);
 
-    // Historico renderizado arriba
-
-    // --- RENDER HISTORY (ROBUST) ---
-    try {
-        if (typeof renderVoucherHistory === 'function') {
-            // Pass items_desglosados to show internal validations (like Accommodation)
-            await renderVoucherHistory(code, v.items_desglosados || []);
-        }
-    } catch (hErr) {
-        console.warn("[BONO] Warning rendering history:", hErr);
-        // Don't block modal opening if history fails
+    // Historico ya renderizado y sincronizado arriba en línea 4241
+    // Actualizar precio visualmente al abrir (sin machacar used de items ya calculados desde el historial)
+    if (typeof window.updatePriceBadge === 'function') {
+        window.updatePriceBadge();
     }
-    // --------------------------------
-
-    // Actualizar precio y breakdown visualmente al abrir
-    window.updateBreakdownFromGlobalInputs();
 
 
 }

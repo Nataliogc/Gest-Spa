@@ -4555,11 +4555,19 @@
             const timeSel = document.getElementById("form-time");
             timeSel.dataset.originalTime = selectedTime;
 
-            // Forzar actualización de slots disponibles
-            await updateAvailableTimeSlots();
-
-            // Intentar seleccionar la hora de la que venimos
-            timeSel.value = selectedTime;
+            // Seleccionar síncronamente la hora de la que venimos (0ms espera)
+            if (selectedTime) {
+                if (!Array.from(timeSel.options).some(o => o.value === selectedTime)) {
+                    const opt = document.createElement("option");
+                    opt.value = selectedTime;
+                    opt.textContent = selectedTime + 'h';
+                    timeSel.appendChild(opt);
+                }
+                timeSel.value = selectedTime;
+            }
+            updateAvailableTimeSlots().then(() => {
+                if (selectedTime) timeSel.value = selectedTime;
+            }).catch(() => {});
 
             // Re-setup form classes
             // document.getElementById("booking-form").className = "form-grid-premium"; // Removed because we use inline styles for the modern wide layout

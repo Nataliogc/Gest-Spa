@@ -532,16 +532,20 @@ function renderPaymentBlock(voucher) {
     const collection = 'spa_vouchers';
 
     return `
-        <div class="payment-block" style="border-left: 4px solid ${status.color}; padding: 12px; margin: 12px 0; background: ${status.color}10;">
-            <h4 style="margin: 0 0 8px 0;">💳 PAGO DEL BONO</h4>
-            <div class="payment-summary" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 8px;">
-                <div><small>Total</small><br><strong>${status.total.toFixed(2)}€</strong></div>
-                <div><small>Pagado</small><br><strong style="color: #22c55e;">${status.pagado.toFixed(2)}€</strong></div>
-                <div><small>Pendiente</small><br><strong style="color: ${status.pendiente > 0 ? '#ef4444' : '#22c55e'};">${status.pendiente.toFixed(2)}€</strong></div>
-            </div>
-            <div style="display: flex; gap: 8px; align-items: center;">
-                ${renderPaymentBadge(voucher)}
-                ${status.needsPayment ? `<button class="btn btn-sm btn-outline" style="border-color: #22c55e; color: #22c55e;" onclick="SpaPaymentControl.openPaymentModal('${voucherId}', '${collection}')"><i class="fas fa-money-bill-wave"></i> Registrar Pago</button>` : ''}
+        <div class="payment-block" style="border: 1px solid ${status.color}40; border-left: 4px solid ${status.color}; border-radius: 10px; padding: 12px 16px; margin: 0; background: ${status.color}0D;">
+            <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <span style="font-size: 0.76rem; font-weight: 800; color: #1e293b; text-transform: uppercase; letter-spacing: 0.3px;">
+                        <i class="fas fa-credit-card" style="color: ${status.color}; margin-right: 4px;"></i> Pago del Bono
+                    </span>
+                    ${renderPaymentBadge(voucher)}
+                </div>
+                <div class="payment-summary" style="display: flex; align-items: center; gap: 18px;">
+                    <div style="text-align: right;"><small style="font-size: 0.65rem; color: #64748b; text-transform: uppercase; font-weight: 700;">Total</small><div style="font-size: 0.95rem; font-weight: 800; color: #0f172a;">${status.total.toFixed(2)}€</div></div>
+                    <div style="text-align: right;"><small style="font-size: 0.65rem; color: #64748b; text-transform: uppercase; font-weight: 700;">Pagado</small><div style="font-size: 0.95rem; font-weight: 800; color: #16a34a;">${status.pagado.toFixed(2)}€</div></div>
+                    <div style="text-align: right;"><small style="font-size: 0.65rem; color: #64748b; text-transform: uppercase; font-weight: 700;">Pendiente</small><div style="font-size: 0.95rem; font-weight: 800; color: ${status.pendiente > 0 ? '#dc2626' : '#16a34a'};">${status.pendiente.toFixed(2)}€</div></div>
+                    ${status.needsPayment ? `<button class="btn btn-sm btn-outline" style="border-color: #16a34a; color: #16a34a; font-weight: 700; border-radius: 6px; padding: 5px 10px;" onclick="SpaPaymentControl.openPaymentModal('${voucherId}', '${collection}')"><i class="fas fa-money-bill-wave"></i> Registrar Pago</button>` : ''}
+                </div>
             </div>
             ${status.pagos.length > 0 ? renderPaymentHistory(status.pagos) : ''}
         </div>

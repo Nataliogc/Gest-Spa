@@ -8,8 +8,8 @@ Este documento mantiene el **control de versión única y global** para todo el 
 
 | Parámetro | Valor Actual |
 | :--- | :--- |
-| **Versión Global del Sistema** | **`v2.3.48`** |
-| **Fecha de Última Actualización** | **16/11/2026** |
+| **Versión Global del Sistema** | **`v2.3.50`** |
+| **Fecha de Última Actualización** | **17/11/2026** |
 | **Estado General** | Operativo en Producción |
 
 ---
@@ -47,6 +47,21 @@ Cualquier cambio en los siguientes módulos impacta en la versión global:
 ---
 
 ## 📝 Historial Unificado de Versiones
+
+### [v2.3.50] - 17/11/2026
+- **Tipo:** PATCH
+- **Archivos:** `agenda-salas.html`, `reservas-salas.html`, `reservas-spa.html`, `firebase-config.js`, `version.json`, `package.json`, `index.html`, `bonos.html`
+- **Descripción:** Apertura instantánea (`0 ms` de espera, sin pantalla `"Abriendo reserva..."`) al iniciar una **Nueva Reserva** desde el cuadrante de Ocupación (`agenda-salas.html`):
+  1. **Vía Directa en Iframe Pre-calentado (`openQuickNewDirectly`):** Al pulsar cualquier casilla libre (`+`) de Sala o Terapeuta en `agenda-salas.html`, `newBooking()` reutiliza directamente el iframe pre-calentado de `reservas-salas.html` llamando a `openQuickNewDirectly(newBookingParams)` sin recargar el iframe ni mostrar `"Abriendo reserva..."`.
+  2. **Apertura Síncrona de `showBookingForm()` y `openNewReservationFromUrl()`:** Se eliminó el bloqueo secuencial de `await updateAvailableTimeSlots()` y las 3 llamadas consecutivas a `await handleStaffFieldsChange()` antes de mostrar `#booking-modal`, pintando de forma síncrona la hora, sala, terapeuta, cliente y servicio, mostrando el modal en el acto y calculando la disponibilidad de tramos y personal en paralelo en segundo plano.
+
+### [v2.3.49] - 17/11/2026
+- **Tipo:** PATCH
+- **Archivos:** `bonos.html`, `js/bonos-history-helper.js`, `js/bonos.js`, `js/spa-payment-control.js`, `js/app-core.js`, `firebase-config.js`, `version.json`, `package.json`, `index.html`, `agenda-salas.html`
+- **Descripción:** Reparación del Historial de Reservas en Bonos y rediseño ancho ejecutivo del modal `Gestionar Bono`:
+  1. **Reparación Crítica del Historial de Reservas (`js/bonos-history-helper.js`):** Se corrigió el error `ReferenceError: code is not defined` en la línea 344 de `renderVoucherHistory(bonoCode)` que abortaba el renderizado y dejaba `#vm-history-content` en blanco cuando un bono tenía reservas de Spa o Salas.
+  2. **Cobertura Completa de Colecciones y Expansión de Packs en Historial:** Se añadieron las colecciones `reservas_cabina1`, `reservas_cabina2`, `reservas_cabina3` y `reservas_cabinas`, búsqueda por `localizador` y variaciones de mayúsculas/minúsculas, y expansión automática de todas las fases hermanas de un pack multiservicio (`parent_id`) para que aparezcan todas sus citas en el historial del bono.
+  3. **Rediseño Ancho y Ejecutivo de `Gestionar Bono` (`bonos.html`, `js/bonos.js`, `js/spa-payment-control.js`):** Se amplió el modal de `750px` a `1140px` (`95vw`) y su altura útil hasta `760px`, reorganizando la columna izquierda en tarjetas limpias, compactando horizontalmente el bloque `Pago del Bono` y las filas de `Items de Compra` (con indicador de uso `usadas/total`), y ubicando el `Historial de Reservas` justo debajo con contador de citas y tarjetas detalladas con enlace directo a la reserva.
 
 ### [v2.3.48] - 16/11/2026
 - **Tipo:** PATCH

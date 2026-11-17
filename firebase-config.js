@@ -19,8 +19,8 @@ window.db.settings({ experimentalAutoDetectLongPolling: true, merge: true });
 console.log("Firebase Initialized - Mode: Dynamic Sync (Long Polling)");
 
 // --- CONTROL DE VERSIÓN GLOBAL ÚNICA ---
-window.GEST_SPA_VERSION = 'v2.3.48';
-window.GEST_SPA_UPDATE_DATE = '16/11/2026';
+window.GEST_SPA_VERSION = 'v2.3.50';
+window.GEST_SPA_UPDATE_DATE = '17/11/2026';
 
 function initGlobalVersionBadge() {
     try {
