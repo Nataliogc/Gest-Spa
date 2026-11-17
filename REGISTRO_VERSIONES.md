@@ -8,8 +8,8 @@ Este documento mantiene el **control de versión única y global** para todo el 
 
 | Parámetro | Valor Actual |
 | :--- | :--- |
-| **Versión Global del Sistema** | **`v2.3.63`** |
-| **Fecha de Última Actualización** | **17/11/2026** |
+| **Versión Global del Sistema** | **`v2.3.66`** |
+| **Fecha de Última Actualización** | **18/11/2026** |
 | **Estado General** | Operativo en Producción |
 
 ---
@@ -47,6 +47,26 @@ Cualquier cambio en los siguientes módulos impacta en la versión global:
 ---
 
 ## 📝 Historial Unificado de Versiones
+
+### [v2.3.66] - 18/11/2026
+- **Tipo:** PATCH
+- **Archivos:** `index.html`, `js/dashboard.js`
+- **Descripción:** Rediseño ancho y ejecutivo del modal **Informes Avanzados** (`#reports-modal`):
+  1. **Ventana más amplia y limpia (`index.html`):** ampliado a `1220px` (`95vw`, `max-height: 92vh`), con cabecera estructurada, pestañas segmentadas con estado activo, botón de cierre alineado y pie de exportación.
+  2. **Tarjetas KPI, barras de progreso y buscador (`js/dashboard.js`):** añadidos resúmenes KPI en la cabecera de *Ranking Top 10 Bonos* y *Ventas por Servicio*, barras visuales de peso/volumen, buscador en tiempo real por servicio/categoría y suma unificada de `b.importe || b.precio`.
+
+### [v2.3.65] - 18/11/2026
+- **Tipo:** PATCH
+- **Archivos:** `js/dashboard.js`
+- **Descripción:** Unificación de variantes duplicadas en **Informes Avanzados → Ranking Top 10 Bonos**:
+  - Normaliza nombres repetidos por mayúsculas/minúsculas (`Circuito SPA` / `CIRCUITO SPA`), sufijos duplicados (`Circuito SPA - Circuito Spa`) y marcadores de variante/plazas (`(2)`, `(-50%)`, `- 2 pax`) para agruparlos en una única fila y sumar `b.importe || b.precio`.
+
+### [v2.3.64] - 18/11/2026
+- **Tipo:** PATCH
+- **Archivos:** `js/dashboard.js`
+- **Descripción:** Mejora en **Caja del Día · Arqueo y Desglose** e informe impreso:
+  1. **Mayor detalle por movimiento:** muestra el producto/servicio real del bono (`data.producto` / `items_desglosados`), código de bono/localizador, origen (Online/Local), pax, sesiones, desglose de packs, abonos parciales y saldo pendiente, referencias de pedido/PayGold, usuario que cobró y teléfono del cliente, además de extraer la hora real de cobro.
+  2. **Cabecera de impresión actualizada:** añadido el logotipo `logo-spa.jpg` y actualizado el nombre comercial a **Cumbria Bienestar** en cabecera y pie de firmas, conservando el fondo oscuro de `TOTAL CAJA DEL DÍA` al imprimir.
 
 ### [v2.3.63] - 17/11/2026
 - **Tipo:** PATCH

@@ -1277,55 +1277,142 @@ window.closeReportsModal = function () {
     document.getElementById("reports-modal").style.display = "none";
 }
 
+function setActiveReportTab(active) {
+    const tabRank = document.getElementById("tab-report-ranking");
+    const tabServ = document.getElementById("tab-report-servicios");
+    if (tabRank) {
+        const isOn = active === "ranking";
+        tabRank.style.background = isOn ? "#0f172a" : "transparent";
+        tabRank.style.color = isOn ? "#ffffff" : "#475569";
+        tabRank.style.fontWeight = isOn ? "700" : "600";
+    }
+    if (tabServ) {
+        const isOn = active === "servicios";
+        tabServ.style.background = isOn ? "#0f172a" : "transparent";
+        tabServ.style.color = isOn ? "#ffffff" : "#475569";
+        tabServ.style.fontWeight = isOn ? "700" : "600";
+    }
+}
+
 window.generarRankingBonos = async function () {
+    setActiveReportTab("ranking");
     const content = document.getElementById("reports-content");
-    content.innerHTML = '<div style="text-align:center; padding:40px;"><i class="fas fa-spinner fa-spin"></i> Procesando datos...</div>';
+    content.innerHTML = '<div style="text-align:center; padding:50px; color:#64748b;"><i class="fas fa-spinner fa-spin" style="font-size:1.5rem; color:#d97706;"></i><p style="margin-top:10px; font-weight:600;">Procesando ranking de bonos...</p></div>';
+
+    const normalizeBonoRankingName = (raw) => {
+        let name = String(raw || 'Desconocido').trim().replace(/\s+/g, ' ');
+        // Eliminar sufijo duplicado tipo "Circuito SPA - Circuito Spa"
+        const dashParts = name.split(/\s+[-–—]\s+/);
+        if (dashParts.length === 2 && dashParts[0].trim().toLowerCase() === dashParts[1].trim().toLowerCase()) {
+            name = dashParts[0].trim();
+        }
+        // Eliminar conteo de personas/variantes tipo "(2)", "- 2 personas", "- 2 pax", "(-50%)"
+        name = name.replace(/\s*[-–—]\s*\d+\s*(personas?|pax|pers\.?)?$/i, '');
+        name = name.replace(/\(\s*\d+\s*\)/g, '');
+        name = name.replace(/\(\s*-\d+%\s*\)/g, '');
+        name = name.replace(/\s+/g, ' ').trim();
+        return name || 'Desconocido';
+    };
 
     try {
         const snap = await db.collection("spa_vouchers").get();
         const stats = {};
+        let globalUnits = 0;
+        let globalRevenue = 0;
 
         snap.forEach(doc => {
             const b = doc.data();
-            const prod = b.producto || 'Desconocido';
-            if (!stats[prod]) stats[prod] = { count: 0, revenue: 0 };
-            stats[prod].count++;
-            stats[prod].revenue += parseFloat(b.importe || 0);
+            const cleanName = normalizeBonoRankingName(b.producto || 'Desconocido');
+            const key = cleanName.toLowerCase();
+            if (!stats[key]) {
+                stats[key] = { displayName: cleanName, variantCounts: {}, count: 0, revenue: 0 };
+            }
+            const rev = parseFloat(b.importe || b.precio || 0) || 0;
+            stats[key].variantCounts[cleanName] = (stats[key].variantCounts[cleanName] || 0) + 1;
+            stats[key].count++;
+            stats[key].revenue += rev;
+            globalUnits++;
+            globalRevenue += rev;
         });
 
-        const ranking = Object.entries(stats)
+        const ranking = Object.values(stats)
+            .map(entry => {
+                const variants = Object.entries(entry.variantCounts);
+                variants.sort((a, b) => {
+                    const aAllCaps = a[0] === a[0].toUpperCase() && a[0] !== a[0].toLowerCase();
+                    const bAllCaps = b[0] === b[0].toUpperCase() && b[0] !== b[0].toLowerCase();
+                    if (aAllCaps !== bAllCaps) return aAllCaps ? 1 : -1;
+                    return b[1] - a[1];
+                });
+                return [variants[0]?.[0] || entry.displayName, { count: entry.count, revenue: entry.revenue }];
+            })
             .sort((a, b) => b[1].count - a[1].count)
             .slice(0, 10);
 
+        const maxCount = ranking[0]?.[1]?.count || 1;
+        const top10Units = ranking.reduce((s, [, d]) => s + d.count, 0);
+        const top10Rev = ranking.reduce((s, [, d]) => s + d.revenue, 0);
+        const leaderName = ranking[0]?.[0] || '-';
+
         let html = `
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
-                <h3 style="margin:0;">Ranking Top 10 Bonos (Más Vendidos)</h3>
-                <span style="font-size:0.8rem; color:#94a3b8;">Total acumulado</span>
+            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-bottom: 18px;">
+                <div style="background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%); border: 1px solid #fde68a; border-radius: 12px; padding: 14px 16px;">
+                    <div style="font-size: 0.7rem; font-weight: 700; text-transform: uppercase; color: #92400e;">Producto Líder (#1)</div>
+                    <div style="font-size: 1.05rem; font-weight: 800; color: #0f172a; margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${leaderName}">${leaderName}</div>
+                    <div style="font-size: 0.75rem; color: #b45309; margin-top: 2px;">${ranking[0]?.[1]?.count || 0} bonos vendidos</div>
+                </div>
+                <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 14px 16px;">
+                    <div style="font-size: 0.7rem; font-weight: 700; text-transform: uppercase; color: #64748b;">Unidades Top 10 / Total</div>
+                    <div style="font-size: 1.25rem; font-weight: 800; color: #0f172a; margin-top: 4px;">${top10Units.toLocaleString('es-ES')} <span style="font-size: 0.85rem; font-weight: 600; color: #64748b;">/ ${globalUnits.toLocaleString('es-ES')}</span></div>
+                    <div style="font-size: 0.75rem; color: #64748b; margin-top: 2px;">${globalUnits ? Math.round((top10Units / globalUnits) * 100) : 0}% del volumen histórico</div>
+                </div>
+                <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 14px 16px;">
+                    <div style="font-size: 0.7rem; font-weight: 700; text-transform: uppercase; color: #64748b;">Valor Estimado Top 10</div>
+                    <div style="font-size: 1.25rem; font-weight: 800; color: #059669; margin-top: 4px;">${top10Rev.toLocaleString('es-ES', { minimumFractionDigits: 2 })} €</div>
+                    <div style="font-size: 0.75rem; color: #64748b; margin-top: 2px;">Total global: ${globalRevenue.toLocaleString('es-ES', { minimumFractionDigits: 2 })} €</div>
+                </div>
             </div>
-            <table style="width:100%; border-collapse: collapse;">
-                <thead>
-                    <tr style="background:#f8fafc; border-bottom:2px solid #e2e8f0;">
-                        <th style="padding:12px; text-align:left; font-size:0.75rem; color:#64748b;">POS.</th>
-                        <th style="padding:12px; text-align:left; font-size:0.75rem; color:#64748b;">PRODUCTO</th>
-                        <th style="padding:12px; text-align:right; font-size:0.75rem; color:#64748b;">UNIDADES</th>
-                        <th style="padding:12px; text-align:right; font-size:0.75rem; color:#64748b;">VALOR ESTIMADO</th>
-                    </tr>
-                </thead>
-                <tbody>
+
+            <div style="border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; background: #fff;">
+                <table style="width:100%; border-collapse: collapse;">
+                    <thead>
+                        <tr style="background:#f8fafc; border-bottom:1px solid #e2e8f0;">
+                            <th style="padding:12px 16px; text-align:left; font-size:0.72rem; color:#64748b; text-transform:uppercase; width:75px;">Pos.</th>
+                            <th style="padding:12px 16px; text-align:left; font-size:0.72rem; color:#64748b; text-transform:uppercase;">Producto</th>
+                            <th style="padding:12px 16px; text-align:left; font-size:0.72rem; color:#64748b; text-transform:uppercase; width:220px;">Peso en Ventas</th>
+                            <th style="padding:12px 16px; text-align:right; font-size:0.72rem; color:#64748b; text-transform:uppercase; width:110px;">Unidades</th>
+                            <th style="padding:12px 16px; text-align:right; font-size:0.72rem; color:#64748b; text-transform:uppercase; width:150px;">Valor Estimado</th>
+                        </tr>
+                    </thead>
+                    <tbody>
         `;
 
         ranking.forEach(([name, data], i) => {
+            const pct = Math.max(4, Math.round((data.count / maxCount) * 100));
+            const share = globalUnits ? ((data.count / globalUnits) * 100).toFixed(1) : '0.0';
+            const medalBg = i === 0 ? '#fef3c7' : (i === 1 ? '#f1f5f9' : (i === 2 ? '#ffedd5' : '#f8fafc'));
+            const medalColor = i === 0 ? '#b45309' : (i === 1 ? '#475569' : (i === 2 ? '#c2410c' : '#64748b'));
             html += `
-                <tr style="border-bottom:1px solid #f1f5f9; transition: background 0.2s;">
-                    <td style="padding:12px; font-weight:700; color:var(--accent); font-size:1.1rem;">#${i + 1}</td>
-                    <td style="padding:12px; font-weight:600; color:#334155;">${name}</td>
-                    <td style="padding:12px; text-align:right; font-weight:700; color:#1e293b;">${data.count}</td>
-                    <td style="padding:12px; text-align:right; color:#64748b; font-family:monospace;">${data.revenue.toLocaleString('es-ES', { minimumFractionDigits: 2 })}€</td>
+                <tr style="border-bottom:1px solid #f1f5f9; transition: background 0.15s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='#fff'">
+                    <td style="padding:12px 16px;">
+                        <span style="display:inline-flex; align-items:center; justify-content:center; min-width:34px; height:26px; border-radius:7px; background:${medalBg}; color:${medalColor}; font-weight:800; font-size:0.85rem;">#${i + 1}</span>
+                    </td>
+                    <td style="padding:12px 16px; font-weight:700; color:#1e293b; font-size:0.9rem;">${name}</td>
+                    <td style="padding:12px 16px;">
+                        <div style="display:flex; align-items:center; gap:8px;">
+                            <div style="flex:1; height:8px; background:#f1f5f9; border-radius:999px; overflow:hidden;">
+                                <div style="width:${pct}%; height:100%; background:linear-gradient(90deg, #f59e0b, #d97706); border-radius:999px;"></div>
+                            </div>
+                            <span style="font-size:0.72rem; color:#64748b; font-weight:600; min-width:38px; text-align:right;">${share}%</span>
+                        </div>
+                    </td>
+                    <td style="padding:12px 16px; text-align:right; font-weight:800; color:#0f172a; font-variant-numeric: tabular-nums;">${data.count.toLocaleString('es-ES')}</td>
+                    <td style="padding:12px 16px; text-align:right; color:#0f172a; font-weight:700; font-variant-numeric: tabular-nums;">${data.revenue.toLocaleString('es-ES', { minimumFractionDigits: 2 })} €</td>
                 </tr>
             `;
         });
 
-        html += '</tbody></table>';
+        html += '</tbody></table></div>';
         content.innerHTML = html;
         window.currentReportData = { title: "Ranking Top 10 Bonos", data: ranking };
 
@@ -1334,9 +1421,19 @@ window.generarRankingBonos = async function () {
     }
 }
 
+window.filterServicesReportTable = function (query) {
+    const q = String(query || '').trim().toLowerCase();
+    const rows = document.querySelectorAll('#reports-services-tbody tr');
+    rows.forEach(tr => {
+        const text = (tr.dataset.search || '').toLowerCase();
+        tr.style.display = (!q || text.includes(q)) ? '' : 'none';
+    });
+};
+
 window.generarInformeServicios = async function () {
+    setActiveReportTab("servicios");
     const content = document.getElementById("reports-content");
-    content.innerHTML = '<div style="text-align:center; padding:40px;"><i class="fas fa-spinner fa-spin"></i> Cargando datos de catálogo y ventas...</div>';
+    content.innerHTML = '<div style="text-align:center; padding:50px; color:#64748b;"><i class="fas fa-spinner fa-spin" style="font-size:1.5rem; color:#d97706;"></i><p style="margin-top:10px; font-weight:600;">Cargando datos de catálogo y ventas...</p></div>';
 
     try {
         const [vouchSnap, catSnap] = await Promise.all([
@@ -1345,12 +1442,10 @@ window.generarInformeServicios = async function () {
         ]);
 
         const catalog = {};
-        const normalizedCatalog = {}; // key: "normalized-name", value: realName
+        const normalizedCatalog = {};
 
-        // Helper function to normalize service names (strip person count)
         function normalizeServiceName(name) {
             let normalized = name.toLowerCase().trim();
-            // Remove person count variations: (2), - 2 personas, - 2 pax, etc.
             normalized = normalized.replace(/\s*[-–—]\s*\d+\s*(personas?|pax|pers\.?)?/gi, '');
             normalized = normalized.replace(/\(\d+\)/g, '');
             normalized = normalized.replace(/\s+/g, ' ').trim();
@@ -1369,17 +1464,15 @@ window.generarInformeServicios = async function () {
             const b = doc.data();
             let name = (b.producto || '').trim();
             if (!name) return;
+            const rev = parseFloat(b.importe || b.precio || 0) || 0;
 
-            // Try exact case-sensitive match
             if (catalog[name]) {
                 catalog[name].sold++;
-                catalog[name].revenue += parseFloat(b.importe || 0);
+                catalog[name].revenue += rev;
             } else {
-                // Normalize and try to match
                 const normalizedName = normalizeServiceName(name);
                 let match = normalizedCatalog[normalizedName];
 
-                // If no exact match, try partial matching
                 if (!match) {
                     const keys = Object.keys(normalizedCatalog);
                     match = normalizedCatalog[keys.find(k => normalizedName.includes(k) || k.includes(normalizedName))];
@@ -1387,12 +1480,11 @@ window.generarInformeServicios = async function () {
 
                 if (match) {
                     catalog[match].sold++;
-                    catalog[match].revenue += parseFloat(b.importe || 0);
+                    catalog[match].revenue += rev;
                 } else {
-                    // Create new entry for unrecognized service
                     if (!catalog[name]) catalog[name] = { category: 'Descatalogado / Externo', sold: 0, revenue: 0 };
                     catalog[name].sold++;
-                    catalog[name].revenue += parseFloat(b.importe || 0);
+                    catalog[name].revenue += rev;
                 }
             }
         });
@@ -1401,35 +1493,71 @@ window.generarInformeServicios = async function () {
             .filter(x => x[1].sold > 0)
             .sort((a, b) => b[1].sold - a[1].sold);
 
+        const maxSold = sorted[0]?.[1]?.sold || 1;
+        const totalUnits = sorted.reduce((s, [, d]) => s + d.sold, 0);
+        const totalRev = sorted.reduce((s, [, d]) => s + d.revenue, 0);
+
         let html = `
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
-                <h3 style="margin:0;">Resumen de Ventas por Servicio</h3>
-                <span style="font-size:0.8rem; color:#94a3b8;">Histórico total (Optimizado)</span>
+            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-bottom: 16px;">
+                <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 14px 16px;">
+                    <div style="font-size: 0.7rem; font-weight: 700; text-transform: uppercase; color: #64748b;">Servicios con Ventas</div>
+                    <div style="font-size: 1.25rem; font-weight: 800; color: #0f172a; margin-top: 4px;">${sorted.length}</div>
+                    <div style="font-size: 0.75rem; color: #64748b; margin-top: 2px;">Catálogo agrupado y normalizado</div>
+                </div>
+                <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 14px 16px;">
+                    <div style="font-size: 0.7rem; font-weight: 700; text-transform: uppercase; color: #64748b;">Total Unidades Vendidas</div>
+                    <div style="font-size: 1.25rem; font-weight: 800; color: #0f172a; margin-top: 4px;">${totalUnits.toLocaleString('es-ES')}</div>
+                    <div style="font-size: 0.75rem; color: #64748b; margin-top: 2px;">Histórico acumulado</div>
+                </div>
+                <div style="background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%); border: 1px solid #fde68a; border-radius: 12px; padding: 14px 16px;">
+                    <div style="font-size: 0.7rem; font-weight: 700; text-transform: uppercase; color: #92400e;">Facturación Total</div>
+                    <div style="font-size: 1.25rem; font-weight: 800; color: #b45309; margin-top: 4px;">${totalRev.toLocaleString('es-ES', { minimumFractionDigits: 2 })} €</div>
+                    <div style="font-size: 0.75rem; color: #b45309; margin-top: 2px;">Suma de bonos vendidos</div>
+                </div>
             </div>
-            <table style="width:100%; border-collapse: collapse;">
-                <thead>
-                    <tr style="background:#f8fafc; border-bottom:2px solid #e2e8f0;">
-                        <th style="padding:12px; text-align:left; font-size:0.75rem; color:#64748b;">SERVICIO</th>
-                        <th style="padding:12px; text-align:left; font-size:0.75rem; color:#64748b;">CATEGORÍA</th>
-                        <th style="padding:12px; text-align:right; font-size:0.75rem; color:#64748b;">VENDIDOS</th>
-                        <th style="padding:12px; text-align:right; font-size:0.75rem; color:#64748b;">TOTAL VENTAS</th>
-                    </tr>
-                </thead>
-                <tbody>
+
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; gap:12px; flex-wrap:wrap;">
+                <h3 style="margin:0; font-size:0.95rem; font-weight:800; color:#1e293b;">Resumen de Ventas por Servicio</h3>
+                <div style="position:relative; min-width:260px;">
+                    <i class="fas fa-search" style="position:absolute; left:11px; top:50%; transform:translateY(-50%); color:#94a3b8; font-size:0.8rem;"></i>
+                    <input type="text" placeholder="Filtrar servicio o categoría..." oninput="filterServicesReportTable(this.value)"
+                        style="width:100%; padding:7px 12px 7px 32px; border:1px solid #cbd5e1; border-radius:8px; font-size:0.8rem; outline:none;">
+                </div>
+            </div>
+
+            <div style="border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; background: #fff;">
+                <table style="width:100%; border-collapse: collapse;">
+                    <thead>
+                        <tr style="background:#f8fafc; border-bottom:1px solid #e2e8f0;">
+                            <th style="padding:12px 16px; text-align:left; font-size:0.72rem; color:#64748b; text-transform:uppercase;">Servicio</th>
+                            <th style="padding:12px 16px; text-align:left; font-size:0.72rem; color:#64748b; text-transform:uppercase; width:170px;">Categoría</th>
+                            <th style="padding:12px 16px; text-align:left; font-size:0.72rem; color:#64748b; text-transform:uppercase; width:190px;">Volumen</th>
+                            <th style="padding:12px 16px; text-align:right; font-size:0.72rem; color:#64748b; text-transform:uppercase; width:110px;">Vendidos</th>
+                            <th style="padding:12px 16px; text-align:right; font-size:0.72rem; color:#64748b; text-transform:uppercase; width:150px;">Total Ventas</th>
+                        </tr>
+                    </thead>
+                    <tbody id="reports-services-tbody">
         `;
 
         sorted.forEach(([name, data]) => {
+            const pct = Math.max(3, Math.round((data.sold / maxSold) * 100));
+            const searchKey = `${name} ${data.category}`.replace(/"/g, '&quot;');
             html += `
-                <tr style="border-bottom:1px solid #f1f5f9;">
-                    <td style="padding:12px; font-weight:600; color:#334155;">${name}</td>
-                    <td style="padding:12px; font-size:0.8rem;"><span style="background:#f1f5f9; padding:2px 8px; border-radius:12px; color:#64748b;">${data.category}</span></td>
-                    <td style="padding:12px; text-align:right; font-weight:700; color:#1e293b;">${data.sold}</td>
-                    <td style="padding:12px; text-align:right; color:var(--accent); font-weight:600; font-family:monospace;">${data.revenue.toLocaleString('es-ES', { minimumFractionDigits: 2 })}€</td>
+                <tr data-search="${searchKey}" style="border-bottom:1px solid #f1f5f9; transition: background 0.15s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='#fff'">
+                    <td style="padding:11px 16px; font-weight:700; color:#1e293b; font-size:0.88rem;">${name}</td>
+                    <td style="padding:11px 16px; font-size:0.78rem;"><span style="background:#f1f5f9; border:1px solid #e2e8f0; padding:3px 10px; border-radius:999px; color:#475569; font-weight:600;">${data.category}</span></td>
+                    <td style="padding:11px 16px;">
+                        <div style="height:7px; background:#f1f5f9; border-radius:999px; overflow:hidden;">
+                            <div style="width:${pct}%; height:100%; background:linear-gradient(90deg, #3b82f6, #1d4ed8); border-radius:999px;"></div>
+                        </div>
+                    </td>
+                    <td style="padding:11px 16px; text-align:right; font-weight:800; color:#0f172a; font-variant-numeric: tabular-nums;">${data.sold.toLocaleString('es-ES')}</td>
+                    <td style="padding:11px 16px; text-align:right; color:#b45309; font-weight:700; font-variant-numeric: tabular-nums;">${data.revenue.toLocaleString('es-ES', { minimumFractionDigits: 2 })} €</td>
                 </tr>
             `;
         });
 
-        html += '</tbody></table>';
+        html += '</tbody></table></div>';
         content.innerHTML = html;
         window.currentReportData = { title: "Ventas por Servicio", data: sorted };
 
@@ -1590,6 +1718,24 @@ window.obtenerDatosCajaDelDia = async function (targetDate = null) {
     const movements = [];
     const countedKeys = new Set();
 
+    const extractHora = (...candidates) => {
+        for (const raw of candidates) {
+            if (!raw) continue;
+            const s = String(raw).trim();
+            if (!s) continue;
+            // Direct HH:MM or HH:MMh
+            const mDirect = s.match(/^(\d{1,2}:\d{2})(?:h)?(?::\d{2})?$/i);
+            if (mDirect) return mDirect[1].padStart(5, '0');
+            // ISO datetime or "YYYY-MM-DD HH:MM" / "DD/MM/YYYY HH:MM"
+            const mIso = s.match(/[T\s](\d{2}:\d{2})(?::\d{2})?/);
+            if (mIso) {
+                const hhmm = mIso[1];
+                if (hhmm !== '00:00' || s.includes('T')) return hhmm;
+            }
+        }
+        return '--:--';
+    };
+
     try {
         const formatES = dateToLoad.split('-').reverse().join('/');
 
@@ -1601,16 +1747,44 @@ window.obtenerDatosCajaDelDia = async function (targetDate = null) {
 
         const processVoucher = (doc) => {
             const data = doc.data();
-            const id = (data.bono || data.id || doc.id || "").toUpperCase();
+            const id = (data.bono || data.codigo || data.id || doc.id || "").trim().toUpperCase();
             const precio = parseFloat(data.precio || data.importe || 0);
             const origen = String(data.origen || "").toLowerCase();
             const metodo = String(data.metodo_pago || data.metodo || "").toLowerCase();
             const cliente = data.nombre_cliente || data.nombre || data.cliente || "-";
-            const concepto = data.nombre_bono || data.bono || "Venta de Bono";
-            const hora = data.hora || (data.fecha && data.fecha.includes('T') ? data.fecha.split('T')[1].substring(0, 5) : "--:--");
+            const clienteTel = data.telefono || data.tel || "";
+
+            // Producto real del bono (antes caía en data.bono y ocultaba el servicio)
+            const itemsList = Array.isArray(data.items_desglosados) ? data.items_desglosados
+                : (Array.isArray(data.desglosados) ? data.desglosados : []);
+            const itemsSummary = itemsList
+                .map(it => it.name || it.nombre || it.producto || "")
+                .filter(Boolean)
+                .join(" + ");
+            const productoNombre = data.producto || data.nombre_bono || itemsSummary || "Venta de Bono";
+
+            const isLocal = origen === "local" || id.startsWith("LOC") || id.startsWith("TARJ");
+            const origenTag = (origen === "web" || origen === "online" || origen === "tienda" || origen === "woocommerce")
+                ? "Venta Online"
+                : (isLocal ? "Venta Local" : (data.origen ? String(data.origen) : ""));
+
+            const baseMeta = [id];
+            if (origenTag) baseMeta.push(origenTag);
+            const paxVal = parseInt(data.pax || data.pax_adultos || 0, 10);
+            if (paxVal > 0) baseMeta.push(`${paxVal} pax`);
+            const sesTot = parseInt(data.sesiones_totales || 0, 10);
+            if (sesTot > 1) baseMeta.push(`${sesTot} ses.`);
+            if (itemsList.length > 1 && itemsSummary && itemsSummary.toLowerCase() !== productoNombre.toLowerCase()) {
+                baseMeta.push(`Incluye: ${itemsSummary}`);
+            }
+
+            const horaBase = extractHora(data.hora, data.date_created, data.created_at, data.fecha_compra, data.fecha);
 
             // Check if voucher has payments array with specific dates
             if (Array.isArray(data.pagos) && data.pagos.length > 0) {
+                const totalPagadoBono = data.pagos.reduce((s, x) => s + (parseFloat(x.importe || 0) || 0), 0);
+                const pendienteBono = Math.max(0, precio - totalPagadoBono);
+
                 data.pagos.forEach((p, idx) => {
                     const pFecha = String(p.fecha || "");
                     const pMetodo = String(p.metodo || "").toLowerCase();
@@ -1635,13 +1809,26 @@ window.obtenerDatosCajaDelDia = async function (targetDate = null) {
                             metodoLabel = "Tienda Virtual (Online)";
                         }
 
+                        const meta = [...baseMeta];
+                        if (data.pagos.length > 1) meta.push(`Abono ${idx + 1}/${data.pagos.length}`);
+                        if (precio > 0 && Math.abs(pImp - precio) > 0.01) meta.push(`Total bono: ${formatCurrency(precio)}`);
+                        if (pendienteBono > 0.01) meta.push(`Pendiente: ${formatCurrency(pendienteBono)}`);
+                        if (p.nota || p.observaciones || p.concepto) meta.push(p.nota || p.observaciones || p.concepto);
+
+                        const metodoExtra = [];
+                        if (p.referencia || data.order_id) metodoExtra.push(`Ref: ${p.referencia || '#' + data.order_id}`);
+                        if (p.usuario || p.registrado_por) metodoExtra.push(`Por ${p.usuario || p.registrado_por}`);
+
                         movements.push({
                             id: key,
-                            hora: p.hora || hora,
+                            hora: extractHora(p.hora, p.created_at, p.timestamp, p.fecha, horaBase),
                             tipo: "Bono",
-                            concepto: `${concepto} (Abono/Pago ${idx + 1})`,
+                            concepto: productoNombre,
+                            detalle: meta.join(" · "),
                             cliente: cliente,
+                            clienteTel: clienteTel,
                             metodo: metodoLabel,
+                            metodoDetalle: metodoExtra.join(" · "),
                             category: cat,
                             importe: pImp
                         });
@@ -1661,7 +1848,7 @@ window.obtenerDatosCajaDelDia = async function (targetDate = null) {
                                   origen === "paygold";
 
                 const isOnline = origen === "web" || origen === "online" || origen === "tienda" ||
-                                 (origen !== "local" && !id.startsWith("LOC") && data.email && data.email !== "-");
+                                 (origen !== "local" && !id.startsWith("LOC") && !id.startsWith("TARJ") && data.email && data.email !== "-");
 
                 const isTarjeta = metodo.includes("tarjeta") || metodo.includes("tpv") || metodo.includes("card");
 
@@ -1679,13 +1866,20 @@ window.obtenerDatosCajaDelDia = async function (targetDate = null) {
                     metodoLabel = "Tarjeta (TPV)";
                 }
 
+                const metodoExtra = [];
+                if (data.order_id) metodoExtra.push(`Pedido #${data.order_id}`);
+                if (data.usuario) metodoExtra.push(`Por ${data.usuario}`);
+
                 movements.push({
                     id: key,
-                    hora: hora,
+                    hora: horaBase,
                     tipo: "Bono",
-                    concepto: `${concepto} [${id}]`,
+                    concepto: productoNombre,
+                    detalle: baseMeta.join(" · "),
                     cliente: cliente,
+                    clienteTel: clienteTel,
                     metodo: metodoLabel,
+                    metodoDetalle: metodoExtra.join(" · "),
                     category: cat,
                     importe: precio
                 });
@@ -1716,8 +1910,19 @@ window.obtenerDatosCajaDelDia = async function (targetDate = null) {
                 if (d.status === "anulada") return;
 
                 const cliente = d.nombre || d.cliente || "-";
+                const clienteTel = d.tel || d.telefono || "";
                 const concepto = `${d.servicio || "Servicio"} (${colName})`;
-                const hora = d.hora || "--:--";
+                const hora = extractHora(d.hora);
+
+                const resMetaBase = [];
+                if (d.res_id) resMetaBase.push(`Ref: ${d.res_id}`);
+                if (d.pax) resMetaBase.push(`${d.pax} pax`);
+                if (Array.isArray(d.complementos) && d.complementos.length > 0) {
+                    resMetaBase.push(`Extras: ${d.complementos.join(", ")}`);
+                }
+                const totalRes = parseFloat(d.precio_total || d.total || 0);
+                const pagadoRes = parseFloat((d.payment && d.payment.paid !== undefined) ? d.payment.paid : (d.pagado || 0));
+                const pendienteRes = Math.max(0, totalRes - pagadoRes);
 
                 // Caso A: payment.history con desglose
                 if (d.payment && Array.isArray(d.payment.history) && d.payment.history.length > 0) {
@@ -1749,13 +1954,26 @@ window.obtenerDatosCajaDelDia = async function (targetDate = null) {
                                 metodoLabel = "Tienda Virtual (Online)";
                             }
 
+                            const meta = [...resMetaBase];
+                            if (d.payment.history.length > 1) meta.push(`Pago ${hIdx + 1}/${d.payment.history.length}`);
+                            if (totalRes > 0 && Math.abs(amt - totalRes) > 0.01) meta.push(`Total: ${formatCurrency(totalRes)}`);
+                            if (pendienteRes > 0.01) meta.push(`Pendiente: ${formatCurrency(pendienteRes)}`);
+                            if (h.nota) meta.push(h.nota);
+
+                            const metodoExtra = [];
+                            if (h.referencia || d.paygold_auth) metodoExtra.push(`Ref: ${h.referencia || d.paygold_auth}`);
+                            if (h.usuario || h.registrado_por) metodoExtra.push(`Por ${h.usuario || h.registrado_por}`);
+
                             movements.push({
                                 id: key,
-                                hora: h.hora || hora,
+                                hora: extractHora(h.hora, h.created_at, h.timestamp, h.fecha, hora),
                                 tipo: "Reserva",
-                                concepto: `${concepto} (Pago ${hIdx + 1})`,
+                                concepto: concepto,
+                                detalle: meta.join(" · "),
                                 cliente: cliente,
+                                clienteTel: clienteTel,
                                 metodo: metodoLabel,
+                                metodoDetalle: metodoExtra.join(" · "),
                                 category: cat,
                                 importe: amt
                             });
@@ -1787,13 +2005,23 @@ window.obtenerDatosCajaDelDia = async function (targetDate = null) {
                             metodoLabel = "Tienda Virtual (Online)";
                         }
 
+                        const meta = [...resMetaBase];
+                        if (pendienteRes > 0.01) meta.push(`Pendiente: ${formatCurrency(pendienteRes)}`);
+
+                        const metodoExtra = [];
+                        if (d.paygold_auth) metodoExtra.push(`Auth: ${d.paygold_auth}`);
+                        if (d.usuario) metodoExtra.push(`Por ${d.usuario}`);
+
                         movements.push({
                             id: key,
                             hora: hora,
                             tipo: "Reserva",
                             concepto: concepto,
+                            detalle: meta.join(" · "),
                             cliente: cliente,
+                            clienteTel: clienteTel,
                             metodo: metodoLabel,
+                            metodoDetalle: metodoExtra.join(" · "),
                             category: cat,
                             importe: amt
                         });
@@ -1834,14 +2062,22 @@ window.obtenerDatosCajaDelDia = async function (targetDate = null) {
                 }
 
                 if (amt > 0) {
-                    const hora = d.paygold_paid_at && d.paygold_paid_at.includes("T") ? d.paygold_paid_at.split("T")[1].substring(0, 5) : (d.hora || "--:--");
+                    const hora = extractHora(d.paygold_paid_at, d.hora);
+                    const metaPg = [];
+                    if (d.res_id) metaPg.push(`Ref: ${d.res_id}`);
+                    if (d.fecha) metaPg.push(`Cita: ${d.fecha}${d.hora ? ' ' + d.hora : ''}`);
+                    if (d.pax) metaPg.push(`${d.pax} pax`);
+                    metaPg.push("Anticipo PayGold");
                     movements.push({
                         id: key,
                         hora: hora,
                         tipo: "Reserva",
-                        concepto: `${d.servicio || "Reserva"} (Anticipo PayGold)`,
+                        concepto: `${d.servicio || "Reserva"}`,
+                        detalle: metaPg.join(" · "),
                         cliente: d.nombre || d.cliente || "-",
+                        clienteTel: d.tel || d.telefono || "",
                         metodo: "Pasarela PayGold",
+                        metodoDetalle: d.paygold_auth ? `Auth: ${d.paygold_auth}` : "",
                         category: "pasarela",
                         importe: amt
                     });
@@ -2042,14 +2278,25 @@ window.filterCajaTable = function (category) {
         return `<span style="background: rgba(59, 130, 246, 0.12); color: #1d4ed8; padding: 2px 7px; border-radius: 4px; font-weight: 700; font-size: 0.7rem;">RESERVA</span>`;
     };
 
+    const escCaja = (v) => String(v || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
     tbody.innerHTML = filtered.map(m => `
         <tr style="border-bottom: 1px solid #f1f5f9; transition: background 0.15s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='transparent'">
-            <td style="padding: 10px 14px; font-weight: 700; color: #334155; font-family: monospace;">${m.hora || '--:--'}</td>
-            <td style="padding: 10px 14px;">${typeBadge(m.tipo)}</td>
-            <td style="padding: 10px 14px; font-weight: 600; color: #1e293b;">${m.concepto}</td>
-            <td style="padding: 10px 14px; color: #475569;">${m.cliente}</td>
-            <td style="padding: 10px 14px;">${categoryBadge(m.category, m.metodo)}</td>
-            <td style="padding: 10px 14px; text-align: right; font-weight: 800; font-size: 0.88rem; color: #0f172a;">
+            <td style="padding: 10px 14px; font-weight: 700; color: #334155; font-family: monospace; vertical-align: top;">${escCaja(m.hora || '--:--')}</td>
+            <td style="padding: 10px 14px; vertical-align: top;">${typeBadge(m.tipo)}</td>
+            <td style="padding: 10px 14px; vertical-align: top;">
+                <div style="font-weight: 700; color: #1e293b;">${escCaja(m.concepto)}</div>
+                ${m.detalle ? `<div style="font-size: 0.72rem; color: #64748b; margin-top: 2px; line-height: 1.35;">${escCaja(m.detalle)}</div>` : ''}
+            </td>
+            <td style="padding: 10px 14px; vertical-align: top;">
+                <div style="color: #334155; font-weight: 600;">${escCaja(m.cliente)}</div>
+                ${m.clienteTel ? `<div style="font-size: 0.72rem; color: #64748b; margin-top: 2px;"><i class="fas fa-phone-alt" style="font-size:0.65rem; margin-right:3px;"></i>${escCaja(m.clienteTel)}</div>` : ''}
+            </td>
+            <td style="padding: 10px 14px; vertical-align: top;">
+                <div>${categoryBadge(m.category, m.metodo)}</div>
+                ${m.metodoDetalle ? `<div style="font-size: 0.7rem; color: #64748b; margin-top: 3px;">${escCaja(m.metodoDetalle)}</div>` : ''}
+            </td>
+            <td style="padding: 10px 14px; text-align: right; font-weight: 800; font-size: 0.88rem; color: #0f172a; vertical-align: top; white-space: nowrap;">
                 + ${formatCurrency(m.importe)}
             </td>
         </tr>
@@ -2079,17 +2326,29 @@ window.imprimirCajaDelDia = function () {
         }
     })();
 
+    const escPrint = (v) => String(v || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
     const rowsHtml = data.movements.map((m, i) => `
         <tr>
             <td style="text-align: center; color: #64748b;">${i + 1}</td>
-            <td style="font-family: monospace; font-weight: 700;">${m.hora || '--:--'}</td>
-            <td><strong style="text-transform: uppercase; font-size: 0.72rem;">${m.tipo}</strong></td>
-            <td>${m.concepto}</td>
-            <td>${m.cliente}</td>
-            <td>${m.metodo}</td>
+            <td style="font-family: monospace; font-weight: 700;">${escPrint(m.hora || '--:--')}</td>
+            <td><strong style="text-transform: uppercase; font-size: 0.72rem;">${escPrint(m.tipo)}</strong></td>
+            <td>
+                <div style="font-weight: 700;">${escPrint(m.concepto)}</div>
+                ${m.detalle ? `<div style="font-size: 0.7rem; color: #64748b; margin-top: 2px;">${escPrint(m.detalle)}</div>` : ''}
+            </td>
+            <td>
+                <div>${escPrint(m.cliente)}</div>
+                ${m.clienteTel ? `<div style="font-size: 0.7rem; color: #64748b;">${escPrint(m.clienteTel)}</div>` : ''}
+            </td>
+            <td>
+                <div>${escPrint(m.metodo)}</div>
+                ${m.metodoDetalle ? `<div style="font-size: 0.68rem; color: #64748b;">${escPrint(m.metodoDetalle)}</div>` : ''}
+            </td>
             <td style="text-align: right; font-weight: 700;">${formatCurrency(m.importe)}</td>
         </tr>
     `).join('');
+
+    const logoUrl = new URL('logo-spa.jpg', window.location.href).href;
 
     w.document.write(`
         <!DOCTYPE html>
@@ -2100,7 +2359,9 @@ window.imprimirCajaDelDia = function () {
             <style>
                 body { font-family: 'Segoe UI', Arial, sans-serif; padding: 24px; color: #1e293b; margin: 0; }
                 h1, h2, h3, p { margin: 0; }
-                .header { border-bottom: 2px solid #0f172a; padding-bottom: 12px; margin-bottom: 18px; display: flex; justify-content: space-between; align-items: flex-end; }
+                .header { border-bottom: 2px solid #0f172a; padding-bottom: 12px; margin-bottom: 18px; display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+                .header-brand { display: flex; align-items: center; gap: 14px; }
+                .header-logo { height: 56px; width: auto; object-fit: contain; }
                 .title { font-size: 1.4rem; font-weight: 800; color: #0f172a; }
                 .subtitle { font-size: 0.85rem; color: #64748b; margin-top: 4px; }
                 .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
@@ -2108,26 +2369,29 @@ window.imprimirCajaDelDia = function () {
                 .kpi-title { font-size: 0.7rem; font-weight: 700; color: #64748b; text-transform: uppercase; }
                 .kpi-value { font-size: 1.25rem; font-weight: 800; margin-top: 3px; color: #0f172a; }
                 .kpi-count { font-size: 0.68rem; color: #94a3b8; }
-                .total-bar { background: #0f172a; color: #fff; padding: 12px 18px; border-radius: 8px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; }
+                .total-bar { background: #0f172a; color: #fff; padding: 12px 18px; border-radius: 8px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #0f172a; }
                 .total-bar h2 { font-size: 1.1rem; font-weight: 700; color: #cbd5e1; }
                 .total-bar .amount { font-size: 1.6rem; font-weight: 800; color: #fbbf24; }
                 table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 0.78rem; }
-                th, td { border: 1px solid #e2e8f0; padding: 7px 10px; text-align: left; }
+                th, td { border: 1px solid #e2e8f0; padding: 7px 10px; text-align: left; vertical-align: top; }
                 th { background: #f1f5f9; font-weight: 700; color: #475569; text-transform: uppercase; font-size: 0.7rem; }
                 tr:nth-child(even) { background: #fafafa; }
                 .signatures { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-top: 50px; page-break-inside: avoid; }
                 .sig-box { border-top: 1px solid #0f172a; padding-top: 8px; text-align: center; font-size: 0.8rem; color: #475569; }
                 @media print {
                     body { padding: 10px; }
-                    .kpi-card, th { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                    .kpi-card, th, .total-bar { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
                 }
             </style>
         </head>
         <body>
             <div class="header">
-                <div>
-                    <h1 class="title">ZENITH SPA & BIENESTAR</h1>
-                    <p class="subtitle">INFORME Y ARQUEO DIARIO DE CAJA · <strong>${formattedDate}</strong></p>
+                <div class="header-brand">
+                    <img src="${logoUrl}" alt="Cumbria Bienestar" class="header-logo">
+                    <div>
+                        <h1 class="title">CUMBRIA BIENESTAR</h1>
+                        <p class="subtitle">INFORME Y ARQUEO DIARIO DE CAJA · <strong>${formattedDate}</strong></p>
+                    </div>
                 </div>
                 <div style="text-align: right; font-size: 0.75rem; color: #64748b;">
                     <div>Fecha consulta: <strong>${data.date}</strong></div>
@@ -2197,7 +2461,7 @@ window.imprimirCajaDelDia = function () {
                 </div>
                 <div class="sig-box">
                     <strong>Conforme Dirección / Administración</strong><br>
-                    <span style="font-size: 0.7rem; color: #94a3b8;">Zenith Spa & Bienestar</span>
+                    <span style="font-size: 0.7rem; color: #94a3b8;">Cumbria Bienestar</span>
                 </div>
             </div>
 
