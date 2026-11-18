@@ -3071,25 +3071,32 @@ function renderBonosFromState(missingNum = null) {
         let statusMatch = true;
         if (filterStatus !== 'all') {
             const vNorm = normalizeVoucher(b);
+            const rawEstado = String(b.estado || 'pending').toLowerCase().trim();
+            const isCancelled = rawEstado === 'anulado' || rawEstado === 'cancelled' || rawEstado === 'cancelado';
+            const isCompletedState = rawEstado === 'completed' || rawEstado === 'canjeado';
+            const isExpiredState = rawEstado === 'expired' || rawEstado === 'caducado';
+            const isActiveState = rawEstado === '' || rawEstado === 'pending' || rawEstado === 'pendiente' || rawEstado === 'activo' || rawEstado === 'active' || rawEstado === 'partially' || rawEstado === 'parcial';
             const isEffectivelyCompleted = Boolean(vNorm && vNorm.effectivelyCompleted);
             const isExpired = Boolean((vNorm && vNorm.isExpired) || checkVoucherExpiry(b));
 
             if (filterStatus === 'expired') {
-                statusMatch = (b.estado === 'expired') || ((b.estado === 'pending' || b.estado === 'activo') && isExpired);
+                statusMatch = !isCancelled && !isCompletedState && !isEffectivelyCompleted && (isExpiredState || isExpired);
             } else if (filterStatus === 'pending') {
-                // SOPORTE LEGACY: Aceptar 'activo' como 'pending'
-                // MODIFICADO: Incluir también 'partially' (En uso) como Activo
-                // EXCLUIR: anulados, caducados y completados reales (effectivelyCompleted)
-                statusMatch = (b.estado === 'pending' || b.estado === 'activo' || b.estado === 'partially')
-                    && b.estado !== 'anulado'
+                // Incluir activos, pendientes y parciales; excluir anulados, caducados y completados reales
+                statusMatch = isActiveState
+                    && !isCancelled
+                    && !isCompletedState
+                    && !isExpiredState
                     && !isExpired
                     && !isEffectivelyCompleted;
             } else if (filterStatus === 'completed') {
-                statusMatch = b.estado !== 'anulado' && (b.estado === 'completed' || isEffectivelyCompleted);
+                statusMatch = !isCancelled && (isCompletedState || isEffectivelyCompleted);
             } else if (filterStatus === 'anulado') {
-                statusMatch = (b.estado === 'anulado');
+                statusMatch = isCancelled;
+            } else if (filterStatus === 'partially') {
+                statusMatch = !isCancelled && !isCompletedState && !isEffectivelyCompleted && !isExpired && (rawEstado === 'partially' || rawEstado === 'parcial' || (vNorm && vNorm.usedSessions > 0));
             } else {
-                statusMatch = (b.estado === filterStatus);
+                statusMatch = (rawEstado === String(filterStatus).toLowerCase().trim());
             }
         }
 
