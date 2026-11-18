@@ -1424,11 +1424,24 @@
             const list = lastBookings.filter(b => ids.includes(b.id));
             if (!list.length) return;
             if (list.length === 1) return openEdit(list[0]);
+            const hasDuplicateIds = new Set(list.map(b => b.id)).size < list.length;
             const inputOptions = {};
-            list.forEach(b => inputOptions[b.id] = `${b.hora} · ${b.nombre || 'Cliente'} · ${b.servicio || ''}`);
-            const { value } = await Swal.fire({ title: 'Selecciona la reserva', input: 'radio', inputOptions, showCancelButton: true, confirmButtonText: 'Abrir', cancelButtonText: 'Cerrar' });
-            const sel = list.find(b => b.id === value);
-            if (sel) openEdit(sel);
+            list.forEach((b, idx) => {
+                const collTag = hasDuplicateIds && b._collection ? ` [${b._collection.replace('reservas_', '')}]` : '';
+                inputOptions[String(idx)] = `${b.hora} · ${b.nombre || 'Cliente'} · ${b.servicio || ''}${collTag}`;
+            });
+            const { value } = await Swal.fire({
+                title: 'Selecciona la reserva',
+                input: 'radio',
+                inputOptions,
+                inputValue: '0',
+                showCancelButton: true,
+                confirmButtonText: 'Abrir',
+                cancelButtonText: 'Cerrar'
+            });
+            if (value !== undefined && value !== null && list[Number(value)]) {
+                openEdit(list[Number(value)]);
+            }
         }
 
         // Sala con capacidad > 1 y hueco libre: elegir entre ver reserva o crear otra

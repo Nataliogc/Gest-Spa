@@ -6600,10 +6600,29 @@
 
             try {
                 const targetColl = resData.collection || (resData._moduleCode ? MODULES[resData._moduleCode].collection : currentModule.collection);
+                const cancelledAt = new Date().toISOString();
                 await db.collection(targetColl).doc(id).update({
                     status: 'anulada',
-                    cancelled_at: new Date().toISOString()
+                    cancelled_at: cancelledAt
                 });
+
+                // Limpiar posibles duplicados con el mismo ID en otras colecciones de salas
+                const roomCollections = ['reservas_cabina1', 'reservas_cabina2', 'reservas_cabina3', 'reservas_suite', 'reservas_panacea', 'reservas_vip', 'reservas_peluqueria'];
+                await Promise.all(
+                    roomCollections
+                        .filter(c => c !== targetColl)
+                        .map(async (c) => {
+                            try {
+                                const dupDoc = await db.collection(c).doc(id).get();
+                                if (dupDoc.exists) {
+                                    await db.collection(c).doc(id).update({
+                                        status: 'anulada',
+                                        cancelled_at: cancelledAt
+                                    });
+                                }
+                            } catch (_) {}
+                        })
+                );
 
                 // Sync status change to Mesachef
                 if (window.syncReservationToMesachef) {
