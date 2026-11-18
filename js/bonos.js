@@ -1115,6 +1115,13 @@ window.goToPackReservation = async function (encodedClient, encodedPackName, enc
     if (!confirm(`¿Ir a Ocupación para reservar el pack completo '${packName}' para ${client || 'el cliente'}?`)) return;
 
     const items = Array.isArray(state.editingVoucherItems) ? state.editingVoucherItems : [];
+    try {
+        sessionStorage.setItem('pendingVoucherPackItems', JSON.stringify({
+            voucher: code,
+            service: packName,
+            items: items
+        }));
+    } catch (e) {}
     const complementKeywords = /(botella|cava|vino|champagne|champán|ramo|flores|fruta|bombones|chocolate|detalle|benjamín|benjamin|regalo|extra|accesorio|toalla|albornoz|amenities|spa kit)/i;
     const reservableSpaces = items
         .filter(it => {

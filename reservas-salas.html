@@ -500,7 +500,7 @@
         <!-- LEFT: Cumbria Logo -->
         <div style="display: flex; align-items: center; gap: 15px;">
             <img src="logo-spa.jpg" alt="Cumbria Bienestar" style="height: 65px; width: auto; object-fit: contain;">
-            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.78 (18/11/2026)">v2.3.78</span>
+            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.79 (18/11/2026)">v2.3.79</span>
         </div>
 
         <ul class="nav-links" style="flex:1;">
@@ -4107,8 +4107,31 @@
                 try { if (selectedOpt.dataset.items) optItems = JSON.parse(selectedOpt.dataset.items); } catch (e) {}
             }
 
-            const secuencia = packData?.secuencia || optSecuencia || serviceData?.secuencia || [];
-            const itemsRaw = packData?.items || optItems || serviceData?.items_incluidos || serviceData?.desglosados || [];
+            let secuencia = packData?.secuencia || optSecuencia || serviceData?.secuencia || [];
+            let itemsRaw = packData?.items || optItems || serviceData?.items_incluidos || serviceData?.desglosados || [];
+
+            // Fallback 1: items guardados del bono al pulsar "Reservar Pack Completo"
+            if (secuencia.length === 0 && itemsRaw.length === 0) {
+                try {
+                    const storedPackRaw = sessionStorage.getItem('pendingVoucherPackItems');
+                    if (storedPackRaw) {
+                        const storedPack = JSON.parse(storedPackRaw);
+                        const activeBono = (document.getElementById('res-bono')?.value || '').trim();
+                        if (storedPack && Array.isArray(storedPack.items) && storedPack.items.length > 0 &&
+                            ((activeBono && storedPack.voucher === activeBono) || (storedPack.service && cleanName.toLowerCase().includes(storedPack.service.toLowerCase())))) {
+                            itemsRaw = storedPack.items;
+                        }
+                    }
+                } catch (e) {}
+            }
+
+            // Fallback 2: nombre compuesto con '+' (ej. "Circuito SPA + Masaje Relax 60'")
+            if (secuencia.length === 0 && itemsRaw.length === 0 && cleanName.includes('+')) {
+                const splitParts = cleanName.split(/\s*\+\s*/).map(p => p.trim()).filter(Boolean);
+                if (splitParts.length > 1) {
+                    itemsRaw = splitParts;
+                }
+            }
 
             const isPack = (packData && packData.isPack) ||
                 (secuencia && secuencia.length > 0) ||
@@ -4119,6 +4142,8 @@
             if (!isPack || (secuencia.length === 0 && itemsRaw.length === 0)) {
                 packContainer.style.display = "none";
                 window._packItems = null;
+                const spaAddonBtn = document.getElementById("btn-toggle-spa-addon");
+                if (spaAddonBtn) spaAddonBtn.style.display = "inline-flex";
                 return;
             }
 
@@ -4136,9 +4161,11 @@
             } else if (itemsRaw && itemsRaw.length > 0) {
                 displayItems = itemsRaw.map((it, idx) => {
                     const itName = typeof it === 'string' ? it.trim() : (it.nombre || it.name || `Tratamiento ${idx + 1}`);
-                    const itMaster = (window.masterItems || []).find(m => (m.name || m.nombre || '').toLowerCase() === itName.toLowerCase()) || {};
-                    const sp = it.espacio || itMaster.space || itMaster.allowedSpaces?.[0] || 'spa';
-                    const dur = parseInt(it.duracion || itMaster.duracion || itMaster.duration) || 60;
+                    const itNameLower = itName.toLowerCase();
+                    const itMaster = (window.masterItems || []).find(m => (m.name || m.nombre || '').toLowerCase() === itNameLower) || {};
+                    const rawSp = (typeof it === 'object' ? (Array.isArray(it.space) ? it.space[0] : (it.espacio || it.space)) : '') || itMaster.space || itMaster.allowedSpaces?.[0] || '';
+                    const sp = rawSp ? String(rawSp).toLowerCase().trim() : ((itNameLower.includes('circuito') || itNameLower.includes('spa')) ? 'spa' : (currentModule?.code || 'cabinas'));
+                    const dur = parseInt((typeof it === 'object' ? (it.duracion || it.duration) : 0) || itMaster.duracion || itMaster.duration) || 60;
                     return {
                         orden: idx + 1,
                         nombre: itName,
@@ -4153,6 +4180,15 @@
             const hasRestaurant = !!(packData?.includes_restaurant || serviceData?.includes_restaurant || displayItems.some(i => i.nombre.toLowerCase().includes('restaurante') || i.nombre.toLowerCase().includes('menu') || i.nombre.toLowerCase().includes('comida')));
             const hasHotel = !!(packData?.includes_hotel || serviceData?.includes_hotel);
             const hasCava = !!(packData?.includes_cava || serviceData?.includes_cava);
+
+            const hasSpaInPack = displayItems.some(i => String(i.espacio || '').toLowerCase() === 'spa' || (i.nombre || '').toLowerCase().includes('circuito'));
+            const spaAddonBtn = document.getElementById("btn-toggle-spa-addon");
+            if (spaAddonBtn) {
+                spaAddonBtn.style.display = hasSpaInPack ? "none" : "inline-flex";
+                if (hasSpaInPack && window._spaAddonActive && typeof window.toggleSpaAddonTab === 'function') {
+                    window.toggleSpaAddonTab(false);
+                }
+            }
 
             // Si solo hay 1 item en total, NO es un pack multiservicio: ocultar desglose salvo que incluya extras externos (Restaurante/Hotel/Cava)
             if (displayItems.length <= 1) {
@@ -7482,7 +7518,8 @@
                     }
 
                     // Crear reserva adicional de Circuito Spa si se activó la pestaña "+ Añadir Circuito Spa"
-                    if (window._spaAddonActive && (!window._packItems || window._packItems.length === 0)) {
+                    const packAlreadyHasSpaOnSave = Array.isArray(window._packItems) && window._packItems.some(i => i.active !== false && (String(i.espacio || '').toLowerCase() === 'spa' || (i.nombre || '').toLowerCase().includes('circuito')));
+                    if (window._spaAddonActive && !packAlreadyHasSpaOnSave) {
                         const spaDate = document.getElementById("spa-addon-date")?.value || payload.fecha;
                         const spaTime = (document.getElementById("spa-addon-time")?.value || "").replace(/h$/i, '').trim();
                         if (spaDate && spaTime) {
@@ -8744,7 +8781,8 @@
 
             // Suplemento Circuito Spa adicional (no incluido en el bono/servicio base)
             const spaBadge = document.getElementById("spa-addon-price-badge");
-            if (window._spaAddonActive && (!window._packItems || window._packItems.length === 0)) {
+            const packAlreadyHasSpa = Array.isArray(window._packItems) && window._packItems.some(i => i.active !== false && (String(i.espacio || '').toLowerCase() === 'spa' || (i.nombre || '').toLowerCase().includes('circuito')));
+            if (window._spaAddonActive && !packAlreadyHasSpa) {
                 const spaUnit = getStandaloneSpaAddonUnitPrice();
                 const spaTotal = spaUnit * Math.max(1, pax);
                 total += spaTotal;

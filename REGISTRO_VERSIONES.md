@@ -8,7 +8,7 @@ Este documento mantiene el **control de versión única y global** para todo el 
 
 | Parámetro | Valor Actual |
 | :--- | :--- |
-| **Versión Global del Sistema** | **`v2.3.78`** |
+| **Versión Global del Sistema** | **`v2.3.79`** |
 | **Fecha de Última Actualización** | **18/11/2026** |
 | **Estado General** | Operativo en Producción |
 
@@ -47,6 +47,11 @@ Cualquier cambio en los siguientes módulos impacta en la versión global:
 ---
 
 ## 📝 Historial Unificado de Versiones
+
+### [v2.3.79] - 18/11/2026
+- **Tipo:** PATCH
+- **Archivos:** `js/bonos.js`, `reservas-salas.html`
+- **Descripción:** Mejora continua del sistema Gest-Spa
 
 ### [v2.3.78] - 18/11/2026
 - **Tipo:** PATCH
