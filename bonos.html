@@ -88,9 +88,25 @@
     <main class="main-content">
         <section id="vouchers-view">
             <div class="data-container">
-                <header>
-                    <h2 id="view-title-vouchers" style="margin: 0; font-size: 1.4rem;">Bonos Zenith</h2>
-                    <div style="display: flex; align-items: center; gap: 10px;">
+                <header style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+                    <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+                        <h2 id="view-title-vouchers" style="margin: 0; font-size: 1.4rem;">Bonos Zenith</h2>
+                        <div style="display: inline-flex; background: #f1f5f9; padding: 3px; border-radius: 10px; border: 1px solid #cbd5e1; gap: 4px;">
+                            <button type="button" id="tab-bonos-all" onclick="setBonosTypeView('all')"
+                                style="border: none; background: #0f172a; color: #fff; font-weight: 700; font-size: 0.78rem; padding: 6px 12px; border-radius: 7px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;">
+                                <i class="fas fa-ticket-alt"></i> Todos los Bonos
+                            </button>
+                            <button type="button" id="tab-bonos-monedero" onclick="setBonosTypeView('monedero')"
+                                style="border: none; background: transparent; color: #065f46; font-weight: 800; font-size: 0.78rem; padding: 6px 12px; border-radius: 7px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;">
+                                <i class="fas fa-wallet" style="color: #059669;"></i> Bono Monedero (€)
+                            </button>
+                        </div>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                        <button type="button" onclick="openLocalVoucherModal('monedero')"
+                            style="background: linear-gradient(135deg, #059669, #047857); border: 1px solid #047857; border-radius: 7px; color: #fff; font-size: 0.82rem; font-weight: 800; cursor: pointer; padding: 6px 12px; display: flex; align-items: center; gap: 6px; box-shadow: 0 2px 6px rgba(5,150,105,0.25);">
+                            <i class="fas fa-wallet"></i> + Emitir Bono Monedero
+                        </button>
                         <button onclick="exportToExcel()" title="Descargar listado a Excel"
                             style="background: transparent; border: 1px solid #cbd5e1; border-radius: 4px; color: #64748b; font-size: 0.85rem; cursor: pointer; padding: 4px 8px; transition: all 0.2s; display: flex; align-items: center; gap: 5px;">
                             <i class="fas fa-file-export"></i> Descargar Excel
@@ -105,9 +121,9 @@
                 <!-- Filtros -->
                 <div class="filters-container"
                     style="display: flex; gap: 10px; align-items: center; margin-top: 20px; flex-wrap: wrap;">
-                    <div style="display: flex; gap: 5px; flex: 1; min-width: 200px;">
+                    <div style="display: flex; gap: 5px; flex: 1; min-width: 240px;">
                         <input type="text" id="voucher-search"
-                            placeholder="🔍 Buscar código de bono (LOC-XXXX o BONOXXXX)..." class="param-input"
+                            placeholder="🔍 Buscar por código, teléfono o nombre de cliente..." class="param-input"
                             style="flex: 1;">
                         <button id="clear-search-btn" onclick="clearSearch()" class="btn btn-outline"
                             style="padding: 8px 12px; display: none; border-color: #94a3b8; color: #94a3b8;"

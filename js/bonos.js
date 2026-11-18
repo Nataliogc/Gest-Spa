@@ -526,7 +526,7 @@ function setupBonoListeners() {
             const searchTerm = e.target.value.trim();
             // TRACKING: Prevent race conditions
             state.lastSearchTerm = searchTerm;
-            if (searchTerm.length > 0) state.isActiveSearch = true; // FORCE SEARCH STATE
+            if (!searchTerm) state.isActiveSearch = false;
             const clearBtn = document.getElementById("clear-search-btn");
 
             // Mostrar/ocultar botón de limpiar
@@ -537,7 +537,6 @@ function setupBonoListeners() {
             // BÚSQUEDA INTELIGENTE CON 3 NIVELES:
             if (searchTerm.length > 0) {
                 // NIVEL 1: Código exacto de bono (LOC-YYYY-XXXX, BONOXXXX o exc.Loc XXXX) → 1 lectura
-                // Regex ampliada para incluir exc.Loc y variantes con puntos/espacios
                 const isVoucherCode = /^(LOC-\d{4}-\d+|BONO\d+|EXC\.?LOC[-\s]*\d+)$/i.test(searchTerm.toUpperCase());
 
                 // MODO 1: Código exacto completo
@@ -546,22 +545,25 @@ function setupBonoListeners() {
                     return;
                 }
 
-                // MODO 2: Búsqueda numérica (Combinada: Exacta + Textual)
-                if (/^\d+$/.test(searchTerm)) {
-                    searchVomerByNumericInputCombined(searchTerm);
+                // MODO 2: Búsqueda numérica o teléfono con espacios (Combinada: Exacta + Textual + Teléfono)
+                const digitsOnly = searchTerm.replace(/\s+/g, '');
+                if (/^\d+$/.test(digitsOnly) && digitsOnly.length >= 3) {
+                    searchVomerByNumericInputCombined(digitsOnly);
                     return;
                 }
 
-                // MODO 3: Búsqueda textual general
-                if (searchTerm.length >= 3) {
+                // MODO 3: Búsqueda textual general (nombre, teléfono, producto, email)
+                if (searchTerm.length >= 2) {
                     searchVouchersByText(searchTerm);
                     return;
                 }
 
-                // NIVEL 3: Menos de 3 caracteres → búsqueda local (sin queries a Firestore)
+                // NIVEL 3: Menos de 2 caracteres → filtrado local inmediato
+                state.isActiveSearch = false;
                 renderBonosFromState();
             } else {
                 // Sin término de búsqueda → mostrar todo según filtros actuales
+                state.isActiveSearch = false;
                 renderBonosFromState();
             }
         });
@@ -816,10 +818,18 @@ function generateSearchTokens(voucher) {
         });
     }
 
-    // 5. TELÉFONO (completo)
+    // 5. TELÉFONO (completo y fragmentos de 3 y 6 dígitos para búsqueda rápida)
     if (voucher.telefono) {
-        const phone = String(voucher.telefono).replace(/\s+/g, '');
-        tokens.add(phone); // "612345678"
+        const phone = String(voucher.telefono).replace(/\D+/g, '');
+        if (phone) {
+            tokens.add(phone); // "612345678"
+            if (phone.length >= 3) tokens.add(phone.slice(0, 3));
+            if (phone.length >= 6) {
+                tokens.add(phone.slice(3, 6));
+                tokens.add(phone.slice(0, 6));
+            }
+            if (phone.length >= 9) tokens.add(phone.slice(6, 9));
+        }
     }
 
     // Convertir Set a Array y filtrar vacíos
@@ -1508,40 +1518,85 @@ async function searchVoucherByCode(code) {
  */
 async function fetchVouchersByTextInternal(searchTerm) {
     const normalizedTerm = searchTerm.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
-    let results = [];
+    const digitsTerm = normalizedTerm.replace(/\D+/g, '');
+    const resultsMap = new Map();
+    const addResult = (v) => {
+        if (!v) return;
+        const k = v.bono || v.codigo || v.id;
+        if (k) resultsMap.set(k, v);
+    };
 
-    // 1. LOCAL
+    const matchesSubstring = (v) => {
+        if (!v) return false;
+        const norm = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        const c = norm(v.cliente || v.nombre_cliente);
+        const b = norm(v.bono || v.codigo);
+        const p = norm(v.producto);
+        const e = norm(v.email);
+        const tRaw = norm(v.telefono || v.tel);
+        const tDigits = tRaw.replace(/\D+/g, '');
+        if (c.includes(normalizedTerm) || b.includes(normalizedTerm) || p.includes(normalizedTerm) || e.includes(normalizedTerm) || tRaw.includes(normalizedTerm)) {
+            return true;
+        }
+        if (digitsTerm.length >= 3 && (tDigits.includes(digitsTerm) || b.replace(/\D+/g, '').includes(digitsTerm))) {
+            return true;
+        }
+        return false;
+    };
+
+    // 0. Memoria activa (state.bonos)
+    if (Array.isArray(state.bonos)) {
+        state.bonos.filter(matchesSubstring).forEach(addResult);
+    }
+
+    // 1. LOCAL IndexedDB (tokens exactos + búsqueda parcial en bonos locales)
     if (window.dbLocal) {
         try {
-            const local = await dbLocal.bonos
+            const localTokens = await dbLocal.bonos
                 .where('searchTokens')
                 .equals(normalizedTerm)
                 .limit(100)
                 .toArray();
-            if (local.length > 0) return local; // Return early if found locally
+            localTokens.forEach(addResult);
         } catch (e) {
-            console.warn("Search local error:", e);
+            console.warn("Search local token error:", e);
+        }
+        try {
+            const allLocal = await dbLocal.bonos.toArray();
+            allLocal.filter(matchesSubstring).forEach(addResult);
+        } catch (e) {
+            console.warn("Search local scan error:", e);
         }
     }
 
-    // 2. FIRESTORE
+    // 2. FIRESTORE (tokens exactos por primera palabra o teléfono sin espacios)
     try {
-        const snapshot = await db.collection("spa_vouchers")
-            .where('searchTokens', 'array-contains', normalizedTerm)
-            .limit(50)
-            .get();
+        const tokenCandidates = new Set([normalizedTerm]);
+        normalizedTerm.split(/\s+/).forEach(w => { if (w.length >= 3) tokenCandidates.add(w); });
+        if (digitsTerm.length >= 3) tokenCandidates.add(digitsTerm);
 
-        if (!snapshot.empty) {
-            results = snapshot.docs.map(doc => ({ ...doc.data(), bono: doc.id }));
-            // Save to local cache
-            if (window.apiLocal) {
-                results.forEach(v => apiLocal.saveBono({ ...v, syncStatus: 'synced' }));
+        for (const tok of tokenCandidates) {
+            const snapshot = await db.collection("spa_vouchers")
+                .where('searchTokens', 'array-contains', tok)
+                .limit(50)
+                .get();
+
+            if (!snapshot.empty) {
+                snapshot.docs.forEach(doc => {
+                    const v = { ...doc.data(), bono: doc.id };
+                    if (matchesSubstring(v) || tok === normalizedTerm) {
+                        addResult(v);
+                    }
+                    if (window.apiLocal) {
+                        apiLocal.saveBono({ ...v, syncStatus: 'synced' });
+                    }
+                });
             }
         }
     } catch (e) {
         console.warn("Search firestore error:", e);
     }
-    return results;
+    return Array.from(resultsMap.values());
 }
 
 /**
@@ -2957,7 +3012,12 @@ function renderBonosFromState(missingNum = null) {
 
 
     let filtered = state.bonos.filter(b => {
-        // NUEVO: Si hay búsqueda activa por searchTokens, NO aplicar filtros
+        // Filtro superior de pestaña: Todos vs Solo Bono Monedero (€)
+        if (window._bonosTypeView === 'monedero' && !isMonederoVoucher(b)) {
+            return false;
+        }
+
+        // NUEVO: Si hay búsqueda activa por searchTokens, NO aplicar filtros de fecha/estado
         if (state.isActiveSearch) {
             return true; // Mostrar TODOS los resultados de la búsqueda
         }
@@ -2968,33 +3028,26 @@ function renderBonosFromState(missingNum = null) {
             const bonoStr = String(b.bono || "").toLowerCase();
             const emailStr = String(b.email || "").toLowerCase();
             const productoStr = String(b.producto || "").toLowerCase();
-            const telefonoStr = String(b.telefono || "").toLowerCase(); // Added telefono
+            const telefonoStr = String(b.telefono || "").toLowerCase();
+            const telDigits = telefonoStr.replace(/\D+/g, '');
+            const searchDigits = searchTerm.replace(/\D+/g, '');
 
             // Buscar en searchTokens si existen
             const matchesTokens = b.searchTokens && Array.isArray(b.searchTokens)
                 ? b.searchTokens.some(t => t.includes(searchTerm))
                 : false;
 
-            // DETECTAR BÚSQUEDA POR CÓDIGO DE BONO (contiene números)
-            const isCodeSearch = /\d+/.test(searchTerm);
             const matchesBono = bonoStr.includes(searchTerm);
+            const matchesPhoneDigits = searchDigits.length >= 3 && telDigits.includes(searchDigits);
 
-            // Si busca por código y hay coincidencia exacta, IGNORAR filtros de fecha/estado
-            if (isCodeSearch) {
-                if (matchesBono) return true;
-
-                // EXTENSION: Si el término es puramente numérico y >= 4 dígitos, 
-                // asumimos que el usuario BUSCA UN BONO ESPECÍFICO.
-                // Por tanto, si no coincide el bono, NO mostramos resultados por teléfono/email para limpiar ruido.
-                if (searchTerm.length >= 4) return false;
-            }
+            if (matchesBono || matchesPhoneDigits) return true;
 
             if (!matchesTokens &&
                 !clienteStr.includes(searchTerm) &&
                 !bonoStr.includes(searchTerm) &&
                 !emailStr.includes(searchTerm) &&
                 !productoStr.includes(searchTerm) &&
-                !telefonoStr.includes(searchTerm)) { // Added telefono
+                !telefonoStr.includes(searchTerm)) {
                 return false;
             }
         }
@@ -3225,13 +3278,36 @@ function renderBonosFromState(missingNum = null) {
             displayedPrice = (basePrice * paxRatio * sessionsRatio).toFixed(2);
         }
 
+        const rowStyle = v.isMonedero
+            ? (b.estado === 'anulado'
+                ? 'background: #fef2f2; border-left: 4px solid #ef4444; opacity: 0.78;'
+                : 'background: linear-gradient(90deg, #ecfdf5 0%, #f0fdf4 65%, #f8fafc 100%); border-left: 4px solid #059669;')
+            : '';
+
+        const thumbHtml = v.isMonedero
+            ? `<div title="Vale Bono Monedero (€)" style="width: 38px; height: 35px; border-radius: 6px; background: linear-gradient(135deg, #059669 0%, #047857 100%); border: 1.5px solid #fbbf24; color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; box-shadow: 0 2px 5px rgba(5,150,105,0.28); line-height: 1;">
+                   <i class="fas fa-wallet" style="font-size: 0.82rem; color: #fde68a;"></i>
+                   <span style="font-size: 0.48rem; font-weight: 900; letter-spacing: 0.3px; margin-top: 2px;">VALE €</span>
+               </div>`
+            : `<img src="${thumbUrl}" referrerpolicy="no-referrer" style="width: 35px; height: 35px; object-fit: cover; border-radius: 4px; border: 1px solid #e2e8f0;">`;
+
         return `
-        <tr>
-            <td style="padding: 10px 5px;"><img src="${thumbUrl}" referrerpolicy="no-referrer" style="width: 35px; height: 35px; object-fit: cover; border-radius: 4px; border: 1px solid #e2e8f0;"></td>
-            <td style="font-weight:600">${b.bono || '-'}</td>
+        <tr style="${rowStyle}">
+            <td style="padding: 10px 5px;">${thumbHtml}</td>
+            <td style="font-weight:700; ${v.isMonedero ? 'color:#065f46;' : ''}">${b.bono || '-'}</td>
             <td>
                 ${(() => {
                 const displayProductName = (b.origen !== 'local' && catalogMatch && catalogMatch.nombre) ? catalogMatch.nombre : (b.producto || '-');
+                if (v.isMonedero) {
+                    return `
+                    <div style="display: flex; align-items: center; gap: 8px; font-weight: 800; color: #064e3b;">
+                        <span style="width: 10px; height: 10px; border-radius: 50%; background: #059669; flex-shrink: 0;" title="Bono Monedero"></span>
+                        ${displayProductName}
+                    </div>
+                    <div style="font-size: 0.65rem; color: #059669; margin-left: 18px; text-transform: uppercase; font-weight: 800;">
+                        <i class="fas fa-coins"></i> VALE MONEDERO · SALDO DISP: ${v.saldoDisponible.toFixed(2)}€
+                    </div>`;
+                }
                 const prot = window.getServiceProtocol ? window.getServiceProtocol(displayProductName) : { color: '#cbd5e1', tratamiento: 'Normal' };
                 return `
                 <div style="display: flex; align-items: center; gap: 8px;">
@@ -3243,7 +3319,10 @@ function renderBonosFromState(missingNum = null) {
                 </div>`;
             })()}
             </td>
-            <td>${b.cliente || '-'}</td>
+            <td>
+                <div style="font-weight: 600; color: #1e293b;">${b.cliente || '-'}</div>
+                ${b.telefono ? `<div style="font-size: 0.7rem; color: #64748b;"><i class="fas fa-phone-alt" style="font-size: 0.6rem;"></i> ${b.telefono}</div>` : ''}
+            </td>
             <td>${formatDate(b.fecha || b.fecha_compra || b.date_created)}${expiryText}</td>
             <td style="font-weight:bold">${displayedPrice}€</td>
             <td><span class="st-badge ${badgeClass}">${statusLabel}</span></td>
@@ -5338,7 +5417,38 @@ async function annulVoucher() {
 
 // --- MODAL VENTA LOCAL (Nuevo con Carrito) ---
 
-function openLocalVoucherModal() {
+function setBonosTypeView(viewMode) {
+    window._bonosTypeView = viewMode === 'monedero' ? 'monedero' : 'all';
+    const btnAll = document.getElementById('tab-bonos-all');
+    const btnMon = document.getElementById('tab-bonos-monedero');
+    const isMon = window._bonosTypeView === 'monedero';
+
+    if (btnAll) {
+        btnAll.style.background = isMon ? 'transparent' : '#0f172a';
+        btnAll.style.color = isMon ? '#475569' : '#fff';
+    }
+    if (btnMon) {
+        btnMon.style.background = isMon ? '#059669' : 'transparent';
+        btnMon.style.color = isMon ? '#fff' : '#065f46';
+        const icon = btnMon.querySelector('i');
+        if (icon) icon.style.color = isMon ? '#fde68a' : '#059669';
+    }
+
+    // Al entrar en Bono Monedero, limpiar filtro de día único y ampliar rango para ver todos los monederos activos y buscar por nombre/teléfono
+    if (isMon) {
+        const dateInp = document.getElementById('voucher-date');
+        if (dateInp && dateInp.value) dateInp.value = '';
+        const monthsSel = document.getElementById('bonos-filter-months');
+        if (monthsSel && monthsSel.value === '0') {
+            monthsSel.value = '12';
+            cargarBonos();
+            return;
+        }
+    }
+    renderBonosFromState();
+}
+
+function openLocalVoucherModal(initialMode = 'sessions') {
     state.lvCart = [];
     state.lvSelectedProduct = null;
     if (document.getElementById('lv-monedero-concept')) document.getElementById('lv-monedero-concept').value = '';
@@ -5346,7 +5456,7 @@ function openLocalVoucherModal() {
     if (document.getElementById('lv-monedero-paymethod')) document.getElementById('lv-monedero-paymethod').value = '';
     if (document.getElementById('lv-monedero-message')) document.getElementById('lv-monedero-message').value = '';
     if (typeof selectLocalPayMethod === 'function') selectLocalPayMethod('');
-    if (typeof setLocalVoucherMode === 'function') setLocalVoucherMode('sessions');
+    if (typeof setLocalVoucherMode === 'function') setLocalVoucherMode(initialMode === 'monedero' ? 'monedero' : 'sessions');
     renderLVCart();
     loadActiveComplementos();
 
