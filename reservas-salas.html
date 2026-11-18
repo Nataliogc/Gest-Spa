@@ -6540,6 +6540,7 @@
                 }).then(async (result) => {
                     if (result.isConfirmed) {
                         try {
+                            Swal.fire({ title: 'Anulando pack...', text: 'Actualizando servicios vinculados...', allowOutsideClick: false, allowEscapeKey: false, showConfirmButton: false, didOpen: () => Swal.showLoading() });
                             const date = document.getElementById("main-date-picker")?.value || resData.fecha;
 
                             // Cancelar inmediatamente la reserva actual en su colección real (y posibles duplicados)
@@ -6551,6 +6552,7 @@
                             if (resData.parent_id) {
                                 await window.cancelPackReservation(resData.parent_id, id);
                             }
+                            Swal.close();
                             showToast("Pack completo anulado", "success");
                             closeModal(false, true);
                             await loadReservas(date);
@@ -6560,6 +6562,7 @@
                         }
                     } else if (result.isDenied) {
                         try {
+                            Swal.fire({ title: 'Anulando servicio...', allowOutsideClick: false, allowEscapeKey: false, showConfirmButton: false, didOpen: () => Swal.showLoading() });
                             const date = document.getElementById("main-date-picker")?.value || resData.fecha;
 
                             await updateReservationDocResilient(id, resData, {
@@ -6567,6 +6570,7 @@
                                 cancelled_at: new Date().toISOString()
                             });
 
+                            Swal.close();
                             showToast("Servicio anulado correctamente", "success");
                             closeModal(false, true);
                             await loadReservas(date);
