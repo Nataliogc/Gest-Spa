@@ -5307,6 +5307,10 @@ async function annulVoucher() {
 function openLocalVoucherModal() {
     state.lvCart = [];
     state.lvSelectedProduct = null;
+    if (document.getElementById('lv-monedero-concept')) document.getElementById('lv-monedero-concept').value = '';
+    if (document.getElementById('lv-monedero-amount')) document.getElementById('lv-monedero-amount').value = '';
+    if (document.getElementById('lv-monedero-paymethod')) document.getElementById('lv-monedero-paymethod').value = 'tarjeta';
+    if (document.getElementById('lv-monedero-message')) document.getElementById('lv-monedero-message').value = '';
     if (typeof setLocalVoucherMode === 'function') setLocalVoucherMode('sessions');
     renderLVCart();
     loadActiveComplementos();
@@ -6029,7 +6033,10 @@ function removeFromLVCart(index) {
 }
 
 async function createLocalVoucher() {
-    if (state.lvCart.length === 0) {
+    const voucherMode = document.getElementById("lv-voucher-mode")?.value || 'sessions';
+    const isMonederoMode = voucherMode === 'monedero';
+
+    if (!isMonederoMode && state.lvCart.length === 0) {
         return showToast("Añade al menos un producto al bono", "warning");
     }
 
@@ -6046,101 +6053,144 @@ async function createLocalVoucher() {
     }
 
     let codeInput = document.getElementById("lv-code").value.trim();
-    // Si el usuario puso un código manual (ej: 18067), le ponemos el prefijo Tarj- 
-    // si no tiene ya un prefijo conocido (Tarj-, LOC-, BONO-)
     if (codeInput && !/^(Tarj|LOC|BONO)-/i.test(codeInput)) {
         codeInput = `Tarj-${codeInput}`;
     }
     const code = codeInput || `LOC-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
 
-    // FIX: Para packs/rituales con items_breakdown > 1, el precio NO debe multiplicarse por sessions
-    // porque el precio del pack ya incluye todos los componentes
-    const totalPrice = state.lvCart.reduce((sum, i) => {
-        const isPack = i.items_breakdown && i.items_breakdown.length > 1;
-        // Para packs: precio fijo (no multiplicar). Para servicios simples: precio * sesiones
-        return sum + (isPack ? i.price : (i.price * i.sessions));
-    }, 0);
-    const totalSessions = state.lvCart.reduce((sum, i) => sum + i.sessions, 0);
-    const productNames = state.lvCart.map(i => i.name).join(" + ");
-
-    // Consolidar desglose de items de todos los productos del carrito
-    let allItems = [];
-    state.lvCart.forEach(cartItem => {
-        if (cartItem.items_breakdown) {
-            // Multiplicamos cada item base por la cantidad de sesiones elegidas para ese producto
-            for (let s = 0; s < cartItem.sessions; s++) {
-                allItems = allItems.concat(cartItem.items_breakdown.map(it => ({
-                    ...it,
-                    itemId: 'it_' + Math.random().toString(36).substr(2, 9),
-                    used: 0
-                })));
-            }
-        }
-    });
-
-    const discountPercent = state.lvCart.length > 0 ? Math.max(...state.lvCart.map(i => parseFloat(i.discount_percent) || 0)) : 0;
-    const discountReasons = state.lvCart
-        .filter(i => (parseFloat(i.discount_percent) || 0) > 0 && i.discount_reason)
-        .map(i => i.discount_reason.trim());
-    const discountReason = [...new Set(discountReasons)].join(' | ');
-
     const now = new Date();
-    const isMonedero = (document.getElementById("lv-voucher-mode")?.value === 'monedero') || state.lvCart.some(i => i.isMonedero);
-    const newVoucher = {
-        bono: code,
-        codigo: code,
-        cliente: clientName,
-        email: document.getElementById("lv-email").value.trim(),
-        telefono: document.getElementById("lv-phone").value.trim(),
-        producto: productNames,
-        precio: totalPrice,
-        importe: totalPrice,
-        fecha: getLocalDateYMD(now),
-        estado: 'pending',
-        origen: 'local',
-        sesiones_totales: isMonedero ? 1 : totalSessions,
-        sesiones_usadas: 0,
-        pax_por_sesion: state.lvCart.length > 0 ? Math.max(...state.lvCart.map(i => i.pax || 1)) : 1,
-        items_desglosados: isMonedero ? [] : allItems,
-        ...(isMonedero ? {
+    let newVoucher = null;
+
+    if (isMonederoMode) {
+        const concept = document.getElementById("lv-monedero-concept")?.value.trim();
+        const amount = parseFloat(document.getElementById("lv-monedero-amount")?.value) || 0;
+        const payMethod = document.getElementById("lv-monedero-paymethod")?.value || 'pendiente';
+        const giftMsg = document.getElementById("lv-monedero-message")?.value.trim() || '';
+
+        if (!concept) {
+            document.getElementById("lv-monedero-concept")?.focus();
+            return showToast("Indica qué se regala o el concepto del monedero", "warning");
+        }
+        if (amount <= 0) {
+            document.getElementById("lv-monedero-amount")?.focus();
+            return showToast("Introduce un saldo inicial (€) mayor que 0", "warning");
+        }
+
+        const isPaid = payMethod !== 'pendiente';
+        newVoucher = {
+            bono: code,
+            codigo: code,
+            cliente: clientName,
+            email: document.getElementById("lv-email").value.trim(),
+            telefono: clientPhone,
+            producto: concept,
+            precio: amount,
+            importe: amount,
+            fecha: getLocalDateYMD(now),
+            estado: 'pending',
+            origen: 'local',
             tipo_bono: 'monedero',
             es_monedero: true,
-            saldo_inicial: totalPrice,
-            saldo_total: totalPrice,
+            saldo_inicial: amount,
+            saldo_total: amount,
             saldo_consumido: 0,
-            saldo_disponible: totalPrice,
+            saldo_disponible: amount,
+            mensaje_regalo: giftMsg,
+            sesiones_totales: 1,
+            sesiones_usadas: 0,
+            pax_por_sesion: 1,
+            items_desglosados: [],
             movimientos_monedero: [{
                 id: 'mov_' + Math.random().toString(36).substr(2, 9),
                 tipo: 'alta',
                 fecha: now.toISOString(),
-                concepto: productNames || 'Carga inicial Monedero',
-                importe_servicio: totalPrice,
-                importe_descontado: totalPrice,
+                concepto: concept,
+                importe_servicio: amount,
+                importe_descontado: amount,
                 exceso_a_pagar: 0,
-                saldo_resultante: totalPrice,
+                saldo_resultante: amount,
+                metodo_pago: payMethod,
                 usuario: window.currentUser?.name || 'Recepción'
-            }]
-        } : {}),
-        // DISCOUNT PERSISTENCE
-        discount_percent_max: discountPercent,
-        discount_reason: discountReason,
-        discount_total_amount: state.lvCart.reduce((sum, i) => {
-            const rawPrice = (i.originalProduct ? parseFloat(i.originalProduct.precio) : i.price) || i.price;
-            const diff = (rawPrice - i.price) * i.sessions;
-            return sum + (diff > 0 ? diff : 0);
-        }, 0),
-        createdAt: now.toISOString(),
-        manual_update: true,
-        updated_at: now.toISOString(),
-        // === PAYMENT CONTROL FIELDS ===
-        estado_pago: (totalPrice === 0 && (discountPercent >= 100 || productNames.toLowerCase().includes('invitacion'))) ? 'pagado' : 'pendiente',
-        importe_pagado: 0,
-        importe_pendiente: (totalPrice === 0 && (discountPercent >= 100 || productNames.toLowerCase().includes('invitacion'))) ? 0 : totalPrice,
-        pagos: [],
-        service_payment_status: null,
-        snapshot_price: totalPrice // Capture price at creation
-        // === END PAYMENT CONTROL ===
-    };
+            }],
+            createdAt: now.toISOString(),
+            manual_update: true,
+            updated_at: now.toISOString(),
+            estado_pago: isPaid ? 'pagado' : 'pendiente',
+            importe_pagado: isPaid ? amount : 0,
+            importe_pendiente: isPaid ? 0 : amount,
+            pagos: isPaid ? [{
+                id: 'pay_' + Math.random().toString(36).substr(2, 9),
+                fecha: now.toISOString(),
+                importe: amount,
+                metodo: payMethod,
+                concepto: 'Alta Bono Monedero',
+                usuario: window.currentUser?.name || 'Recepción'
+            }] : [],
+            service_payment_status: null,
+            snapshot_price: amount
+        };
+    } else {
+        // FIX: Para packs/rituales con items_breakdown > 1, el precio NO debe multiplicarse por sessions
+        const totalPrice = state.lvCart.reduce((sum, i) => {
+            const isPack = i.items_breakdown && i.items_breakdown.length > 1;
+            return sum + (isPack ? i.price : (i.price * i.sessions));
+        }, 0);
+        const totalSessions = state.lvCart.reduce((sum, i) => sum + i.sessions, 0);
+        const productNames = state.lvCart.map(i => i.name).join(" + ");
+
+        let allItems = [];
+        state.lvCart.forEach(cartItem => {
+            if (cartItem.items_breakdown) {
+                for (let s = 0; s < cartItem.sessions; s++) {
+                    allItems = allItems.concat(cartItem.items_breakdown.map(it => ({
+                        ...it,
+                        itemId: 'it_' + Math.random().toString(36).substr(2, 9),
+                        used: 0
+                    })));
+                }
+            }
+        });
+
+        const discountPercent = state.lvCart.length > 0 ? Math.max(...state.lvCart.map(i => parseFloat(i.discount_percent) || 0)) : 0;
+        const discountReasons = state.lvCart
+            .filter(i => (parseFloat(i.discount_percent) || 0) > 0 && i.discount_reason)
+            .map(i => i.discount_reason.trim());
+        const discountReason = [...new Set(discountReasons)].join(' | ');
+
+        newVoucher = {
+            bono: code,
+            codigo: code,
+            cliente: clientName,
+            email: document.getElementById("lv-email").value.trim(),
+            telefono: clientPhone,
+            producto: productNames,
+            precio: totalPrice,
+            importe: totalPrice,
+            fecha: getLocalDateYMD(now),
+            estado: 'pending',
+            origen: 'local',
+            sesiones_totales: totalSessions,
+            sesiones_usadas: 0,
+            pax_por_sesion: state.lvCart.length > 0 ? Math.max(...state.lvCart.map(i => i.pax || 1)) : 1,
+            items_desglosados: allItems,
+            discount_percent_max: discountPercent,
+            discount_reason: discountReason,
+            discount_total_amount: state.lvCart.reduce((sum, i) => {
+                const rawPrice = (i.originalProduct ? parseFloat(i.originalProduct.precio) : i.price) || i.price;
+                const diff = (rawPrice - i.price) * i.sessions;
+                return sum + (diff > 0 ? diff : 0);
+            }, 0),
+            createdAt: now.toISOString(),
+            manual_update: true,
+            updated_at: now.toISOString(),
+            estado_pago: (totalPrice === 0 && (discountPercent >= 100 || productNames.toLowerCase().includes('invitacion'))) ? 'pagado' : 'pendiente',
+            importe_pagado: 0,
+            importe_pendiente: (totalPrice === 0 && (discountPercent >= 100 || productNames.toLowerCase().includes('invitacion'))) ? 0 : totalPrice,
+            pagos: [],
+            service_payment_status: null,
+            snapshot_price: totalPrice
+        };
+    }
 
     // Generar searchTokens para que sea buscable localmente de inmediato
     if (typeof generateSearchTokens === 'function') {
@@ -6175,7 +6225,31 @@ async function createLocalVoucher() {
         }
 
         closeLocalVoucherModal();
-        cargarBonos();
+        await cargarBonos();
+
+        if (isMonederoMode) {
+            const action = await openMonederoNativeDialog({
+                title: `<i class="fas fa-check-circle"></i> Monedero ${code} Creado`,
+                headerBg: '#059669',
+                confirmText: 'Abrir Panel Monedero',
+                confirmBg: '#0f172a',
+                bodyHtml: `
+                    <p style="margin:0 0 10px 0;">Se ha creado el Monedero <b>${code}</b> para <b>${clientName}</b> con un saldo de <b style="color:#059669;">${newVoucher.saldo_disponible.toFixed(2)} €</b>.</p>
+                    <p style="margin:0; font-size:0.8rem; color:#64748b;">¿Quieres imprimir el comprobante ahora o abrir su panel de control?</p>
+                `,
+                extraButtons: [
+                    { text: 'Balance PDF', bg: '#059669', value: 'pdf' },
+                    { text: 'Ticket 80mm', bg: '#334155', value: 'ticket' }
+                ]
+            });
+            if (action === 'pdf' && typeof generarPDFBalanceMonedero === 'function') {
+                await generarPDFBalanceMonedero(newVoucher, null, newVoucher.mensaje_regalo || '');
+            } else if (action === 'ticket' && typeof imprimirTicketMonedero === 'function') {
+                imprimirTicketMonedero(newVoucher);
+            } else if (action === true) {
+                openVoucherManagement(code);
+            }
+        }
 
     } catch (err) {
         showToast("Error creando bono: " + err.message, "error");
@@ -8609,10 +8683,13 @@ function setLocalVoucherMode(mode) {
     const btnSes = document.getElementById('lv-mode-btn-sessions');
     const btnMon = document.getElementById('lv-mode-btn-monedero');
     const hint = document.getElementById('lv-monedero-hint');
-    const sessionsInput = document.getElementById('lv-sessions');
-    const sessionsGroup = sessionsInput ? sessionsInput.closest('.lv-field') : null;
-    const priceLabel = document.querySelector('#lv-price-container label');
-    const priceInput = document.getElementById('lv-price');
+    const monFields = document.getElementById('lv-monedero-fields');
+    const sesFields = document.getElementById('lv-sessions-fields');
+    const monSummary = document.getElementById('lv-monedero-summary');
+    const cartList = document.getElementById('lv-cart-list');
+    const totalBar = document.querySelector('#local-voucher-modal .lv-total-bar');
+    const cartTitle = document.getElementById('lv-cart-title');
+    const saveBtnSpan = document.querySelector('#lv-save-btn span');
 
     if (modeInput) modeInput.value = mode;
     const isMon = mode === 'monedero';
@@ -8626,9 +8703,40 @@ function setLocalVoucherMode(mode) {
         btnMon.style.boxShadow = isMon ? '0 1px 3px rgba(5,150,105,0.25)' : 'none';
     }
     if (hint) hint.style.display = isMon ? 'block' : 'none';
-    if (sessionsGroup) sessionsGroup.style.display = isMon ? 'none' : '';
-    if (priceLabel) priceLabel.textContent = isMon ? 'Saldo Inicial (€)' : 'Importe';
-    if (priceInput && isMon) priceInput.readOnly = false;
+    if (monFields) monFields.style.display = isMon ? 'flex' : 'none';
+    if (sesFields) sesFields.style.display = isMon ? 'none' : 'block';
+    if (monSummary) monSummary.style.display = isMon ? 'flex' : 'none';
+    if (cartList) cartList.style.display = isMon ? 'none' : '';
+    if (totalBar) totalBar.style.display = isMon ? 'none' : '';
+    if (cartTitle) cartTitle.textContent = isMon ? 'Resumen del Monedero' : 'Contenido del Bono';
+    if (saveBtnSpan) saveBtnSpan.textContent = isMon ? 'Crear Monedero' : 'Crear Bono';
+
+    if (isMon) updateMonederoPreview();
+}
+
+function setMonederoPreset(amount) {
+    const amtInput = document.getElementById('lv-monedero-amount');
+    const conceptInput = document.getElementById('lv-monedero-concept');
+    if (amtInput) amtInput.value = parseFloat(amount).toFixed(2);
+    if (conceptInput && !conceptInput.value.trim()) {
+        conceptInput.value = `Bono Monedero ${amount} €`;
+    }
+    updateMonederoPreview();
+}
+
+function updateMonederoPreview() {
+    const concept = document.getElementById('lv-monedero-concept')?.value.trim() || 'Bono Monedero';
+    const amount = parseFloat(document.getElementById('lv-monedero-amount')?.value) || 0;
+    const paySel = document.getElementById('lv-monedero-paymethod');
+    const payText = paySel ? paySel.options[paySel.selectedIndex]?.text : 'Pagado con Tarjeta';
+
+    const prevConcept = document.getElementById('lv-mon-prev-concept');
+    const prevPay = document.getElementById('lv-mon-prev-pay');
+    const prevAmount = document.getElementById('lv-mon-prev-amount');
+
+    if (prevConcept) prevConcept.textContent = concept;
+    if (prevPay) prevPay.textContent = payText;
+    if (prevAmount) prevAmount.textContent = `${amount.toFixed(2)} €`;
 }
 
 function setupVoucherMonederoUI(v) {
@@ -8637,21 +8745,30 @@ function setupVoucherMonederoUI(v) {
     const monederoCard = document.getElementById('vm-monedero-card');
     const ledgerContainer = document.getElementById('vm-monedero-ledger-container');
     const itemsContainer = document.getElementById('vm-items-container');
+    const catalogInfo = document.getElementById('vm-catalog-info');
     const printTicketBtn = document.getElementById('vm-print-ticket-btn');
+    const downloadPdfBtn = document.getElementById('vm-download-pdf-btn');
     const downloadPdfBtnSpan = document.querySelector('#vm-download-pdf-btn span');
     const recalcBtn = document.getElementById('vm-recalculate-btn');
+    const resyncBtn = document.getElementById('vm-resync-btn');
 
     const oldConvertBtn = document.getElementById('vm-convert-monedero-btn');
     if (oldConvertBtn) oldConvertBtn.remove();
 
     if (isMon) {
         if (sessionsCard) sessionsCard.style.display = 'none';
+        if (catalogInfo) catalogInfo.style.display = 'none';
         if (monederoCard) monederoCard.style.display = 'block';
         if (ledgerContainer) ledgerContainer.style.display = 'flex';
-        if (itemsContainer) itemsContainer.style.display = 'none';
+        if (itemsContainer) {
+            itemsContainer.style.display = 'none';
+            itemsContainer.innerHTML = '';
+        }
+        if (downloadPdfBtn) downloadPdfBtn.style.display = 'inline-flex';
         if (printTicketBtn) printTicketBtn.style.display = 'inline-flex';
         if (downloadPdfBtnSpan) downloadPdfBtnSpan.textContent = 'Balance PDF';
         if (recalcBtn) recalcBtn.style.display = 'none';
+        if (resyncBtn) resyncBtn.style.display = 'none';
 
         const saldoTotal = parseFloat(v.saldo_total ?? v.importe ?? v.precio ?? 0) || 0;
         const saldoConsumido = parseFloat(v.saldo_consumido ?? 0) || 0;
@@ -9148,10 +9265,25 @@ async function bookWithMonedero() {
     });
 
     if (!target) return;
-    const params = new URLSearchParams({ voucher: code, client, mode: 'monedero' });
-    if (target === 'spa') {
-        window.location.href = `reservas-spa.html?${params.toString()}`;
-    } else if (target === 'salas') {
-        window.location.href = `reservas-salas.html?${params.toString()}`;
+    const isSpa = target === 'spa';
+    const params = new URLSearchParams({ action: 'new', client, voucher: code, pax: '1', mode: 'monedero', embedded: '1' });
+    const url = isSpa
+        ? `reservas-spa.html?${params.toString()}`
+        : `agenda-salas.html?${params.toString()}`;
+
+    // Abrir en el panel lateral integrado (igual que el resto de bonos), sin salir de Bonos
+    if (typeof openReservationDrawer === 'function') {
+        openReservationDrawer(url, {
+            client,
+            service: isSpa ? 'Circuito Spa' : 'Elegir sala y servicio',
+            code,
+            space: isSpa ? 'spa' : '',
+            type: isSpa ? 'spa' : 'ocupacion',
+            pax: 1,
+            isOcupacion: !isSpa
+        });
+        return;
     }
+    params.delete('embedded');
+    window.location.href = isSpa ? `reservas-spa.html?${params.toString()}` : `agenda-salas.html?${params.toString()}`;
 }
