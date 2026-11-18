@@ -5884,7 +5884,8 @@ function renderLVCart() {
     const totalSessions = state.lvCart.reduce((sum, i) => sum + (parseInt(i.sessions) || 0), 0);
 
     if (totalDisplay) {
-        totalDisplay.innerHTML = `<span style="color: #64748b; font-weight: 400; font-size: 0.8rem; margin-right: 5px;">TOTAL:</span> ${totalPrice.toFixed(2)}€ <span style="font-size: 0.75rem; color: #94a3b8; margin-left: 5px;">(${totalSessions} Sesiones)</span>`;
+        const sesLabel = totalSessions === 1 ? '1 Sesión' : `${totalSessions} Sesiones`;
+        totalDisplay.innerHTML = `<span class="lv-total-amount">${totalPrice.toFixed(2)}€</span> <span class="lv-total-sessions">(${sesLabel})</span>`;
     }
 }
 

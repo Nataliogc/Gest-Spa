@@ -28,7 +28,7 @@
         <!-- LEFT: Cumbria Logo -->
         <div style="display: flex; align-items: center; gap: 15px;">
             <img src="logo-spa.jpg" alt="Cumbria Bienestar" style="height: 65px; width: auto; object-fit: contain;">
-            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.66 (18/11/2026)">v2.3.66</span>
+            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.68 (18/11/2026)">v2.3.68</span>
         </div>
 
         <ul class="nav-links" style="flex:1;">
@@ -411,122 +411,136 @@
     </div> <!-- End modal -->
 
     <!-- Modal Venta Local (Optimized) -->
-    <div id="local-voucher-modal" class="modal" style="display: none;">
-        <div class="modal-content glass" style="max-width: 900px;">
-            <div class="modal-header">
-                <h2 style="margin: 0; font-size: 1.25rem; color: var(--text);"><i class="fas fa-ticket-alt"
-                        style="color: var(--accent);"></i> Nueva Venta Local</h2>
-                <span class="close-btn" onclick="closeLocalVoucherModal()"
-                    style="font-size: 1.5rem; cursor: pointer;">&times;</span>
+    <div id="local-voucher-modal" class="modal lv-modal" style="display: none;">
+        <div class="modal-content glass lv-modal-content">
+            <div class="modal-header lv-modal-header">
+                <div class="lv-header-brand">
+                    <div class="lv-header-icon">
+                        <i class="fas fa-ticket-alt"></i>
+                    </div>
+                    <div>
+                        <h2 class="lv-header-title">Nueva Venta Local</h2>
+                        <p class="lv-header-subtitle">Emisión rápida de bono presencial en recepción</p>
+                    </div>
+                </div>
+                <button type="button" class="lv-close-btn" onclick="closeLocalVoucherModal()" aria-label="Cerrar">
+                    <i class="fas fa-times"></i>
+                </button>
             </div>
 
-            <div class="modal-body">
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+            <div class="modal-body lv-modal-body">
+                <div class="lv-layout-grid">
                     <!-- Columna Izquierda: Cliente -->
-                    <div
-                        style="background: #f8fafc; padding: 15px; border-radius: 8px; border: 1px solid var(--border);">
-                        <h3
-                            style="font-size: 0.9rem; margin: 0 0 15px 0; color: var(--text-muted); text-transform: uppercase; font-weight: 600;">
-                            <i class="fas fa-user"></i> Datos del Cliente
-                        </h3>
-
-                        <div class="form-group">
-                            <label style="font-size: 0.8rem;">Nombre Completo</label>
-                            <input type="text" id="lv-client" class="param-input" placeholder="Nombre completo"
-                                style="margin-top: 5px;">
+                    <div class="lv-card lv-card-client">
+                        <div class="lv-section-header">
+                            <span class="lv-section-badge"><i class="fas fa-user"></i></span>
+                            <h3>Datos del Cliente</h3>
                         </div>
 
-                        <div class="form-group" style="margin-top: 10px;">
-                            <label style="font-size: 0.8rem;">Email</label>
-                            <input type="email" id="lv-email" class="param-input" placeholder="cliente@email.com"
-                                style="margin-top: 5px;">
+                        <div class="form-group lv-field">
+                            <label for="lv-client">Nombre Completo <span class="lv-req">*</span></label>
+                            <div class="lv-input-wrap">
+                                <i class="fas fa-user lv-input-icon"></i>
+                                <input type="text" id="lv-client" class="param-input lv-input-has-icon"
+                                    placeholder="Nombre y apellidos del cliente">
+                            </div>
+                        </div>
+
+                        <div class="form-group lv-field">
+                            <label for="lv-email">Email</label>
+                            <div class="lv-input-wrap">
+                                <i class="fas fa-envelope lv-input-icon"></i>
+                                <input type="email" id="lv-email" class="param-input lv-input-has-icon"
+                                    placeholder="cliente@email.com">
+                            </div>
                         </div>
 
                         <!-- TELÉFONO -->
-                        <div class="form-group" style="margin-top: 10px;">
-                            <label style="font-size: 0.8rem;">Teléfono <span style="color:red">*</span></label>
-                            <input type="tel" id="lv-phone" class="param-input" placeholder="600 000 000" required
-                                style="margin-top: 5px;">
+                        <div class="form-group lv-field">
+                            <label for="lv-phone">Teléfono <span class="lv-req">*</span></label>
+                            <div class="lv-input-wrap">
+                                <i class="fas fa-phone lv-input-icon"></i>
+                                <input type="tel" id="lv-phone" class="param-input lv-input-has-icon"
+                                    placeholder="600 000 000" required>
+                            </div>
                         </div>
 
                         <!-- Code is optional/auto -->
-                        <div class="form-group" style="margin-top: 10px;">
-                            <label style="font-size: 0.8rem;">Código Bono (Opcional)</label>
-                            <input type="text" id="lv-code" class="param-input"
-                                placeholder="Dejar vacío para auto-generar"
-                                style="margin-top: 5px; font-family: monospace;">
+                        <div class="form-group lv-field lv-field-code">
+                            <label for="lv-code">Código Bono <span class="lv-opt-tag">Opcional</span></label>
+                            <div class="lv-input-wrap">
+                                <i class="fas fa-barcode lv-input-icon"></i>
+                                <input type="text" id="lv-code" class="param-input lv-input-has-icon lv-mono"
+                                    placeholder="Auto-generar si se deja vacío">
+                            </div>
+                            <span class="lv-field-hint">Si no introduces código, el sistema creará uno único automáticamente.</span>
                         </div>
                     </div>
 
                     <!-- Columna Derecha: Detalle -->
-                    <div style="background: #fff; padding: 15px; border-radius: 8px; border: 1px solid var(--border);">
-                        <h3
-                            style="font-size: 0.9rem; margin: 0 0 15px 0; color: var(--text-muted); text-transform: uppercase; font-weight: 600;">
-                            <i class="fas fa-info-circle"></i> Detalle del Bono
-                        </h3>
+                    <div class="lv-card lv-card-detail">
+                        <div class="lv-section-header">
+                            <span class="lv-section-badge lv-section-badge-gold"><i class="fas fa-spa"></i></span>
+                            <h3>Detalle del Bono</h3>
+                        </div>
 
-                        <div class="form-group">
-                            <label style="font-size: 0.8rem;">Producto / Servicio</label>
-                            <div style="display: flex; gap: 8px; margin-top: 5px; margin-bottom: 8px;">
-                                <div style="position: relative; flex: 1;">
-                                    <input type="text" id="lv-product-search" class="param-input"
-                                        placeholder="🔍 Buscar en catálogo..." onkeyup="filterLocalProducts(this.value)"
-                                        style="height: 38px; font-size: 0.9rem; border: 2px solid #e2e8f0;">
+                        <div class="form-group lv-field">
+                            <label for="lv-product-search">Producto / Servicio</label>
+                            <div class="lv-search-wrap">
+                                <i class="fas fa-search lv-search-icon"></i>
+                                <input type="text" id="lv-product-search" class="param-input lv-search-input"
+                                    placeholder="Buscar servicio, circuito o pack en catálogo..."
+                                    onkeyup="filterLocalProducts(this.value)">
 
-                                    <!-- Resultados de búsqueda dinámicos -->
-                                    <div id="lv-search-results"
-                                        style="display: none; position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid #cbd5e1; border-radius: 8px; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); z-index: 100; max-height: 250px; overflow-y: auto; margin-top: 2px;">
-                                    </div>
-                                </div>
+                                <!-- Resultados de búsqueda dinámicos -->
+                                <div id="lv-search-results" class="lv-search-results" style="display: none;"></div>
                             </div>
 
-                            <!-- Accesos Directos Eliminados por redundancia con buscador -->
-                            <!-- <div id="lv-category-shortcuts">...</div> -->
+                            <input type="text" id="lv-product-custom" class="param-input lv-custom-input"
+                                style="display: none;" placeholder="Nombre de servicio personalizado...">
 
-                            <input type="text" id="lv-product-custom" class="param-input"
-                                style="display: none; margin-top: 5px; border-color: #f59e0b;"
-                                placeholder="Nombre de servicio personalizado...">
-
-                            <div id="lv-product-details"
-                                style="font-size: 0.75rem; color: #1e40af; background: #eff6ff; padding: 12px; border-radius: 8px; border: 1px solid #bfdbfe; margin-top: 8px; display: none;">
-                                <div style="display: flex; gap: 12px; align-items: start;">
-                                    <img id="lv-img-preview" src=""
-                                        style="width: 60px; height: 60px; object-fit: cover; border-radius: 6px; display: none; border: 1px solid #bfdbfe; box-shadow: 0 1px 2px rgba(0,0,0,0.1);">
-                                    <div style="flex:1;">
-                                        <div id="lv-details-name"
-                                            style="font-weight: 700; color: #1e293b; margin-bottom: 4px;"></div>
-                                        <div id="lv-details-text"
-                                            style="line-height: 1.3; font-style: italic; color: #64748b;"></div>
+                            <div id="lv-product-details" class="lv-product-preview" style="display: none;">
+                                <div class="lv-preview-row">
+                                    <img id="lv-img-preview" src="" class="lv-preview-img" style="display: none;">
+                                    <div class="lv-preview-info">
+                                        <div id="lv-details-name" class="lv-preview-name"></div>
+                                        <div id="lv-details-text" class="lv-preview-desc"></div>
                                     </div>
                                 </div>
                             </div>
                         </div>
 
-                        <div
-                            style="display: grid; grid-template-columns: 1fr 0.8fr 0.8fr 1.2fr; gap: 10px; margin-top: 15px;">
-                            <div class="form-group" id="lv-price-container">
-                                <label style="font-size: 0.8rem; color: #64748b; font-weight: 600;">Importe (€)</label>
-                                <div style="position: relative;">
-                                    <input type="number" id="lv-price" class="param-input" step="0.01"
-                                        style="padding-left: 20px; margin-top: 5px; font-weight: 700;">
-                                    <span style="position: absolute; left: 8px; top: 13px; color: #94a3b8;">€</span>
+                        <div class="lv-params-grid">
+                            <div class="form-group lv-field" id="lv-price-container">
+                                <label for="lv-price">Importe</label>
+                                <div class="lv-affix-wrap">
+                                    <input type="number" id="lv-price" class="param-input lv-num-input lv-has-suffix"
+                                        step="0.01" placeholder="0.00">
+                                    <span class="lv-affix-suffix">€</span>
                                 </div>
                             </div>
+
                             <!-- DESCUENTO -->
-                            <div class="form-group">
-                                <label style="font-size: 0.8rem; color: #64748b; font-weight: 600;">Dto. %</label>
-                                <input type="number" id="lv-discount" value="0" min="0" max="100" class="param-input"
-                                    onkeyup="updateLocalPriceWithDiscount()" onchange="updateLocalPriceWithDiscount()"
-                                    style="margin-top: 5px; font-weight: 700; text-align: center; color: #e11d48;">
+                            <div class="form-group lv-field">
+                                <label for="lv-discount">Dto.</label>
+                                <div class="lv-affix-wrap">
+                                    <input type="number" id="lv-discount" value="0" min="0" max="100"
+                                        class="param-input lv-num-input lv-discount-input lv-has-suffix"
+                                        onkeyup="updateLocalPriceWithDiscount()"
+                                        onchange="updateLocalPriceWithDiscount()">
+                                    <span class="lv-affix-suffix lv-affix-rose">%</span>
+                                </div>
                             </div>
-                            <div class="form-group">
-                                <label style="font-size: 0.8rem; color: #64748b; font-weight: 600;">Sesiones</label>
-                                <input type="number" id="lv-sessions" value="1" class="param-input"
-                                    style="margin-top: 5px; font-weight: 700; text-align: center;">
+
+                            <div class="form-group lv-field">
+                                <label for="lv-sessions">Sesiones</label>
+                                <input type="number" id="lv-sessions" value="1" min="1"
+                                    class="param-input lv-num-input">
                             </div>
-                            <div class="form-group">
-                                <label style="font-size: 0.8rem; color: #64748b; font-weight: 600;">Personas</label>
-                                <select id="lv-pax" class="param-input" style="margin-top: 5px; font-weight: 700;">
+
+                            <div class="form-group lv-field">
+                                <label for="lv-pax">Personas</label>
+                                <select id="lv-pax" class="param-input lv-select-pax">
                                     <option value="1">1 Persona</option>
                                     <option value="2">2 Personas</option>
                                     <option value="3">3 Personas</option>
@@ -536,73 +550,68 @@
                         </div>
 
                         <!-- MOTIVO DEL DESCUENTO (Obligatorio si Dto. > 0) -->
-                        <div id="lv-discount-reason-container" class="form-group" style="display: none; margin-top: 10px;">
-                            <label style="font-size: 0.8rem; color: #be123c; font-weight: 600;">
-                                Motivo del descuento <span style="color:red">*</span>
+                        <div id="lv-discount-reason-container" class="form-group lv-discount-reason-box"
+                            style="display: none;">
+                            <label for="lv-discount-reason">
+                                <i class="fas fa-tag"></i> Motivo del descuento <span class="lv-req">*</span>
                             </label>
                             <input type="text" id="lv-discount-reason" class="param-input"
-                                placeholder="Ej: Tarifa socio, cortesía dirección, promoción..."
-                                style="margin-top: 5px; border-color: #fda4af; background: #fff1f2;">
+                                placeholder="Ej: Tarifa socio, cortesía dirección, promoción...">
                         </div>
 
-                        <button type="button" class="btn btn-primary" onclick="addToCartLocal()"
-                            style="width: 100%; margin-top: 15px; font-size: 0.85rem; padding: 10px; border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+                        <button type="button" class="btn lv-add-cart-btn" onclick="addToCartLocal()">
                             <i class="fas fa-plus-circle"></i> Añadir al Carrito
                         </button>
 
                         <!-- SECTION: EXTRAS / COMPLEMENTOS -->
-                        <div style="margin-top: 20px; padding-top: 15px; border-top: 1px dashed #e2e8f0;">
-                            <h3
-                                style="font-size: 0.8rem; margin: 0 0 10px 0; color: var(--text-muted); text-transform: uppercase; font-weight: 600;">
-                                <i class="fas fa-gift"></i> Añadir Extras
-                            </h3>
-                            <div style="display: flex; gap: 8px;">
-                                <select id="lv-extras-select" class="param-input" style="flex:1;">
+                        <div class="lv-extras-section">
+                            <div class="lv-subsection-label">
+                                <i class="fas fa-gift"></i> Añadir Extras o Complementos
+                            </div>
+                            <div class="lv-extras-row">
+                                <select id="lv-extras-select" class="param-input lv-extras-select">
                                     <option value="">-- Seleccionar Extra --</option>
                                     <!-- Populated by JS -->
                                 </select>
-                                <input type="number" id="lv-extras-qty" class="param-input" value="1" min="1"
-                                    style="width: 60px; text-align: center; font-weight: bold;">
-                                <button type="button" class="btn btn-outline" onclick="addExtraToCart()"
-                                    style="border-color: #f59e0b; color: #f59e0b; font-size: 0.8rem; padding: 8px 12px;">
+                                <input type="number" id="lv-extras-qty" class="param-input lv-extras-qty" value="1"
+                                    min="1">
+                                <button type="button" class="btn lv-extras-add-btn" onclick="addExtraToCart()"
+                                    title="Añadir extra al bono">
                                     <i class="fas fa-plus"></i>
                                 </button>
                             </div>
                         </div>
 
-                        <div
-                            style="grid-column: span 2; margin-top: 10px; border-top: 1px dashed #e2e8f0; padding-top: 10px;">
-                            <h4
-                                style="font-size: 0.8rem; text-transform: uppercase; color: #64748b; margin-bottom: 5px;">
-                                Contenido del Bono</h4>
-                            <div id="lv-cart-list"
-                                style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 10px; min-height: 50px;">
-                                <div style="text-align: center; color: #94a3b8; font-size: 0.75rem;">Ningún producto
-                                    añadido
+                        <!-- SECTION: CONTENIDO DEL BONO -->
+                        <div class="lv-cart-section">
+                            <div class="lv-cart-header">
+                                <span><i class="fas fa-receipt"></i> Contenido del Bono</span>
+                            </div>
+                            <div id="lv-cart-list" class="lv-cart-list">
+                                <div class="lv-cart-empty">
+                                    <i class="fas fa-shopping-basket"></i>
+                                    Ningún producto añadido todavía
                                 </div>
                             </div>
-                            <div
-                                style="display: flex; justify-content: space-between; margin-top: 5px; font-weight: 600; font-size: 0.9rem;">
-                                <span>TOTAL:</span>
-                                <span id="lv-total-display">0.00€ (0 Sesiones)</span>
+                            <div class="lv-total-bar">
+                                <span class="lv-total-label">TOTAL DEL BONO</span>
+                                <span id="lv-total-display" class="lv-total-value">0.00€ (0 Sesiones)</span>
                             </div>
                         </div>
                     </div>
                 </div>
+            </div> <!-- End modal-body -->
 
+            <div class="modal-footer lv-modal-footer">
+                <button type="button" onclick="closeLocalVoucherModal()" class="btn lv-btn-cancel">
+                    Cancelar
+                </button>
+                <button type="button" id="lv-save-btn" onclick="createLocalVoucher()" class="btn btn-accent lv-btn-save">
+                    <i class="fas fa-check-circle"></i> <span>Crear Bono</span>
+                </button>
             </div>
-        </div> <!-- End modal-body -->
-
-        <div class="modal-footer">
-            <button onclick="closeLocalVoucherModal()" class="btn btn-outline"
-                style="flex:1; justify-content: center;">Cancelar</button>
-            <button id="lv-save-btn" onclick="createLocalVoucher()" class="btn btn-accent"
-                style="flex: 2; justify-content: center;">
-                <i class="fas fa-save"></i> <span>Crear Bono</span>
-            </button>
-        </div>
-    </div>
-    </div>
+        </div> <!-- End modal-content -->
+    </div> <!-- End local-voucher-modal -->
 
     <!-- Modal Validación Alojamiento -->
     <div id="accommodation-validation-modal" class="modal" style="display: none;">
