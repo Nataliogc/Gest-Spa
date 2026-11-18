@@ -500,7 +500,7 @@
         <!-- LEFT: Cumbria Logo -->
         <div style="display: flex; align-items: center; gap: 15px;">
             <img src="logo-spa.jpg" alt="Cumbria Bienestar" style="height: 65px; width: auto; object-fit: contain;">
-            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.76 (18/11/2026)">v2.3.76</span>
+            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.78 (18/11/2026)">v2.3.78</span>
         </div>
 
         <ul class="nav-links" style="flex:1;">
@@ -975,9 +975,10 @@
                                     <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 6px;">
                                         <span style="font-size: 0.74rem; font-weight: 800; color: #1e40af;">
                                             <i class="fas fa-water"></i> Circuito Spa (60') adicional
+                                            <span id="spa-addon-price-badge" style="margin-left:6px; background:#dbeafe; color:#1d4ed8; padding:2px 7px; border-radius:999px; font-size:0.68rem; font-weight:700; display:none;"></span>
                                         </span>
                                         <div style="display: flex; align-items: center; gap: 6px;">
-                                            <input type="date" id="spa-addon-date" onchange="renderStandaloneSpaAddonChips()"
+                                            <input type="date" id="spa-addon-date" onchange="renderStandaloneSpaAddonChips(); updateTotal();"
                                                 style="padding: 2px 5px; border: 1px solid #93c5fd; border-radius: 5px; font-size: 0.72rem; font-weight: 600; background: #fff;">
                                             <input type="time" id="spa-addon-time" onchange="renderStandaloneSpaAddonChips()"
                                                 style="padding: 2px 5px; border: 1px solid #93c5fd; border-radius: 5px; font-size: 0.74rem; font-weight: 700; width: 78px; background: #fff;">
@@ -4645,6 +4646,19 @@
             }
         };
 
+        function getStandaloneSpaAddonUnitPrice() {
+            const dateStr = document.getElementById("spa-addon-date")?.value || document.getElementById("form-date")?.value;
+            const dateObj = dateStr ? new Date(dateStr + 'T12:00:00') : new Date();
+            const dayOfWeek = dateObj.getDay();
+            const isWeekend = dayOfWeek === 0 || dayOfWeek === 5 || dayOfWeek === 6;
+            const origen = document.getElementById("res-origen")?.value || 'particular';
+            const cfg = (typeof spaConfig !== 'undefined' && spaConfig) ? spaConfig : {};
+            if (origen === 'hotel_no_inc') {
+                return parseFloat(isWeekend ? (cfg.hotelPriceWeekend || 18) : (cfg.hotelPriceWeekday || 12)) || 0;
+            }
+            return parseFloat(isWeekend ? (cfg.particularPriceWeekend || 25) : (cfg.particularPriceWeekday || 25)) || 0;
+        }
+
         window.toggleSpaAddonTab = function (forceState = null) {
             const panel = document.getElementById("spa-addon-panel");
             const btn = document.getElementById("btn-toggle-spa-addon");
@@ -4672,6 +4686,7 @@
                 btn.style.color = "#0284c7";
                 btn.innerHTML = '<i class="fas fa-water"></i> + Añadir Circuito Spa';
             }
+            if (typeof updateTotal === 'function') updateTotal();
         };
 
         window.selectStandaloneSpaAddonSlot = function (time) {
@@ -5735,6 +5750,7 @@
             populateRoomOptions(); // Default to current
             populateServices();
             renderComplementos();
+            if (typeof window.toggleSpaAddonTab === 'function') window.toggleSpaAddonTab(false);
 
             // Default service logic
             const resService = document.getElementById("res-servicio");
@@ -7470,6 +7486,8 @@
                         const spaDate = document.getElementById("spa-addon-date")?.value || payload.fecha;
                         const spaTime = (document.getElementById("spa-addon-time")?.value || "").replace(/h$/i, '').trim();
                         if (spaDate && spaTime) {
+                            const spaAddonUnit = getStandaloneSpaAddonUnitPrice();
+                            const spaAddonPax = payload.pax || 2;
                             const spaAddonPayload = {
                                 res_id: payload.res_id || savedId,
                                 parent_id: savedId,
@@ -7482,7 +7500,7 @@
                                 fecha: spaDate,
                                 hora: spaTime,
                                 duracion: 60,
-                                pax: payload.pax || 2,
+                                pax: spaAddonPax,
                                 servicio: "Circuito Spa",
                                 origen: payload.origen,
                                 hotel: payload.hotel || "",
@@ -7490,8 +7508,8 @@
                                 bono: payload.bono || "",
                                 localizador: payload.bono || "",
                                 obs: payload.obs || "",
-                                precio_pax: 0,
-                                precio_total: 0,
+                                precio_pax: spaAddonUnit,
+                                precio_total: spaAddonUnit * spaAddonPax,
                                 status: payload.status || "confirmada",
                                 created_at: new Date().toISOString(),
                                 updated_at: new Date().toISOString()
@@ -8723,6 +8741,21 @@
                 const pVal = parseFloat(item.querySelector(".custom-extra-price")?.value);
                 if (!isNaN(pVal)) total += pVal;
             });
+
+            // Suplemento Circuito Spa adicional (no incluido en el bono/servicio base)
+            const spaBadge = document.getElementById("spa-addon-price-badge");
+            if (window._spaAddonActive && (!window._packItems || window._packItems.length === 0)) {
+                const spaUnit = getStandaloneSpaAddonUnitPrice();
+                const spaTotal = spaUnit * Math.max(1, pax);
+                total += spaTotal;
+                if (spaBadge) {
+                    spaBadge.style.display = "inline-block";
+                    spaBadge.textContent = `+${spaTotal.toFixed(2)} €`;
+                }
+            } else if (spaBadge) {
+                spaBadge.style.display = "none";
+                spaBadge.textContent = "";
+            }
 
             // CÁLCULO DE DESCUENTO EN RESERVA
             const descTipoInp = document.getElementById("res-descuento-tipo");

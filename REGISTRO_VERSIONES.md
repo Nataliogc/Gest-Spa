@@ -8,7 +8,7 @@ Este documento mantiene el **control de versión única y global** para todo el 
 
 | Parámetro | Valor Actual |
 | :--- | :--- |
-| **Versión Global del Sistema** | **`v2.3.76`** |
+| **Versión Global del Sistema** | **`v2.3.78`** |
 | **Fecha de Última Actualización** | **18/11/2026** |
 | **Estado General** | Operativo en Producción |
 
@@ -47,6 +47,16 @@ Cualquier cambio en los siguientes módulos impacta en la versión global:
 ---
 
 ## 📝 Historial Unificado de Versiones
+
+### [v2.3.78] - 18/11/2026
+- **Tipo:** PATCH
+- **Archivos:** `agenda-salas.html`, `agenda-spa.html`, `agenda-terapeutas.html`, `bonos.html`, `catalogo.html`, `configuracion.html`, `disponibilidad-terapeutas.html`, `firebase-config.js`, `index.html`, `js/app-core.js`, `js/voucher-booking-context.js`, `manual-usuario.html`, `package.json`, `pedidos-wc.html`, `personal.html`, `reservas-salas.html`, `reservas-spa.html`, `reservas.html`, `version.json`, `vision-general.html`
+- **Descripción:** Mejora continua del sistema Gest-Spa
+
+### [v2.3.77] - 18/11/2026
+- **Tipo:** PATCH
+- **Archivos:** `js/app-core.js`, `js/voucher-booking-context.js`, `reservas-spa.html`
+- **Descripción:** Mejora continua del sistema Gest-Spa
 
 ### [v2.3.76] - 18/11/2026
 - **Tipo:** PATCH

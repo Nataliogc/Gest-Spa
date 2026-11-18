@@ -1550,8 +1550,19 @@ window.syncSpaSaboresUi = function () {
     if (!wrap || !btn) return;
 
     const isSpaModule = (typeof currentModule !== 'undefined' && currentModule && currentModule.code === 'spa');
-    wrap.style.display = isSpaModule ? 'flex' : 'none';
-    if (!isSpaModule) {
+    const bonoNotice = document.getElementById('bono-saldo-notice');
+    const bonoNoticeText = (bonoNotice && bonoNotice.style.display !== 'none') ? (bonoNotice.textContent || '').toLowerCase() : '';
+    const obsText = (document.getElementById('res-obs')?.value || '').toLowerCase();
+    const resBonoVal = (document.getElementById('res-bono')?.value || '').trim();
+    const voucherIncludesSabores = Boolean(resBonoVal || bonoNoticeText) && (
+        bonoNoticeText.includes('sabores') ||
+        bonoNoticeText.includes('restaurante') ||
+        bonoNoticeText.includes('menú') ||
+        obsText.includes('sabores')
+    );
+
+    wrap.style.display = (isSpaModule && !voucherIncludesSabores) ? 'flex' : 'none';
+    if (!isSpaModule || voucherIncludesSabores) {
         window._spaSaboresActive = false;
         return;
     }

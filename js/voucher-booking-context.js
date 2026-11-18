@@ -35,6 +35,7 @@
             notice.textContent = `Bono: ${voucher} · Cliente: ${params.get('client') || ''} · Servicio: ${service} · ${pax} personas`;
             notice.style.display = 'block';
         }
+        if (typeof root.syncSpaSaboresUi === 'function') root.syncSpaSaboresUi();
         return { voucher, service, pax };
     }
     root.applyVoucherBookingContext = applyVoucherBookingContext;
