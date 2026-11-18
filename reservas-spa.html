@@ -3076,6 +3076,13 @@
             if (!serviceData) {
                 serviceData = currentServices.find(s => s.nombre === svcName);
             }
+            if (!serviceData && svcName && typeof window.SpaServiceCatalog?.resolve === 'function') {
+                serviceData = window.SpaServiceCatalog.resolve(svcName, window.masterItems || [], currentServices || []);
+            }
+            if (!serviceData && svcName && typeof window.findPackDefinition === 'function') {
+                const packDef = window.findPackDefinition(svcName);
+                if (packDef) serviceData = packDef;
+            }
             if (svcName && svcName.toLowerCase().includes('sabores') && typeof window.resolveSpaSaboresData === 'function') {
                 const curPax = Math.max(1, parseInt(paxInput?.value || '2', 10) || 2);
                 serviceData = window.resolveSpaSaboresData(curPax);

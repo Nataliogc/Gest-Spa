@@ -6166,6 +6166,11 @@
 
             window._isInitializingEdit = true;
             window._currentPricingMode = res.pricing_mode || null;
+            const svcSelReset = document.getElementById("res-servicio");
+            if (svcSelReset) {
+                delete svcSelReset.dataset.pricingMode;
+                delete svcSelReset.dataset.fixedTotal;
+            }
 
             // Resetear y comprobar si esta reserva ya tiene un Circuito Spa adicional guardado
             const addonDateEl = document.getElementById("spa-addon-date");
@@ -6782,6 +6787,11 @@
             window._spaReceptionist = null;
 
             // Limpiar SIEMPRE estado del Circuito Spa adicional al cerrar para no arrastrar fechas
+            const svcSelClose = document.getElementById("res-servicio");
+            if (svcSelClose) {
+                delete svcSelClose.dataset.pricingMode;
+                delete svcSelClose.dataset.fixedTotal;
+            }
             const addonDateClose = document.getElementById("spa-addon-date");
             const addonTimeClose = document.getElementById("spa-addon-time");
             if (addonDateClose) addonDateClose.value = "";
@@ -7367,6 +7377,9 @@
                 const descTipoInp = document.getElementById("res-descuento-tipo");
                 const descValor = descValorInp ? (parseFloat(descValorInp.value) || 0) : 0;
                 const descTipo = descTipoInp ? descTipoInp.value : 'porcentaje';
+                if (payload.precio_total === 0 && payload.precio_pax > 0 && !authVal && descValor <= 0 && (finalOrigin === 'particular' || finalOrigin === 'hotel_no_inc')) {
+                    payload.precio_total = parseFloat((payload.precio_pax * (payload.pax || 1)).toFixed(2));
+                }
                 let hasDiscount = false;
                 if (descValor > 0) {
                     const descMotivo = descMotivoInp ? descMotivoInp.value.trim() : "";
