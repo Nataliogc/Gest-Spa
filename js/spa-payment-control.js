@@ -13,7 +13,8 @@
 const PAYMENT_STATUS = {
     PAGADO: 'pagado',
     PENDIENTE: 'pendiente',
-    PARCIAL: 'parcial'
+    PARCIAL: 'parcial',
+    ANULADO: 'anulado'
 };
 
 const SERVICE_PAYMENT_STATUS = {
@@ -21,12 +22,13 @@ const SERVICE_PAYMENT_STATUS = {
     CLEARED: 'cleared'
 };
 
-const PAYMENT_METHODS = ['efectivo', 'tarjeta', 'transferencia', 'otro'];
+const PAYMENT_METHODS = ['efectivo', 'tarjeta', 'pasarela', 'otro'];
 
 const PAYMENT_COLORS = {
     pagado: '#22c55e',
     parcial: '#f59e0b',
-    pendiente: '#ef4444'
+    pendiente: '#ef4444',
+    anulado: '#94a3b8'
 };
 
 // ============================================================================
@@ -155,6 +157,14 @@ function normalizePaymentFields(voucher) {
     // Asegurar array de pagos
     if (!Array.isArray(v.pagos)) {
         v.pagos = [];
+    }
+
+    // REGLA CRÍTICA: Un bono ANULADO nunca cuenta como pagado ni pendiente
+    const rawEstadoBono = String(v.estado || v.status || '').toLowerCase().trim();
+    if (rawEstadoBono === 'anulado' || rawEstadoBono === 'cancelled' || rawEstadoBono === 'anulada') {
+        v.estado_pago = PAYMENT_STATUS.ANULADO;
+        v.importe_pagado = 0;
+        v.importe_pendiente = 0;
     }
 
     return v;
@@ -308,20 +318,21 @@ async function registerPayment(voucherId, paymentData, options = {}) {
  */
 function getPaymentStatus(voucher) {
     const v = normalizePaymentFields(voucher);
-    const totalPrice = parseFloat(v.precio) || parseFloat(v.importe) || parseFloat(v.snapshot_price) || 0;
+    const isAnulado = v.estado_pago === PAYMENT_STATUS.ANULADO;
+    const totalPrice = isAnulado ? 0 : (parseFloat(v.precio) || parseFloat(v.importe) || parseFloat(v.snapshot_price) || 0);
 
     const status = {
         estado: v.estado_pago,
         total: totalPrice,
-        pagado: v.importe_pagado,
-        pendiente: v.importe_pendiente,
+        pagado: isAnulado ? 0 : v.importe_pagado,
+        pendiente: isAnulado ? 0 : v.importe_pendiente,
         color: PAYMENT_COLORS[v.estado_pago] || PAYMENT_COLORS.pendiente,
-        label: v.estado_pago.toUpperCase(),
+        label: isAnulado ? 'ANULADO' : v.estado_pago.toUpperCase(),
         icon: getPaymentIcon(v.estado_pago),
-        canReserve: v.estado_pago === PAYMENT_STATUS.PAGADO,
-        needsPayment: v.estado_pago !== PAYMENT_STATUS.PAGADO,
-        servicePending: v.service_payment_status === SERVICE_PAYMENT_STATUS.PENDING_BEFORE_SERVICE,
-        pagos: v.pagos || []
+        canReserve: !isAnulado && v.estado_pago === PAYMENT_STATUS.PAGADO,
+        needsPayment: !isAnulado && v.estado_pago !== PAYMENT_STATUS.PAGADO,
+        servicePending: !isAnulado && v.service_payment_status === SERVICE_PAYMENT_STATUS.PENDING_BEFORE_SERVICE,
+        pagos: isAnulado ? [] : (v.pagos || [])
     };
 
     return status;
@@ -336,6 +347,8 @@ function getPaymentIcon(estado) {
             return '💳✅';
         case PAYMENT_STATUS.PARCIAL:
             return '💳⚠️';
+        case PAYMENT_STATUS.ANULADO:
+            return '🚫';
         case PAYMENT_STATUS.PENDIENTE:
         default:
             return '💳❌';
@@ -492,6 +505,7 @@ function calculatePaymentTotals(vouchers) {
 
     vouchers.forEach(v => {
         const normalized = normalizePaymentFields(v);
+        if (normalized.estado_pago === PAYMENT_STATUS.ANULADO) return;
         const total = parseFloat(normalized.precio) || parseFloat(normalized.importe) || parseFloat(normalized.snapshot_price) || 0;
 
         totals.totalVentas += total;

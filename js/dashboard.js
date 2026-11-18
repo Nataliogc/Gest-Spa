@@ -1897,6 +1897,8 @@ window.obtenerDatosCajaDelDia = async function (targetDate = null) {
 
         const processVoucher = (doc) => {
             const data = doc.data();
+            const estadoBono = String(data.estado || data.status || "").toLowerCase().trim();
+            if (estadoBono === "anulado" || estadoBono === "cancelled" || estadoBono === "anulada" || data.estado_pago === "anulado") return;
             const id = (data.bono || data.codigo || data.id || doc.id || "").trim().toUpperCase();
             const precio = parseFloat(data.precio || data.importe || 0);
             const origen = String(data.origen || "").toLowerCase();

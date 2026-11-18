@@ -705,6 +705,7 @@
             const space = urlParams.get('space');
             const pax = urlParams.get('pax');
             const isPack = urlParams.get('is_pack') === '1';
+            const mode = urlParams.get('mode') || '';
 
             if (voucher) {
                 window.currentVoucherBooking = {
@@ -713,13 +714,15 @@
                     service: service || '',
                     space: space || '',
                     pax: pax || '1',
-                    is_pack: isPack
+                    is_pack: isPack,
+                    mode: mode
                 };
                 sessionStorage.setItem('pendingVoucherBooking', JSON.stringify({
                     cliente: client || '',
                     producto: service || '',
                     bono: voucher,
-                    pax_por_sesion: pax || '1'
+                    pax_por_sesion: pax || '1',
+                    mode: mode
                 }));
                 renderVoucherBookingBanner();
             }
@@ -1252,7 +1255,7 @@
             let voucherParams = '';
             const vb = window.currentVoucherBooking;
             if (vb && vb.voucher) {
-                voucherParams = `&client=${encodeURIComponent(vb.client || '')}&service=${encodeURIComponent(vb.service || '')}&voucher=${encodeURIComponent(vb.voucher)}&pax=${encodeURIComponent(vb.pax || '1')}${vb.is_pack ? '&is_pack=1' : ''}`;
+                voucherParams = `&client=${encodeURIComponent(vb.client || '')}&service=${encodeURIComponent(vb.service || '')}&voucher=${encodeURIComponent(vb.voucher)}&pax=${encodeURIComponent(vb.pax || '1')}${vb.is_pack ? '&is_pack=1' : ''}${vb.mode ? '&mode=' + encodeURIComponent(vb.mode) : ''}`;
             }
 
             const newBookingParams = {
@@ -1267,7 +1270,8 @@
                 service: (vb && vb.voucher) ? (vb.service || '') : '',
                 voucher: (vb && vb.voucher) ? (vb.voucher || '') : '',
                 pax: (vb && vb.voucher) ? (vb.pax || '1') : '',
-                is_pack: (vb && vb.voucher && vb.is_pack) ? '1' : ''
+                is_pack: (vb && vb.voucher && vb.is_pack) ? '1' : '',
+                mode: (vb && vb.voucher && vb.mode) ? vb.mode : ''
             };
 
             const url = `reservas-salas.html?type=${targetType}&action=new&date=${currentDate}&time=${time}` +

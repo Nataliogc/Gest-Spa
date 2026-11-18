@@ -119,8 +119,8 @@
                     <input type="date" id="voucher-date" class="param-input" style="width: 160px;">
 
                     <select id="voucher-filter" class="param-input" style="width: 180px;">
-                        <option value="all" selected>Todos los Estados</option>
-                        <option value="pending">Activos (Pendientes)</option>
+                        <option value="all">Todos los Estados</option>
+                        <option value="pending" selected>Activos (Pendientes)</option>
                         <option value="partially">Canjeado Parcial</option>
                         <option value="completed">Canjeados</option>
                         <option value="expired">Caducados</option>
@@ -759,10 +759,20 @@
                                     style="padding: 8px 6px; border-radius: 8px; border: 1px solid #cbd5e1; background: #fff; color: #334155; font-size: 0.76rem; font-weight: 700; cursor: pointer;">
                                     <i class="fas fa-money-bill-wave"></i> Efectivo
                                 </button>
-                                <button type="button" class="lv-pay-btn" data-method="transferencia" onclick="selectLocalPayMethod('transferencia')"
+                                <button type="button" class="lv-pay-btn" data-method="pasarela" onclick="selectLocalPayMethod('pasarela')"
                                     style="padding: 8px 6px; border-radius: 8px; border: 1px solid #cbd5e1; background: #fff; color: #334155; font-size: 0.76rem; font-weight: 700; cursor: pointer;">
-                                    <i class="fas fa-university"></i> Transfer.
+                                    <i class="fas fa-link"></i> TPV Virtual
                                 </button>
+                            </div>
+                            <div id="lv-tpv-link-box" style="display: none; margin-top: 8px; padding: 9px 10px; background: #fffbeb; border: 1px solid #fcd34d; border-radius: 8px; font-size: 0.73rem; color: #92400e;">
+                                <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap;">
+                                    <span><i class="fas fa-bolt" style="color: #d97706;"></i> <strong>TPV Virtual (Redsys):</strong> Enlace de pago para el cliente.</span>
+                                    <button type="button" id="lv-gen-tpv-btn" onclick="generateLocalVoucherPayGoldLink()"
+                                        style="background: #f59e0b; color: #fff; border: none; border-radius: 6px; padding: 5px 10px; font-size: 0.72rem; font-weight: 800; cursor: pointer; white-space: nowrap;">
+                                        <i class="fas fa-link"></i> Generar Enlace TPV
+                                    </button>
+                                </div>
+                                <div id="lv-tpv-link-result" style="display: none; margin-top: 8px; padding-top: 8px; border-top: 1px dashed #fcd34d;"></div>
                             </div>
                         </div>
                     </div>
@@ -848,7 +858,7 @@
                     <select id="pay-method" class="param-input" style="margin-top: 5px;">
                         <option value="efectivo">💵 Efectivo</option>
                         <option value="tarjeta">💳 Tarjeta</option>
-                        <option value="transferencia">🏦 Transferencia</option>
+                        <option value="pasarela">🔗 TPV Virtual (Enlace)</option>
                         <option value="otro">📝 Otro</option>
                     </select>
                 </div>
@@ -948,11 +958,12 @@
     <!-- PDF Generation -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="js/images_data.js?v=202601072324"></script>
-    <script src="js/bono-pdf.js?v=2.3.83"></script>
-    <script src="js/spa-payment-control.js?v=2.3.49"></script>
+    <script src="js/bono-pdf.js?v=2.3.85"></script>
+    <script src="js/spa-payment-control.js?v=2.3.85"></script>
+    <script src="js/services/paygoldService.js?v=2.3.85"></script>
 
     <script src="js/reservation-drawer.js?v=2.3.67"></script>
-    <script src="js/bonos.js?v=2.3.84"></script>
+    <script src="js/bonos.js?v=2.3.85"></script>
     <script src="js/bonos-history-helper.js?v=2.3.67"></script>
 </body>
 

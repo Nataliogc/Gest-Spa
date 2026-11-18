@@ -1,6 +1,71 @@
 (function (root) {
+    const _voucherCache = new Map();
+
     function isMonedero(v) {
         return Boolean(v && (v.tipo_bono === 'monedero' || v.es_monedero === true));
+    }
+
+    function registerVoucher(bonoId, data) {
+        const cleanId = String(bonoId || data?.bono || data?.id || '').trim();
+        if (cleanId && data) {
+            _voucherCache.set(cleanId, data);
+        }
+        if (typeof window !== 'undefined') {
+            window._activeMonederoVoucher = isMonedero(data) ? { id: cleanId, ...data } : null;
+            if (isMonedero(data)) {
+                window._isMonederoBookingMode = true;
+            }
+        }
+    }
+
+    function clearActiveVoucher() {
+        if (typeof window !== 'undefined') {
+            window._activeMonederoVoucher = null;
+            window._isMonederoBookingMode = false;
+        }
+    }
+
+    function isActiveBookingMonedero() {
+        if (typeof document === 'undefined') return false;
+        const origen = document.getElementById('res-origen')?.value;
+        if (origen !== 'bono') return false;
+        const bonoId = (document.getElementById('res-bono')?.value || '').trim();
+        if (typeof window !== 'undefined') {
+            if (window._activeMonederoVoucher && (!bonoId || window._activeMonederoVoucher.bono === bonoId || window._activeMonederoVoucher.id === bonoId)) {
+                return true;
+            }
+            if (bonoId && _voucherCache.has(bonoId)) {
+                return isMonedero(_voucherCache.get(bonoId));
+            }
+            if (window._isMonederoBookingMode) return true;
+            try {
+                const urlMode = new URLSearchParams(window.location.search).get('mode');
+                if (urlMode === 'monedero') return true;
+            } catch (_) {}
+        }
+        return false;
+    }
+
+    function syncMonederoFormUI() {
+        if (typeof document === 'undefined') return;
+        const active = isActiveBookingMonedero();
+        const sessionsGroup = document.getElementById('sessions-group');
+        const bonoSaldoNotice = document.getElementById('bono-saldo-notice');
+        const pricePaxInput = document.getElementById('res-precio-pax');
+        const priceGroup = document.getElementById('price-group') || (pricePaxInput ? (pricePaxInput.closest('.form-group') || pricePaxInput.parentElement) : null);
+
+        if (active) {
+            if (sessionsGroup) sessionsGroup.style.display = 'none';
+            if (bonoSaldoNotice) bonoSaldoNotice.style.display = 'none';
+            if (priceGroup) {
+                priceGroup.style.display = 'block';
+                priceGroup.style.opacity = '1';
+                priceGroup.style.pointerEvents = 'all';
+            }
+            if (pricePaxInput) {
+                pricePaxInput.disabled = false;
+            }
+        }
     }
 
     function getSaldoDisponible(v) {
@@ -12,16 +77,23 @@
 
     async function fetchVoucher(db, bonoId) {
         if (!db || !bonoId) return null;
-        let doc = await db.collection('spa_vouchers').doc(bonoId).get();
+        const cleanId = String(bonoId).trim();
+        let doc = await db.collection('spa_vouchers').doc(cleanId).get();
         if (!doc.exists) {
-            const qs = await db.collection('spa_vouchers').where('bono', '==', bonoId).limit(1).get();
+            const qs = await db.collection('spa_vouchers').where('bono', '==', cleanId).limit(1).get();
             if (!qs.empty) doc = qs.docs[0];
         }
-        return doc.exists ? { id: doc.id, ...doc.data() } : null;
+        if (doc.exists) {
+            const v = { id: doc.id, ...doc.data() };
+            _voucherCache.set(cleanId, v);
+            return v;
+        }
+        return null;
     }
 
     function renderReservationBalanceNotice(v, serviceTotal, noticeEl, existingRes = null) {
         if (!noticeEl || !isMonedero(v)) return;
+        syncMonederoFormUI();
         let saldo = getSaldoDisponible(v);
         if (existingRes && existingRes.bono === (v.bono || v.id) && parseFloat(existingRes.monedero_descontado) > 0) {
             saldo += parseFloat(existingRes.monedero_descontado);
@@ -37,18 +109,37 @@
             noticeEl.style.background = '#fff2f2';
             noticeEl.style.color = '#d32f2f';
             noticeEl.style.border = '1px solid #ffdada';
-            noticeEl.innerHTML = `<i class="fas fa-wallet"></i> <span><b>MONEDERO AGOTADO (0.00 €).</b> El cliente deberá abonar el importe completo: <b>${total.toFixed(2)} €</b>.</span>`;
+            noticeEl.innerHTML = `<i class="fas fa-wallet"></i> <span><b>MONEDERO AGOTADO (0.00 €).</b> Importe del servicio: <b>${total.toFixed(2)} €</b> (a abonar por el cliente).</span>`;
+        } else if (total <= 0) {
+            noticeEl.style.background = '#ecfdf5';
+            noticeEl.style.color = '#065f46';
+            noticeEl.style.border = '1px solid #86efac';
+            noticeEl.innerHTML = `<i class="fas fa-wallet"></i> <span><b>MONEDERO (${saldo.toFixed(2)} € disponibles):</b> Selecciona el servicio para calcular el importe a descontar.</span>`;
         } else if (exceso > 0) {
             noticeEl.style.background = '#fffbeb';
             noticeEl.style.color = '#92400e';
             noticeEl.style.border = '1px solid #fcd34d';
-            noticeEl.innerHTML = `<i class="fas fa-wallet"></i> <span><b>MONEDERO (${saldo.toFixed(2)} €):</b> Se descontarán <b>${descontar.toFixed(2)} €</b> (saldo restante: 0.00 €) · <b style="color:#dc2626;">A PAGAR POR EL CLIENTE: ${exceso.toFixed(2)} €</b></span>`;
+            noticeEl.innerHTML = `<i class="fas fa-wallet"></i> <span><b>MONEDERO (${saldo.toFixed(2)} €):</b> Precio servicio: <b>${total.toFixed(2)} €</b> · Se descontarán <b>${descontar.toFixed(2)} €</b> (saldo restante: 0.00 €) · <b style="color:#dc2626;">A PAGAR DIFERENCIA: ${exceso.toFixed(2)} €</b></span>`;
         } else {
             noticeEl.style.background = '#ecfdf5';
             noticeEl.style.color = '#065f46';
             noticeEl.style.border = '1px solid #86efac';
-            noticeEl.innerHTML = `<i class="fas fa-wallet"></i> <span><b>MONEDERO (${saldo.toFixed(2)} €):</b> Se descontarán <b>${descontar.toFixed(2)} €</b> · Saldo restante: <b>${restante.toFixed(2)} €</b>.</span>`;
+            noticeEl.innerHTML = `<i class="fas fa-wallet"></i> <span><b>MONEDERO (${saldo.toFixed(2)} €):</b> Precio servicio: <b>${total.toFixed(2)} €</b> · Se descontarán <b>${descontar.toFixed(2)} €</b> · Saldo restante: <b>${restante.toFixed(2)} €</b>.</span>`;
         }
+    }
+
+    function refreshActiveNotice(currentData = null) {
+        if (typeof document === 'undefined' || !isActiveBookingMonedero()) return;
+        syncMonederoFormUI();
+        const bonoId = (document.getElementById('res-bono')?.value || '').trim();
+        const v = (typeof window !== 'undefined' && window._activeMonederoVoucher) || (bonoId ? _voucherCache.get(bonoId) : null);
+        if (!v || !isMonedero(v)) return;
+        const notice = document.getElementById('v-balance-notice');
+        if (!notice) return;
+        const resId = document.getElementById('form-id')?.value;
+        const existingRes = (resId && Array.isArray(currentData)) ? currentData.find(r => r.id === resId) : null;
+        const serviceTotal = parseFloat(document.getElementById('res-precio-total')?.value) || 0;
+        renderReservationBalanceNotice(v, serviceTotal, notice, existingRes);
     }
 
     async function applyMonederoDeduction({ db, bonoId, serviceTotal, serviceName, reservationId, collection, existingRes }) {
@@ -100,6 +191,13 @@
             last_updated: nowIso
         });
 
+        _voucherCache.set(String(bonoId).trim(), {
+            ...v,
+            saldo_consumido: nuevoConsumido,
+            saldo_disponible: nuevoSaldo,
+            movimientos_monedero: movs
+        });
+
         return { monederoDescontado: descontado, excesoAPagar: exceso, saldoRestante: nuevoSaldo };
     }
 
@@ -140,6 +238,11 @@
 
     root.MonederoHelper = {
         isMonedero,
+        registerVoucher,
+        clearActiveVoucher,
+        isActiveBookingMonedero,
+        syncMonederoFormUI,
+        refreshActiveNotice,
         getSaldoDisponible,
         fetchVoucher,
         renderReservationBalanceNotice,

@@ -2132,10 +2132,17 @@
                 }
 
                 if (window.MonederoHelper && window.MonederoHelper.isMonedero(data)) {
+                    window.MonederoHelper.registerVoucher(bonoId, data);
+                    window.MonederoHelper.syncMonederoFormUI();
+                    await updatePriceAutomation();
+                    await updateTotal();
                     const currentRes = currentResId ? currentData.find(r => r.id === currentResId) : null;
                     const serviceTotal = parseFloat(document.getElementById("res-precio-total")?.value) || 0;
                     window.MonederoHelper.renderReservationBalanceNotice(data, serviceTotal, notice, currentRes);
                     return;
+                }
+                if (window.MonederoHelper && window.MonederoHelper.clearActiveVoucher) {
+                    window.MonederoHelper.clearActiveVoucher();
                 }
 
                 const total = data.sesiones_totales || 1;
@@ -2980,6 +2987,8 @@
             const pricePaxInput = document.getElementById("res-precio-pax");
             const paxInput = document.getElementById("res-pax");
             const origen = document.getElementById("res-origen")?.value;
+            const isMonederoBono = (origen === 'bono') && Boolean(window.MonederoHelper && window.MonederoHelper.isActiveBookingMonedero && window.MonederoHelper.isActiveBookingMonedero());
+            const hasTariffPrice = (origen === 'particular' || origen === 'hotel_no_inc' || isMonederoBono);
 
             // Find service data - IMPROVED CHECK (Master -> Current)
             // Debug Log
@@ -3060,7 +3069,7 @@
 
             if (!svcName) {
                 // SPA Module Dynamic Price fallback logic
-                if (currentModule.code === 'spa' && (origen === 'particular' || origen === 'hotel_no_inc')) {
+                if (currentModule.code === 'spa' && hasTariffPrice) {
                     // fall through
                 } else {
                     pricePaxInput.value = "0.00";
@@ -3075,7 +3084,7 @@
 
             if (!serviceData) {
                 // SPA Dynamic Price Logic
-                if (currentModule.code === 'spa' && (origen === 'particular' || origen === 'hotel_no_inc')) {
+                if (currentModule.code === 'spa' && hasTariffPrice) {
                     const dateStr = document.getElementById("form-date")?.value;
                     const dateObj = dateStr ? new Date(dateStr + 'T12:00:00') : new Date();
                     const dayOfWeek = dateObj.getDay();
@@ -3090,7 +3099,7 @@
                     if (origen === 'hotel_no_inc') {
                         dynamicPrice = isWeekend ? hotelPriceWeekend : hotelPriceWeekday;
                     } else {
-                        dynamicPrice = isWeekend ? roomPriceWeekend : roomPriceWeekend;
+                        dynamicPrice = isWeekend ? roomPriceWeekend : roomPriceWeekday;
                     }
                     pricePaxInput.value = parseFloat(dynamicPrice).toFixed(2);
                 } else {
@@ -3123,10 +3132,14 @@
                     paxGroup.appendChild(helper);
                 }
 
-                if (origen === 'particular' || origen === 'hotel_no_inc') {
+                if (hasTariffPrice) {
                     // Handle various price field names (price, precio, price_pax, etc)
                     // IF catalogPax > 1 (e.g. 2 for couples), we assume stored price is TOTAL for the Item.
                     let fixedTotal = (serviceData.resolvedPrice ?? parseFloat(serviceData.precio || serviceData.price || serviceData.price_pax || 0));
+                    if (svcSelect) {
+                        svcSelect.dataset.pricingMode = 'fixed';
+                        svcSelect.dataset.fixedTotal = fixedTotal;
+                    }
 
                     // Dividir Total entre Pax para mostrar precio unitario
                     pricePaxInput.value = (fixedTotal / effectivePax).toFixed(2);
@@ -3141,7 +3154,7 @@
                 return;
             } else {
                 // Normal Pricing
-                if (origen === 'particular' || origen === 'hotel_no_inc') {
+                if (hasTariffPrice) {
                     // Check for Fixed Total Services (Rentals, Suites, Packs like Pareja)
                     const isRental = svcName.toLowerCase().includes('suite') ||
                         svcName.toLowerCase().includes('pareja') ||
@@ -7671,6 +7684,10 @@
             const totalText = document.getElementById("res-total-text");
             if (totalText) totalText.textContent = total.toFixed(2) + " €";
 
+            if (window.MonederoHelper && typeof window.MonederoHelper.refreshActiveNotice === 'function') {
+                window.MonederoHelper.refreshActiveNotice(typeof currentData !== 'undefined' ? currentData : null);
+            }
+
             if (typeof window.updatePaymentControlBlock === 'function') {
                 window.updatePaymentControlBlock();
             }
@@ -8030,7 +8047,11 @@
 
             // 3. Handle Inputs Requirements & Styling
             const pricePaxInput = document.getElementById("res-precio-pax");
-            const isIncluded = (origen === 'hotel_inc' || isVoucher);
+            const isMonederoActive = (origen === 'bono') && Boolean(window.MonederoHelper && window.MonederoHelper.isActiveBookingMonedero && window.MonederoHelper.isActiveBookingMonedero());
+            const isIncluded = (origen === 'hotel_inc' || (isVoucher && !isMonederoActive));
+            if (isMonederoActive && sessionsGroup) {
+                sessionsGroup.style.display = "none";
+            }
 
             if (pricePaxInput) {
                 const priceGroup = pricePaxInput.closest('.form-group') || pricePaxInput.parentElement;
