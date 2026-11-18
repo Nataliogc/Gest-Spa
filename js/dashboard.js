@@ -1269,6 +1269,9 @@ function generarInformeHTML(reservas, fecha, mode) {
 
 // --- REPORTING FUNCTIONS ---
 
+let _reportsCache = { vouchers: null, services: null };
+let _activeReportMode = 'all';
+
 window.openReportsModal = function () {
     document.getElementById("reports-modal").style.display = "flex";
 }
@@ -1277,25 +1280,117 @@ window.closeReportsModal = function () {
     document.getElementById("reports-modal").style.display = "none";
 }
 
-function setActiveReportTab(active) {
-    const tabRank = document.getElementById("tab-report-ranking");
-    const tabServ = document.getElementById("tab-report-servicios");
-    if (tabRank) {
-        const isOn = active === "ranking";
-        tabRank.style.background = isOn ? "#0f172a" : "transparent";
-        tabRank.style.color = isOn ? "#ffffff" : "#475569";
-        tabRank.style.fontWeight = isOn ? "700" : "600";
+function getReportDateRange() {
+    const fromVal = document.getElementById("report-date-from")?.value || "";
+    const toVal = document.getElementById("report-date-to")?.value || "";
+    const badge = document.getElementById("report-period-badge");
+    if (badge) {
+        if (fromVal && toVal) {
+            badge.textContent = `${fromVal.split('-').reverse().join('/')} → ${toVal.split('-').reverse().join('/')}`;
+        } else if (fromVal) {
+            badge.textContent = `Desde ${fromVal.split('-').reverse().join('/')}`;
+        } else if (toVal) {
+            badge.textContent = `Hasta ${toVal.split('-').reverse().join('/')}`;
+        } else {
+            badge.textContent = "Histórico completo";
+        }
     }
-    if (tabServ) {
-        const isOn = active === "servicios";
-        tabServ.style.background = isOn ? "#0f172a" : "transparent";
-        tabServ.style.color = isOn ? "#ffffff" : "#475569";
-        tabServ.style.fontWeight = isOn ? "700" : "600";
-    }
+    return { fromVal, toVal };
 }
 
-window.generarRankingBonos = async function () {
-    setActiveReportTab("ranking");
+function getVoucherReportDateYMD(b) {
+    const raw = b.fecha || b.fecha_compra || b.date_created || b.createdAt || '';
+    if (!raw) return '';
+    if (typeof raw === 'object' && typeof raw.toDate === 'function') {
+        const d = raw.toDate();
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    }
+    const str = String(raw).trim();
+    if (/^\d{4}-\d{2}-\d{2}/.test(str)) return str.slice(0, 10);
+    const d = new Date(str);
+    if (isNaN(d.getTime())) return '';
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function isLocalVoucherForReport(b) {
+    const code = String(b.bono || b.codigo || '').trim();
+    return b.origen === 'local' || code.startsWith('Tarj-') || code.startsWith('LOC-') || code.startsWith('exc.Loc');
+}
+
+function voucherMatchesReportFilters(b, channel, fromVal, toVal) {
+    if (channel === 'local' && !isLocalVoucherForReport(b)) return false;
+    if (channel === 'online' && isLocalVoucherForReport(b)) return false;
+
+    if (fromVal || toVal) {
+        const ymd = getVoucherReportDateYMD(b);
+        if (!ymd) return false;
+        if (fromVal && ymd < fromVal) return false;
+        if (toVal && ymd > toVal) return false;
+    }
+    return true;
+}
+
+async function getReportVouchersAndServices(forceRefresh = false) {
+    if (forceRefresh || !_reportsCache.vouchers) {
+        const snap = await db.collection("spa_vouchers").get();
+        const list = [];
+        snap.forEach(doc => list.push(doc.data()));
+        _reportsCache.vouchers = list;
+    }
+    if (forceRefresh || !_reportsCache.services) {
+        const catSnap = await db.collection("spa_services").get();
+        const list = [];
+        catSnap.forEach(doc => list.push(doc.data()));
+        _reportsCache.services = list;
+    }
+    return _reportsCache;
+}
+
+window.clearReportDates = function () {
+    const fromEl = document.getElementById("report-date-from");
+    const toEl = document.getElementById("report-date-to");
+    if (fromEl) fromEl.value = "";
+    if (toEl) toEl.value = "";
+    window.refreshActiveReport();
+};
+
+window.refreshActiveReport = function () {
+    if (_activeReportMode === 'servicios') {
+        window.generarInformeServicios();
+    } else {
+        window.generarRankingBonos(_activeReportMode || 'all');
+    }
+};
+
+window.filterRankingReportTable = function (query) {
+    const q = String(query || '').trim().toLowerCase();
+    const rows = document.querySelectorAll('#reports-ranking-tbody tr');
+    rows.forEach(tr => {
+        const text = (tr.dataset.search || '').toLowerCase();
+        tr.style.display = (!q || text.includes(q)) ? '' : 'none';
+    });
+};
+
+function setActiveReportTab(active) {
+    const map = {
+        all: document.getElementById("tab-report-ranking"),
+        online: document.getElementById("tab-report-online"),
+        local: document.getElementById("tab-report-local"),
+        servicios: document.getElementById("tab-report-servicios")
+    };
+    Object.entries(map).forEach(([key, el]) => {
+        if (!el) return;
+        const isOn = active === key;
+        el.style.background = isOn ? "#0f172a" : "transparent";
+        el.style.color = isOn ? "#ffffff" : "#475569";
+        el.style.fontWeight = isOn ? "700" : "600";
+    });
+}
+
+window.generarRankingBonos = async function (channel = 'all') {
+    _activeReportMode = channel || 'all';
+    setActiveReportTab(_activeReportMode);
+    const { fromVal, toVal } = getReportDateRange();
     const content = document.getElementById("reports-content");
     content.innerHTML = '<div style="text-align:center; padding:50px; color:#64748b;"><i class="fas fa-spinner fa-spin" style="font-size:1.5rem; color:#d97706;"></i><p style="margin-top:10px; font-weight:600;">Procesando ranking de bonos...</p></div>';
 
@@ -1314,14 +1409,20 @@ window.generarRankingBonos = async function () {
         return name || 'Desconocido';
     };
 
+    const channelLabels = {
+        all: 'Ranking Completo (Todos)',
+        online: 'Ranking Tienda Virtual',
+        local: 'Ranking Venta Directa'
+    };
+
     try {
-        const snap = await db.collection("spa_vouchers").get();
+        const { vouchers } = await getReportVouchersAndServices();
         const stats = {};
         let globalUnits = 0;
         let globalRevenue = 0;
 
-        snap.forEach(doc => {
-            const b = doc.data();
+        vouchers.forEach(b => {
+            if (!voucherMatchesReportFilters(b, _activeReportMode, fromVal, toVal)) return;
             const cleanName = normalizeBonoRankingName(b.producto || 'Desconocido');
             const key = cleanName.toLowerCase();
             if (!stats[key]) {
@@ -1346,30 +1447,36 @@ window.generarRankingBonos = async function () {
                 });
                 return [variants[0]?.[0] || entry.displayName, { count: entry.count, revenue: entry.revenue }];
             })
-            .sort((a, b) => b[1].count - a[1].count)
-            .slice(0, 10);
+            .sort((a, b) => b[1].count - a[1].count);
 
         const maxCount = ranking[0]?.[1]?.count || 1;
-        const top10Units = ranking.reduce((s, [, d]) => s + d.count, 0);
-        const top10Rev = ranking.reduce((s, [, d]) => s + d.revenue, 0);
         const leaderName = ranking[0]?.[0] || '-';
 
         let html = `
-            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-bottom: 18px;">
+            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-bottom: 16px;">
                 <div style="background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%); border: 1px solid #fde68a; border-radius: 12px; padding: 14px 16px;">
                     <div style="font-size: 0.7rem; font-weight: 700; text-transform: uppercase; color: #92400e;">Producto Líder (#1)</div>
                     <div style="font-size: 1.05rem; font-weight: 800; color: #0f172a; margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${leaderName}">${leaderName}</div>
                     <div style="font-size: 0.75rem; color: #b45309; margin-top: 2px;">${ranking[0]?.[1]?.count || 0} bonos vendidos</div>
                 </div>
                 <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 14px 16px;">
-                    <div style="font-size: 0.7rem; font-weight: 700; text-transform: uppercase; color: #64748b;">Unidades Top 10 / Total</div>
-                    <div style="font-size: 1.25rem; font-weight: 800; color: #0f172a; margin-top: 4px;">${top10Units.toLocaleString('es-ES')} <span style="font-size: 0.85rem; font-weight: 600; color: #64748b;">/ ${globalUnits.toLocaleString('es-ES')}</span></div>
-                    <div style="font-size: 0.75rem; color: #64748b; margin-top: 2px;">${globalUnits ? Math.round((top10Units / globalUnits) * 100) : 0}% del volumen histórico</div>
+                    <div style="font-size: 0.7rem; font-weight: 700; text-transform: uppercase; color: #64748b;">Unidades Vendidas (${ranking.length} productos)</div>
+                    <div style="font-size: 1.25rem; font-weight: 800; color: #0f172a; margin-top: 4px;">${globalUnits.toLocaleString('es-ES')}</div>
+                    <div style="font-size: 0.75rem; color: #64748b; margin-top: 2px;">${channelLabels[_activeReportMode]}</div>
                 </div>
                 <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 14px 16px;">
-                    <div style="font-size: 0.7rem; font-weight: 700; text-transform: uppercase; color: #64748b;">Valor Estimado Top 10</div>
-                    <div style="font-size: 1.25rem; font-weight: 800; color: #059669; margin-top: 4px;">${top10Rev.toLocaleString('es-ES', { minimumFractionDigits: 2 })} €</div>
-                    <div style="font-size: 0.75rem; color: #64748b; margin-top: 2px;">Total global: ${globalRevenue.toLocaleString('es-ES', { minimumFractionDigits: 2 })} €</div>
+                    <div style="font-size: 0.7rem; font-weight: 700; text-transform: uppercase; color: #64748b;">Facturación Total</div>
+                    <div style="font-size: 1.25rem; font-weight: 800; color: #059669; margin-top: 4px;">${globalRevenue.toLocaleString('es-ES', { minimumFractionDigits: 2 })} €</div>
+                    <div style="font-size: 0.75rem; color: #64748b; margin-top: 2px;">Suma de los ${ranking.length} productos</div>
+                </div>
+            </div>
+
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; gap:12px; flex-wrap:wrap;">
+                <h3 style="margin:0; font-size:0.95rem; font-weight:800; color:#1e293b;">${channelLabels[_activeReportMode]}</h3>
+                <div style="position:relative; min-width:260px;">
+                    <i class="fas fa-search" style="position:absolute; left:11px; top:50%; transform:translateY(-50%); color:#94a3b8; font-size:0.8rem;"></i>
+                    <input type="text" placeholder="Filtrar producto..." oninput="filterRankingReportTable(this.value)"
+                        style="width:100%; padding:7px 12px 7px 32px; border:1px solid #cbd5e1; border-radius:8px; font-size:0.8rem; outline:none;">
                 </div>
             </div>
 
@@ -1384,37 +1491,42 @@ window.generarRankingBonos = async function () {
                             <th style="padding:12px 16px; text-align:right; font-size:0.72rem; color:#64748b; text-transform:uppercase; width:150px;">Valor Estimado</th>
                         </tr>
                     </thead>
-                    <tbody>
+                    <tbody id="reports-ranking-tbody">
         `;
 
-        ranking.forEach(([name, data], i) => {
-            const pct = Math.max(4, Math.round((data.count / maxCount) * 100));
-            const share = globalUnits ? ((data.count / globalUnits) * 100).toFixed(1) : '0.0';
-            const medalBg = i === 0 ? '#fef3c7' : (i === 1 ? '#f1f5f9' : (i === 2 ? '#ffedd5' : '#f8fafc'));
-            const medalColor = i === 0 ? '#b45309' : (i === 1 ? '#475569' : (i === 2 ? '#c2410c' : '#64748b'));
-            html += `
-                <tr style="border-bottom:1px solid #f1f5f9; transition: background 0.15s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='#fff'">
-                    <td style="padding:12px 16px;">
-                        <span style="display:inline-flex; align-items:center; justify-content:center; min-width:34px; height:26px; border-radius:7px; background:${medalBg}; color:${medalColor}; font-weight:800; font-size:0.85rem;">#${i + 1}</span>
-                    </td>
-                    <td style="padding:12px 16px; font-weight:700; color:#1e293b; font-size:0.9rem;">${name}</td>
-                    <td style="padding:12px 16px;">
-                        <div style="display:flex; align-items:center; gap:8px;">
-                            <div style="flex:1; height:8px; background:#f1f5f9; border-radius:999px; overflow:hidden;">
-                                <div style="width:${pct}%; height:100%; background:linear-gradient(90deg, #f59e0b, #d97706); border-radius:999px;"></div>
+        if (ranking.length === 0) {
+            html += `<tr><td colspan="5" style="padding:30px; text-align:center; color:#94a3b8;">No hay bonos en este rango de fechas o canal.</td></tr>`;
+        } else {
+            ranking.forEach(([name, data], i) => {
+                const pct = Math.max(4, Math.round((data.count / maxCount) * 100));
+                const share = globalUnits ? ((data.count / globalUnits) * 100).toFixed(1) : '0.0';
+                const medalBg = i === 0 ? '#fef3c7' : (i === 1 ? '#f1f5f9' : (i === 2 ? '#ffedd5' : '#f8fafc'));
+                const medalColor = i === 0 ? '#b45309' : (i === 1 ? '#475569' : (i === 2 ? '#c2410c' : '#64748b'));
+                const searchKey = name.replace(/"/g, '&quot;');
+                html += `
+                    <tr data-search="${searchKey}" style="border-bottom:1px solid #f1f5f9; transition: background 0.15s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='#fff'">
+                        <td style="padding:12px 16px;">
+                            <span style="display:inline-flex; align-items:center; justify-content:center; min-width:34px; height:26px; border-radius:7px; background:${medalBg}; color:${medalColor}; font-weight:800; font-size:0.85rem;">#${i + 1}</span>
+                        </td>
+                        <td style="padding:12px 16px; font-weight:700; color:#1e293b; font-size:0.9rem;">${name}</td>
+                        <td style="padding:12px 16px;">
+                            <div style="display:flex; align-items:center; gap:8px;">
+                                <div style="flex:1; height:8px; background:#f1f5f9; border-radius:999px; overflow:hidden;">
+                                    <div style="width:${pct}%; height:100%; background:linear-gradient(90deg, #f59e0b, #d97706); border-radius:999px;"></div>
+                                </div>
+                                <span style="font-size:0.72rem; color:#64748b; font-weight:600; min-width:38px; text-align:right;">${share}%</span>
                             </div>
-                            <span style="font-size:0.72rem; color:#64748b; font-weight:600; min-width:38px; text-align:right;">${share}%</span>
-                        </div>
-                    </td>
-                    <td style="padding:12px 16px; text-align:right; font-weight:800; color:#0f172a; font-variant-numeric: tabular-nums;">${data.count.toLocaleString('es-ES')}</td>
-                    <td style="padding:12px 16px; text-align:right; color:#0f172a; font-weight:700; font-variant-numeric: tabular-nums;">${data.revenue.toLocaleString('es-ES', { minimumFractionDigits: 2 })} €</td>
-                </tr>
-            `;
-        });
+                        </td>
+                        <td style="padding:12px 16px; text-align:right; font-weight:800; color:#0f172a; font-variant-numeric: tabular-nums;">${data.count.toLocaleString('es-ES')}</td>
+                        <td style="padding:12px 16px; text-align:right; color:#0f172a; font-weight:700; font-variant-numeric: tabular-nums;">${data.revenue.toLocaleString('es-ES', { minimumFractionDigits: 2 })} €</td>
+                    </tr>
+                `;
+            });
+        }
 
         html += '</tbody></table></div>';
         content.innerHTML = html;
-        window.currentReportData = { title: "Ranking Top 10 Bonos", data: ranking };
+        window.currentReportData = { title: channelLabels[_activeReportMode], data: ranking };
 
     } catch (err) {
         content.innerHTML = `<div style="color:red; padding:20px;">Error: ${err.message}</div>`;
@@ -1431,15 +1543,14 @@ window.filterServicesReportTable = function (query) {
 };
 
 window.generarInformeServicios = async function () {
+    _activeReportMode = 'servicios';
     setActiveReportTab("servicios");
+    const { fromVal, toVal } = getReportDateRange();
     const content = document.getElementById("reports-content");
     content.innerHTML = '<div style="text-align:center; padding:50px; color:#64748b;"><i class="fas fa-spinner fa-spin" style="font-size:1.5rem; color:#d97706;"></i><p style="margin-top:10px; font-weight:600;">Cargando datos de catálogo y ventas...</p></div>';
 
     try {
-        const [vouchSnap, catSnap] = await Promise.all([
-            db.collection("spa_vouchers").get(),
-            db.collection("spa_services").get()
-        ]);
+        const { vouchers, services } = await getReportVouchersAndServices();
 
         const catalog = {};
         const normalizedCatalog = {};
@@ -1452,16 +1563,16 @@ window.generarInformeServicios = async function () {
             return normalized;
         }
 
-        catSnap.forEach(doc => {
-            const s = doc.data();
+        services.forEach(s => {
             const realName = s.nombre;
+            if (!realName) return;
             const norm = normalizeServiceName(realName);
             catalog[realName] = { category: s.categoria || 'Sin Cat.', sold: 0, revenue: 0 };
             normalizedCatalog[norm] = realName;
         });
 
-        vouchSnap.forEach(doc => {
-            const b = doc.data();
+        vouchers.forEach(b => {
+            if (!voucherMatchesReportFilters(b, 'all', fromVal, toVal)) return;
             let name = (b.producto || '').trim();
             if (!name) return;
             const rev = parseFloat(b.importe || b.precio || 0) || 0;

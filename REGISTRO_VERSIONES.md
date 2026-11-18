@@ -8,7 +8,7 @@ Este documento mantiene el **control de versión única y global** para todo el 
 
 | Parámetro | Valor Actual |
 | :--- | :--- |
-| **Versión Global del Sistema** | **`v2.3.66`** |
+| **Versión Global del Sistema** | **`v2.3.67`** |
 | **Fecha de Última Actualización** | **18/11/2026** |
 | **Estado General** | Operativo en Producción |
 
@@ -47,6 +47,14 @@ Cualquier cambio en los siguientes módulos impacta en la versión global:
 ---
 
 ## 📝 Historial Unificado de Versiones
+
+### [v2.3.67] - 18/11/2026
+- **Tipo:** MINOR
+- **Archivos:** `index.html`, `js/dashboard.js`, `bonos.html`, `js/bonos.js`, `js/bonos-history-helper.js`, `js/reservation-drawer.js`
+- **Descripción:** Mejoras en **Informes Avanzados** y módulo de **Bonos**:
+  1. **Informes Avanzados completos por canal y fechas (`index.html`, `js/dashboard.js`):** añadidas pestañas **Ranking Completo**, **Tienda Virtual**, **Venta Directa** y **Ventas por Servicio**, junto con filtro de fechas **Desde / Hasta** (y botón *Todo el histórico*) y buscador en tiempo real sobre la lista completa (sin límite de Top 10).
+  2. **Filtros y visualización en Bonos (`bonos.html`, `js/bonos.js`):** corregido el filtro de rango (`Última semana`, `Último mes`, etc.) para limpiar la fecha diaria; añadido campo obligatorio **Motivo del descuento** visible en el bono; habilitado **Reservar Pack Completo** en packs mixtos (Spa/Suite + Restaurante); y mejorada la vinculación de nombres/desglose de WooCommerce con el catálogo.
+  3. **Historial y Drawer (`js/bonos-history-helper.js`, `js/reservation-drawer.js`):** evitado el falso etiquetado de citas de Spa sin `servicio` como `RESTAURANTE`, y corregido `URIError` en `openReservationDrawer` cuando el nombre incluye `%` (ej. `(-20%)`).
 
 ### [v2.3.66] - 18/11/2026
 - **Tipo:** PATCH

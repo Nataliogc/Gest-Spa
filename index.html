@@ -608,17 +608,44 @@
                     </div>
                 </div>
                 <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
-                    <div style="display: flex; gap: 6px; background: #f1f5f9; padding: 4px; border-radius: 10px; border: 1px solid #e2e8f0;">
-                        <button type="button" id="tab-report-ranking" onclick="generarRankingBonos()" style="background: #0f172a; color: #ffffff; border: none; padding: 7px 14px; border-radius: 7px; font-size: 0.78rem; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;">
-                            <i class="fas fa-trophy" style="color: #fbbf24;"></i> Ranking Top 10 Bonos
+                    <div style="display: flex; gap: 6px; background: #f1f5f9; padding: 4px; border-radius: 10px; border: 1px solid #e2e8f0; flex-wrap: wrap;">
+                        <button type="button" id="tab-report-ranking" onclick="generarRankingBonos('all')" style="background: #0f172a; color: #ffffff; border: none; padding: 7px 12px; border-radius: 7px; font-size: 0.78rem; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;">
+                            <i class="fas fa-trophy" style="color: #fbbf24;"></i> Ranking Completo
                         </button>
-                        <button type="button" id="tab-report-servicios" onclick="generarInformeServicios()" style="background: transparent; color: #475569; border: none; padding: 7px 14px; border-radius: 7px; font-size: 0.78rem; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;">
+                        <button type="button" id="tab-report-online" onclick="generarRankingBonos('online')" style="background: transparent; color: #475569; border: none; padding: 7px 12px; border-radius: 7px; font-size: 0.78rem; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;">
+                            <i class="fas fa-globe" style="color: #0284c7;"></i> Tienda Virtual
+                        </button>
+                        <button type="button" id="tab-report-local" onclick="generarRankingBonos('local')" style="background: transparent; color: #475569; border: none; padding: 7px 12px; border-radius: 7px; font-size: 0.78rem; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;">
+                            <i class="fas fa-store" style="color: #16a34a;"></i> Venta Directa
+                        </button>
+                        <button type="button" id="tab-report-servicios" onclick="generarInformeServicios()" style="background: transparent; color: #475569; border: none; padding: 7px 12px; border-radius: 7px; font-size: 0.78rem; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;">
                             <i class="fas fa-layer-group"></i> Ventas por Servicio
                         </button>
                     </div>
                     <button type="button" onclick="closeReportsModal()" title="Cerrar" style="width: 34px; height: 34px; border-radius: 8px; border: 1px solid #e2e8f0; background: #f8fafc; color: #475569; font-size: 1.1rem; cursor: pointer; display: flex; align-items: center; justify-content: center;">
                         &times;
                     </button>
+                </div>
+            </div>
+
+            <!-- Filtro Desde / Hasta -->
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px 14px; margin-bottom: 14px;">
+                <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                    <span style="font-size: 0.75rem; font-weight: 700; color: #475569; text-transform: uppercase;"><i class="fas fa-calendar-alt" style="color: #d97706; margin-right: 4px;"></i> Periodo:</span>
+                    <label style="font-size: 0.78rem; color: #64748b; font-weight: 600; display: inline-flex; align-items: center; gap: 6px;">
+                        Desde
+                        <input type="date" id="report-date-from" onchange="refreshActiveReport()" style="padding: 5px 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.8rem; color: #0f172a; background: #fff;">
+                    </label>
+                    <label style="font-size: 0.78rem; color: #64748b; font-weight: 600; display: inline-flex; align-items: center; gap: 6px;">
+                        Hasta
+                        <input type="date" id="report-date-to" onchange="refreshActiveReport()" style="padding: 5px 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.8rem; color: #0f172a; background: #fff;">
+                    </label>
+                    <button type="button" onclick="clearReportDates()" style="padding: 5px 10px; border: 1px solid #cbd5e1; background: #fff; color: #334155; border-radius: 6px; font-size: 0.75rem; font-weight: 600; cursor: pointer;">
+                        Todo el histórico
+                    </button>
+                </div>
+                <div id="report-period-badge" style="font-size: 0.75rem; font-weight: 700; color: #0369a1; background: #e0f2fe; border: 1px solid #bae6fd; padding: 4px 10px; border-radius: 999px;">
+                    Histórico completo
                 </div>
             </div>
 
@@ -659,7 +686,7 @@
     <script src="js/app-core.js?v=2.3.48"></script>
     <script src="js/services/paygoldService.js?v=2.3.21"></script>
     <script src="js/spa-paygold.js?v=2.3.21"></script>
-    <script src="js/dashboard.js?v=2.3.48"></script>
+    <script src="js/dashboard.js?v=2.3.67"></script>
 
 </body>
 
