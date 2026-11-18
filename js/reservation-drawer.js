@@ -180,6 +180,9 @@
             }
         } else if (event.data.type === 'GEST_SPA_CLOSE_DRAWER') {
             window.closeReservationDrawer();
+            if (event.data.refresh && typeof renderGrid === 'function') {
+                setTimeout(() => renderGrid(), 350);
+            }
         }
     });
 

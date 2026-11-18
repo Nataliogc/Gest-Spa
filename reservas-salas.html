@@ -6034,6 +6034,11 @@
                         const targetColl = res.collection || res._collection || (res._moduleCode ? MODULES[res._moduleCode].collection : currentModule.collection);
                         await db.collection(targetColl).doc(id).delete();
                         showToast("Bloqueo eliminado y sala reabierta", "success");
+                        if (window.parent && window.parent !== window) {
+                            try {
+                                window.parent.postMessage({ type: 'GEST_SPA_CLOSE_DRAWER', refresh: true }, '*');
+                            } catch (eMsg) {}
+                        }
                         loadReservas(res.fecha);
                     } catch (err) {
                         console.error("Error al eliminar bloqueo:", err);
@@ -6493,7 +6498,7 @@
                                 await window.cancelPackReservation(resData.parent_id, id);
                             }
                             showToast("Pack completo anulado", "success");
-                            closeModal();
+                            closeModal(false, true);
                             await loadReservas(date);
                         } catch (e) {
                             console.error("Error cancelling pack:", e);
@@ -6510,7 +6515,7 @@
                             });
 
                             showToast("Servicio anulado correctamente", "success");
-                            closeModal();
+                            closeModal(false, true);
                             await loadReservas(date);
                         } catch (e) {
                             console.error("Error cancelling single service:", e);
@@ -6562,7 +6567,7 @@
                     }
 
                     showToast("Pack anulado correctamente", "success");
-                    closeModal();
+                    closeModal(false, true);
                     loadReservas(document.getElementById("main-date-picker").value);
                     return;
                 } catch (err) {
@@ -6639,7 +6644,7 @@
                     }
                 }
 
-                closeModal();
+                closeModal(false, true);
                 loadReservas(document.getElementById("main-date-picker").value);
             } catch (err) {
                 Swal.fire('Error', "Error al anular: " + err.message, 'error');
@@ -6688,7 +6693,7 @@
                 }
 
                 showToast("Reserva reactivada correctamente", "success");
-                closeModal();
+                closeModal(false, true);
                 loadReservas(document.getElementById("main-date-picker").value);
             } catch (err) {
                 alert("Error al reactivar: " + err.message);
@@ -6716,8 +6721,10 @@
             } catch (err) { alert(err.message); }
         }
 
-        function closeModal(fromUserCancel = false) {
+        function closeModal(fromUserCancel = false, refreshParent = false) {
             document.getElementById("booking-modal").style.display = "none";
+            const formIdEl = document.getElementById("form-id");
+            if (formIdEl) formIdEl.value = "";
             window.currentEditingId = null; // Clear global ID
             window._autoOpenedEditId = null;
             window._isNewReservationOpening = false;
@@ -6745,9 +6752,9 @@
             // Si el usuario canceló manualmente y estamos dentro del Drawer, cerrar Drawer.
             // En modo solo formulario (modal=1) cerrar SIEMPRE la capa padre al cerrar la reserva.
             const isModalOnly = document.body.classList.contains('is-modal-only') || window.location.search.includes('modal=1');
-            if ((fromUserCancel || isModalOnly) && window.parent && window.parent !== window) {
+            if ((fromUserCancel || isModalOnly || refreshParent) && window.parent && window.parent !== window) {
                 try {
-                    window.parent.postMessage({ type: 'GEST_SPA_CLOSE_DRAWER' }, '*');
+                    window.parent.postMessage({ type: 'GEST_SPA_CLOSE_DRAWER', refresh: !!refreshParent }, '*');
                 } catch (eMsg) {}
             }
 
