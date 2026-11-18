@@ -8,7 +8,7 @@ Este documento mantiene el **control de versión única y global** para todo el 
 
 | Parámetro | Valor Actual |
 | :--- | :--- |
-| **Versión Global del Sistema** | **`v2.3.87`** |
+| **Versión Global del Sistema** | **`v2.3.89`** |
 | **Fecha de Última Actualización** | **18/11/2026** |
 | **Estado General** | Operativo en Producción |
 
@@ -47,6 +47,16 @@ Cualquier cambio en los siguientes módulos impacta en la versión global:
 ---
 
 ## 📝 Historial Unificado de Versiones
+
+### [v2.3.89] - 18/11/2026
+- **Tipo:** PATCH
+- **Archivos:** `agenda-salas.html`, `agenda-spa.html`, `agenda-terapeutas.html`, `bonos.html`, `catalogo.html`, `configuracion.html`, `disponibilidad-terapeutas.html`, `firebase-config.js`, `index.html`, `js/bonos.js`, `manual-usuario.html`, `package.json`, `pedidos-wc.html`, `personal.html`, `reservas-salas.html`, `reservas-spa.html`, `reservas.html`, `styles.css`, `version.json`, `vision-general.html`
+- **Descripción:** Personalización (mensaje regalo PDF) y nota interna en formularios de Bonos Regalo y Monedero
+
+### [v2.3.88] - 18/11/2026
+- **Tipo:** PATCH
+- **Archivos:** `bonos.html`, `styles.css`
+- **Descripción:** Ancho completo (3 columnas) para modal Emitir Bono Monedero
 
 ### [v2.3.87] - 18/11/2026
 - **Tipo:** PATCH

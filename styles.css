@@ -1251,7 +1251,7 @@ body.is-modal-only .modal-content {
 /* =========================================================
    MODAL NUEVA VENTA LOCAL (#local-voucher-modal)
    ========================================================= */
-#local-voucher-modal .lv-modal-content {
+.lv-modal .lv-modal-content {
     max-width: 1360px;
     width: 95vw;
     max-height: 92vh;
@@ -1261,7 +1261,7 @@ body.is-modal-only .modal-content {
     background: #ffffff;
 }
 
-#local-voucher-modal .lv-modal-header {
+.lv-modal .lv-modal-header {
     padding: 18px 26px;
     background: linear-gradient(135deg, #ffffff 0%, #fefce8 100%);
     border-bottom: 1px solid #f1f5f9;
@@ -1270,13 +1270,13 @@ body.is-modal-only .modal-content {
     justify-content: space-between;
 }
 
-#local-voucher-modal .lv-header-brand {
+.lv-modal .lv-header-brand {
     display: flex;
     align-items: center;
     gap: 14px;
 }
 
-#local-voucher-modal .lv-header-icon {
+.lv-modal .lv-header-icon {
     width: 42px;
     height: 42px;
     border-radius: 12px;
@@ -1289,7 +1289,7 @@ body.is-modal-only .modal-content {
     box-shadow: 0 2px 6px rgba(212, 175, 55, 0.25);
 }
 
-#local-voucher-modal .lv-header-title {
+.lv-modal .lv-header-title {
     margin: 0;
     font-size: 1.2rem;
     font-weight: 700;
@@ -1297,14 +1297,14 @@ body.is-modal-only .modal-content {
     letter-spacing: -0.01em;
 }
 
-#local-voucher-modal .lv-header-subtitle {
+.lv-modal .lv-header-subtitle {
     margin: 2px 0 0 0;
     font-size: 0.78rem;
     color: #64748b;
     font-weight: 500;
 }
 
-#local-voucher-modal .lv-close-btn {
+.lv-modal .lv-close-btn {
     width: 34px;
     height: 34px;
     border-radius: 50%;
@@ -1319,25 +1319,25 @@ body.is-modal-only .modal-content {
     transition: all 0.18s ease;
 }
 
-#local-voucher-modal .lv-close-btn:hover {
+.lv-modal .lv-close-btn:hover {
     background: #f1f5f9;
     color: #0f172a;
     border-color: #cbd5e1;
 }
 
-#local-voucher-modal .lv-modal-body {
+.lv-modal .lv-modal-body {
     padding: 22px 26px;
     background: #f8fafc;
 }
 
-#local-voucher-modal .lv-layout-grid {
+.lv-modal .lv-layout-grid {
     display: grid;
     grid-template-columns: 0.9fr 1.18fr 1.05fr;
     gap: 18px;
     align-items: stretch;
 }
 
-#local-voucher-modal .lv-card {
+.lv-modal .lv-card {
     background: #ffffff;
     border: 1px solid #e2e8f0;
     border-radius: 14px;
@@ -1345,11 +1345,11 @@ body.is-modal-only .modal-content {
     box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
 }
 
-#local-voucher-modal .lv-card-client {
+.lv-modal .lv-card-client {
     background: #ffffff;
 }
 
-#local-voucher-modal .lv-section-header {
+.lv-modal .lv-section-header {
     display: flex;
     align-items: center;
     gap: 10px;
@@ -1358,7 +1358,7 @@ body.is-modal-only .modal-content {
     border-bottom: 1px solid #f1f5f9;
 }
 
-#local-voucher-modal .lv-section-header h3 {
+.lv-modal .lv-section-header h3 {
     margin: 0;
     padding: 0;
     border: none;
@@ -1369,7 +1369,7 @@ body.is-modal-only .modal-content {
     color: #334155;
 }
 
-#local-voucher-modal .lv-section-badge {
+.lv-modal .lv-section-badge {
     width: 28px;
     height: 28px;
     border-radius: 8px;
@@ -1381,20 +1381,20 @@ body.is-modal-only .modal-content {
     font-size: 0.8rem;
 }
 
-#local-voucher-modal .lv-section-badge-gold {
+.lv-modal .lv-section-badge-gold {
     background: #fef3c7;
     color: #b45309;
 }
 
-#local-voucher-modal .lv-field {
+.lv-modal .lv-field {
     margin-bottom: 14px;
 }
 
-#local-voucher-modal .lv-field:last-child {
+.lv-modal .lv-field:last-child {
     margin-bottom: 0;
 }
 
-#local-voucher-modal .lv-field label {
+.lv-modal .lv-field label {
     display: block;
     font-size: 0.76rem;
     font-weight: 600;
@@ -1404,12 +1404,12 @@ body.is-modal-only .modal-content {
     letter-spacing: 0.03em;
 }
 
-#local-voucher-modal .lv-req {
+.lv-modal .lv-req {
     color: #e11d48;
     font-weight: 700;
 }
 
-#local-voucher-modal .lv-opt-tag {
+.lv-modal .lv-opt-tag {
     font-size: 0.68rem;
     font-weight: 600;
     color: #64748b;
@@ -1421,13 +1421,13 @@ body.is-modal-only .modal-content {
     margin-left: 4px;
 }
 
-#local-voucher-modal .lv-input-wrap {
+.lv-modal .lv-input-wrap {
     position: relative;
     display: flex;
     align-items: center;
 }
 
-#local-voucher-modal .lv-input-icon {
+.lv-modal .lv-input-icon {
     position: absolute;
     left: 12px;
     color: #94a3b8;
@@ -1435,7 +1435,7 @@ body.is-modal-only .modal-content {
     pointer-events: none;
 }
 
-#local-voucher-modal .param-input {
+.lv-modal .param-input {
     padding: 10px 12px;
     background: #f8fafc;
     border: 1.5px solid #e2e8f0;
@@ -1445,22 +1445,22 @@ body.is-modal-only .modal-content {
     transition: border-color 0.2s, box-shadow 0.2s, background-color 0.2s;
 }
 
-#local-voucher-modal .param-input:focus {
+.lv-modal .param-input:focus {
     background: #ffffff;
     border-color: var(--accent);
     box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.14);
 }
 
-#local-voucher-modal .lv-input-has-icon {
+.lv-modal .lv-input-has-icon {
     padding-left: 36px;
 }
 
-#local-voucher-modal .lv-mono {
+.lv-modal .lv-mono {
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
     letter-spacing: 0.03em;
 }
 
-#local-voucher-modal .lv-field-hint {
+.lv-modal .lv-field-hint {
     display: block;
     margin-top: 5px;
     font-size: 0.72rem;
@@ -1469,11 +1469,11 @@ body.is-modal-only .modal-content {
 }
 
 /* Buscador de catálogo */
-#local-voucher-modal .lv-search-wrap {
+.lv-modal .lv-search-wrap {
     position: relative;
 }
 
-#local-voucher-modal .lv-search-icon {
+.lv-modal .lv-search-icon {
     position: absolute;
     left: 13px;
     top: 50%;
@@ -1483,7 +1483,7 @@ body.is-modal-only .modal-content {
     pointer-events: none;
 }
 
-#local-voucher-modal .lv-search-input {
+.lv-modal .lv-search-input {
     padding-left: 38px;
     height: 42px;
     background: #ffffff;
@@ -1491,7 +1491,7 @@ body.is-modal-only .modal-content {
     font-weight: 500;
 }
 
-#local-voucher-modal .lv-search-results {
+.lv-modal .lv-search-results {
     position: absolute;
     top: calc(100% + 4px);
     left: 0;
@@ -1505,13 +1505,13 @@ body.is-modal-only .modal-content {
     overflow-y: auto;
 }
 
-#local-voucher-modal .lv-custom-input {
+.lv-modal .lv-custom-input {
     margin-top: 8px;
     border-color: #f59e0b;
     background: #fffbeb;
 }
 
-#local-voucher-modal .lv-product-preview {
+.lv-modal .lv-product-preview {
     margin-top: 10px;
     padding: 12px;
     border-radius: 10px;
@@ -1519,13 +1519,13 @@ body.is-modal-only .modal-content {
     border: 1px solid #bae6fd;
 }
 
-#local-voucher-modal .lv-preview-row {
+.lv-modal .lv-preview-row {
     display: flex;
     gap: 12px;
     align-items: flex-start;
 }
 
-#local-voucher-modal .lv-preview-img {
+.lv-modal .lv-preview-img {
     width: 56px;
     height: 56px;
     object-fit: cover;
@@ -1534,12 +1534,12 @@ body.is-modal-only .modal-content {
     flex-shrink: 0;
 }
 
-#local-voucher-modal .lv-preview-info {
+.lv-modal .lv-preview-info {
     flex: 1;
     min-width: 0;
 }
 
-#local-voucher-modal .lv-preview-top {
+.lv-modal .lv-preview-top {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -1547,13 +1547,13 @@ body.is-modal-only .modal-content {
     margin-bottom: 3px;
 }
 
-#local-voucher-modal .lv-preview-name {
+.lv-modal .lv-preview-name {
     font-weight: 700;
     font-size: 0.85rem;
     color: #0f172a;
 }
 
-#local-voucher-modal .lv-preview-price {
+.lv-modal .lv-preview-price {
     font-weight: 800;
     font-size: 0.92rem;
     color: #059669;
@@ -1565,37 +1565,37 @@ body.is-modal-only .modal-content {
     font-variant-numeric: tabular-nums;
 }
 
-#local-voucher-modal .param-input[readonly] {
+.lv-modal .param-input[readonly] {
     background: #f1f5f9;
     color: #0f172a;
     cursor: default;
 }
 
-#local-voucher-modal .lv-preview-desc {
+.lv-modal .lv-preview-desc {
     font-size: 0.75rem;
     color: #475569;
     line-height: 1.35;
 }
 
 /* Grid de Importe / Dto / Sesiones / Personas */
-#local-voucher-modal .lv-params-grid {
+.lv-modal .lv-params-grid {
     display: flex;
     flex-wrap: wrap;
     gap: 10px;
     margin-top: 12px;
 }
 
-#local-voucher-modal .lv-params-grid .lv-field {
+.lv-modal .lv-params-grid .lv-field {
     flex: 1 1 85px;
     min-width: 0;
     margin-bottom: 0;
 }
 
-#local-voucher-modal .lv-params-grid .lv-field-pax {
+.lv-modal .lv-params-grid .lv-field-pax {
     flex: 1.45 1 135px;
 }
 
-#local-voucher-modal .lv-select-pax:disabled {
+.lv-modal .lv-select-pax:disabled {
     background: #f1f5f9;
     color: #475569;
     cursor: not-allowed;
@@ -1603,24 +1603,24 @@ body.is-modal-only .modal-content {
     opacity: 0.9;
 }
 
-#local-voucher-modal .lv-affix-wrap {
+.lv-modal .lv-affix-wrap {
     position: relative;
     display: flex;
     align-items: center;
 }
 
-#local-voucher-modal .lv-num-input {
+.lv-modal .lv-num-input {
     font-weight: 700;
     text-align: center;
     padding: 9px 10px;
     height: 40px;
 }
 
-#local-voucher-modal .lv-has-suffix {
+.lv-modal .lv-has-suffix {
     padding-right: 26px;
 }
 
-#local-voucher-modal .lv-affix-suffix {
+.lv-modal .lv-affix-suffix {
     position: absolute;
     right: 10px;
     font-size: 0.82rem;
@@ -1629,22 +1629,22 @@ body.is-modal-only .modal-content {
     pointer-events: none;
 }
 
-#local-voucher-modal .lv-discount-input {
+.lv-modal .lv-discount-input {
     color: #e11d48;
 }
 
-#local-voucher-modal .lv-affix-rose {
+.lv-modal .lv-affix-rose {
     color: #e11d48;
 }
 
-#local-voucher-modal .lv-select-pax {
+.lv-modal .lv-select-pax {
     height: 40px;
     padding: 8px 10px;
     font-weight: 600;
     font-size: 0.84rem;
 }
 
-#local-voucher-modal .lv-discount-reason-box {
+.lv-modal .lv-discount-reason-box {
     margin-top: 12px;
     padding: 10px 12px;
     border-radius: 10px;
@@ -1652,17 +1652,17 @@ body.is-modal-only .modal-content {
     border: 1px solid #fecdd3;
 }
 
-#local-voucher-modal .lv-discount-reason-box label {
+.lv-modal .lv-discount-reason-box label {
     color: #be123c;
 }
 
-#local-voucher-modal .lv-discount-reason-box input {
+.lv-modal .lv-discount-reason-box input {
     background: #ffffff;
     border-color: #fda4af;
 }
 
 /* Botón Añadir al Carrito */
-#local-voucher-modal .lv-add-cart-btn {
+.lv-modal .lv-add-cart-btn {
     width: 100%;
     margin-top: 14px;
     height: 42px;
@@ -1675,20 +1675,20 @@ body.is-modal-only .modal-content {
     box-shadow: 0 4px 10px rgba(15, 23, 42, 0.14);
 }
 
-#local-voucher-modal .lv-add-cart-btn:hover {
+.lv-modal .lv-add-cart-btn:hover {
     background: #0f172a;
     transform: translateY(-1px);
     box-shadow: 0 6px 14px rgba(15, 23, 42, 0.2);
 }
 
 /* Extras */
-#local-voucher-modal .lv-extras-section {
+.lv-modal .lv-extras-section {
     margin-top: 16px;
     padding-top: 14px;
     border-top: 1px dashed #e2e8f0;
 }
 
-#local-voucher-modal .lv-subsection-label {
+.lv-modal .lv-subsection-label {
     font-size: 0.75rem;
     font-weight: 700;
     text-transform: uppercase;
@@ -1700,24 +1700,24 @@ body.is-modal-only .modal-content {
     gap: 6px;
 }
 
-#local-voucher-modal .lv-subsection-label i {
+.lv-modal .lv-subsection-label i {
     color: #d97706;
 }
 
-#local-voucher-modal .lv-extras-row {
+.lv-modal .lv-extras-row {
     display: flex;
     gap: 8px;
     align-items: center;
 }
 
-#local-voucher-modal .lv-extras-select {
+.lv-modal .lv-extras-select {
     flex: 1;
     height: 38px;
     padding: 7px 10px;
     font-size: 0.84rem;
 }
 
-#local-voucher-modal .lv-extras-qty {
+.lv-modal .lv-extras-qty {
     width: 62px;
     height: 38px;
     padding: 7px 8px;
@@ -1725,7 +1725,7 @@ body.is-modal-only .modal-content {
     font-weight: 700;
 }
 
-#local-voucher-modal .lv-extras-add-btn {
+.lv-modal .lv-extras-add-btn {
     height: 38px;
     width: 40px;
     padding: 0;
@@ -1736,18 +1736,18 @@ body.is-modal-only .modal-content {
     color: #d97706;
 }
 
-#local-voucher-modal .lv-extras-add-btn:hover {
+.lv-modal .lv-extras-add-btn:hover {
     background: #f59e0b;
     color: #ffffff;
 }
 
 /* Contenido del Bono (Carrito - Columna 3) */
-#local-voucher-modal .lv-card-cart {
+.lv-modal .lv-card-cart {
     display: flex;
     flex-direction: column;
 }
 
-#local-voucher-modal .lv-cart-list {
+.lv-modal .lv-cart-list {
     flex: 1;
     background: #f8fafc;
     border: 1px solid #e2e8f0;
@@ -1758,21 +1758,21 @@ body.is-modal-only .modal-content {
     overflow-y: auto;
 }
 
-#local-voucher-modal .lv-cart-empty {
+.lv-modal .lv-cart-empty {
     text-align: center;
     color: #94a3b8;
     font-size: 0.78rem;
     padding: 12px 8px;
 }
 
-#local-voucher-modal .lv-cart-empty i {
+.lv-modal .lv-cart-empty i {
     display: block;
     font-size: 1.3rem;
     opacity: 0.35;
     margin-bottom: 6px;
 }
 
-#local-voucher-modal .lv-total-bar {
+.lv-modal .lv-total-bar {
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -1783,33 +1783,33 @@ body.is-modal-only .modal-content {
     border: 1px solid #fde68a;
 }
 
-#local-voucher-modal .lv-total-label {
+.lv-modal .lv-total-label {
     font-size: 0.76rem;
     font-weight: 700;
     letter-spacing: 0.05em;
     color: #92400e;
 }
 
-#local-voucher-modal .lv-total-value {
+.lv-modal .lv-total-value {
     display: flex;
     align-items: baseline;
     gap: 6px;
 }
 
-#local-voucher-modal .lv-total-amount {
+.lv-modal .lv-total-amount {
     font-size: 1.15rem;
     font-weight: 800;
     color: #0f172a;
 }
 
-#local-voucher-modal .lv-total-sessions {
+.lv-modal .lv-total-sessions {
     font-size: 0.76rem;
     font-weight: 600;
     color: #78350f;
 }
 
 /* Footer del Modal */
-#local-voucher-modal .lv-modal-footer {
+.lv-modal .lv-modal-footer {
     padding: 16px 26px;
     background: #ffffff;
     border-top: 1px solid #e2e8f0;
@@ -1818,7 +1818,7 @@ body.is-modal-only .modal-content {
     gap: 12px;
 }
 
-#local-voucher-modal .lv-btn-cancel {
+.lv-modal .lv-btn-cancel {
     flex: 0 0 140px;
     justify-content: center;
     height: 42px;
@@ -1829,13 +1829,13 @@ body.is-modal-only .modal-content {
     font-weight: 600;
 }
 
-#local-voucher-modal .lv-btn-cancel:hover {
+.lv-modal .lv-btn-cancel:hover {
     background: #f8fafc;
     border-color: #94a3b8;
     color: #0f172a;
 }
 
-#local-voucher-modal .lv-btn-save {
+.lv-modal .lv-btn-save {
     flex: 1;
     max-width: 280px;
     justify-content: center;
@@ -1847,30 +1847,30 @@ body.is-modal-only .modal-content {
 }
 
 @media (max-width: 1120px) {
-    #local-voucher-modal .lv-layout-grid {
+    .lv-modal .lv-layout-grid {
         grid-template-columns: 1fr 1fr;
     }
 
-    #local-voucher-modal .lv-card-cart {
+    .lv-modal .lv-card-cart {
         grid-column: span 2;
     }
 }
 
 @media (max-width: 820px) {
-    #local-voucher-modal .lv-layout-grid {
+    .lv-modal .lv-layout-grid {
         grid-template-columns: 1fr;
     }
 
-    #local-voucher-modal .lv-card-cart {
+    .lv-modal .lv-card-cart {
         grid-column: span 1;
     }
 
-    #local-voucher-modal .lv-modal-footer {
+    .lv-modal .lv-modal-footer {
         flex-direction: column-reverse;
     }
 
-    #local-voucher-modal .lv-btn-cancel,
-    #local-voucher-modal .lv-btn-save {
+    .lv-modal .lv-btn-cancel,
+    .lv-modal .lv-btn-save {
         flex: none;
         width: 100%;
         max-width: none;

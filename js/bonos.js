@@ -4515,6 +4515,8 @@ async function openVoucherManagement(code) {
     document.getElementById("vm-pax-sesion").value = paxPorSesion || suggestedPax || 1;
     document.getElementById("vm-notas").value = v.notas_internas || '';
     document.getElementById("vm-notas").placeholder = "Notas internas visible solo para staff...";
+    const vmMsg = document.getElementById("vm-mensaje");
+    if (vmMsg) vmMsg.value = v.mensaje_regalo || '';
 
     setupVoucherMonederoUI(v);
 
@@ -4745,6 +4747,7 @@ async function saveVoucherChanges() {
             sesiones_usadas: parseInt(getInputValue("vm-sesiones-usadas", '0')) || 0,
             pax_por_sesion: parseInt(getInputValue("vm-pax-sesion", '1')) || 1,
             notas_internas: getInputValue("vm-notas"),
+            mensaje_regalo: getInputValue("vm-mensaje"),
             producto: getInputValue("vm-producto"),
             notes: getInputValue("vm-notas"), // Alias
             items_desglosados: cleanUndefined(state.editingVoucherItems || []),
@@ -5451,6 +5454,8 @@ function setBonosTypeView(viewMode) {
 function openLocalVoucherModal() {
     state.lvCart = [];
     state.lvSelectedProduct = null;
+    if (document.getElementById('lv-gift-message')) document.getElementById('lv-gift-message').value = '';
+    if (document.getElementById('lv-internal-notes')) document.getElementById('lv-internal-notes').value = '';
     if (typeof selectLocalPayMethod === 'function') selectLocalPayMethod('');
     renderLVCart();
     loadActiveComplementos();
@@ -6262,6 +6267,9 @@ async function createLocalVoucher() {
         .map(i => i.discount_reason.trim());
     const discountReason = [...new Set(discountReasons)].join(' | ');
 
+    const giftMsg = document.getElementById("lv-gift-message")?.value.trim() || '';
+    const internalNotes = document.getElementById("lv-internal-notes")?.value.trim() || '';
+
     const newVoucher = {
         bono: code,
         codigo: code,
@@ -6274,6 +6282,9 @@ async function createLocalVoucher() {
         fecha: getLocalDateYMD(now),
         estado: 'pending',
         origen: 'local',
+        mensaje_regalo: giftMsg,
+        notas_internas: internalNotes,
+        notes: internalNotes,
         sesiones_totales: totalSessions,
         sesiones_usadas: 0,
         pax_por_sesion: state.lvCart.length > 0 ? Math.max(...state.lvCart.map(i => i.pax || 1)) : 1,
@@ -8785,7 +8796,7 @@ async function syncSingleVoucher(code) {
 // ============================================================================
 
 function openMonederoCreateModal() {
-    ['mn-client', 'mn-email', 'mn-phone', 'mn-code', 'mn-concept', 'mn-amount', 'mn-message'].forEach(id => {
+    ['mn-client', 'mn-email', 'mn-phone', 'mn-code', 'mn-concept', 'mn-amount', 'mn-message', 'mn-internal-notes'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.value = '';
     });
@@ -9055,6 +9066,7 @@ async function createMonederoVoucher() {
     const now = new Date();
     const payUser = window.currentUser?.name || 'Recepción';
     const giftMsg = document.getElementById('mn-message')?.value.trim() || '';
+    const internalNotes = document.getElementById('mn-internal-notes')?.value.trim() || '';
 
     const newVoucher = {
         bono: code,
@@ -9075,6 +9087,8 @@ async function createMonederoVoucher() {
         saldo_consumido: 0,
         saldo_disponible: amount,
         mensaje_regalo: giftMsg,
+        notas_internas: internalNotes,
+        notes: internalNotes,
         sesiones_totales: 1,
         sesiones_usadas: 0,
         pax_por_sesion: 1,
