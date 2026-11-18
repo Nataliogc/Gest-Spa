@@ -5294,7 +5294,11 @@ function openLocalVoucherModal() {
 
     // Reset inputs
     document.getElementById("lv-product-details").style.display = 'none';
-    document.getElementById("lv-price").value = '';
+    const priceReset = document.getElementById("lv-price");
+    if (priceReset) {
+        priceReset.value = '';
+        priceReset.readOnly = false;
+    }
     document.getElementById("lv-discount").value = '0';
     const discountReasonInput = document.getElementById("lv-discount-reason");
     if (discountReasonInput) discountReasonInput.value = '';
@@ -5508,6 +5512,7 @@ window.selectProductForLocalVoucher = (productData) => {
 
         const priceContainer = document.getElementById("lv-price-container");
         if (priceContainer) priceContainer.style.display = 'block';
+        if (priceInput) priceInput.readOnly = false;
         const paxCustom = document.getElementById("lv-pax");
         if (paxCustom) {
             paxCustom.disabled = false;
@@ -5568,11 +5573,13 @@ window.selectProductForLocalVoucher = (productData) => {
         if (detailsDiv) detailsDiv.style.display = 'block';
 
         const priceContainer = document.getElementById("lv-price-container");
-        if (priceContainer) priceContainer.style.display = 'none';
+        if (priceContainer) priceContainer.style.display = 'block';
+        if (priceInput) priceInput.readOnly = true;
 
         // Defensive calculation inputs
         state.lvSelectedProductBasePrice = parseFloat(prod.precio) || 0;
-        state.lvSelectedProductBasePax = parseInt(prod.personas || prod.pax || 1);
+        const explicitBasePax = parseInt(prod.personas || prod.pax || 0);
+        state.lvSelectedProductBasePax = explicitBasePax > 0 ? explicitBasePax : 1;
         if (priceInput) priceInput.value = state.lvSelectedProductBasePrice;
 
         let totalSessions = 1;
@@ -5588,14 +5595,13 @@ window.selectProductForLocalVoucher = (productData) => {
 
         const paxInput = document.getElementById("lv-pax");
         if (paxInput) {
-            let parsedPax = 1;
-            if (typeof detectSessions === 'function') {
+            const explicitPax = parseInt(prod.personas || prod.pax || 0);
+            let parsedPax = explicitPax > 0 ? explicitPax : 1;
+            if (!explicitPax && typeof detectSessions === 'function') {
                 const det = detectSessions(prod);
                 parsedPax = det.paxPerSession || 1;
-            } else {
-                parsedPax = parseInt(prod.personas || prod.pax || 1);
             }
-            const isCoupleProduct = parsedPax === 2 || /pareja|para\s*dos|2\s*pers/i.test(prod.nombre || '');
+            const isCoupleProduct = parsedPax === 2 || (explicitPax === 0 && /pareja|para\s*dos|2\s*pers/i.test(prod.nombre || ''));
             if (isCoupleProduct) {
                 paxInput.value = "2";
                 paxInput.disabled = true;
@@ -5605,6 +5611,9 @@ window.selectProductForLocalVoucher = (productData) => {
                 paxInput.disabled = false;
                 paxInput.title = "";
             }
+        }
+        if (typeof updateLocalPriceWithDiscount === 'function') {
+            updateLocalPriceWithDiscount();
         }
     }
 };
@@ -5711,17 +5720,16 @@ window.updateLocalPriceWithDiscount = () => {
 
     if (state.lvSelectedProduct) {
         if (state.lvSelectedProduct.custom) {
-            // Para custom, difícil saber el "base" original si ya editó el input.
-            // Asumimos que el input tiene el precio.
-            // Para simplificar: En custom NO aplicamos recálculo automático si no hay base conocida.
             return;
         } else {
-            // Producto de catálogo: Recalcular desde base
+            // Producto de catálogo: Recalcular desde base según personas y sesiones
             const pBase = state.lvSelectedProductBasePrice || 0;
             const pPaxBase = state.lvSelectedProductBasePax || 1;
             const currentPax = parseInt(document.getElementById("lv-pax").value) || 1;
+            const currentSessions = parseInt(document.getElementById("lv-sessions")?.value) || 1;
+            const isPack = (state.lvSelectedProduct.items_incluidos || []).length > 1;
             const ratio = currentPax / pPaxBase;
-            basePrice = pBase * ratio;
+            basePrice = isPack ? (pBase * ratio) : (pBase * ratio * currentSessions);
         }
     } else {
         return;
@@ -5729,7 +5737,10 @@ window.updateLocalPriceWithDiscount = () => {
 
     const finalPrice = basePrice * (1 - (discount / 100));
 
-    document.getElementById("lv-price").value = finalPrice.toFixed(2);
+    const priceEl = document.getElementById("lv-price");
+    if (priceEl) priceEl.value = finalPrice.toFixed(2);
+    const previewPriceEl = document.getElementById("lv-preview-price");
+    if (previewPriceEl) previewPriceEl.textContent = `${finalPrice.toFixed(2)}€`;
 };
 
 // Hookear cambio de pax para que también recalcule con descuento
@@ -5843,7 +5854,10 @@ function addToCartLocal() {
     if (customInput) customInput.style.display = 'none';
 
     const priceInput = document.getElementById("lv-price");
-    if (priceInput) priceInput.value = "";
+    if (priceInput) {
+        priceInput.value = "";
+        priceInput.readOnly = false;
+    }
 
     const discountInput = document.getElementById("lv-discount");
     if (discountInput) discountInput.value = "0";
@@ -5897,12 +5911,21 @@ function renderLVCart() {
                     <div style="font-size: 0.75rem; color: #64748b;">
                         ${(() => {
                 const isRestaurant = item.isExtra || (item.name || '').toLowerCase().includes('menú') || (item.name || '').toLowerCase().includes('restaurante');
+                const paxCount = parseInt(item.pax) || 1;
+                const sesCount = parseInt(item.sessions) || 1;
+                const sesLabel = sesCount === 1 ? '1 ses.' : `${sesCount} ses.`;
+                const paxText = paxCount === 1 ? '1 pers.' : `${paxCount} pers.`;
+
                 if (isRestaurant) {
-                    // Restaurante: 1 sesión × N personas × precio
-                    return `1 ses. × ${item.pax || item.sessions} pers. × ${itemPrice.toFixed(2)}€ = <strong style=\"color: var(--accent);\">${subtotal.toFixed(2)}€</strong>`;
+                    // Restaurante / Extra: 1 sesión × precio × N personas
+                    return `1 ses. × ${itemPrice.toFixed(2)}€ × ${item.pax || item.sessions} pers. = <strong style="color: var(--accent);">${subtotal.toFixed(2)}€</strong>`;
                 } else {
-                    // Servicios normales: N sesiones × precio
-                    return `${item.sessions} ses. × ${itemPrice.toFixed(2)}€ = <strong style=\"color: var(--accent);\">${subtotal.toFixed(2)}€</strong>`;
+                    const basePax = item.originalProduct ? (parseInt(item.originalProduct.personas || item.originalProduct.pax || 1) || 1) : 1;
+                    if (!isPack && paxCount > basePax) {
+                        const unitPrice = itemPrice / (paxCount / basePax);
+                        return `${sesLabel} × ${unitPrice.toFixed(2)}€ × <span style="color:#475569; font-weight:600;">${paxText}</span> = <strong style="color: var(--accent);">${subtotal.toFixed(2)}€</strong>`;
+                    }
+                    return `${sesLabel} × ${itemPrice.toFixed(2)}€ <span style="color:#475569; font-weight:600;">(${paxText})</span> = <strong style="color: var(--accent);">${subtotal.toFixed(2)}€</strong>`;
                 }
             })()}
                     </div>

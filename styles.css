@@ -1534,11 +1534,41 @@ body.is-modal-only .modal-content {
     flex-shrink: 0;
 }
 
+#local-voucher-modal .lv-preview-info {
+    flex: 1;
+    min-width: 0;
+}
+
+#local-voucher-modal .lv-preview-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 3px;
+}
+
 #local-voucher-modal .lv-preview-name {
     font-weight: 700;
     font-size: 0.85rem;
     color: #0f172a;
-    margin-bottom: 3px;
+}
+
+#local-voucher-modal .lv-preview-price {
+    font-weight: 800;
+    font-size: 0.92rem;
+    color: #059669;
+    background: #ecfdf5;
+    border: 1px solid #a7f3d0;
+    padding: 2px 9px;
+    border-radius: 999px;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+
+#local-voucher-modal .param-input[readonly] {
+    background: #f1f5f9;
+    color: #0f172a;
+    cursor: default;
 }
 
 #local-voucher-modal .lv-preview-desc {

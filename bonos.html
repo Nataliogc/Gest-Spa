@@ -28,7 +28,7 @@
         <!-- LEFT: Cumbria Logo -->
         <div style="display: flex; align-items: center; gap: 15px;">
             <img src="logo-spa.jpg" alt="Cumbria Bienestar" style="height: 65px; width: auto; object-fit: contain;">
-            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.72 (18/11/2026)">v2.3.72</span>
+            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.76 (18/11/2026)">v2.3.76</span>
         </div>
 
         <ul class="nav-links" style="flex:1;">
@@ -503,7 +503,10 @@
                                 <div class="lv-preview-row">
                                     <img id="lv-img-preview" src="" class="lv-preview-img" style="display: none;">
                                     <div class="lv-preview-info">
-                                        <div id="lv-details-name" class="lv-preview-name"></div>
+                                        <div class="lv-preview-top">
+                                            <div id="lv-details-name" class="lv-preview-name"></div>
+                                            <span id="lv-preview-price" class="lv-preview-price">0.00€</span>
+                                        </div>
                                         <div id="lv-details-text" class="lv-preview-desc"></div>
                                     </div>
                                 </div>
@@ -535,7 +538,9 @@
                             <div class="form-group lv-field">
                                 <label for="lv-sessions">Sesiones</label>
                                 <input type="number" id="lv-sessions" value="1" min="1"
-                                    class="param-input lv-num-input">
+                                    class="param-input lv-num-input"
+                                    onkeyup="updateLocalPriceWithDiscount()"
+                                    onchange="updateLocalPriceWithDiscount()">
                             </div>
 
                             <div class="form-group lv-field lv-field-pax">
