@@ -3402,7 +3402,7 @@
                 const valInp = document.getElementById("res-descuento-valor");
                 if (valInp && !valInp.value) valInp.focus();
             }
-            if (typeof window.runUpdateTotal === 'function') window.runUpdateTotal();
+            if (!window._isInitializingEdit && typeof window.runUpdateTotal === 'function') window.runUpdateTotal();
         };
 
         window.clearDescuento = function () {
@@ -3413,7 +3413,7 @@
             if (motInp) motInp.value = '';
             if (sumEl) sumEl.style.display = 'none';
             if (typeof window.toggleDescuentoSection === 'function') window.toggleDescuentoSection(false);
-            if (typeof window.runUpdateTotal === 'function') window.runUpdateTotal();
+            if (!window._isInitializingEdit && typeof window.runUpdateTotal === 'function') window.runUpdateTotal();
         };
 
         function applyCatalogServicePrice() {
@@ -5276,7 +5276,10 @@
             if (savedTotal > 0 && savedPax > 0 && Math.abs((savedPricePax * savedPax) - savedTotal) > 0.05) {
                 savedPricePax = savedTotal / savedPax;
             }
-            // Cargar datos de descuento si existían
+            document.getElementById("res-precio-pax").value = savedPricePax.toFixed(2);
+            document.getElementById("res-precio-total").value = savedTotal.toFixed(2);
+            document.getElementById("res-total-text").textContent = savedTotal.toFixed(2) + " €";
+            // Cargar datos de descuento si existían (después de fijar precio/total)
             if (res.descuento_aplicado || (res.descuento_valor && res.descuento_valor > 0) || (res.descuento_importe && res.descuento_importe > 0)) {
                 if (document.getElementById("res-descuento-tipo")) document.getElementById("res-descuento-tipo").value = res.descuento_tipo || 'porcentaje';
                 if (document.getElementById("res-descuento-valor")) document.getElementById("res-descuento-valor").value = res.descuento_valor || res.descuento_importe || '';
@@ -5285,9 +5288,6 @@
             } else {
                 if (typeof window.clearDescuento === 'function') window.clearDescuento();
             }
-            document.getElementById("res-precio-pax").value = savedPricePax.toFixed(2);
-            document.getElementById("res-precio-total").value = savedTotal.toFixed(2);
-            document.getElementById("res-total-text").textContent = savedTotal.toFixed(2) + " €";
             const sinCargoInp = document.getElementById("res-sin-cargo-autorizado");
             if (sinCargoInp) sinCargoInp.value = res.sin_cargo_autorizado || "";
             const obsField = document.getElementById("res-obs");
