@@ -28,7 +28,7 @@
         <!-- LEFT: Cumbria Logo -->
         <div style="display: flex; align-items: center; gap: 15px;">
             <img src="logo-spa.jpg" alt="Cumbria Bienestar" style="height: 65px; width: auto; object-fit: contain;">
-            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.81 (18/11/2026)">v2.3.81</span>
+            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.82 (18/11/2026)">v2.3.82</span>
         </div>
 
         <ul class="nav-links" style="flex:1;">
@@ -375,6 +375,16 @@
                             style="width: 100%; margin-top: 6px; background: #0284c7; color: #fff; border: none; border-radius: 6px; padding: 7px 8px; font-size: 0.75rem; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px;">
                             <i class="fas fa-calendar-plus"></i> Reservar Cita con Monedero
                         </button>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 6px;">
+                            <button type="button" onclick="descargarBonoPDFActual()"
+                                style="background: #fff; color: #059669; border: 1px solid #059669; border-radius: 6px; padding: 6px 8px; font-size: 0.72rem; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 5px;">
+                                <i class="fas fa-file-pdf"></i> Balance PDF
+                            </button>
+                            <button type="button" onclick="imprimirTicketMonederoActual()"
+                                style="background: #fff; color: #334155; border: 1px solid #94a3b8; border-radius: 6px; padding: 6px 8px; font-size: 0.72rem; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 5px;">
+                                <i class="fas fa-receipt"></i> Ticket 80mm
+                            </button>
+                        </div>
                     </div>
 
                     <!-- MENSAJE REGALO Y NOTAS INTERNAS -->
@@ -549,10 +559,53 @@
                                 </button>
                             </div>
                             <div id="lv-monedero-hint" style="display: none; margin-top: 6px; padding: 7px 10px; background: #ecfdf5; border: 1px solid #86efac; border-radius: 6px; font-size: 0.72rem; color: #065f46; line-height: 1.35;">
-                                <i class="fas fa-wallet"></i> <strong>Modo Monedero:</strong> El cliente compra un saldo en euros que se irá descontando según consuma servicios. Se puede recargar y si un servicio supera el saldo, abonará la diferencia.
+                                <i class="fas fa-wallet"></i> <strong>Venta de Bono Monedero:</strong> Indica qué se desea regalar y el saldo inicial (€). Se descontará de cada servicio consumido.
                             </div>
                         </div>
 
+                        <!-- CAMPOS EXCLUSIVOS DE BONO MONEDERO -->
+                        <div id="lv-monedero-fields" style="display: none; flex-direction: column; gap: 12px;">
+                            <div class="form-group lv-field" style="margin-bottom: 0;">
+                                <label for="lv-monedero-concept">¿Qué se regala? / Concepto <span class="lv-req">*</span></label>
+                                <input type="text" id="lv-monedero-concept" class="param-input"
+                                    placeholder="Ej: Bono Regalo Spa, Vale Cumpleaños, Monedero Bienestar..."
+                                    oninput="updateMonederoPreview()">
+                            </div>
+
+                            <div class="form-group lv-field" style="margin-bottom: 0;">
+                                <label for="lv-monedero-amount">Saldo Inicial a Cargar (€) <span class="lv-req">*</span></label>
+                                <div class="lv-affix-wrap">
+                                    <input type="number" id="lv-monedero-amount" class="param-input lv-num-input lv-has-suffix"
+                                        step="0.01" min="1" placeholder="40.00" oninput="updateMonederoPreview()"
+                                        style="font-size: 1.1rem; font-weight: 800; color: #059669;">
+                                    <span class="lv-affix-suffix" style="color:#059669; font-weight:800;">€</span>
+                                </div>
+                                <div style="display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap;">
+                                    <button type="button" onclick="setMonederoPreset(40)" style="padding: 4px 10px; border-radius: 999px; border: 1px solid #86efac; background: #ecfdf5; color: #065f46; font-size: 0.72rem; font-weight: 700; cursor: pointer;">40 €</button>
+                                    <button type="button" onclick="setMonederoPreset(60)" style="padding: 4px 10px; border-radius: 999px; border: 1px solid #86efac; background: #ecfdf5; color: #065f46; font-size: 0.72rem; font-weight: 700; cursor: pointer;">60 €</button>
+                                    <button type="button" onclick="setMonederoPreset(100)" style="padding: 4px 10px; border-radius: 999px; border: 1px solid #86efac; background: #ecfdf5; color: #065f46; font-size: 0.72rem; font-weight: 700; cursor: pointer;">100 €</button>
+                                    <button type="button" onclick="setMonederoPreset(150)" style="padding: 4px 10px; border-radius: 999px; border: 1px solid #86efac; background: #ecfdf5; color: #065f46; font-size: 0.72rem; font-weight: 700; cursor: pointer;">150 €</button>
+                                </div>
+                            </div>
+
+                            <div class="form-group lv-field" style="margin-bottom: 0;">
+                                <label for="lv-monedero-paymethod">Estado / Método de Cobro</label>
+                                <select id="lv-monedero-paymethod" class="param-input" onchange="updateMonederoPreview()">
+                                    <option value="tarjeta">Pagado con Tarjeta</option>
+                                    <option value="efectivo">Pagado en Efectivo</option>
+                                    <option value="transferencia">Pagado por Transferencia</option>
+                                    <option value="pendiente">Dejar Pendiente de Cobro</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group lv-field" style="margin-bottom: 0;">
+                                <label for="lv-monedero-message">Dedicatoria / Mensaje Regalo (opcional)</label>
+                                <textarea id="lv-monedero-message" class="param-input" rows="2"
+                                    placeholder="Mensaje personalizado para el vale regalo..." style="resize: vertical;"></textarea>
+                            </div>
+                        </div>
+
+                        <div id="lv-sessions-fields">
                         <div class="form-group lv-field">
                             <label for="lv-product-search">Producto / Servicio</label>
                             <div class="lv-search-wrap">
@@ -656,13 +709,34 @@
                                 </button>
                             </div>
                         </div>
+                        </div> <!-- End lv-sessions-fields -->
                     </div>
 
                     <!-- Columna Derecha: Contenido del Bono / Resumen -->
                     <div class="lv-card lv-card-cart">
                         <div class="lv-section-header">
                             <span class="lv-section-badge lv-section-badge-gold"><i class="fas fa-receipt"></i></span>
-                            <h3>Contenido del Bono</h3>
+                            <h3 id="lv-cart-title">Contenido del Bono</h3>
+                        </div>
+
+                        <div id="lv-monedero-summary" style="display: none; flex: 1; flex-direction: column; justify-content: space-between; gap: 12px;">
+                            <div style="background: linear-gradient(135deg, #ecfdf5 0%, #f0fdf4 100%); border: 1px solid #86efac; border-radius: 12px; padding: 16px;">
+                                <div style="font-size: 0.7rem; font-weight: 800; color: #059669; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">
+                                    <i class="fas fa-wallet"></i> Vista Previa Monedero
+                                </div>
+                                <div id="lv-mon-prev-concept" style="font-size: 1rem; font-weight: 800; color: #0f172a; margin-bottom: 8px;">Bono Monedero</div>
+                                <div style="display: flex; justify-content: space-between; font-size: 0.8rem; color: #475569; margin-bottom: 4px;">
+                                    <span>Cobro:</span>
+                                    <strong id="lv-mon-prev-pay">Pagado con Tarjeta</strong>
+                                </div>
+                                <div style="margin-top: 12px; padding-top: 10px; border-top: 1px dashed #86efac; display: flex; justify-content: space-between; align-items: baseline;">
+                                    <span style="font-size: 0.78rem; font-weight: 700; color: #065f46;">SALDO DISPONIBLE:</span>
+                                    <span id="lv-mon-prev-amount" style="font-size: 1.5rem; font-weight: 900; color: #059669;">0.00 €</span>
+                                </div>
+                            </div>
+                            <div style="font-size: 0.74rem; color: #475569; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 12px; line-height: 1.45;">
+                                <i class="fas fa-info-circle" style="color: #0284c7;"></i> Al crear el monedero podrás <strong>imprimir el comprobante/ticket o PDF</strong> al instante y gestionar recargas o consumos desde su panel exclusivo.
+                            </div>
                         </div>
 
                         <div id="lv-cart-list" class="lv-cart-list">
@@ -859,11 +933,11 @@
     <!-- PDF Generation -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="js/images_data.js?v=202601072324"></script>
-    <script src="js/bono-pdf.js"></script>
+    <script src="js/bono-pdf.js?v=2.3.82"></script>
     <script src="js/spa-payment-control.js?v=2.3.49"></script>
 
     <script src="js/reservation-drawer.js?v=2.3.67"></script>
-    <script src="js/bonos.js?v=2.3.67"></script>
+    <script src="js/bonos.js?v=2.3.82"></script>
     <script src="js/bonos-history-helper.js?v=2.3.67"></script>
 </body>
 

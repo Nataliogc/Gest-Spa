@@ -4412,7 +4412,9 @@ async function openVoucherManagement(code) {
 
     setupVoucherMonederoUI(v);
 
-    renderEditableBreakdown();
+    if (!isMonederoVoucher(v)) {
+        renderEditableBreakdown();
+    }
 
     // --- Sincronizar uso real con Historial ---
     if (typeof renderVoucherHistory === 'function') {
@@ -4500,7 +4502,10 @@ async function openVoucherManagement(code) {
         document.getElementById("vm-sesiones-usadas").value = computedUsedFromHistory;
     }
 
-    renderEditableBreakdown();
+    if (!isMonederoVoucher(v)) {
+        renderEditableBreakdown();
+    }
+    setupVoucherMonederoUI(v);
     document.getElementById("vm-notas").placeholder = "Notas internas visible solo para staff...";
 
     // Update Status Badge logic (simplified)
@@ -4564,18 +4569,6 @@ async function openVoucherManagement(code) {
             cancelButton.title = "Anular este bono";
         }
     }
-
-    // Ocultar botones "Canjear 1" y "Total" si tiene múltiples ítems o si NO es multi-sesión
-    const hasMultipleItems = state.editingVoucherItems.length > 1;
-    const isMultiSession = sessionsTotales > 1 && !hasMultipleItems;
-
-    // Wait for modal to be rendered, then hide/show buttons
-    setTimeout(() => {
-        const bulkButtonsRow = document.querySelector('#voucher-modal .modal-footer > div:first-child');
-        if (bulkButtonsRow) {
-            bulkButtonsRow.style.display = isMultiSession ? 'flex' : 'none';
-        }
-    }, 100);
 
     // Historico ya renderizado y sincronizado arriba en línea 4241
     // Actualizar precio visualmente al abrir (sin machacar used de items ya calculados desde el historial)
@@ -8774,25 +8767,89 @@ async function getCurrentModalVoucher(code) {
     return v;
 }
 
+function openMonederoNativeDialog({ title, headerBg = '#059669', bodyHtml, confirmText = 'Confirmar', confirmBg = '#059669', onOpen, onConfirm, extraButtons = [] }) {
+    return new Promise((resolve) => {
+        const existing = document.getElementById('monedero-native-dialog');
+        if (existing) existing.remove();
+
+        const overlay = document.createElement('div');
+        overlay.id = 'monedero-native-dialog';
+        overlay.style.cssText = 'position:fixed; inset:0; background:rgba(15,23,42,0.55); z-index:99999; display:flex; align-items:center; justify-content:center; padding:16px;';
+
+        const extraBtnsHtml = extraButtons.map((b, idx) =>
+            `<button type="button" data-extra-idx="${idx}" style="flex:1; padding:9px 12px; border-radius:8px; border:none; font-weight:700; font-size:0.85rem; cursor:pointer; background:${b.bg || '#0284c7'}; color:#fff;">${b.text}</button>`
+        ).join('');
+
+        overlay.innerHTML = `
+            <div style="background:#fff; width:100%; max-width:440px; border-radius:14px; overflow:hidden; box-shadow:0 25px 50px -12px rgba(0,0,0,0.35); border:1px solid #e2e8f0;">
+                <div style="padding:14px 18px; background:${headerBg}; color:#fff; display:flex; justify-content:space-between; align-items:center;">
+                    <h3 style="margin:0; font-size:1rem; font-weight:800;">${title}</h3>
+                    <button type="button" id="mnd-close" style="background:none; border:none; color:#fff; font-size:1.3rem; cursor:pointer; line-height:1;">&times;</button>
+                </div>
+                <div id="mnd-body" style="padding:18px; font-size:0.86rem; color:#1e293b;">
+                    ${bodyHtml}
+                    <div id="mnd-error" style="display:none; margin-top:10px; padding:7px 10px; background:#fef2f2; border:1px solid #fecaca; color:#dc2626; border-radius:6px; font-size:0.78rem; font-weight:700;"></div>
+                </div>
+                <div style="padding:12px 18px; background:#f8fafc; border-top:1px solid #e2e8f0; display:flex; gap:8px; justify-content:flex-end;">
+                    <button type="button" id="mnd-cancel" style="padding:9px 14px; border-radius:8px; border:1px solid #cbd5e1; background:#fff; color:#475569; font-weight:700; font-size:0.85rem; cursor:pointer;">Cancelar</button>
+                    ${extraBtnsHtml}
+                    ${confirmText ? `<button type="button" id="mnd-confirm" style="padding:9px 16px; border-radius:8px; border:none; background:${confirmBg}; color:#fff; font-weight:700; font-size:0.85rem; cursor:pointer;">${confirmText}</button>` : ''}
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(overlay);
+        const close = (val) => { overlay.remove(); resolve(val); };
+
+        overlay.querySelector('#mnd-close').onclick = () => close(null);
+        overlay.querySelector('#mnd-cancel').onclick = () => close(null);
+        overlay.addEventListener('click', (e) => { if (e.target === overlay) close(null); });
+
+        extraButtons.forEach((b, idx) => {
+            const btn = overlay.querySelector(`[data-extra-idx="${idx}"]`);
+            if (btn) btn.onclick = () => close(b.value);
+        });
+
+        const confirmBtn = overlay.querySelector('#mnd-confirm');
+        if (confirmBtn) {
+            confirmBtn.onclick = () => {
+                if (typeof onConfirm === 'function') {
+                    const errEl = overlay.querySelector('#mnd-error');
+                    const res = onConfirm((msg) => {
+                        if (errEl) { errEl.textContent = msg; errEl.style.display = 'block'; }
+                    });
+                    if (res === false) return;
+                    close(res);
+                } else {
+                    close(true);
+                }
+            };
+        }
+
+        if (typeof onOpen === 'function') onOpen(overlay);
+    });
+}
+
 async function convertVoucherToMonedero(code) {
     const v = await getCurrentModalVoucher(code);
     if (!v) return;
     const baseAmount = parseFloat(v.importe ?? v.precio ?? 0) || 0;
 
-    const { value: amountStr } = await Swal.fire({
-        title: 'Convertir a Bono Monedero',
-        html: `<p style="font-size:0.85rem; color:#475569;">El bono <b>${code}</b> pasará a funcionar como Monedero con saldo en euros.</p>`,
-        input: 'number',
-        inputLabel: 'Saldo inicial (€)',
-        inputValue: baseAmount.toFixed(2),
-        inputAttributes: { min: '0.01', step: '0.01' },
-        showCancelButton: true,
-        confirmButtonText: 'Convertir a Monedero',
-        confirmButtonColor: '#059669',
-        cancelButtonText: 'Cancelar'
+    const amount = await openMonederoNativeDialog({
+        title: '<i class="fas fa-wallet"></i> Convertir a Bono Monedero',
+        bodyHtml: `
+            <p style="margin:0 0 12px 0; color:#475569;">El bono <b>${code}</b> pasará a funcionar como Monedero con saldo en euros.</p>
+            <label style="font-weight:700; display:block; margin-bottom:4px;">Saldo inicial (€)</label>
+            <input id="mnd-conv-amount" type="number" step="0.01" min="0.01" class="param-input" style="width:100%;" value="${baseAmount.toFixed(2)}">
+        `,
+        confirmText: 'Convertir a Monedero',
+        onConfirm: (showError) => {
+            const val = parseFloat(document.getElementById('mnd-conv-amount').value);
+            if (!val || val <= 0) { showError('Introduce un importe válido mayor que 0'); return false; }
+            return val;
+        }
     });
 
-    const amount = parseFloat(amountStr);
     if (!amount || amount <= 0) return;
 
     const nowIso = new Date().toISOString();
@@ -8833,38 +8890,37 @@ async function openMonederoRechargeModal() {
     const v = await getCurrentModalVoucher(code);
     if (!v) return;
 
-    const { value: formValues } = await Swal.fire({
-        title: `<i class="fas fa-wallet" style="color:#059669;"></i> Recargar Monedero ${code}`,
-        html: `
-            <div style="text-align:left; font-size:0.85rem;">
-                <label style="font-weight:700; display:block; margin-bottom:4px;">Importe a recargar (€)</label>
-                <input id="swal-rec-amount" type="number" step="0.01" min="1" class="swal2-input" style="margin:0 0 12px 0; width:100%;" placeholder="Ej: 50.00">
-                <label style="font-weight:700; display:block; margin-bottom:4px;">Método de pago</label>
-                <select id="swal-rec-method" class="swal2-input" style="margin:0 0 12px 0; width:100%;">
-                    <option value="tarjeta">Tarjeta</option>
-                    <option value="efectivo">Efectivo</option>
-                    <option value="transferencia">Transferencia</option>
-                    <option value="pendiente">Dejar pendiente de cobro</option>
-                </select>
-                <label style="font-weight:700; display:block; margin-bottom:4px;">Concepto / Nota (opcional)</label>
-                <input id="swal-rec-note" type="text" class="swal2-input" style="margin:0; width:100%;" value="Recarga de saldo en recepción">
-            </div>
+    const formValues = await openMonederoNativeDialog({
+        title: `<i class="fas fa-wallet"></i> Recargar Monedero ${code}`,
+        headerBg: '#059669',
+        confirmText: 'Confirmar Recarga',
+        confirmBg: '#059669',
+        bodyHtml: `
+            <label style="font-weight:700; display:block; margin-bottom:4px;">Importe a recargar (€)</label>
+            <input id="mnd-rec-amount" type="number" step="0.01" min="0.01" class="param-input" style="width:100%; margin-bottom:12px;" placeholder="Ej: 50.00">
+            <label style="font-weight:700; display:block; margin-bottom:4px;">Método de pago</label>
+            <select id="mnd-rec-method" class="param-input" style="width:100%; margin-bottom:12px;">
+                <option value="tarjeta">Tarjeta</option>
+                <option value="efectivo">Efectivo</option>
+                <option value="transferencia">Transferencia</option>
+                <option value="pendiente">Dejar pendiente de cobro</option>
+            </select>
+            <label style="font-weight:700; display:block; margin-bottom:4px;">Concepto / Nota (opcional)</label>
+            <input id="mnd-rec-note" type="text" class="param-input" style="width:100%;" value="Recarga de saldo en recepción">
         `,
-        focusConfirm: false,
-        showCancelButton: true,
-        confirmButtonText: 'Confirmar Recarga',
-        confirmButtonColor: '#059669',
-        cancelButtonText: 'Cancelar',
-        preConfirm: () => {
-            const amount = parseFloat(document.getElementById('swal-rec-amount').value);
+        onOpen: () => {
+            setTimeout(() => document.getElementById('mnd-rec-amount')?.focus(), 50);
+        },
+        onConfirm: (showError) => {
+            const amount = parseFloat(document.getElementById('mnd-rec-amount').value);
             if (!amount || amount <= 0) {
-                Swal.showValidationMessage('Introduce un importe mayor que 0');
+                showError('Introduce un importe mayor que 0');
                 return false;
             }
             return {
                 amount,
-                method: document.getElementById('swal-rec-method').value,
-                note: document.getElementById('swal-rec-note').value.trim() || 'Recarga de saldo'
+                method: document.getElementById('mnd-rec-method').value,
+                note: document.getElementById('mnd-rec-note').value.trim() || 'Recarga de saldo'
             };
         }
     });
@@ -8962,27 +9018,28 @@ async function openMonederoConsumeModal() {
         .map(p => `<option value="${String(p.nombre || '').replace(/"/g, '&quot;')}" data-price="${parseFloat(p.precio) || 0}">`)
         .join('');
 
-    const { value: formValues } = await Swal.fire({
-        title: `<i class="fas fa-minus-circle" style="color:#d97706;"></i> Descontar Consumo`,
-        html: `
-            <div style="text-align:left; font-size:0.85rem;">
-                <div style="background:#ecfdf5; border:1px solid #86efac; border-radius:6px; padding:8px 10px; margin-bottom:10px; color:#065f46; font-weight:700;">
-                    Saldo actual en Monedero: <span style="font-size:1rem;">${saldoDisp.toFixed(2)} €</span>
-                </div>
-                <label style="font-weight:700; display:block; margin-bottom:4px;">Servicio o concepto</label>
-                <input id="swal-cons-concept" list="swal-cons-catalog" class="swal2-input" style="margin:0 0 10px 0; width:100%;" placeholder="Escribe o elige servicio del catálogo...">
-                <datalist id="swal-cons-catalog">${catalogOptions}</datalist>
-                <label style="font-weight:700; display:block; margin-bottom:4px;">Importe del servicio (€)</label>
-                <input id="swal-cons-price" type="number" step="0.01" min="0.01" class="swal2-input" style="margin:0 0 10px 0; width:100%;" placeholder="0.00">
-                <div id="swal-cons-preview" style="padding:8px 10px; border-radius:6px; background:#f8fafc; border:1px solid #e2e8f0; font-size:0.8rem; line-height:1.45;">
-                    Introduce el importe para calcular el descuento.
-                </div>
+    const formValues = await openMonederoNativeDialog({
+        title: `<i class="fas fa-minus-circle"></i> Descontar Consumo`,
+        headerBg: '#d97706',
+        confirmText: 'Aplicar Descuento',
+        confirmBg: '#d97706',
+        bodyHtml: `
+            <div style="background:#ecfdf5; border:1px solid #86efac; border-radius:6px; padding:8px 10px; margin-bottom:10px; color:#065f46; font-weight:700;">
+                Saldo actual en Monedero: <span style="font-size:1rem;">${saldoDisp.toFixed(2)} €</span>
+            </div>
+            <label style="font-weight:700; display:block; margin-bottom:4px;">Servicio o concepto</label>
+            <input id="mnd-cons-concept" list="mnd-cons-catalog" class="param-input" style="width:100%; margin-bottom:10px;" placeholder="Escribe o elige servicio del catálogo...">
+            <datalist id="mnd-cons-catalog">${catalogOptions}</datalist>
+            <label style="font-weight:700; display:block; margin-bottom:4px;">Importe del servicio (€)</label>
+            <input id="mnd-cons-price" type="number" step="0.01" min="0.01" class="param-input" style="width:100%; margin-bottom:10px;" placeholder="0.00">
+            <div id="mnd-cons-preview" style="padding:8px 10px; border-radius:6px; background:#f8fafc; border:1px solid #e2e8f0; font-size:0.8rem; line-height:1.45;">
+                Introduce el importe para calcular el descuento.
             </div>
         `,
-        didOpen: () => {
-            const conceptEl = document.getElementById('swal-cons-concept');
-            const priceEl = document.getElementById('swal-cons-price');
-            const previewEl = document.getElementById('swal-cons-preview');
+        onOpen: () => {
+            const conceptEl = document.getElementById('mnd-cons-concept');
+            const priceEl = document.getElementById('mnd-cons-price');
+            const previewEl = document.getElementById('mnd-cons-preview');
 
             const updatePreview = () => {
                 const p = parseFloat(priceEl.value) || 0;
@@ -9008,20 +9065,17 @@ async function openMonederoConsumeModal() {
                 }
             });
             priceEl.addEventListener('input', updatePreview);
+            setTimeout(() => conceptEl?.focus(), 50);
         },
-        showCancelButton: true,
-        confirmButtonText: 'Aplicar Descuento',
-        confirmButtonColor: '#d97706',
-        cancelButtonText: 'Cancelar',
-        preConfirm: () => {
-            const concept = document.getElementById('swal-cons-concept').value.trim();
-            const price = parseFloat(document.getElementById('swal-cons-price').value);
+        onConfirm: (showError) => {
+            const concept = document.getElementById('mnd-cons-concept').value.trim();
+            const price = parseFloat(document.getElementById('mnd-cons-price').value);
             if (!concept) {
-                Swal.showValidationMessage('Indica el servicio o concepto');
+                showError('Indica el servicio o concepto');
                 return false;
             }
             if (!price || price <= 0) {
-                Swal.showValidationMessage('Introduce un importe válido');
+                showError('Introduce un importe válido');
                 return false;
             }
             return { concept, price };
@@ -9065,36 +9119,39 @@ async function openMonederoConsumeModal() {
     if (typeof renderVouchersTable === 'function') renderVouchersTable();
 
     if (exceso > 0) {
-        Swal.fire({
-            icon: 'warning',
-            title: 'Importe a pagar por el cliente',
-            html: `Se han descontado <b>${descontado.toFixed(2)} €</b> del monedero.<br>El cliente debe abonar la diferencia de <b style="color:#dc2626; font-size:1.2rem;">${exceso.toFixed(2)} €</b>.`,
-            confirmButtonText: 'Entendido'
+        await openMonederoNativeDialog({
+            title: '<i class="fas fa-exclamation-triangle"></i> Importe a pagar por el cliente',
+            headerBg: '#d97706',
+            confirmText: 'Entendido',
+            confirmBg: '#0f172a',
+            bodyHtml: `Se han descontado <b>${descontado.toFixed(2)} €</b> del monedero.<br><br>El cliente debe abonar la diferencia de <b style="color:#dc2626; font-size:1.25rem;">${exceso.toFixed(2)} €</b>.`
         });
     } else {
         showToast(`Descontados ${descontado.toFixed(2)} € del monedero`, 'success');
     }
 }
 
-function bookWithMonedero() {
+async function bookWithMonedero() {
     const code = document.getElementById('vm-code')?.value;
     const client = document.getElementById('vm-cliente')?.value || '';
     if (!code) return;
 
-    Swal.fire({
-        title: '¿Dónde quieres reservar?',
-        text: `Usando Monedero ${code}`,
-        showDenyButton: true,
-        showCancelButton: true,
-        confirmButtonText: 'Circuito / Spa',
-        denyButtonText: 'Salas / Masajes',
-        cancelButtonText: 'Cancelar'
-    }).then((result) => {
-        const params = new URLSearchParams({ voucher: code, client, mode: 'monedero' });
-        if (result.isConfirmed) {
-            window.location.href = `reservas-spa.html?${params.toString()}`;
-        } else if (result.isDenied) {
-            window.location.href = `reservas-salas.html?${params.toString()}`;
-        }
+    const target = await openMonederoNativeDialog({
+        title: '<i class="fas fa-calendar-plus"></i> ¿Dónde quieres reservar?',
+        headerBg: '#0284c7',
+        confirmText: '',
+        bodyHtml: `<p style="margin:0; color:#475569;">Selecciona el módulo donde quieres crear la reserva con el Monedero <b>${code}</b>:</p>`,
+        extraButtons: [
+            { text: 'Circuito / Spa', bg: '#0284c7', value: 'spa' },
+            { text: 'Salas / Masajes', bg: '#059669', value: 'salas' }
+        ]
     });
+
+    if (!target) return;
+    const params = new URLSearchParams({ voucher: code, client, mode: 'monedero' });
+    if (target === 'spa') {
+        window.location.href = `reservas-spa.html?${params.toString()}`;
+    } else if (target === 'salas') {
+        window.location.href = `reservas-salas.html?${params.toString()}`;
+    }
 }

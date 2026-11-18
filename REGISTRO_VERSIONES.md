@@ -8,7 +8,7 @@ Este documento mantiene el **control de versión única y global** para todo el 
 
 | Parámetro | Valor Actual |
 | :--- | :--- |
-| **Versión Global del Sistema** | **`v2.3.81`** |
+| **Versión Global del Sistema** | **`v2.3.82`** |
 | **Fecha de Última Actualización** | **18/11/2026** |
 | **Estado General** | Operativo en Producción |
 
@@ -47,6 +47,11 @@ Cualquier cambio en los siguientes módulos impacta en la versión global:
 ---
 
 ## 📝 Historial Unificado de Versiones
+
+### [v2.3.82] - 18/11/2026
+- **Tipo:** PATCH
+- **Archivos:** `bonos.html`, `js/bonos.js`
+- **Descripción:** Fix modales nativos en Monedero sin dependencia de Swal
 
 ### [v2.3.81] - 18/11/2026
 - **Tipo:** PATCH
