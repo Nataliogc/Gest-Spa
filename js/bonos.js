@@ -3017,13 +3017,9 @@ function renderBonosFromState(missingNum = null) {
             return false;
         }
 
-        // NUEVO: Si hay búsqueda activa por searchTokens, NO aplicar filtros de fecha/estado
-        if (state.isActiveSearch) {
-            return true; // Mostrar TODOS los resultados de la búsqueda
-        }
-
-        // Search Term (Global)
-        if (searchTerm) {
+        // Search Term (Global): si state.isActiveSearch es true, state.bonos ya viene filtrado por búsqueda,
+        // pero SIEMPRE debemos aplicar los filtros de fecha, estado y pago seleccionados.
+        if (searchTerm && !state.isActiveSearch) {
             const clienteStr = String(b.cliente || "").toLowerCase();
             const bonoStr = String(b.bono || "").toLowerCase();
             const emailStr = String(b.email || "").toLowerCase();
@@ -3071,18 +3067,25 @@ function renderBonosFromState(missingNum = null) {
             dateMatch = (bDate >= rangeCutoffYMD);
         }
 
-        // Estado (solo aplica si NO hay búsqueda por código)
+        // Estado (sincronizado con la lógica visual de normalizeVoucher)
         let statusMatch = true;
         if (filterStatus !== 'all') {
+            const vNorm = normalizeVoucher(b);
+            const isEffectivelyCompleted = Boolean(vNorm && vNorm.effectivelyCompleted);
+            const isExpired = Boolean((vNorm && vNorm.isExpired) || checkVoucherExpiry(b));
+
             if (filterStatus === 'expired') {
-                statusMatch = (b.estado === 'expired') || (b.estado === 'pending' && checkVoucherExpiry(b));
+                statusMatch = (b.estado === 'expired') || ((b.estado === 'pending' || b.estado === 'activo') && isExpired);
             } else if (filterStatus === 'pending') {
                 // SOPORTE LEGACY: Aceptar 'activo' como 'pending'
                 // MODIFICADO: Incluir también 'partially' (En uso) como Activo
-                // EXCLUIR: anulados
+                // EXCLUIR: anulados, caducados y completados reales (effectivelyCompleted)
                 statusMatch = (b.estado === 'pending' || b.estado === 'activo' || b.estado === 'partially')
                     && b.estado !== 'anulado'
-                    && !checkVoucherExpiry(b);
+                    && !isExpired
+                    && !isEffectivelyCompleted;
+            } else if (filterStatus === 'completed') {
+                statusMatch = b.estado !== 'anulado' && (b.estado === 'completed' || isEffectivelyCompleted);
             } else if (filterStatus === 'anulado') {
                 statusMatch = (b.estado === 'anulado');
             } else {
