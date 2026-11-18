@@ -104,10 +104,10 @@ function initBonos() {
         dateInput.value = getLocalDateYMD();
     }
 
-    // FIX: Default filter to "all" (Todos) as requested to show all daily sales
+    // Filtro por defecto: Activos (Pendientes) según petición del usuario
     const filterInput = document.getElementById("voucher-filter");
     if (filterInput) {
-        filterInput.value = "all";
+        filterInput.value = "pending";
     }
 
     // Load static data
@@ -5266,11 +5266,12 @@ async function annulVoucher() {
 
         // 3. VALIDACIÓN: No anular bonos con servicios reservados
         const usedSessions = parseInt(voucher.sesiones_usadas) || 0;
+        const saldoConsumido = parseFloat(voucher.saldo_consumido || 0) || 0;
         const hasReservations = voucher.reservas && voucher.reservas.length > 0;
         const hasItemsUsed = voucher.items_desglosados && voucher.items_desglosados.some(item => item.used > 0);
 
-        if (usedSessions > 0 || hasReservations || hasItemsUsed) {
-            showToast("⚠️ No se puede anular un bono con servicios usados o reservados", "warning");
+        if (usedSessions > 0 || saldoConsumido > 0 || hasReservations || hasItemsUsed) {
+            showToast("⚠️ No se puede anular un bono con servicios o saldo usados/reservados", "warning");
             return;
         }
 
@@ -5293,9 +5294,12 @@ async function annulVoucher() {
             return;
         }
 
-        // 7. Actualizar en Firestore
+        // 7. Actualizar en Firestore (un bono anulado NUNCA cuenta como pagado)
         const updateData = {
             estado: 'anulado',
+            estado_pago: 'anulado',
+            importe_pagado: 0,
+            importe_pendiente: 0,
             estado_anterior: voucher.estado,
             anulacion: {
                 fecha: new Date().toISOString(),
@@ -5306,10 +5310,13 @@ async function annulVoucher() {
         };
 
         await db.collection("spa_vouchers").doc(code).update(updateData);
+        Object.assign(voucher, updateData);
 
-        // 8. Actualizar local si existe (dbLocal.bonos)
+        // 8. Actualizar local si existe (dbLocal.bonos / apiLocal)
         try {
-            if (window.dbLocal && window.dbLocal.bonos) {
+            if (window.apiLocal && typeof window.apiLocal.saveBono === 'function') {
+                await window.apiLocal.saveBono({ ...voucher, ...updateData, id: code, bono: code, syncStatus: 'synced' });
+            } else if (window.dbLocal && window.dbLocal.bonos) {
                 const localVoucher = await dbLocal.bonos.get(code);
                 if (localVoucher) {
                     await dbLocal.bonos.put({ ...localVoucher, ...updateData });
@@ -6136,6 +6143,12 @@ async function createLocalVoucher() {
             return showToast("Introduce un saldo inicial (€) mayor que 0", "warning");
         }
 
+        if (payMethod === 'pasarela' && (!window._lastLvPayGold || window._lastLvPayGold.code !== code)) {
+            const pgOk = await generateLocalVoucherPayGoldLink(code, amount, concept);
+            if (!pgOk) return;
+        }
+        const pgInfo = (payMethod === 'pasarela' && window._lastLvPayGold) ? window._lastLvPayGold : null;
+
         newVoucher = {
             bono: code,
             codigo: code,
@@ -6175,6 +6188,12 @@ async function createLocalVoucher() {
             manual_update: true,
             updated_at: now.toISOString(),
             ...buildPaidFields(amount, 'Alta Bono Monedero'),
+            ...(pgInfo ? {
+                payment_link: pgInfo.paymentUrl,
+                paygold_order: pgInfo.orderDisplay,
+                paygold_redsys_order: pgInfo.orderId,
+                paygold_amount: amount
+            } : {}),
             service_payment_status: null,
             snapshot_price: amount
         };
@@ -6186,6 +6205,12 @@ async function createLocalVoucher() {
         }, 0);
         const totalSessions = state.lvCart.reduce((sum, i) => sum + i.sessions, 0);
         const productNames = state.lvCart.map(i => i.name).join(" + ");
+
+        if (payMethod === 'pasarela' && totalPrice > 0 && (!window._lastLvPayGold || window._lastLvPayGold.code !== code)) {
+            const pgOk = await generateLocalVoucherPayGoldLink(code, totalPrice, productNames);
+            if (!pgOk) return;
+        }
+        const pgInfo = (payMethod === 'pasarela' && window._lastLvPayGold) ? window._lastLvPayGold : null;
 
         let allItems = [];
         state.lvCart.forEach(cartItem => {
@@ -6233,6 +6258,12 @@ async function createLocalVoucher() {
             manual_update: true,
             updated_at: now.toISOString(),
             ...buildPaidFields(totalPrice, `Alta Bono: ${productNames}`),
+            ...(pgInfo ? {
+                payment_link: pgInfo.paymentUrl,
+                paygold_order: pgInfo.orderDisplay,
+                paygold_redsys_order: pgInfo.orderId,
+                paygold_amount: totalPrice
+            } : {}),
             service_payment_status: null,
             snapshot_price: totalPrice
         };
@@ -6274,6 +6305,9 @@ async function createLocalVoucher() {
         await cargarBonos();
 
         if (isMonederoMode) {
+            const pgUrl = newVoucher.payment_link || '';
+            const cleanTel = (newVoucher.telefono || '').replace(/\D/g, '');
+            const waText = pgUrl ? `Hola ${clientName}, aquí tienes el enlace seguro de pago (TPV Virtual Redsys) para tu Bono Monedero ${code} (${newVoucher.producto} - ${newVoucher.saldo_disponible.toFixed(2)} €) en Cumbria Bienestar:\n👉 ${pgUrl}` : '';
             const action = await openMonederoNativeDialog({
                 title: `<i class="fas fa-check-circle"></i> Monedero ${code} Creado`,
                 headerBg: '#059669',
@@ -6281,6 +6315,16 @@ async function createLocalVoucher() {
                 confirmBg: '#0f172a',
                 bodyHtml: `
                     <p style="margin:0 0 10px 0;">Se ha creado el Monedero <b>${code}</b> para <b>${clientName}</b> con un saldo de <b style="color:#059669;">${newVoucher.saldo_disponible.toFixed(2)} €</b>.</p>
+                    ${pgUrl ? `
+                        <div style="margin-bottom:10px; padding:10px; background:#fffbeb; border:1px solid #fcd34d; border-radius:8px; font-size:0.76rem; color:#92400e;">
+                            <div style="font-weight:800; margin-bottom:4px;"><i class="fas fa-link"></i> Enlace TPV Virtual (Redsys):</div>
+                            <div style="background:#fff; padding:6px 8px; border-radius:6px; border:1px solid #fde68a; font-family:monospace; word-break:break-all; margin-bottom:8px;">${pgUrl}</div>
+                            <div style="display:flex; gap:6px;">
+                                <button type="button" onclick="navigator.clipboard.writeText('${pgUrl}'); showToast('Enlace TPV copiado', 'success');" style="flex:1; padding:6px 8px; border-radius:6px; border:none; background:#047857; color:#fff; font-weight:700; cursor:pointer;"><i class="fas fa-copy"></i> Copiar Enlace</button>
+                                ${cleanTel ? `<a href="https://wa.me/34${cleanTel}?text=${encodeURIComponent(waText)}" target="_blank" style="flex:1; padding:6px 8px; border-radius:6px; background:#25d366; color:#fff; font-weight:700; text-decoration:none; text-align:center;"><i class="fab fa-whatsapp"></i> WhatsApp</a>` : ''}
+                            </div>
+                        </div>
+                    ` : ''}
                     <p style="margin:0; font-size:0.8rem; color:#64748b;">¿Quieres imprimir el comprobante ahora o abrir su panel de control?</p>
                 `,
                 extraButtons: [
@@ -6295,6 +6339,27 @@ async function createLocalVoucher() {
             } else if (action === true) {
                 openVoucherManagement(code);
             }
+        } else if (newVoucher.payment_link) {
+            const pgUrl = newVoucher.payment_link;
+            const cleanTel = (newVoucher.telefono || '').replace(/\D/g, '');
+            const waText = `Hola ${clientName}, aquí tienes el enlace seguro de pago (TPV Virtual Redsys) para tu Bono ${code} (${newVoucher.producto} - ${newVoucher.precio.toFixed(2)} €) en Cumbria Bienestar:\n👉 ${pgUrl}`;
+            await openMonederoNativeDialog({
+                title: `<i class="fas fa-link"></i> Enlace TPV Virtual · ${code}`,
+                headerBg: '#d97706',
+                confirmText: 'Aceptar',
+                confirmBg: '#0f172a',
+                bodyHtml: `
+                    <p style="margin:0 0 10px 0;">Bono <b>${code}</b> creado para <b>${clientName}</b> (${newVoucher.precio.toFixed(2)} €).</p>
+                    <div style="padding:10px; background:#fffbeb; border:1px solid #fcd34d; border-radius:8px; font-size:0.76rem; color:#92400e;">
+                        <div style="font-weight:800; margin-bottom:4px;"><i class="fas fa-bolt"></i> Enlace de pago Redsys PayGold:</div>
+                        <div style="background:#fff; padding:6px 8px; border-radius:6px; border:1px solid #fde68a; font-family:monospace; word-break:break-all; margin-bottom:8px;">${pgUrl}</div>
+                        <div style="display:flex; gap:6px;">
+                            <button type="button" onclick="navigator.clipboard.writeText('${pgUrl}'); showToast('Enlace TPV copiado', 'success');" style="flex:1; padding:6px 8px; border-radius:6px; border:none; background:#047857; color:#fff; font-weight:700; cursor:pointer;"><i class="fas fa-copy"></i> Copiar Enlace</button>
+                            ${cleanTel ? `<a href="https://wa.me/34${cleanTel}?text=${encodeURIComponent(waText)}" target="_blank" style="flex:1; padding:6px 8px; border-radius:6px; background:#25d366; color:#fff; font-weight:700; text-decoration:none; text-align:center;"><i class="fab fa-whatsapp"></i> Enviar WhatsApp</a>` : ''}
+                        </div>
+                    </div>
+                `
+            });
         }
 
     } catch (err) {
@@ -8770,17 +8835,25 @@ function setMonederoPreset(amount) {
     updateMonederoPreview();
 }
 
-const LV_PAY_LABELS = { tarjeta: 'Pagado con Tarjeta', efectivo: 'Pagado en Efectivo', transferencia: 'Pagado por Transferencia' };
+const LV_PAY_LABELS = { tarjeta: 'Pagado con Tarjeta', efectivo: 'Pagado en Efectivo', pasarela: 'TPV Virtual (Enlace)' };
 
 function selectLocalPayMethod(method) {
     const input = document.getElementById('lv-paymethod');
     if (input) input.value = method || '';
+    if (!method) window._lastLvPayGold = null;
     document.querySelectorAll('#lv-payment-section .lv-pay-btn').forEach(btn => {
         const active = btn.dataset.method === method;
         btn.style.background = active ? '#059669' : '#fff';
         btn.style.color = active ? '#fff' : '#334155';
         btn.style.borderColor = active ? '#059669' : '#cbd5e1';
     });
+    const tpvBox = document.getElementById('lv-tpv-link-box');
+    const tpvRes = document.getElementById('lv-tpv-link-result');
+    if (tpvBox) tpvBox.style.display = (method === 'pasarela') ? 'block' : 'none';
+    if (tpvRes && method !== 'pasarela') {
+        tpvRes.style.display = 'none';
+        tpvRes.innerHTML = '';
+    }
     const section = document.getElementById('lv-payment-section');
     const status = document.getElementById('lv-paymethod-status');
     if (section) {
@@ -8792,6 +8865,113 @@ function selectLocalPayMethod(method) {
         status.style.color = method ? '#047857' : '#b91c1c';
     }
     updateMonederoPreview();
+}
+
+async function generateLocalVoucherPayGoldLink(forcedCode = null, forcedAmount = null, forcedConcept = null) {
+    if (!window.PayGoldService || typeof window.PayGoldService.generateLink !== 'function') {
+        showToast('Servicio TPV Virtual (PayGold) no disponible', 'error');
+        return null;
+    }
+    const isMon = document.getElementById('lv-voucher-mode')?.value === 'monedero';
+    const clientName = document.getElementById('lv-client-name')?.value.trim() || 'Cliente';
+    const clientPhone = (document.getElementById('lv-phone')?.value || '').replace(/\D/g, '');
+    const clientEmail = document.getElementById('lv-email')?.value.trim() || '';
+
+    let amount = forcedAmount;
+    let concept = forcedConcept;
+    if (amount === null || amount === undefined) {
+        if (isMon) {
+            amount = parseFloat(document.getElementById('lv-monedero-amount')?.value) || 0;
+            concept = document.getElementById('lv-monedero-concept')?.value.trim() || 'Bono Monedero';
+        } else {
+            amount = (state.lvCart || []).reduce((sum, i) => {
+                const isPack = i.items_breakdown && i.items_breakdown.length > 1;
+                return sum + (isPack ? i.price : (i.price * i.sessions));
+            }, 0);
+            concept = (state.lvCart || []).map(i => i.name).join(' + ') || 'Bono Spa';
+        }
+    }
+    if (!amount || amount <= 0) {
+        showToast(isMon ? 'Introduce primero el saldo inicial (€) del monedero' : 'Añade primero algún servicio con importe al bono', 'warning');
+        return null;
+    }
+
+    let codeInput = document.getElementById('lv-code');
+    let code = forcedCode || (codeInput ? codeInput.value.trim() : '');
+    if (code && !/^(Tarj|LOC|BONO)-/i.test(code)) code = `Tarj-${code}`;
+    if (!code) {
+        code = `LOC-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
+        if (codeInput) codeInput.value = code;
+    }
+
+    const cleanTail = code.replace(/[^A-Za-z0-9]/g, '').slice(-5).toUpperCase();
+    const orderDisplay = `BONO-${cleanTail}`;
+    const redsysOrderId = `0000BON${cleanTail}`;
+
+    const btn = document.getElementById('lv-gen-tpv-btn');
+    const resBox = document.getElementById('lv-tpv-link-result');
+    const origHtml = btn ? btn.innerHTML : '';
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generando...';
+    }
+
+    try {
+        const expiry = new Date(Date.now() + 2 * 86400000).toISOString().split('T')[0];
+        const result = await window.PayGoldService.generateLink({
+            app: 'spa',
+            hotel: 'cumbria',
+            amount: amount,
+            groupId: code,
+            referenceId: code,
+            orderId: redsysOrderId,
+            concept: `Bono Spa ${code} - ${clientName}`.slice(0, 50),
+            customerMobile: '',
+            customerEmail: clientEmail,
+            customerName: clientName,
+            expiryDate: expiry,
+            depositLabel: concept
+        });
+
+        window._lastLvPayGold = {
+            code,
+            amount,
+            paymentUrl: result.paymentUrl,
+            orderId: result.orderId || redsysOrderId,
+            orderDisplay
+        };
+
+        if (resBox) {
+            const waText = `Hola ${clientName}, aquí tienes el enlace seguro de pago (TPV Virtual Redsys) para tu Bono ${code} (${concept} - ${amount.toFixed(2)} €) en Cumbria Bienestar:\n👉 ${result.paymentUrl}`;
+            resBox.style.display = 'block';
+            resBox.innerHTML = `
+                <div style="font-family:monospace; font-size:0.7rem; background:#fff; padding:5px 7px; border-radius:5px; border:1px solid #fde68a; word-break:break-all; margin-bottom:6px; color:#047857;">
+                    ${result.paymentUrl}
+                </div>
+                <div style="display:flex; gap:6px;">
+                    <button type="button" onclick="navigator.clipboard.writeText('${result.paymentUrl}'); showToast('Enlace TPV copiado', 'success');"
+                        style="flex:1; padding:5px 8px; border-radius:6px; border:none; background:#047857; color:#fff; font-size:0.72rem; font-weight:700; cursor:pointer;">
+                        <i class="fas fa-copy"></i> Copiar Enlace
+                    </button>
+                    <a href="https://wa.me/34${clientPhone}?text=${encodeURIComponent(waText)}" target="_blank"
+                        style="flex:1; padding:5px 8px; border-radius:6px; background:#25d366; color:#fff; font-size:0.72rem; font-weight:700; text-decoration:none; text-align:center;">
+                        <i class="fab fa-whatsapp"></i> WhatsApp
+                    </a>
+                </div>
+            `;
+        }
+        showToast('Enlace de TPV Virtual generado', 'success');
+        return window._lastLvPayGold;
+    } catch (err) {
+        console.error('[TPV Virtual Bono] Error:', err);
+        showToast('Error generando enlace TPV: ' + (err.message || err), 'error');
+        return null;
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = origHtml || '<i class="fas fa-link"></i> Generar Enlace TPV';
+        }
+    }
 }
 
 function updateMonederoPreview() {
@@ -9114,10 +9294,9 @@ async function openMonederoRechargeModal() {
             <input id="mnd-rec-amount" type="number" step="0.01" min="0.01" class="param-input" style="width:100%; margin-bottom:12px;" placeholder="Ej: 50.00">
             <label style="font-weight:700; display:block; margin-bottom:4px;">Método de pago</label>
             <select id="mnd-rec-method" class="param-input" style="width:100%; margin-bottom:12px;">
-                <option value="tarjeta">Tarjeta</option>
-                <option value="efectivo">Efectivo</option>
-                <option value="transferencia">Transferencia</option>
-                <option value="pendiente">Dejar pendiente de cobro</option>
+                <option value="tarjeta">💳 Tarjeta</option>
+                <option value="efectivo">💵 Efectivo</option>
+                <option value="pasarela">🔗 TPV Virtual (Enlace)</option>
             </select>
             <label style="font-weight:700; display:block; margin-bottom:4px;">Concepto / Nota (opcional)</label>
             <input id="mnd-rec-note" type="text" class="param-input" style="width:100%;" value="Recarga de saldo en recepción">
