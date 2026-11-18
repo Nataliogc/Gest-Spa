@@ -6446,6 +6446,36 @@
             await Promise.all(asyncEditTasks);
         }
 
+        // Actualiza una reserva buscando su colección real aunque el campo interno `collection` esté desincronizado
+        // o exista una copia duplicada con el mismo ID en otra colección de salas.
+        async function updateReservationDocResilient(id, resData, updates) {
+            const preferredColl = (resData && (resData._collection || resData.collection || (resData._moduleCode && MODULES[resData._moduleCode]?.collection))) || currentModule.collection;
+            const allColls = Array.from(new Set([
+                preferredColl,
+                'reservas_cabina1', 'reservas_cabina2', 'reservas_cabina3',
+                'reservas_suite', 'reservas_panacea', 'reservas_vip',
+                'reservas_peluqueria', 'reservas_spa', 'reservas_gimnasio'
+            ].filter(c => c && c !== 'reservas_cabinas_placeholder')));
+
+            let updatedCount = 0;
+            await Promise.all(allColls.map(async (coll) => {
+                try {
+                    const snap = await db.collection(coll).doc(id).get();
+                    if (snap.exists) {
+                        await db.collection(coll).doc(id).update(updates);
+                        updatedCount++;
+                    }
+                } catch (e) {
+                    console.warn(`[RESILIENT UPDATE] Error comprobando/actualizando ${coll}/${id}:`, e);
+                }
+            }));
+
+            if (updatedCount === 0) {
+                throw new Error(`No se encontró el documento ${id} en ninguna colección.`);
+            }
+            return updatedCount;
+        }
+
         async function cancelBookingFromModal() {
             const id = document.getElementById("form-id").value;
             if (!id) return;
@@ -6486,10 +6516,9 @@
                     if (result.isConfirmed) {
                         try {
                             const date = document.getElementById("main-date-picker")?.value || resData.fecha;
-                            const targetColl = resData.collection || (resData._moduleCode ? MODULES[resData._moduleCode].collection : currentModule.collection);
 
-                            // Cancelar inmediatamente la reserva actual en su colección
-                            await db.collection(targetColl).doc(id).update({
+                            // Cancelar inmediatamente la reserva actual en su colección real (y posibles duplicados)
+                            await updateReservationDocResilient(id, resData, {
                                 status: 'anulada',
                                 cancelled_at: new Date().toISOString()
                             });
@@ -6507,9 +6536,8 @@
                     } else if (result.isDenied) {
                         try {
                             const date = document.getElementById("main-date-picker")?.value || resData.fecha;
-                            const targetColl = resData.collection || (resData._moduleCode ? MODULES[resData._moduleCode].collection : currentModule.collection);
 
-                            await db.collection(targetColl).doc(id).update({
+                            await updateReservationDocResilient(id, resData, {
                                 status: 'anulada',
                                 cancelled_at: new Date().toISOString()
                             });
@@ -6599,30 +6627,10 @@
             if (!result.isConfirmed) return;
 
             try {
-                const targetColl = resData.collection || (resData._moduleCode ? MODULES[resData._moduleCode].collection : currentModule.collection);
-                const cancelledAt = new Date().toISOString();
-                await db.collection(targetColl).doc(id).update({
+                await updateReservationDocResilient(id, resData, {
                     status: 'anulada',
-                    cancelled_at: cancelledAt
+                    cancelled_at: new Date().toISOString()
                 });
-
-                // Limpiar posibles duplicados con el mismo ID en otras colecciones de salas
-                const roomCollections = ['reservas_cabina1', 'reservas_cabina2', 'reservas_cabina3', 'reservas_suite', 'reservas_panacea', 'reservas_vip', 'reservas_peluqueria'];
-                await Promise.all(
-                    roomCollections
-                        .filter(c => c !== targetColl)
-                        .map(async (c) => {
-                            try {
-                                const dupDoc = await db.collection(c).doc(id).get();
-                                if (dupDoc.exists) {
-                                    await db.collection(c).doc(id).update({
-                                        status: 'anulada',
-                                        cancelled_at: cancelledAt
-                                    });
-                                }
-                            } catch (_) {}
-                        })
-                );
 
                 // Sync status change to Mesachef
                 if (window.syncReservationToMesachef) {
@@ -6699,8 +6707,7 @@
                 }
 
                 // 2. Update Status
-                const targetColl = resData.collection || (resData._moduleCode ? MODULES[resData._moduleCode].collection : currentModule.collection);
-                await db.collection(targetColl).doc(id).update({
+                await updateReservationDocResilient(id, resData, {
                     status: 'confirmada',
                     cancelled_at: firebase.firestore.FieldValue.delete(),
                     updated_at: new Date().toISOString()
@@ -7267,7 +7274,7 @@
                     const res = currentData.find(r => r.id === id);
                     if (res) {
                         existingStatus = res.status;
-                        originalColl = res.collection || currentModule.collection;
+                        originalColl = res._collection || res.collection || currentModule.collection;
 
                         // Actually, if roomSel is visible and has a value, we trust it. 
                         // If not, we fall back to existing collection ONLY if roomSel is really empty.
@@ -7278,7 +7285,7 @@
                                 targetColl = window.MODULES[roomSel.value].collection;
                             }
                         } else {
-                            if (res.collection) targetColl = res.collection;
+                            if (res._collection || res.collection) targetColl = res._collection || res.collection;
                         }
                     }
                 }
@@ -7295,8 +7302,10 @@
                 if (isGym) { targetColl = "reservas_gimnasio"; finalOrigin = "gimnasio"; finalStatus = 'finalizada'; }
                 else if (isComplement) { targetColl = "reservas_complementos"; finalStatus = 'finalizada'; }
 
+                const targetModuleEntry = Object.values(window.MODULES || {}).find(m => m.collection === targetColl);
                 const payload = {
                     collection: targetColl,
+                    _moduleCode: targetModuleEntry ? targetModuleEntry.code : (currentModule.code || ""),
                     status: finalStatus,
                     complementos: complementosNames,
                     extras_info: extrasInfo,
@@ -7569,16 +7578,32 @@
                 try {
                     let savedId = id;
                     if (id.length > 10) {
-                        // Check for Collection Move (Room Change)
-                        if (originalColl && originalColl !== targetColl) {
-                            console.log(`[MOVE] Moving reservation ${id} from ${originalColl} to ${targetColl}`);
-                            // 1. Create in new collection (SET to keep ID)
-                            await db.collection(targetColl).doc(id).set(payload);
-                            // 2. Delete from old collection
-                            await db.collection(originalColl).doc(id).delete();
+                        // Check for Collection Move (Room Change) - operación atómica con batch para evitar duplicados
+                        if (originalColl && originalColl !== targetColl && originalColl !== 'reservas_cabinas_placeholder') {
+                            console.log(`[MOVE] Moving reservation ${id} atomically from ${originalColl} to ${targetColl}`);
+                            const batch = db.batch();
+                            batch.set(db.collection(targetColl).doc(id), payload);
+                            batch.delete(db.collection(originalColl).doc(id));
+                            await batch.commit();
                         } else {
-                            // Standard Update
-                            await db.collection(targetColl).doc(id).update(payload);
+                            // Standard Update (con fallback por si el documento estaba en otra colección)
+                            try {
+                                await db.collection(targetColl).doc(id).update(payload);
+                            } catch (updErr) {
+                                if (updErr && (updErr.code === 'not-found' || /No document to update/i.test(updErr.message || ''))) {
+                                    const roomColls = ['reservas_cabina1', 'reservas_cabina2', 'reservas_cabina3', 'reservas_suite', 'reservas_panacea', 'reservas_vip', 'reservas_peluqueria'];
+                                    const batch = db.batch();
+                                    batch.set(db.collection(targetColl).doc(id), payload);
+                                    for (const c of roomColls) {
+                                        if (c === targetColl) continue;
+                                        const oldSnap = await db.collection(c).doc(id).get();
+                                        if (oldSnap.exists) batch.delete(db.collection(c).doc(id));
+                                    }
+                                    await batch.commit();
+                                } else {
+                                    throw updErr;
+                                }
+                            }
                         }
                     } else {
                         const docRef = await db.collection(targetColl).add(payload);

@@ -1404,7 +1404,7 @@
             try {
                 sessionStorage.setItem('quickEditReservationData', JSON.stringify({
                     ...b,
-                    collection: b.collection || b._collection || `reservas_${mod || 'cabinas'}`,
+                    collection: b._collection || b.collection || `reservas_${mod || 'cabinas'}`,
                     _moduleCode: mod || 'cabinas'
                 }));
             } catch (e) {}
