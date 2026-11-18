@@ -463,7 +463,21 @@ function renderDashboard() {
         return;
     }
 
-    tbody.innerHTML = dataToShow.map(c => {
+    const nowRef = new Date();
+    const todayRefStr = nowRef.getFullYear() + '-' + String(nowRef.getMonth() + 1).padStart(2, '0') + '-' + String(nowRef.getDate()).padStart(2, '0');
+    const nowRefMin = nowRef.getHours() * 60 + nowRef.getMinutes();
+
+    const isAppointmentPast = (c) => {
+        const f = String(c.fecha || '');
+        if (!f) return false;
+        if (f < todayRefStr) return true;
+        if (f > todayRefStr) return false;
+        const [hh, mm] = String(c.hora || '00:00').split(':').map(Number);
+        if (isNaN(hh)) return false;
+        return (hh * 60 + (mm || 0)) < nowRefMin;
+    };
+
+    const renderAppointmentRow = (c) => {
         // Determine service name to display
         let rawSvc = c.servicio || c.service || '—';
         if (rawSvc === '—' && c.moduleType === 'spa') {
@@ -693,11 +707,27 @@ function renderDashboard() {
 
         const clientTel = c.tel || c.telefono || '';
         const payUrl = c.payment_link || c.paygold_link || '';
+        const isPastSearchRow = isGlobalSearch && isAppointmentPast(c);
+        const isTodaySearchRow = isGlobalSearch && String(c.fecha || '') === todayRefStr;
+        const searchRowStyle = isGlobalSearch
+            ? (isPastSearchRow
+                ? 'background:#f8fafc; opacity:0.78; border-left: 3px solid #cbd5e1;'
+                : (isTodaySearchRow
+                    ? 'background:#f0f9ff; border-left: 3px solid #3b82f6;'
+                    : 'background:#ffffff; border-left: 3px solid #10b981;'))
+            : '';
+        const fechaBadgeHtml = isGlobalSearch
+            ? (isPastSearchRow
+                ? `<div style="margin-top:2px;"><span style="display:inline-block; font-size:0.65rem; font-weight:700; padding:1px 6px; border-radius:4px; background:#e2e8f0; color:#475569;">PASADA</span></div>`
+                : (isTodaySearchRow
+                    ? `<div style="margin-top:2px;"><span style="display:inline-block; font-size:0.65rem; font-weight:700; padding:1px 6px; border-radius:4px; background:#dbeafe; color:#1d4ed8;">HOY</span></div>`
+                    : `<div style="margin-top:2px;"><span style="display:inline-block; font-size:0.65rem; font-weight:700; padding:1px 6px; border-radius:4px; background:#d1fae5; color:#047857;">FUTURA</span></div>`))
+            : '';
 
         return `
-            <tr style="${isNoShow ? 'opacity: 0.5;' : ''} vertical-align: middle;">
+            <tr style="${isNoShow ? 'opacity: 0.5;' : ''} ${searchRowStyle} vertical-align: middle;">
                 <td class="col-id" style="vertical-align: middle; font-size:0.8rem; color:#666; text-align:left;">${c.res_id || c.id.substr(0, 4)}</td>
-                ${isGlobalSearch ? `<td class="col-fecha" style="vertical-align: middle; font-size:0.8rem; text-align:center;">${formatDateES(c.fecha)}</td>` : ''}
+                ${isGlobalSearch ? `<td class="col-fecha" style="vertical-align: middle; font-size:0.8rem; text-align:center; font-weight:${isPastSearchRow ? '500' : '700'}; color:${isPastSearchRow ? '#64748b' : '#0f172a'};">${formatDateES(c.fecha)}${fechaBadgeHtml}</td>` : ''}
                 <td class="col-hora" style="vertical-align: middle; font-weight:bold; color:var(--accent); text-align:center;">${c.hora}</td>
                 <td class="col-cliente" style="vertical-align: middle; text-align:left; ${isNoShow ? 'text-decoration: line-through;' : ''}">${c.nombre}</td>
                 <td class="col-servicio" style="vertical-align: middle; text-align:left;">${serviceName}</td>
@@ -741,7 +771,39 @@ function renderDashboard() {
                     </div>
                 </td>
             </tr>`;
-    }).join('');
+    };
+
+    if (isGlobalSearch) {
+        const upcomingRows = dataToShow
+            .filter(c => !isAppointmentPast(c))
+            .sort((a, b) => (a.fecha || '').localeCompare(b.fecha || '') || (a.hora || '').localeCompare(b.hora || ''));
+        const pastRows = dataToShow
+            .filter(c => isAppointmentPast(c))
+            .sort((a, b) => (b.fecha || '').localeCompare(a.fecha || '') || (b.hora || '').localeCompare(a.hora || ''));
+
+        let html = '';
+        if (upcomingRows.length > 0) {
+            html += `
+                <tr>
+                    <td colspan="8" style="background: #ecfdf5; color: #065f46; font-weight: 700; font-size: 0.78rem; padding: 8px 14px; border-top: 2px solid #10b981; border-bottom: 1px solid #a7f3d0; letter-spacing: 0.04em;">
+                        <i class="fas fa-calendar-check" style="margin-right: 6px; color: #059669;"></i> PRÓXIMAS / FUTURAS (${upcomingRows.length})
+                    </td>
+                </tr>
+                ${upcomingRows.map(renderAppointmentRow).join('')}`;
+        }
+        if (pastRows.length > 0) {
+            html += `
+                <tr>
+                    <td colspan="8" style="background: #f1f5f9; color: #475569; font-weight: 700; font-size: 0.78rem; padding: 8px 14px; border-top: 2px solid #94a3b8; border-bottom: 1px solid #cbd5e1; letter-spacing: 0.04em;">
+                        <i class="fas fa-history" style="margin-right: 6px; color: #64748b;"></i> PASADAS (${pastRows.length})
+                    </td>
+                </tr>
+                ${pastRows.map(renderAppointmentRow).join('')}`;
+        }
+        tbody.innerHTML = html;
+    } else {
+        tbody.innerHTML = dataToShow.map(renderAppointmentRow).join('');
+    }
 }
 
 function formatDateES(isoStr) {
