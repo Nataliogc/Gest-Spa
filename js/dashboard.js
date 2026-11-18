@@ -1340,7 +1340,7 @@ async function getReportVouchersAndServices(forceRefresh = false) {
     if (forceRefresh || !_reportsCache.services) {
         const catSnap = await db.collection("spa_services").get();
         const list = [];
-        catSnap.forEach(doc => list.push(doc.data()));
+        catSnap.forEach(doc => list.push({ id: doc.id, ...doc.data() }));
         _reportsCache.services = list;
     }
     return _reportsCache;
@@ -1416,17 +1416,56 @@ window.generarRankingBonos = async function (channel = 'all') {
     };
 
     try {
-        const { vouchers } = await getReportVouchersAndServices();
+        const { vouchers, services } = await getReportVouchersAndServices();
         const stats = {};
         let globalUnits = 0;
         let globalRevenue = 0;
+
+        // Índice rápido de catálogo por ID y por nombre normalizado
+        const serviceById = new Map();
+        const serviceByNormName = new Map();
+        (services || []).forEach(s => {
+            if (s.wc_id != null && s.wc_id !== '') serviceById.set(String(s.wc_id).trim(), s);
+            if (s.id) serviceById.set(String(s.id).trim(), s);
+            if (s.nombre) {
+                const nKey = normalizeBonoRankingName(s.nombre).toLowerCase();
+                if (!serviceByNormName.has(nKey)) serviceByNormName.set(nKey, s);
+            }
+        });
+
+        const resolveCatalogCode = (b, key) => {
+            const firstItem = Array.isArray(b.items_desglosados) && b.items_desglosados.length > 0 ? b.items_desglosados[0] : null;
+            const candidateIds = [
+                b.variation_id,
+                b.product_id,
+                b.wc_id,
+                firstItem?.variation_id,
+                firstItem?.wc_id,
+                firstItem?.product_id,
+                firstItem?.id
+            ].filter(v => v !== undefined && v !== null && v !== '');
+
+            for (const cid of candidateIds) {
+                const match = serviceById.get(String(cid).trim());
+                if (match) return { code: match.wc_id || match.id || '', sku: match.wc_sku || '' };
+            }
+            const nameMatch = serviceByNormName.get(key);
+            if (nameMatch) return { code: nameMatch.wc_id || nameMatch.id || '', sku: nameMatch.wc_sku || '' };
+            if (candidateIds.length > 0) return { code: String(candidateIds[0]).trim(), sku: '' };
+            return { code: '', sku: '' };
+        };
 
         vouchers.forEach(b => {
             if (!voucherMatchesReportFilters(b, _activeReportMode, fromVal, toVal)) return;
             const cleanName = normalizeBonoRankingName(b.producto || 'Desconocido');
             const key = cleanName.toLowerCase();
             if (!stats[key]) {
-                stats[key] = { displayName: cleanName, variantCounts: {}, count: 0, revenue: 0 };
+                stats[key] = { displayName: cleanName, variantCounts: {}, count: 0, revenue: 0, code: '', sku: '' };
+            }
+            if (!stats[key].code) {
+                const resolved = resolveCatalogCode(b, key);
+                if (resolved.code) stats[key].code = resolved.code;
+                if (resolved.sku) stats[key].sku = resolved.sku;
             }
             const rev = parseFloat(b.importe || b.precio || 0) || 0;
             stats[key].variantCounts[cleanName] = (stats[key].variantCounts[cleanName] || 0) + 1;
@@ -1445,7 +1484,7 @@ window.generarRankingBonos = async function (channel = 'all') {
                     if (aAllCaps !== bAllCaps) return aAllCaps ? 1 : -1;
                     return b[1] - a[1];
                 });
-                return [variants[0]?.[0] || entry.displayName, { count: entry.count, revenue: entry.revenue }];
+                return [variants[0]?.[0] || entry.displayName, { count: entry.count, revenue: entry.revenue, code: entry.code, sku: entry.sku }];
             })
             .sort((a, b) => b[1].count - a[1].count);
 
@@ -1475,7 +1514,7 @@ window.generarRankingBonos = async function (channel = 'all') {
                 <h3 style="margin:0; font-size:0.95rem; font-weight:800; color:#1e293b;">${channelLabels[_activeReportMode]}</h3>
                 <div style="position:relative; min-width:260px;">
                     <i class="fas fa-search" style="position:absolute; left:11px; top:50%; transform:translateY(-50%); color:#94a3b8; font-size:0.8rem;"></i>
-                    <input type="text" placeholder="Filtrar producto..." oninput="filterRankingReportTable(this.value)"
+                    <input type="text" placeholder="Filtrar producto o código..." oninput="filterRankingReportTable(this.value)"
                         style="width:100%; padding:7px 12px 7px 32px; border:1px solid #cbd5e1; border-radius:8px; font-size:0.8rem; outline:none;">
                 </div>
             </div>
@@ -1502,13 +1541,16 @@ window.generarRankingBonos = async function (channel = 'all') {
                 const share = globalUnits ? ((data.count / globalUnits) * 100).toFixed(1) : '0.0';
                 const medalBg = i === 0 ? '#fef3c7' : (i === 1 ? '#f1f5f9' : (i === 2 ? '#ffedd5' : '#f8fafc'));
                 const medalColor = i === 0 ? '#b45309' : (i === 1 ? '#475569' : (i === 2 ? '#c2410c' : '#64748b'));
-                const searchKey = name.replace(/"/g, '&quot;');
+                const searchKey = `${name} ${data.code || ''} ${data.sku || ''}`.replace(/"/g, '&quot;');
+                const codeBadge = data.code
+                    ? `<span style="display:inline-flex; align-items:center; gap:4px; margin-left:8px; padding:2px 7px; border-radius:6px; background:#f1f5f9; border:1px solid #e2e8f0; color:#475569; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:0.72rem; font-weight:600; vertical-align:middle;" title="Código interno de catálogo">ID: ${data.code}${data.sku ? ` · ${data.sku}` : ''}</span>`
+                    : '';
                 html += `
                     <tr data-search="${searchKey}" style="border-bottom:1px solid #f1f5f9; transition: background 0.15s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='#fff'">
                         <td style="padding:12px 16px;">
                             <span style="display:inline-flex; align-items:center; justify-content:center; min-width:34px; height:26px; border-radius:7px; background:${medalBg}; color:${medalColor}; font-weight:800; font-size:0.85rem;">#${i + 1}</span>
                         </td>
-                        <td style="padding:12px 16px; font-weight:700; color:#1e293b; font-size:0.9rem;">${name}</td>
+                        <td style="padding:12px 16px; font-weight:700; color:#1e293b; font-size:0.9rem;">${name}${codeBadge}</td>
                         <td style="padding:12px 16px;">
                             <div style="display:flex; align-items:center; gap:8px;">
                                 <div style="flex:1; height:8px; background:#f1f5f9; border-radius:999px; overflow:hidden;">
@@ -1567,7 +1609,7 @@ window.generarInformeServicios = async function () {
             const realName = s.nombre;
             if (!realName) return;
             const norm = normalizeServiceName(realName);
-            catalog[realName] = { category: s.categoria || 'Sin Cat.', sold: 0, revenue: 0 };
+            catalog[realName] = { category: s.categoria || 'Sin Cat.', sold: 0, revenue: 0, code: s.wc_id || s.id || '', sku: s.wc_sku || '' };
             normalizedCatalog[norm] = realName;
         });
 
@@ -1652,10 +1694,13 @@ window.generarInformeServicios = async function () {
 
         sorted.forEach(([name, data]) => {
             const pct = Math.max(3, Math.round((data.sold / maxSold) * 100));
-            const searchKey = `${name} ${data.category}`.replace(/"/g, '&quot;');
+            const searchKey = `${name} ${data.category} ${data.code || ''} ${data.sku || ''}`.replace(/"/g, '&quot;');
+            const codeBadge = data.code
+                ? `<span style="display:inline-flex; align-items:center; gap:4px; margin-left:8px; padding:2px 7px; border-radius:6px; background:#f1f5f9; border:1px solid #e2e8f0; color:#475569; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:0.72rem; font-weight:600; vertical-align:middle;" title="Código interno de catálogo">ID: ${data.code}${data.sku ? ` · ${data.sku}` : ''}</span>`
+                : '';
             html += `
                 <tr data-search="${searchKey}" style="border-bottom:1px solid #f1f5f9; transition: background 0.15s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='#fff'">
-                    <td style="padding:11px 16px; font-weight:700; color:#1e293b; font-size:0.88rem;">${name}</td>
+                    <td style="padding:11px 16px; font-weight:700; color:#1e293b; font-size:0.88rem;">${name}${codeBadge}</td>
                     <td style="padding:11px 16px; font-size:0.78rem;"><span style="background:#f1f5f9; border:1px solid #e2e8f0; padding:3px 10px; border-radius:999px; color:#475569; font-weight:600;">${data.category}</span></td>
                     <td style="padding:11px 16px;">
                         <div style="height:7px; background:#f1f5f9; border-radius:999px; overflow:hidden;">

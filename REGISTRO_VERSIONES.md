@@ -8,7 +8,7 @@ Este documento mantiene el **control de versión única y global** para todo el 
 
 | Parámetro | Valor Actual |
 | :--- | :--- |
-| **Versión Global del Sistema** | **`v2.3.68`** |
+| **Versión Global del Sistema** | **`v2.3.69`** |
 | **Fecha de Última Actualización** | **18/11/2026** |
 | **Estado General** | Operativo en Producción |
 
@@ -47,6 +47,11 @@ Cualquier cambio en los siguientes módulos impacta en la versión global:
 ---
 
 ## 📝 Historial Unificado de Versiones
+
+### [v2.3.69] - 18/11/2026
+- **Tipo:** PATCH
+- **Archivos:** `js/dashboard.js`
+- **Descripción:** Mejora continua del sistema Gest-Spa
 
 ### [v2.3.68] - 18/11/2026
 - **Tipo:** PATCH
