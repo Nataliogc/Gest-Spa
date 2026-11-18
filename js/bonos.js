@@ -5336,8 +5336,9 @@ function openLocalVoucherModal() {
     state.lvSelectedProduct = null;
     if (document.getElementById('lv-monedero-concept')) document.getElementById('lv-monedero-concept').value = '';
     if (document.getElementById('lv-monedero-amount')) document.getElementById('lv-monedero-amount').value = '';
-    if (document.getElementById('lv-monedero-paymethod')) document.getElementById('lv-monedero-paymethod').value = 'tarjeta';
+    if (document.getElementById('lv-monedero-paymethod')) document.getElementById('lv-monedero-paymethod').value = '';
     if (document.getElementById('lv-monedero-message')) document.getElementById('lv-monedero-message').value = '';
+    if (typeof selectLocalPayMethod === 'function') selectLocalPayMethod('');
     if (typeof setLocalVoucherMode === 'function') setLocalVoucherMode('sessions');
     renderLVCart();
     loadActiveComplementos();
@@ -6085,13 +6086,45 @@ async function createLocalVoucher() {
     }
     const code = codeInput || `LOC-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
 
+    // === FORMA DE PAGO OBLIGATORIA: no se crea ningún bono sin cobrar ===
+    const payMethod = document.getElementById("lv-paymethod")?.value || '';
+    const payUser = window.currentUser?.name || 'Recepción';
+    const requiresPayment = isMonederoMode || state.lvCart.some(i => (parseFloat(i.price) || 0) > 0);
+    if (requiresPayment && !payMethod) {
+        const section = document.getElementById("lv-payment-section");
+        if (section) {
+            section.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            section.style.boxShadow = '0 0 0 3px rgba(220,38,38,0.35)';
+            setTimeout(() => section.style.boxShadow = '', 2500);
+        }
+        return showToast("Selecciona la forma de pago. No se puede crear un bono sin cobrarlo.", "warning");
+    }
+    const buildPaidFields = (amount, concepto) => {
+        if (amount <= 0) {
+            return { estado_pago: 'pagado', importe_pagado: 0, importe_pendiente: 0, pagos: [], metodo_pago: 'invitacion' };
+        }
+        return {
+            estado_pago: 'pagado',
+            importe_pagado: amount,
+            importe_pendiente: 0,
+            metodo_pago: payMethod,
+            pagos: [{
+                id: 'pay_' + Math.random().toString(36).substr(2, 9),
+                fecha: new Date().toISOString(),
+                importe: amount,
+                metodo: payMethod,
+                concepto,
+                usuario: payUser
+            }]
+        };
+    };
+
     const now = new Date();
     let newVoucher = null;
 
     if (isMonederoMode) {
         const concept = document.getElementById("lv-monedero-concept")?.value.trim();
         const amount = parseFloat(document.getElementById("lv-monedero-amount")?.value) || 0;
-        const payMethod = document.getElementById("lv-monedero-paymethod")?.value || 'pendiente';
         const giftMsg = document.getElementById("lv-monedero-message")?.value.trim() || '';
 
         if (!concept) {
@@ -6103,7 +6136,6 @@ async function createLocalVoucher() {
             return showToast("Introduce un saldo inicial (€) mayor que 0", "warning");
         }
 
-        const isPaid = payMethod !== 'pendiente';
         newVoucher = {
             bono: code,
             codigo: code,
@@ -6142,17 +6174,7 @@ async function createLocalVoucher() {
             createdAt: now.toISOString(),
             manual_update: true,
             updated_at: now.toISOString(),
-            estado_pago: isPaid ? 'pagado' : 'pendiente',
-            importe_pagado: isPaid ? amount : 0,
-            importe_pendiente: isPaid ? 0 : amount,
-            pagos: isPaid ? [{
-                id: 'pay_' + Math.random().toString(36).substr(2, 9),
-                fecha: now.toISOString(),
-                importe: amount,
-                metodo: payMethod,
-                concepto: 'Alta Bono Monedero',
-                usuario: window.currentUser?.name || 'Recepción'
-            }] : [],
+            ...buildPaidFields(amount, 'Alta Bono Monedero'),
             service_payment_status: null,
             snapshot_price: amount
         };
@@ -6210,10 +6232,7 @@ async function createLocalVoucher() {
             createdAt: now.toISOString(),
             manual_update: true,
             updated_at: now.toISOString(),
-            estado_pago: (totalPrice === 0 && (discountPercent >= 100 || productNames.toLowerCase().includes('invitacion'))) ? 'pagado' : 'pendiente',
-            importe_pagado: 0,
-            importe_pendiente: (totalPrice === 0 && (discountPercent >= 100 || productNames.toLowerCase().includes('invitacion'))) ? 0 : totalPrice,
-            pagos: [],
+            ...buildPaidFields(totalPrice, `Alta Bono: ${productNames}`),
             service_payment_status: null,
             snapshot_price: totalPrice
         };
@@ -8751,11 +8770,35 @@ function setMonederoPreset(amount) {
     updateMonederoPreview();
 }
 
+const LV_PAY_LABELS = { tarjeta: 'Pagado con Tarjeta', efectivo: 'Pagado en Efectivo', transferencia: 'Pagado por Transferencia' };
+
+function selectLocalPayMethod(method) {
+    const input = document.getElementById('lv-paymethod');
+    if (input) input.value = method || '';
+    document.querySelectorAll('#lv-payment-section .lv-pay-btn').forEach(btn => {
+        const active = btn.dataset.method === method;
+        btn.style.background = active ? '#059669' : '#fff';
+        btn.style.color = active ? '#fff' : '#334155';
+        btn.style.borderColor = active ? '#059669' : '#cbd5e1';
+    });
+    const section = document.getElementById('lv-payment-section');
+    const status = document.getElementById('lv-paymethod-status');
+    if (section) {
+        section.style.borderColor = method ? '#86efac' : '#fecaca';
+        section.style.background = method ? '#f0fdf4' : '#fff7f7';
+    }
+    if (status) {
+        status.textContent = method ? '✓ ' + (LV_PAY_LABELS[method] || method) : 'Obligatorio';
+        status.style.color = method ? '#047857' : '#b91c1c';
+    }
+    updateMonederoPreview();
+}
+
 function updateMonederoPreview() {
     const concept = document.getElementById('lv-monedero-concept')?.value.trim() || 'Bono Monedero';
     const amount = parseFloat(document.getElementById('lv-monedero-amount')?.value) || 0;
-    const paySel = document.getElementById('lv-monedero-paymethod');
-    const payText = paySel ? paySel.options[paySel.selectedIndex]?.text : 'Pagado con Tarjeta';
+    const method = document.getElementById('lv-paymethod')?.value || '';
+    const payText = method ? LV_PAY_LABELS[method] : 'Sin seleccionar (obligatorio)';
 
     const prevConcept = document.getElementById('lv-mon-prev-concept');
     const prevPay = document.getElementById('lv-mon-prev-pay');

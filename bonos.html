@@ -588,15 +588,7 @@
                                 </div>
                             </div>
 
-                            <div class="form-group lv-field" style="margin-bottom: 0;">
-                                <label for="lv-monedero-paymethod">Estado / Método de Cobro</label>
-                                <select id="lv-monedero-paymethod" class="param-input" onchange="updateMonederoPreview()">
-                                    <option value="tarjeta">Pagado con Tarjeta</option>
-                                    <option value="efectivo">Pagado en Efectivo</option>
-                                    <option value="transferencia">Pagado por Transferencia</option>
-                                    <option value="pendiente">Dejar Pendiente de Cobro</option>
-                                </select>
-                            </div>
+                            <input type="hidden" id="lv-monedero-paymethod" value="">
 
                             <div class="form-group lv-field" style="margin-bottom: 0;">
                                 <label for="lv-monedero-message">Dedicatoria / Mensaje Regalo (opcional)</label>
@@ -749,6 +741,29 @@
                         <div class="lv-total-bar">
                             <span class="lv-total-label">TOTAL DEL BONO</span>
                             <span id="lv-total-display" class="lv-total-value">0.00€ (0 Sesiones)</span>
+                        </div>
+
+                        <!-- FORMA DE PAGO (OBLIGATORIA PARA CREAR EL BONO) -->
+                        <div id="lv-payment-section" style="margin-top: 10px; padding: 10px 12px; border: 1px solid #fecaca; background: #fff7f7; border-radius: 10px;">
+                            <input type="hidden" id="lv-paymethod" value="">
+                            <div style="font-size: 0.7rem; font-weight: 800; text-transform: uppercase; color: #991b1b; margin-bottom: 6px; display: flex; align-items: center; gap: 6px;">
+                                <i class="fas fa-credit-card"></i> Forma de Pago <span class="lv-req">*</span>
+                                <span id="lv-paymethod-status" style="margin-left: auto; font-size: 0.65rem; color: #b91c1c;">Obligatorio</span>
+                            </div>
+                            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px;">
+                                <button type="button" class="lv-pay-btn" data-method="tarjeta" onclick="selectLocalPayMethod('tarjeta')"
+                                    style="padding: 8px 6px; border-radius: 8px; border: 1px solid #cbd5e1; background: #fff; color: #334155; font-size: 0.76rem; font-weight: 700; cursor: pointer;">
+                                    <i class="fas fa-credit-card"></i> Tarjeta
+                                </button>
+                                <button type="button" class="lv-pay-btn" data-method="efectivo" onclick="selectLocalPayMethod('efectivo')"
+                                    style="padding: 8px 6px; border-radius: 8px; border: 1px solid #cbd5e1; background: #fff; color: #334155; font-size: 0.76rem; font-weight: 700; cursor: pointer;">
+                                    <i class="fas fa-money-bill-wave"></i> Efectivo
+                                </button>
+                                <button type="button" class="lv-pay-btn" data-method="transferencia" onclick="selectLocalPayMethod('transferencia')"
+                                    style="padding: 8px 6px; border-radius: 8px; border: 1px solid #cbd5e1; background: #fff; color: #334155; font-size: 0.76rem; font-weight: 700; cursor: pointer;">
+                                    <i class="fas fa-university"></i> Transfer.
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
