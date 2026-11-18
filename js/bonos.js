@@ -7256,6 +7256,15 @@ window.importLocalVouchersFromExcel = function (event) {
                     // Mapping Producto. Fixed 'ARTICULO' matching 'ARTIC\nULO' via normalizeHeader removal of \n
                     const producto = getVal(['Producto', 'Servicio', 'Concepto', 'Item', 'Articulo']) || 'Bono Importado';
 
+                    // Saltar filas basura/corruptas del Excel (ERROR, #ERROR!, o sin cliente ni producto real)
+                    const prodLower = String(producto).trim().toLowerCase();
+                    const cliLower = String(cliente).trim().toLowerCase();
+                    const isExcelError = ['error', '#error!', '#value!', '#ref!', '#name?', '#n/a'].includes(prodLower);
+                    if (isExcelError || (cliLower === 'cliente importado' && prodLower === 'bono importado')) {
+                        skippedCount++;
+                        continue;
+                    }
+
                     // 'efectivo' might be the price in this specific sheet
                     const importe = parseFloat(getVal(['Importe', 'Precio', 'Coste', 'Amount', 'Efectivo', 'Total']) || 0);
 
@@ -7528,16 +7537,29 @@ async function forceSyncLocalVouchers() {
 
 
 /**
- * Helper para obtener estado formateado
+ * Helper para obtener estado formateado (sincronizado con renderBonosFromState)
  */
 function getVoucherStatus(b) {
-    if (b.estado === 'completed') return 'completed';
-    // Lógica adicional si es necesario (ej: caducidad)
-    const now = new Date();
-    if (b.fecha_caducidad && new Date(b.fecha_caducidad) < now && b.estado !== 'completed') {
-        return 'expired';
+    const rawEstado = String(b.estado || 'pending').toLowerCase().trim();
+    if (rawEstado === 'anulado' || rawEstado === 'cancelled' || rawEstado === 'cancelado') return 'anulado';
+
+    const vNorm = (typeof normalizeVoucher === 'function') ? normalizeVoucher(b) : null;
+    if (rawEstado === 'completed' || rawEstado === 'canjeado' || (vNorm && vNorm.effectivelyCompleted)) {
+        return 'completed';
     }
-    return b.estado || 'pending';
+
+    const isExpired = Boolean(
+        rawEstado === 'expired' ||
+        rawEstado === 'caducado' ||
+        (vNorm && vNorm.isExpired) ||
+        (typeof checkVoucherExpiry === 'function' && checkVoucherExpiry(b))
+    );
+    if (isExpired) return 'expired';
+
+    if (rawEstado === 'partially' || rawEstado === 'parcial' || (vNorm && vNorm.usedSessions > 0)) {
+        return 'partially';
+    }
+    return 'pending';
 }
 
 // Ensure global access for numeric search if needed explicitly
@@ -7551,18 +7573,29 @@ window.exportToExcel = function () {
         return;
     }
 
-    const exportData = state.bonos.map(b => ({
-        "Bono/Código": b.bono || b.codigo,
-        "Cliente": b.cliente || "Cliente Desconocido",
-        "Email": b.email || "",
-        "Producto": b.producto || "",
-        "Fecha Compra": b.fecha || "",
-        "Sesiones Totales": b.sesiones_totales || b.sesiones_total || 1,
-        "Sesiones Usadas": b.sesiones_usadas || b.sesiones_consumidas || 0,
-        "Importe (€)": b.importe || 0,
-        "Estado": getVoucherStatus(b) === 'expired' ? 'Caducado' : (b.estado === 'completed' ? 'Canjeado' : 'Activo'),
-        "Origen": b.origen || (String(b.bono).startsWith("LOC") ? "local" : "web")
-    }));
+    const statusLabels = {
+        expired: 'Caducado',
+        completed: 'Canjeado',
+        anulado: 'Anulado',
+        partially: 'Parcial',
+        pending: 'Activo'
+    };
+
+    const exportData = state.bonos.map(b => {
+        const st = getVoucherStatus(b);
+        return {
+            "Bono/Código": b.bono || b.codigo,
+            "Cliente": b.cliente || "Cliente Desconocido",
+            "Email": b.email || "",
+            "Producto": b.producto || "",
+            "Fecha Compra": b.fecha || "",
+            "Sesiones Totales": b.sesiones_totales || b.sesiones_total || 1,
+            "Sesiones Usadas": b.sesiones_usadas || b.sesiones_consumidas || 0,
+            "Importe (€)": b.importe || 0,
+            "Estado": statusLabels[st] || 'Activo',
+            "Origen": b.origen || (String(b.bono).startsWith("LOC") ? "local" : "web")
+        };
+    });
 
     const ws = XLSX.utils.json_to_sheet(exportData);
     const wb = XLSX.utils.book_new();
@@ -7570,6 +7603,140 @@ window.exportToExcel = function () {
 
     const dateStr = new Date().toISOString().split('T')[0];
     XLSX.writeFile(wb, `Bonos_Zenith_${dateStr}.xlsx`);
+};
+
+/**
+ * Limpieza integral:
+ * 1) Elimina registros basura de importación (producto ERROR / #ERROR! o Cliente Importado + Bono Importado).
+ * 2) Marca como 'expired' (Caducado) los bonos cuya validez haya vencido (fecha_validez o fecha + 1 año)
+ *    y que aún figurasen como pendientes/activos en IndexedDB y Firestore.
+ */
+window.limpiarBonosCaducadosYBasura = async function () {
+    try {
+        showToast("Analizando bonos caducados y registros basura...", "info");
+
+        // Recopilar todos los bonos disponibles (state + IndexedDB + consulta puntual de basura en Firestore)
+        const byKey = new Map();
+        const addCandidate = (b) => {
+            if (!b) return;
+            const key = String(b.bono || b.codigo || b.id || '').trim();
+            if (!key) return;
+            if (!byKey.has(key)) byKey.set(key, b);
+        };
+
+        (state.bonos || []).forEach(addCandidate);
+
+        if (window.dbLocal) {
+            const allLocal = await dbLocal.bonos.toArray();
+            allLocal.forEach(addCandidate);
+        }
+
+        if (window.db) {
+            try {
+                const junkSnap = await db.collection("spa_vouchers")
+                    .where("cliente", "==", "Cliente Importado")
+                    .limit(300)
+                    .get();
+                junkSnap.forEach(doc => addCandidate({ ...doc.data(), bono: doc.id }));
+            } catch (e) {
+                console.warn("[CLEANUP] No se pudo consultar Cliente Importado en Firestore:", e);
+            }
+        }
+
+        const isJunkVoucher = (b) => {
+            const prodNorm = String(b.producto || '').trim().toLowerCase();
+            const cliNorm = String(b.cliente || '').trim().toLowerCase();
+            const isErrorProd = ['error', '#error!', '#value!', '#ref!', '#name?', '#n/a'].includes(prodNorm);
+            const isImportedPlaceholder = (cliNorm === 'cliente importado' && (prodNorm === 'bono importado' || prodNorm === '' || isErrorProd));
+            return isErrorProd || isImportedPlaceholder;
+        };
+
+        const toDeleteJunk = [];
+        const toMarkExpired = [];
+
+        for (const b of byKey.values()) {
+            if (isJunkVoucher(b)) {
+                toDeleteJunk.push(b);
+                continue;
+            }
+
+            const rawEstado = String(b.estado || 'pending').toLowerCase().trim();
+            const isFinalState = ['completed', 'canjeado', 'anulado', 'cancelled', 'cancelado', 'expired', 'caducado'].includes(rawEstado);
+            if (!isFinalState && typeof checkVoucherExpiry === 'function' && checkVoucherExpiry(b)) {
+                const vNorm = (typeof normalizeVoucher === 'function') ? normalizeVoucher(b) : null;
+                if (!vNorm || !vNorm.effectivelyCompleted) {
+                    toMarkExpired.push(b);
+                }
+            }
+        }
+
+        if (toDeleteJunk.length === 0 && toMarkExpired.length === 0) {
+            showToast("✅ Todo limpio: no hay registros basura ni bonos caducados pendientes de actualizar.", "success");
+            return;
+        }
+
+        const msg = `Se han detectado:\n` +
+            `• ${toDeleteJunk.length} registros basura (ERROR / Bono Importado) → Se ELIMINARÁN.\n` +
+            `• ${toMarkExpired.length} bonos caducados por fecha (aún como Activos) → Se marcarán como CADUCADOS.\n\n` +
+            `¿Deseas aplicar esta limpieza en local y en la nube?`;
+
+        if (!confirm(msg)) return;
+
+        let deletedCount = 0;
+        let expiredCount = 0;
+        const junkKeys = new Set();
+
+        for (const b of toDeleteJunk) {
+            const docId = String(b.bono || b.codigo || b.id || '').trim();
+            if (!docId) continue;
+            junkKeys.add(docId);
+            try {
+                if (window.dbLocal) {
+                    await dbLocal.bonos.delete(docId);
+                    if (b.id && b.id !== docId) await dbLocal.bonos.delete(b.id);
+                }
+                if (window.db) {
+                    await db.collection("spa_vouchers").doc(docId).delete();
+                }
+                deletedCount++;
+            } catch (e) {
+                console.error(`[CLEANUP] Error eliminando basura ${docId}:`, e);
+            }
+        }
+
+        const nowIso = new Date().toISOString();
+        for (const b of toMarkExpired) {
+            const docId = String(b.bono || b.codigo || b.id || '').trim();
+            if (!docId) continue;
+            try {
+                b.estado = 'expired';
+                b.updatedAt = nowIso;
+                if (window.apiLocal) {
+                    await apiLocal.saveBono({ ...b, syncStatus: 'synced' });
+                }
+                if (window.db) {
+                    await db.collection("spa_vouchers").doc(docId).update({
+                        estado: 'expired',
+                        updatedAt: nowIso
+                    });
+                }
+                expiredCount++;
+            } catch (e) {
+                console.error(`[CLEANUP] Error marcando caducado ${docId}:`, e);
+            }
+        }
+
+        if (Array.isArray(state.bonos)) {
+            state.bonos = state.bonos.filter(b => !junkKeys.has(String(b.bono || b.codigo || b.id || '').trim()));
+        }
+
+        renderBonosFromState();
+        updateCount();
+        showToast(`✅ Limpieza completada: ${deletedCount} basura eliminados, ${expiredCount} marcados como caducados.`, "success");
+    } catch (err) {
+        console.error("[CLEANUP] Error en limpiarBonosCaducadosYBasura:", err);
+        showToast("Error durante la limpieza: " + err.message, "error");
+    }
 };
 
 
