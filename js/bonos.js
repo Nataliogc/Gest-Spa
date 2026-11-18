@@ -8901,8 +8901,6 @@ async function syncSingleVoucher(code) {
 
 function setLocalVoucherMode(mode) {
     const modeInput = document.getElementById('lv-voucher-mode');
-    const btnSes = document.getElementById('lv-mode-btn-sessions');
-    const btnMon = document.getElementById('lv-mode-btn-monedero');
     const hint = document.getElementById('lv-monedero-hint');
     const monFields = document.getElementById('lv-monedero-fields');
     const sesFields = document.getElementById('lv-sessions-fields');
@@ -8911,17 +8909,25 @@ function setLocalVoucherMode(mode) {
     const totalBar = document.querySelector('#local-voucher-modal .lv-total-bar');
     const cartTitle = document.getElementById('lv-cart-title');
     const saveBtnSpan = document.querySelector('#lv-save-btn span');
+    const modalTitle = document.getElementById('lv-modal-title');
+    const modalSubtitle = document.getElementById('lv-modal-subtitle');
+    const headerIcon = document.getElementById('lv-header-icon');
 
     if (modeInput) modeInput.value = mode;
     const isMon = mode === 'monedero';
 
-    if (btnSes && btnMon) {
-        btnSes.style.background = isMon ? 'transparent' : '#fff';
-        btnSes.style.color = isMon ? '#64748b' : '#0f172a';
-        btnSes.style.boxShadow = isMon ? 'none' : '0 1px 2px rgba(0,0,0,0.06)';
-        btnMon.style.background = isMon ? '#059669' : 'transparent';
-        btnMon.style.color = isMon ? '#fff' : '#64748b';
-        btnMon.style.boxShadow = isMon ? '0 1px 3px rgba(5,150,105,0.25)' : 'none';
+    if (modalTitle) {
+        modalTitle.textContent = isMon ? 'Emitir Bono Monedero (€)' : 'Venta Local de Bonos Regalo';
+    }
+    if (modalSubtitle) {
+        modalSubtitle.textContent = isMon
+            ? 'Vale monedero con saldo en euros para consumir en servicios'
+            : 'Emisión rápida de bono regalo presencial en recepción';
+    }
+    if (headerIcon) {
+        headerIcon.innerHTML = isMon ? '<i class="fas fa-wallet"></i>' : '<i class="fas fa-gift"></i>';
+        headerIcon.style.background = isMon ? '#ecfdf5' : '';
+        headerIcon.style.color = isMon ? '#059669' : '';
     }
     if (hint) hint.style.display = isMon ? 'block' : 'none';
     if (monFields) monFields.style.display = isMon ? 'flex' : 'none';

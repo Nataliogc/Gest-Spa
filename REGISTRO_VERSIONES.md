@@ -8,7 +8,7 @@ Este documento mantiene el **control de versión única y global** para todo el 
 
 | Parámetro | Valor Actual |
 | :--- | :--- |
-| **Versión Global del Sistema** | **`v2.3.85`** |
+| **Versión Global del Sistema** | **`v2.3.86`** |
 | **Fecha de Última Actualización** | **18/11/2026** |
 | **Estado General** | Operativo en Producción |
 
@@ -47,6 +47,11 @@ Cualquier cambio en los siguientes módulos impacta en la versión global:
 ---
 
 ## 📝 Historial Unificado de Versiones
+
+### [v2.3.86] - 18/11/2026
+- **Tipo:** PATCH
+- **Archivos:** `bonos.html`, `js/bonos.js`
+- **Descripción:** Separar Venta Local de Bonos Regalo sin selector de Bono Monedero
 
 ### [v2.3.85] - 18/11/2026
 - **Tipo:** PATCH
