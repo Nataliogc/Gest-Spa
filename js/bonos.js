@@ -2757,8 +2757,31 @@ async function autoFixVoucherSessions() {
  * @param {Object} v - El bono original
  * @returns {Object} - El bono normalizado
  */
+function isMonederoVoucher(v) {
+    return Boolean(v && (v.tipo_bono === 'monedero' || v.es_monedero === true));
+}
+
 function normalizeVoucher(v) {
     if (!v) return null;
+
+    if (isMonederoVoucher(v)) {
+        const saldoTotal = parseFloat(v.saldo_total ?? v.importe ?? v.precio ?? 0) || 0;
+        const saldoConsumido = parseFloat(v.saldo_consumido ?? 0) || 0;
+        const saldoDisponible = Math.max(0, parseFloat(v.saldo_disponible ?? (saldoTotal - saldoConsumido)) || 0);
+        return {
+            ...v,
+            normalized: true,
+            isMonedero: true,
+            saldoTotal,
+            saldoConsumido,
+            saldoDisponible,
+            items: [],
+            totalSessions: 1,
+            usedSessions: saldoConsumido > 0 ? 1 : 0,
+            effectivelyCompleted: saldoDisponible <= 0 && saldoTotal > 0,
+            isExpired: checkVoucherExpiry(v)
+        };
+    }
 
     // 1. Unificar Desglose de Items
     const rawItems = v.items_desglosados || v.desglosados || [];
@@ -3107,6 +3130,20 @@ function renderBonosFromState(missingNum = null) {
         if (b.estado === 'anulado') {
             badgeClass = 'st-expired';
             statusLabel = '❌ ANULADO';
+        } else if (v.isMonedero) {
+            if (v.isExpired || b.estado === 'expired') {
+                badgeClass = 'st-expired';
+                statusLabel = 'CADUCADO';
+            } else if (v.saldoDisponible <= 0 && v.saldoTotal > 0) {
+                badgeClass = 'st-completed';
+                statusLabel = 'MONEDERO AGOTADO';
+            } else if (v.saldoConsumido > 0) {
+                badgeClass = 'st-partial';
+                statusLabel = `SALDO: ${v.saldoDisponible.toFixed(2)}€`;
+            } else {
+                badgeClass = 'st-pending';
+                statusLabel = `SALDO: ${v.saldoDisponible.toFixed(2)}€`;
+            }
         } else if (v.effectivelyCompleted || b.estado === 'completed') {
             badgeClass = 'st-completed';
             statusLabel = 'CANJEADO';
@@ -3119,12 +3156,14 @@ function renderBonosFromState(missingNum = null) {
         }
 
         // Sugerencias de corrección (Mantenemos lógica UI legacy)
-        const det = detectSessions(b);
-        const dbTotal = b.sesiones_totales || b.sesiones_total || 1;
-        const dbPax = b.pax_por_sesion || b.pax_sesion || 1;
-        if (b.estado !== 'completed' && ((dbTotal === 1 && det.total > 1) || (dbPax === 1 && det.paxPerSession > 1))) {
-            const label = det.total > 1 ? `${det.total} ses` : `${det.paxPerSession} pax`;
-            statusLabel += ` <i class="fas fa-exclamation-triangle" title="Sugerencia: ${det.total} ses / ${det.paxPerSession} pax. Abre para corregir."></i> ${label}`;
+        if (!v.isMonedero) {
+            const det = detectSessions(b);
+            const dbTotal = b.sesiones_totales || b.sesiones_total || 1;
+            const dbPax = b.pax_por_sesion || b.pax_sesion || 1;
+            if (b.estado !== 'completed' && ((dbTotal === 1 && det.total > 1) || (dbPax === 1 && det.paxPerSession > 1))) {
+                const label = det.total > 1 ? `${det.total} ses` : `${det.paxPerSession} pax`;
+                statusLabel += ` <i class="fas fa-exclamation-triangle" title="Sugerencia: ${det.total} ses / ${det.paxPerSession} pax. Abre para corregir."></i> ${label}`;
+            }
         }
 
 
@@ -4371,6 +4410,8 @@ async function openVoucherManagement(code) {
     document.getElementById("vm-notas").value = v.notas_internas || '';
     document.getElementById("vm-notas").placeholder = "Notas internas visible solo para staff...";
 
+    setupVoucherMonederoUI(v);
+
     renderEditableBreakdown();
 
     // --- Sincronizar uso real con Historial ---
@@ -5273,6 +5314,7 @@ async function annulVoucher() {
 function openLocalVoucherModal() {
     state.lvCart = [];
     state.lvSelectedProduct = null;
+    if (typeof setLocalVoucherMode === 'function') setLocalVoucherMode('sessions');
     renderLVCart();
     loadActiveComplementos();
 
@@ -5589,6 +5631,11 @@ window.selectProductForLocalVoucher = (productData) => {
         state.lvSelectedProductBasePax = explicitBasePax > 0 ? explicitBasePax : 1;
         if (priceInput) priceInput.value = state.lvSelectedProductBasePrice;
 
+        if (/\bvale\b|\bmonedero\b|\btarjeta\s*regalo\b/i.test(prod.nombre || '')) {
+            if (typeof setLocalVoucherMode === 'function') setLocalVoucherMode('monedero');
+            if (priceInput) priceInput.readOnly = false;
+        }
+
         let totalSessions = 1;
         if ((prod.items_incluidos && prod.items_incluidos.length > 0) || (prod.nombre || '').toLowerCase().includes('pack')) {
             totalSessions = 1;
@@ -5756,7 +5803,34 @@ window.updateLocalPriceWithDiscount = () => {
 // Pero como ya existe lógica quizás, mejor lo hacemos en addToCartLocal o inyectamos.
 
 function addToCartLocal() {
-    const selected = state.lvSelectedProduct;
+    const voucherMode = document.getElementById("lv-voucher-mode")?.value || 'sessions';
+    let selected = state.lvSelectedProduct;
+
+    if (!selected && voucherMode === 'monedero') {
+        const directPrice = parseFloat(document.getElementById("lv-price")?.value) || 0;
+        if (directPrice <= 0) return showToast("Introduce un saldo inicial (€) válido para el monedero", "warning");
+        const customSearch = (document.getElementById("lv-product-custom")?.value || document.getElementById("lv-product-search")?.value || '').trim();
+        const walletName = customSearch || `Bono Monedero ${directPrice.toFixed(0)} €`;
+        state.lvCart.push({
+            name: walletName,
+            price: directPrice,
+            sessions: 1,
+            pax: parseInt(document.getElementById("lv-pax")?.value) || 1,
+            originalProduct: null,
+            items_breakdown: [],
+            discount_percent: 0,
+            discount_reason: '',
+            isMonedero: true,
+            added_at: new Date().toISOString()
+        });
+        renderLVCart();
+        const priceEl = document.getElementById("lv-price");
+        if (priceEl) priceEl.value = "";
+        const searchEl = document.getElementById("lv-product-search");
+        if (searchEl) searchEl.value = "";
+        return;
+    }
+
     if (!selected) return showToast("Primero selecciona un producto", "warning");
 
     // 1. Inputs del Modal
@@ -6018,6 +6092,7 @@ async function createLocalVoucher() {
     const discountReason = [...new Set(discountReasons)].join(' | ');
 
     const now = new Date();
+    const isMonedero = (document.getElementById("lv-voucher-mode")?.value === 'monedero') || state.lvCart.some(i => i.isMonedero);
     const newVoucher = {
         bono: code,
         codigo: code,
@@ -6030,10 +6105,29 @@ async function createLocalVoucher() {
         fecha: getLocalDateYMD(now),
         estado: 'pending',
         origen: 'local',
-        sesiones_totales: totalSessions,
+        sesiones_totales: isMonedero ? 1 : totalSessions,
         sesiones_usadas: 0,
         pax_por_sesion: state.lvCart.length > 0 ? Math.max(...state.lvCart.map(i => i.pax || 1)) : 1,
-        items_desglosados: allItems,
+        items_desglosados: isMonedero ? [] : allItems,
+        ...(isMonedero ? {
+            tipo_bono: 'monedero',
+            es_monedero: true,
+            saldo_inicial: totalPrice,
+            saldo_total: totalPrice,
+            saldo_consumido: 0,
+            saldo_disponible: totalPrice,
+            movimientos_monedero: [{
+                id: 'mov_' + Math.random().toString(36).substr(2, 9),
+                tipo: 'alta',
+                fecha: now.toISOString(),
+                concepto: productNames || 'Carga inicial Monedero',
+                importe_servicio: totalPrice,
+                importe_descontado: totalPrice,
+                exceso_a_pagar: 0,
+                saldo_resultante: totalPrice,
+                usuario: window.currentUser?.name || 'Recepción'
+            }]
+        } : {}),
         // DISCOUNT PERSISTENCE
         discount_percent_max: discountPercent,
         discount_reason: discountReason,
@@ -8511,4 +8605,496 @@ async function syncSingleVoucher(code) {
             btn.innerHTML = '<i class="fas fa-sync-alt"></i> Re-sync WC';
         }
     }
+}
+
+// ============================================================================
+// MÓDULO BONO MONEDERO (Saldo €, Recargas, Consumos y Balance)
+// ============================================================================
+
+function setLocalVoucherMode(mode) {
+    const modeInput = document.getElementById('lv-voucher-mode');
+    const btnSes = document.getElementById('lv-mode-btn-sessions');
+    const btnMon = document.getElementById('lv-mode-btn-monedero');
+    const hint = document.getElementById('lv-monedero-hint');
+    const sessionsInput = document.getElementById('lv-sessions');
+    const sessionsGroup = sessionsInput ? sessionsInput.closest('.lv-field') : null;
+    const priceLabel = document.querySelector('#lv-price-container label');
+    const priceInput = document.getElementById('lv-price');
+
+    if (modeInput) modeInput.value = mode;
+    const isMon = mode === 'monedero';
+
+    if (btnSes && btnMon) {
+        btnSes.style.background = isMon ? 'transparent' : '#fff';
+        btnSes.style.color = isMon ? '#64748b' : '#0f172a';
+        btnSes.style.boxShadow = isMon ? 'none' : '0 1px 2px rgba(0,0,0,0.06)';
+        btnMon.style.background = isMon ? '#059669' : 'transparent';
+        btnMon.style.color = isMon ? '#fff' : '#64748b';
+        btnMon.style.boxShadow = isMon ? '0 1px 3px rgba(5,150,105,0.25)' : 'none';
+    }
+    if (hint) hint.style.display = isMon ? 'block' : 'none';
+    if (sessionsGroup) sessionsGroup.style.display = isMon ? 'none' : '';
+    if (priceLabel) priceLabel.textContent = isMon ? 'Saldo Inicial (€)' : 'Importe';
+    if (priceInput && isMon) priceInput.readOnly = false;
+}
+
+function setupVoucherMonederoUI(v) {
+    const isMon = isMonederoVoucher(v);
+    const sessionsCard = document.getElementById('vm-sessions-card');
+    const monederoCard = document.getElementById('vm-monedero-card');
+    const ledgerContainer = document.getElementById('vm-monedero-ledger-container');
+    const itemsContainer = document.getElementById('vm-items-container');
+    const printTicketBtn = document.getElementById('vm-print-ticket-btn');
+    const downloadPdfBtnSpan = document.querySelector('#vm-download-pdf-btn span');
+    const recalcBtn = document.getElementById('vm-recalculate-btn');
+
+    const oldConvertBtn = document.getElementById('vm-convert-monedero-btn');
+    if (oldConvertBtn) oldConvertBtn.remove();
+
+    if (isMon) {
+        if (sessionsCard) sessionsCard.style.display = 'none';
+        if (monederoCard) monederoCard.style.display = 'block';
+        if (ledgerContainer) ledgerContainer.style.display = 'flex';
+        if (itemsContainer) itemsContainer.style.display = 'none';
+        if (printTicketBtn) printTicketBtn.style.display = 'inline-flex';
+        if (downloadPdfBtnSpan) downloadPdfBtnSpan.textContent = 'Balance PDF';
+        if (recalcBtn) recalcBtn.style.display = 'none';
+
+        const saldoTotal = parseFloat(v.saldo_total ?? v.importe ?? v.precio ?? 0) || 0;
+        const saldoConsumido = parseFloat(v.saldo_consumido ?? 0) || 0;
+        const saldoDisponible = Math.max(0, parseFloat(v.saldo_disponible ?? (saldoTotal - saldoConsumido)) || 0);
+
+        const dispEl = document.getElementById('vm-monedero-disponible');
+        const totEl = document.getElementById('vm-monedero-total');
+        const consEl = document.getElementById('vm-monedero-consumido');
+
+        if (dispEl) {
+            dispEl.textContent = `${saldoDisponible.toFixed(2)} €`;
+            dispEl.style.color = saldoDisponible > 0 ? '#059669' : '#dc2626';
+        }
+        if (totEl) totEl.textContent = `${saldoTotal.toFixed(2)} €`;
+        if (consEl) consEl.textContent = `${saldoConsumido.toFixed(2)} €`;
+
+        renderMonederoLedger(v);
+    } else {
+        if (sessionsCard) sessionsCard.style.display = 'block';
+        if (monederoCard) monederoCard.style.display = 'none';
+        if (ledgerContainer) ledgerContainer.style.display = 'none';
+        if (itemsContainer) itemsContainer.style.display = 'flex';
+        if (printTicketBtn) printTicketBtn.style.display = 'none';
+        if (downloadPdfBtnSpan) downloadPdfBtnSpan.textContent = 'Descargar PDF';
+        if (recalcBtn) recalcBtn.style.display = '';
+
+        // Si es un VALE en euros sin sesiones usadas, permitir convertirlo a Monedero en 1 clic
+        const prodLower = (v.producto || '').toLowerCase();
+        if (sessionsCard && /\bvale\b|\bmonedero\b|\btarjeta\s*regalo\b/i.test(prodLower) && (v.sesiones_usadas || 0) === 0 && v.estado !== 'anulado') {
+            const btn = document.createElement('button');
+            btn.id = 'vm-convert-monedero-btn';
+            btn.type = 'button';
+            btn.onclick = () => convertVoucherToMonedero(v.bono || v.codigo);
+            btn.style.cssText = 'width:100%; margin-top:8px; background:#ecfdf5; color:#065f46; border:1px solid #86efac; border-radius:6px; padding:6px 10px; font-size:0.74rem; font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:6px;';
+            btn.innerHTML = '<i class="fas fa-wallet"></i> Convertir este Vale en Bono Monedero (€)';
+            sessionsCard.appendChild(btn);
+        }
+    }
+}
+
+function renderMonederoLedger(v) {
+    const container = document.getElementById('vm-monedero-ledger-container');
+    if (!container) return;
+
+    const total = parseFloat(v.saldo_total ?? v.importe ?? v.precio ?? 0) || 0;
+    const movimientos = Array.isArray(v.movimientos_monedero) && v.movimientos_monedero.length > 0
+        ? v.movimientos_monedero
+        : [{
+            id: 'init',
+            tipo: 'alta',
+            fecha: v.createdAt || v.fecha || new Date().toISOString(),
+            concepto: v.producto || 'Carga inicial Monedero',
+            importe_descontado: total,
+            exceso_a_pagar: 0,
+            saldo_resultante: total
+        }];
+
+    const typeMeta = {
+        alta: { label: 'ALTA', bg: '#dcfce7', color: '#166534', sign: '+' },
+        recarga: { label: 'RECARGA', bg: '#dbeafe', color: '#1e40af', sign: '+' },
+        consumo_reserva: { label: 'RESERVA', bg: '#fee2e2', color: '#991b1b', sign: '-' },
+        consumo_directo: { label: 'CONSUMO', bg: '#ffedd5', color: '#9a3412', sign: '-' },
+        devolucion_anulacion: { label: 'DEVOLUCIÓN', bg: '#f3e8ff', color: '#6b21a8', sign: '+' }
+    };
+
+    const rowsHtml = [...movimientos].reverse().map(m => {
+        const meta = typeMeta[m.tipo] || { label: 'MOV', bg: '#f1f5f9', color: '#475569', sign: '' };
+        const fechaStr = m.fecha ? new Date(m.fecha).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }) : '-';
+        const imp = parseFloat(m.importe_descontado ?? m.importe ?? 0) || 0;
+        const exceso = parseFloat(m.exceso_a_pagar || 0) || 0;
+        const saldoRes = parseFloat(m.saldo_resultante ?? 0) || 0;
+        const isCredit = meta.sign === '+';
+
+        return `
+            <div style="display:flex; justify-content:space-between; align-items:center; padding:8px 10px; background:#fff; border:1px solid #e2e8f0; border-radius:8px; gap:10px;">
+                <div style="min-width:0; flex:1;">
+                    <div style="display:flex; align-items:center; gap:6px; margin-bottom:2px;">
+                        <span style="font-size:0.62rem; font-weight:800; padding:2px 6px; border-radius:4px; background:${meta.bg}; color:${meta.color};">${meta.label}</span>
+                        <span style="font-size:0.78rem; font-weight:700; color:#0f172a; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${m.concepto || '-'}</span>
+                    </div>
+                    <div style="font-size:0.68rem; color:#64748b;">
+                        ${fechaStr}${m.metodo_pago ? ` · Pago: ${m.metodo_pago}` : ''}${exceso > 0 ? ` · <strong style="color:#d97706;">Exceso a pagar: ${exceso.toFixed(2)}€</strong>` : ''}
+                    </div>
+                </div>
+                <div style="text-align:right; white-space:nowrap;">
+                    <div style="font-size:0.85rem; font-weight:800; color:${isCredit ? '#059669' : '#dc2626'};">${meta.sign}${imp.toFixed(2)} €</div>
+                    <div style="font-size:0.68rem; color:#475569; font-weight:600;">Saldo: ${saldoRes.toFixed(2)} €</div>
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    container.innerHTML = `
+        <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:12px 14px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                <h4 style="font-size:0.75rem; text-transform:uppercase; color:#1e293b; margin:0; font-weight:800; display:flex; align-items:center; gap:6px;">
+                    <i class="fas fa-exchange-alt" style="color:#059669;"></i> Movimientos del Monedero (${movimientos.length})
+                </h4>
+            </div>
+            <div style="display:flex; flex-direction:column; gap:6px; max-height:240px; overflow-y:auto;">
+                ${rowsHtml}
+            </div>
+        </div>
+    `;
+}
+
+async function getCurrentModalVoucher(code) {
+    let v = state.bonos.find(b => b.bono === code || b.codigo === code);
+    if (!v && typeof firebase !== 'undefined') {
+        const doc = await firebase.firestore().collection('spa_vouchers').doc(code).get();
+        if (doc.exists) v = { id: doc.id, ...doc.data() };
+    }
+    return v;
+}
+
+async function convertVoucherToMonedero(code) {
+    const v = await getCurrentModalVoucher(code);
+    if (!v) return;
+    const baseAmount = parseFloat(v.importe ?? v.precio ?? 0) || 0;
+
+    const { value: amountStr } = await Swal.fire({
+        title: 'Convertir a Bono Monedero',
+        html: `<p style="font-size:0.85rem; color:#475569;">El bono <b>${code}</b> pasará a funcionar como Monedero con saldo en euros.</p>`,
+        input: 'number',
+        inputLabel: 'Saldo inicial (€)',
+        inputValue: baseAmount.toFixed(2),
+        inputAttributes: { min: '0.01', step: '0.01' },
+        showCancelButton: true,
+        confirmButtonText: 'Convertir a Monedero',
+        confirmButtonColor: '#059669',
+        cancelButtonText: 'Cancelar'
+    });
+
+    const amount = parseFloat(amountStr);
+    if (!amount || amount <= 0) return;
+
+    const nowIso = new Date().toISOString();
+    const updates = {
+        tipo_bono: 'monedero',
+        es_monedero: true,
+        saldo_inicial: amount,
+        saldo_total: amount,
+        saldo_consumido: 0,
+        saldo_disponible: amount,
+        precio: amount,
+        importe: amount,
+        movimientos_monedero: [{
+            id: 'mov_' + Math.random().toString(36).substr(2, 9),
+            tipo: 'alta',
+            fecha: nowIso,
+            concepto: v.producto || `Conversión a Monedero (${amount.toFixed(2)} €)`,
+            importe_servicio: amount,
+            importe_descontado: amount,
+            exceso_a_pagar: 0,
+            saldo_resultante: amount,
+            usuario: window.currentUser?.name || 'Recepción'
+        }],
+        last_updated: nowIso
+    };
+
+    const docId = v.id || v.bono || code;
+    await firebase.firestore().collection('spa_vouchers').doc(docId).update(updates);
+    Object.assign(v, updates);
+    setupVoucherMonederoUI(v);
+    if (typeof renderVouchersTable === 'function') renderVouchersTable();
+    showToast('Bono convertido a Monedero correctamente', 'success');
+}
+
+async function openMonederoRechargeModal() {
+    const code = document.getElementById('vm-code')?.value;
+    if (!code) return;
+    const v = await getCurrentModalVoucher(code);
+    if (!v) return;
+
+    const { value: formValues } = await Swal.fire({
+        title: `<i class="fas fa-wallet" style="color:#059669;"></i> Recargar Monedero ${code}`,
+        html: `
+            <div style="text-align:left; font-size:0.85rem;">
+                <label style="font-weight:700; display:block; margin-bottom:4px;">Importe a recargar (€)</label>
+                <input id="swal-rec-amount" type="number" step="0.01" min="1" class="swal2-input" style="margin:0 0 12px 0; width:100%;" placeholder="Ej: 50.00">
+                <label style="font-weight:700; display:block; margin-bottom:4px;">Método de pago</label>
+                <select id="swal-rec-method" class="swal2-input" style="margin:0 0 12px 0; width:100%;">
+                    <option value="tarjeta">Tarjeta</option>
+                    <option value="efectivo">Efectivo</option>
+                    <option value="transferencia">Transferencia</option>
+                    <option value="pendiente">Dejar pendiente de cobro</option>
+                </select>
+                <label style="font-weight:700; display:block; margin-bottom:4px;">Concepto / Nota (opcional)</label>
+                <input id="swal-rec-note" type="text" class="swal2-input" style="margin:0; width:100%;" value="Recarga de saldo en recepción">
+            </div>
+        `,
+        focusConfirm: false,
+        showCancelButton: true,
+        confirmButtonText: 'Confirmar Recarga',
+        confirmButtonColor: '#059669',
+        cancelButtonText: 'Cancelar',
+        preConfirm: () => {
+            const amount = parseFloat(document.getElementById('swal-rec-amount').value);
+            if (!amount || amount <= 0) {
+                Swal.showValidationMessage('Introduce un importe mayor que 0');
+                return false;
+            }
+            return {
+                amount,
+                method: document.getElementById('swal-rec-method').value,
+                note: document.getElementById('swal-rec-note').value.trim() || 'Recarga de saldo'
+            };
+        }
+    });
+
+    if (!formValues) return;
+
+    const nowIso = new Date().toISOString();
+    const prevTotal = parseFloat(v.saldo_total ?? v.importe ?? v.precio ?? 0) || 0;
+    const prevConsumido = parseFloat(v.saldo_consumido ?? 0) || 0;
+    const prevDisp = Math.max(0, parseFloat(v.saldo_disponible ?? (prevTotal - prevConsumido)) || 0);
+
+    const newTotal = prevTotal + formValues.amount;
+    const newDisp = prevDisp + formValues.amount;
+    const prevPagos = Array.isArray(v.pagos) ? [...v.pagos] : [];
+    let newPagado = parseFloat(v.importe_pagado || 0) || 0;
+    let newPendiente = parseFloat(v.importe_pendiente || 0) || 0;
+
+    if (formValues.method === 'pendiente') {
+        newPendiente += formValues.amount;
+    } else {
+        newPagado += formValues.amount;
+        prevPagos.push({
+            id: 'pay_' + Math.random().toString(36).substr(2, 9),
+            fecha: nowIso,
+            importe: formValues.amount,
+            metodo: formValues.method,
+            concepto: formValues.note,
+            usuario: window.currentUser?.name || 'Recepción'
+        });
+    }
+
+    const movs = Array.isArray(v.movimientos_monedero) ? [...v.movimientos_monedero] : [];
+    if (movs.length === 0 && prevTotal > 0) {
+        movs.push({
+            id: 'mov_init',
+            tipo: 'alta',
+            fecha: v.createdAt || v.fecha || nowIso,
+            concepto: v.producto || 'Carga inicial',
+            importe_descontado: prevTotal,
+            exceso_a_pagar: 0,
+            saldo_resultante: prevDisp
+        });
+    }
+    movs.push({
+        id: 'mov_' + Math.random().toString(36).substr(2, 9),
+        tipo: 'recarga',
+        fecha: nowIso,
+        concepto: formValues.note,
+        importe_servicio: formValues.amount,
+        importe_descontado: formValues.amount,
+        exceso_a_pagar: 0,
+        saldo_resultante: newDisp,
+        metodo_pago: formValues.method,
+        usuario: window.currentUser?.name || 'Recepción'
+    });
+
+    const updates = {
+        saldo_total: newTotal,
+        saldo_disponible: newDisp,
+        precio: newTotal,
+        importe: newTotal,
+        estado: prevConsumido > 0 ? 'partially' : 'pending',
+        importe_pagado: newPagado,
+        importe_pendiente: newPendiente,
+        estado_pago: newPendiente <= 0 ? 'pagado' : (newPagado > 0 ? 'parcial' : 'pendiente'),
+        pagos: prevPagos,
+        movimientos_monedero: movs,
+        last_updated: nowIso
+    };
+
+    const docId = v.id || v.bono || code;
+    await firebase.firestore().collection('spa_vouchers').doc(docId).update(updates);
+    Object.assign(v, updates);
+
+    setupVoucherMonederoUI(v);
+    if (typeof SpaPaymentControl !== 'undefined' && typeof SpaPaymentControl.renderPaymentBlock === 'function') {
+        const pBlock = document.getElementById('vm-payment-block');
+        if (pBlock) pBlock.innerHTML = SpaPaymentControl.renderPaymentBlock(v);
+    }
+    if (typeof renderVouchersTable === 'function') renderVouchersTable();
+    showToast(`Recargados ${formValues.amount.toFixed(2)} € correctamente`, 'success');
+}
+
+async function openMonederoConsumeModal() {
+    const code = document.getElementById('vm-code')?.value;
+    if (!code) return;
+    const v = await getCurrentModalVoucher(code);
+    if (!v) return;
+
+    const prevTotal = parseFloat(v.saldo_total ?? v.importe ?? v.precio ?? 0) || 0;
+    const prevConsumido = parseFloat(v.saldo_consumido ?? 0) || 0;
+    const saldoDisp = Math.max(0, parseFloat(v.saldo_disponible ?? (prevTotal - prevConsumido)) || 0);
+
+    const catalogOptions = (state.catalogProducts || [])
+        .map(p => `<option value="${String(p.nombre || '').replace(/"/g, '&quot;')}" data-price="${parseFloat(p.precio) || 0}">`)
+        .join('');
+
+    const { value: formValues } = await Swal.fire({
+        title: `<i class="fas fa-minus-circle" style="color:#d97706;"></i> Descontar Consumo`,
+        html: `
+            <div style="text-align:left; font-size:0.85rem;">
+                <div style="background:#ecfdf5; border:1px solid #86efac; border-radius:6px; padding:8px 10px; margin-bottom:10px; color:#065f46; font-weight:700;">
+                    Saldo actual en Monedero: <span style="font-size:1rem;">${saldoDisp.toFixed(2)} €</span>
+                </div>
+                <label style="font-weight:700; display:block; margin-bottom:4px;">Servicio o concepto</label>
+                <input id="swal-cons-concept" list="swal-cons-catalog" class="swal2-input" style="margin:0 0 10px 0; width:100%;" placeholder="Escribe o elige servicio del catálogo...">
+                <datalist id="swal-cons-catalog">${catalogOptions}</datalist>
+                <label style="font-weight:700; display:block; margin-bottom:4px;">Importe del servicio (€)</label>
+                <input id="swal-cons-price" type="number" step="0.01" min="0.01" class="swal2-input" style="margin:0 0 10px 0; width:100%;" placeholder="0.00">
+                <div id="swal-cons-preview" style="padding:8px 10px; border-radius:6px; background:#f8fafc; border:1px solid #e2e8f0; font-size:0.8rem; line-height:1.45;">
+                    Introduce el importe para calcular el descuento.
+                </div>
+            </div>
+        `,
+        didOpen: () => {
+            const conceptEl = document.getElementById('swal-cons-concept');
+            const priceEl = document.getElementById('swal-cons-price');
+            const previewEl = document.getElementById('swal-cons-preview');
+
+            const updatePreview = () => {
+                const p = parseFloat(priceEl.value) || 0;
+                if (p <= 0) {
+                    previewEl.innerHTML = 'Introduce el importe para calcular el descuento.';
+                    return;
+                }
+                const desc = Math.min(saldoDisp, p);
+                const exceso = Math.max(0, p - saldoDisp);
+                const restante = Math.max(0, saldoDisp - desc);
+                previewEl.innerHTML = `
+                    <div>Se descontará del monedero: <strong style="color:#059669;">-${desc.toFixed(2)} €</strong></div>
+                    <div>Saldo restante tras consumo: <strong>${restante.toFixed(2)} €</strong></div>
+                    ${exceso > 0 ? `<div style="margin-top:4px; color:#dc2626; font-weight:800;">⚠️ Importe a pagar por el cliente: ${exceso.toFixed(2)} €</div>` : '<div style="margin-top:4px; color:#059669; font-weight:700;">✅ Cubierto íntegramente por el monedero</div>'}
+                `;
+            };
+
+            conceptEl.addEventListener('input', () => {
+                const match = (state.catalogProducts || []).find(p => (p.nombre || '').toLowerCase() === conceptEl.value.trim().toLowerCase());
+                if (match && parseFloat(match.precio) > 0) {
+                    priceEl.value = parseFloat(match.precio).toFixed(2);
+                    updatePreview();
+                }
+            });
+            priceEl.addEventListener('input', updatePreview);
+        },
+        showCancelButton: true,
+        confirmButtonText: 'Aplicar Descuento',
+        confirmButtonColor: '#d97706',
+        cancelButtonText: 'Cancelar',
+        preConfirm: () => {
+            const concept = document.getElementById('swal-cons-concept').value.trim();
+            const price = parseFloat(document.getElementById('swal-cons-price').value);
+            if (!concept) {
+                Swal.showValidationMessage('Indica el servicio o concepto');
+                return false;
+            }
+            if (!price || price <= 0) {
+                Swal.showValidationMessage('Introduce un importe válido');
+                return false;
+            }
+            return { concept, price };
+        }
+    });
+
+    if (!formValues) return;
+
+    const nowIso = new Date().toISOString();
+    const descontado = Math.min(saldoDisp, formValues.price);
+    const exceso = Math.max(0, formValues.price - saldoDisp);
+    const newConsumido = prevConsumido + descontado;
+    const newDisp = Math.max(0, saldoDisp - descontado);
+
+    const movs = Array.isArray(v.movimientos_monedero) ? [...v.movimientos_monedero] : [];
+    movs.push({
+        id: 'mov_' + Math.random().toString(36).substr(2, 9),
+        tipo: 'consumo_directo',
+        fecha: nowIso,
+        concepto: formValues.concept,
+        importe_servicio: formValues.price,
+        importe_descontado: descontado,
+        exceso_a_pagar: exceso,
+        saldo_resultante: newDisp,
+        usuario: window.currentUser?.name || 'Recepción'
+    });
+
+    const updates = {
+        saldo_consumido: newConsumido,
+        saldo_disponible: newDisp,
+        estado: newDisp <= 0 ? 'completed' : 'partially',
+        movimientos_monedero: movs,
+        last_updated: nowIso
+    };
+
+    const docId = v.id || v.bono || code;
+    await firebase.firestore().collection('spa_vouchers').doc(docId).update(updates);
+    Object.assign(v, updates);
+
+    setupVoucherMonederoUI(v);
+    if (typeof renderVouchersTable === 'function') renderVouchersTable();
+
+    if (exceso > 0) {
+        Swal.fire({
+            icon: 'warning',
+            title: 'Importe a pagar por el cliente',
+            html: `Se han descontado <b>${descontado.toFixed(2)} €</b> del monedero.<br>El cliente debe abonar la diferencia de <b style="color:#dc2626; font-size:1.2rem;">${exceso.toFixed(2)} €</b>.`,
+            confirmButtonText: 'Entendido'
+        });
+    } else {
+        showToast(`Descontados ${descontado.toFixed(2)} € del monedero`, 'success');
+    }
+}
+
+function bookWithMonedero() {
+    const code = document.getElementById('vm-code')?.value;
+    const client = document.getElementById('vm-cliente')?.value || '';
+    if (!code) return;
+
+    Swal.fire({
+        title: '¿Dónde quieres reservar?',
+        text: `Usando Monedero ${code}`,
+        showDenyButton: true,
+        showCancelButton: true,
+        confirmButtonText: 'Circuito / Spa',
+        denyButtonText: 'Salas / Masajes',
+        cancelButtonText: 'Cancelar'
+    }).then((result) => {
+        const params = new URLSearchParams({ voucher: code, client, mode: 'monedero' });
+        if (result.isConfirmed) {
+            window.location.href = `reservas-spa.html?${params.toString()}`;
+        } else if (result.isDenied) {
+            window.location.href = `reservas-salas.html?${params.toString()}`;
+        }
+    });
 }

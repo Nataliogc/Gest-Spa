@@ -1399,6 +1399,7 @@
     <!-- Dexie loaded by db-local.js -->
     <!-- <script src="https://unpkg.com/dexie@latest/dist/dexie.js"></script> -->
     <script src="js/app-core.js?v=2.3.29"></script>
+    <script src="js/monedero-helper.js"></script>
     <script src="js/spa-packs-registry.js?v=2.3.55"></script>
     <script src="js/service-catalog.js?v=1"></script>
     <script src="js/service-pricing.js?v=2.3.30"></script>
@@ -2397,6 +2398,24 @@
                 if (!doc.exists) return;
 
                 const data = doc.data();
+
+                // Mostrar aviso visual
+                let notice = document.getElementById("v-balance-notice");
+                if (!notice) {
+                    notice = document.createElement("div");
+                    notice.id = "v-balance-notice";
+                    notice.className = "form-group";
+                    notice.style = "grid-column: 1 / -1; font-size: 0.75rem; padding: 8px 12px; border-radius: 6px; margin-top: -10px; display: none; align-items: center; gap: 8px;";
+                    document.getElementById("sessions-group").after(notice);
+                }
+
+                if (window.MonederoHelper && window.MonederoHelper.isMonedero(data)) {
+                    const currentRes = currentResId ? currentData.find(r => r.id === currentResId) : null;
+                    const serviceTotal = parseFloat(document.getElementById("res-precio-total")?.value) || 0;
+                    window.MonederoHelper.renderReservationBalanceNotice(data, serviceTotal, notice, currentRes);
+                    return;
+                }
+
                 const total = data.sesiones_totales || 1;
                 const used = data.sesiones_usadas || 0;
 
@@ -2412,16 +2431,6 @@
 
                 const sesionesInput = document.getElementById("res-sesiones");
                 sesionesInput.setAttribute("max", balance);
-
-                // Mostrar aviso visual
-                let notice = document.getElementById("v-balance-notice");
-                if (!notice) {
-                    notice = document.createElement("div");
-                    notice.id = "v-balance-notice";
-                    notice.className = "form-group";
-                    notice.style = "grid-column: 1 / -1; font-size: 0.75rem; padding: 8px 12px; border-radius: 6px; margin-top: -10px; display: none; align-items: center; gap: 8px;";
-                    document.getElementById("sessions-group").after(notice);
-                }
 
                 if (balance <= 0) {
                     notice.style.display = "flex";
@@ -6585,27 +6594,37 @@
                     await window.syncReservationToMesachef(id, { ...resData, status: 'anulada' });
                 }
 
-                // REEMBOLSO DE SESIONES SI ES BONO
+                // REEMBOLSO DE SESIONES O MONEDERO SI ES BONO
                 if (resData.origen === 'bono' && resData.bono) {
-                    const vDoc = await db.collection("spa_vouchers").doc(resData.bono).get();
-                    if (vDoc.exists) {
-                        const vData = vDoc.data();
-                        const used = vData.sesiones_usadas || 0;
-                        const refund = resData.sesiones_consumidas || 1;
-                        const total = vData.sesiones_totales || 1;
-
-                        const newUsed = Math.max(0, used - refund);
-                        let newEstado = 'partially';
-                        if (newUsed === 0) newEstado = 'pending';
-                        if (vData.estado === 'expired') newEstado = 'expired';
-
-                        await db.collection("spa_vouchers").doc(resData.bono).update({
-                            sesiones_usadas: newUsed,
-                            estado: newEstado,
-                            last_updated: new Date().toISOString(),
-                            manual_update: true
+                    if (window.MonederoHelper && parseFloat(resData.monedero_descontado) > 0) {
+                        await window.MonederoHelper.refundMonederoDeduction({
+                            db,
+                            bonoId: resData.bono,
+                            amount: resData.monedero_descontado,
+                            serviceName: resData.servicio,
+                            reservationId: id
                         });
-                        console.log(`Reembolso procesado: ${newUsed}/${total} sesiones.`);
+                    } else {
+                        const vDoc = await db.collection("spa_vouchers").doc(resData.bono).get();
+                        if (vDoc.exists) {
+                            const vData = vDoc.data();
+                            const used = vData.sesiones_usadas || 0;
+                            const refund = resData.sesiones_consumidas || 1;
+                            const total = vData.sesiones_totales || 1;
+
+                            const newUsed = Math.max(0, used - refund);
+                            let newEstado = 'partially';
+                            if (newUsed === 0) newEstado = 'pending';
+                            if (vData.estado === 'expired') newEstado = 'expired';
+
+                            await db.collection("spa_vouchers").doc(resData.bono).update({
+                                sesiones_usadas: newUsed,
+                                estado: newEstado,
+                                last_updated: new Date().toISOString(),
+                                manual_update: true
+                            });
+                            console.log(`Reembolso procesado: ${newUsed}/${total} sesiones.`);
+                        }
                     }
                 }
 
@@ -7136,22 +7155,25 @@
                         isSavingReservation = false; btn.disabled = false; btn.innerHTML = originalText; return;
                     }
                     const vData = vDoc.data();
-                    const totalSesiones = vData.sesiones_totales || 1;
-                    const isPackBooking = !!(window._packItems && window._packItems.length > 0);
-                    if (isPackBooking) {
-                        const activePackCount = window._packItems.filter(it => it.active !== false).length || 1;
-                        const usedSoFar = vData.sesiones_usadas || 0;
-                        if ((usedSoFar + activePackCount) > totalSesiones) {
-                            alert(`¡LÍMITE EXCEDIDO!\n\nEste bono tiene ${totalSesiones} sesiones.\nYa hay ${usedSoFar} usadas y estás intentando reservar ${activePackCount} servicio(s) del pack.\nNo se puede completar.`);
-                            isSavingReservation = false; btn.disabled = false; btn.innerHTML = originalText; return;
-                        }
-                    } else {
-                        const snaps = await db.collection(currentModule.collection).where("bono", "==", bonoCode).get();
-                        let sesionesReservadas = 0;
-                        snaps.forEach(doc => { if (doc.id !== id && doc.data().status !== 'anulada') sesionesReservadas += (doc.data().sesiones_consumidas || 1); });
-                        if ((sesionesReservadas + currentSessionCount) > totalSesiones) {
-                            alert(`¡LÍMITE EXCEDIDO!\n\nEste bono tiene ${totalSesiones} sesiones.\nYa hay ${sesionesReservadas} usadas.\nNo se puede completar.`);
-                            isSavingReservation = false; btn.disabled = false; btn.innerHTML = originalText; return;
+                    const isMonedero = window.MonederoHelper && window.MonederoHelper.isMonedero(vData);
+                    if (!isMonedero) {
+                        const totalSesiones = vData.sesiones_totales || 1;
+                        const isPackBooking = !!(window._packItems && window._packItems.length > 0);
+                        if (isPackBooking) {
+                            const activePackCount = window._packItems.filter(it => it.active !== false).length || 1;
+                            const usedSoFar = vData.sesiones_usadas || 0;
+                            if ((usedSoFar + activePackCount) > totalSesiones) {
+                                alert(`¡LÍMITE EXCEDIDO!\n\nEste bono tiene ${totalSesiones} sesiones.\nYa hay ${usedSoFar} usadas y estás intentando reservar ${activePackCount} servicio(s) del pack.\nNo se puede completar.`);
+                                isSavingReservation = false; btn.disabled = false; btn.innerHTML = originalText; return;
+                            }
+                        } else {
+                            const snaps = await db.collection(currentModule.collection).where("bono", "==", bonoCode).get();
+                            let sesionesReservadas = 0;
+                            snaps.forEach(doc => { if (doc.id !== id && doc.data().status !== 'anulada') sesionesReservadas += (doc.data().sesiones_consumidas || 1); });
+                            if ((sesionesReservadas + currentSessionCount) > totalSesiones) {
+                                alert(`¡LÍMITE EXCEDIDO!\n\nEste bono tiene ${totalSesiones} sesiones.\nYa hay ${sesionesReservadas} usadas.\nNo se puede completar.`);
+                                isSavingReservation = false; btn.disabled = false; btn.innerHTML = originalText; return;
+                            }
                         }
                     }
                 }
@@ -7470,6 +7492,32 @@
                     id = payload.res_id;
                 }
 
+                // Descuento automático si es Bono Monedero
+                if (payload.origen === 'bono' && payload.bono && window.MonederoHelper) {
+                    const existingRes = (typeof currentData !== 'undefined' && Array.isArray(currentData))
+                        ? currentData.find(r => r.id === id)
+                        : null;
+                    const serviceTotal = parseFloat(payload.precio_total || payload.precio || 0) || 0;
+                    const monRes = await window.MonederoHelper.applyMonederoDeduction({
+                        db,
+                        bonoId: payload.bono,
+                        serviceTotal,
+                        serviceName: payload.servicio,
+                        reservationId: id,
+                        collection: targetColl,
+                        existingRes
+                    });
+                    if (monRes) {
+                        payload.monedero_descontado = monRes.monederoDescontado;
+                        payload.pagado_con_monedero = monRes.monederoDescontado;
+                        payload.importe_pendiente = monRes.excesoAPagar;
+                        payload.estado_pago = monRes.excesoAPagar > 0 ? 'pendiente' : 'pagado';
+                        if (monRes.excesoAPagar > 0) {
+                            showToast(`Monedero aplicado (-${monRes.monederoDescontado.toFixed(2)}€). A pagar por el cliente: ${monRes.excesoAPagar.toFixed(2)}€`, "warning");
+                        }
+                    }
+                }
+
                 // Local DB
                 if (window.apiLocal) {
                     await apiLocal.saveReserva({ ...payload, id: id, syncStatus: 'pending' });
@@ -7624,6 +7672,7 @@
                     const vDoc = await db.collection("spa_vouchers").doc(bonoId).get();
                     if (vDoc.exists) {
                         const vData = vDoc.data();
+                        if (window.MonederoHelper && window.MonederoHelper.isMonedero(vData)) return;
                         const newUsedTotal = (vData.sesiones_usadas || 0) + consumed;
                         const updates = { sesiones_usadas: newUsedTotal, last_updated: new Date().toISOString() };
                         const items = vData.items_desglosados || vData.desglosados || [];

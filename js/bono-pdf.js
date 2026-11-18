@@ -307,6 +307,13 @@ async function descargarBonoPDF(codigoBono, mensajePersonalizado, itemsOverride 
         fechaValidez.setFullYear(fechaValidez.getFullYear() + 1);
         const validoHasta = fechaValidez.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
+        if (bono.tipo_bono === 'monedero' || bono.es_monedero === true) {
+            showToast('Generando balance PDF del monedero...', 'info');
+            await generarPDFBalanceMonedero(bono, validoHasta, mensajePersonalizado);
+            showToast('Balance PDF generado', 'success');
+            return;
+        }
+
         let itemsIncluidos = [];
         const sourceItems = (itemsOverride && itemsOverride.length > 0) ? itemsOverride : (bono.items_desglosados || []);
 
@@ -350,3 +357,291 @@ async function descargarBonoPDFActual() {
 }
 
 async function generarBonoPDFParaEmail(codigoBono) { return null; }
+
+async function generarPDFBalanceMonedero(bono, validoHasta = null, mensajePersonalizado = '') {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+
+    const darkPrimary = '#1a2b3c';
+    const gold = '#bfa46f';
+    const emerald = '#059669';
+    const danger = '#dc2626';
+
+    const codigo = bono.bono || bono.codigo || '-';
+    const cliente = bono.cliente || 'Cliente';
+    const telefono = bono.telefono || '-';
+    const fechaCompra = parseFechaSegura(bono.purchase_date || bono.fecha_compra || bono.fecha).toLocaleDateString('es-ES');
+    const validezStr = validoHasta || (bono.fecha_validez ? parseFechaSegura(bono.fecha_validez).toLocaleDateString('es-ES') : '-');
+
+    const totalCargado = parseFloat(bono.saldo_total ?? bono.importe ?? bono.precio ?? 0) || 0;
+    const totalConsumido = parseFloat(bono.saldo_consumido ?? 0) || 0;
+    const saldoRestante = Math.max(0, parseFloat(bono.saldo_disponible ?? (totalCargado - totalConsumido)) || 0);
+
+    // Header
+    doc.setFillColor(darkPrimary);
+    doc.rect(0, 0, 210, 28, 'F');
+    doc.setDrawColor(gold);
+    doc.setLineWidth(1);
+    doc.line(0, 27.5, 210, 27.5);
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(15);
+    doc.text('CUMBRIA SPA & HOTEL', 105, 13, { align: 'center' });
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+    doc.setTextColor(226, 232, 240);
+    doc.text('EXTRACTO Y BALANCE DE BONO MONEDERO', 105, 21, { align: 'center' });
+
+    let y = 38;
+
+    // Client & Voucher Info Box
+    doc.setFillColor(248, 250, 252);
+    doc.setDrawColor(226, 232, 240);
+    doc.roundedRect(15, y, 180, 26, 2, 2, 'FD');
+
+    doc.setTextColor(30, 41, 59);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.text(`Código: ${codigo}`, 20, y + 8);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9.5);
+    doc.text(`Titular: ${cliente}`, 20, y + 15);
+    doc.text(`Teléfono: ${telefono}`, 20, y + 21);
+
+    doc.text(`Fecha Compra: ${fechaCompra}`, 130, y + 8);
+    doc.text(`Validez hasta: ${validezStr}`, 130, y + 15);
+    doc.text(`Emitido: ${new Date().toLocaleDateString('es-ES')}`, 130, y + 21);
+
+    y += 34;
+
+    // Summary 3 Cards
+    const cardW = 56;
+    const gap = 6;
+    const drawSummaryBox = (x, label, valueStr, bgRGB, borderRGB, textRGB) => {
+        doc.setFillColor(...bgRGB);
+        doc.setDrawColor(...borderRGB);
+        doc.roundedRect(x, y, cardW, 20, 2, 2, 'FD');
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(7.5);
+        doc.setTextColor(100, 116, 139);
+        doc.text(label, x + cardW / 2, y + 7, { align: 'center' });
+        doc.setFontSize(13);
+        doc.setTextColor(...textRGB);
+        doc.text(valueStr, x + cardW / 2, y + 15, { align: 'center' });
+    };
+
+    drawSummaryBox(15, 'TOTAL CARGADO', `${totalCargado.toFixed(2)} €`, [248, 250, 252], [203, 213, 225], [15, 23, 42]);
+    drawSummaryBox(15 + cardW + gap, 'TOTAL CONSUMIDO', `${totalConsumido.toFixed(2)} €`, [254, 242, 242], [254, 202, 202], [220, 38, 38]);
+    drawSummaryBox(15 + (cardW + gap) * 2, 'SALDO POR CONSUMIR', `${saldoRestante.toFixed(2)} €`, [236, 253, 245], [134, 239, 172], [5, 150, 105]);
+
+    y += 28;
+
+    if (mensajePersonalizado && mensajePersonalizado.trim()) {
+        doc.setFillColor(255, 251, 235);
+        doc.setDrawColor(253, 230, 138);
+        doc.roundedRect(15, y, 180, 14, 2, 2, 'FD');
+        doc.setFont('helvetica', 'italic');
+        doc.setFontSize(9);
+        doc.setTextColor(146, 64, 14);
+        doc.text(`Dedicatoria: "${mensajePersonalizado.trim()}"`, 20, y + 9);
+        y += 20;
+    }
+
+    // Movements Table Title
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10.5);
+    doc.setTextColor(30, 41, 59);
+    doc.text('HISTORIAL DE SERVICIOS CONSUMIDOS Y MOVIMIENTOS', 15, y);
+    y += 5;
+
+    // Table Header
+    const drawTableHeader = (currY) => {
+        doc.setFillColor(26, 43, 60);
+        doc.rect(15, currY, 180, 8, 'F');
+        doc.setTextColor(255, 255, 255);
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8);
+        doc.text('FECHA', 18, currY + 5.5);
+        doc.text('TIPO', 42, currY + 5.5);
+        doc.text('CONCEPTO / SERVICIO', 68, currY + 5.5);
+        doc.text('IMPORTE', 142, currY + 5.5, { align: 'right' });
+        doc.text('A PAGAR', 165, currY + 5.5, { align: 'right' });
+        doc.text('SALDO', 192, currY + 5.5, { align: 'right' });
+        return currY + 8;
+    };
+
+    y = drawTableHeader(y);
+
+    const movimientos = Array.isArray(bono.movimientos_monedero) && bono.movimientos_monedero.length > 0
+        ? bono.movimientos_monedero
+        : [{
+            tipo: 'alta',
+            fecha: bono.createdAt || bono.fecha || new Date().toISOString(),
+            concepto: bono.producto || 'Carga inicial Monedero',
+            importe_descontado: totalCargado,
+            exceso_a_pagar: 0,
+            saldo_resultante: totalCargado
+        }];
+
+    const tipoLabels = {
+        alta: 'ALTA',
+        recarga: 'RECARGA',
+        consumo_reserva: 'CONSUMO',
+        consumo_directo: 'CONSUMO',
+        devolucion_anulacion: 'DEVOLUCIÓN'
+    };
+
+    movimientos.forEach((m, idx) => {
+        if (y > 265) {
+            doc.addPage();
+            y = 20;
+            y = drawTableHeader(y);
+        }
+
+        const isCredit = m.tipo === 'alta' || m.tipo === 'recarga' || m.tipo === 'devolucion_anulacion';
+        const fechaStr = m.fecha ? new Date(m.fecha).toLocaleDateString('es-ES') : '-';
+        const tipoStr = tipoLabels[m.tipo] || (m.tipo || 'MOV').toUpperCase();
+        const conceptoStr = String(m.concepto || '-').slice(0, 42);
+        const impVal = parseFloat(m.importe_descontado ?? m.importe ?? 0) || 0;
+        const impStr = `${isCredit ? '+' : '-'}${impVal.toFixed(2)} €`;
+        const excesoVal = parseFloat(m.exceso_a_pagar || 0) || 0;
+        const excesoStr = excesoVal > 0 ? `${excesoVal.toFixed(2)} €` : '-';
+        const saldoVal = parseFloat(m.saldo_resultante ?? 0) || 0;
+
+        if (idx % 2 === 0) {
+            doc.setFillColor(248, 250, 252);
+            doc.rect(15, y, 180, 7.5, 'F');
+        }
+        doc.setDrawColor(226, 232, 240);
+        doc.line(15, y + 7.5, 195, y + 7.5);
+
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8);
+        doc.setTextColor(71, 85, 105);
+        doc.text(fechaStr, 18, y + 5);
+        doc.setFont('helvetica', 'bold');
+        doc.text(tipoStr, 42, y + 5);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(15, 23, 42);
+        doc.text(conceptoStr, 68, y + 5);
+
+        if (isCredit) doc.setTextColor(5, 150, 105);
+        else doc.setTextColor(220, 38, 38);
+        doc.setFont('helvetica', 'bold');
+        doc.text(impStr, 142, y + 5, { align: 'right' });
+
+        doc.setTextColor(excesoVal > 0 ? 217 : 100, excesoVal > 0 ? 119 : 116, excesoVal > 0 ? 6 : 139);
+        doc.text(excesoStr, 165, y + 5, { align: 'right' });
+
+        doc.setTextColor(15, 23, 42);
+        doc.text(`${saldoVal.toFixed(2)} €`, 192, y + 5, { align: 'right' });
+
+        y += 7.5;
+    });
+
+    // Footer note
+    y += 10;
+    if (y > 275) { doc.addPage(); y = 20; }
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(100, 116, 139);
+    doc.text('Este documento refleja el balance actual de su Bono Monedero en Cumbria Spa & Hotel.', 105, y, { align: 'center' });
+
+    doc.save(`Balance_Monedero_${codigo}.pdf`);
+}
+
+function imprimirTicketMonedero(bono) {
+    if (!bono) return;
+    const codigo = bono.bono || bono.codigo || '-';
+    const cliente = bono.cliente || 'Cliente';
+    const totalCargado = parseFloat(bono.saldo_total ?? bono.importe ?? bono.precio ?? 0) || 0;
+    const totalConsumido = parseFloat(bono.saldo_consumido ?? 0) || 0;
+    const saldoRestante = Math.max(0, parseFloat(bono.saldo_disponible ?? (totalCargado - totalConsumido)) || 0);
+
+    const movimientos = Array.isArray(bono.movimientos_monedero) && bono.movimientos_monedero.length > 0
+        ? bono.movimientos_monedero
+        : [{
+            tipo: 'alta',
+            fecha: bono.createdAt || bono.fecha || new Date().toISOString(),
+            concepto: bono.producto || 'Carga inicial',
+            importe_descontado: totalCargado,
+            exceso_a_pagar: 0,
+            saldo_resultante: totalCargado
+        }];
+
+    const rowsHtml = movimientos.map(m => {
+        const isCredit = m.tipo === 'alta' || m.tipo === 'recarga' || m.tipo === 'devolucion_anulacion';
+        const fecha = m.fecha ? new Date(m.fecha).toLocaleDateString('es-ES') : '-';
+        const imp = parseFloat(m.importe_descontado ?? m.importe ?? 0) || 0;
+        const exc = parseFloat(m.exceso_a_pagar || 0) || 0;
+        return `
+            <div class="mov-row">
+                <div class="mov-top">
+                    <span>${fecha} · ${String(m.concepto || '-')}</span>
+                    <strong>${isCredit ? '+' : '-'}${imp.toFixed(2)}€</strong>
+                </div>
+                ${exc > 0 ? `<div class="mov-sub">Exceso abonado aparte: ${exc.toFixed(2)}€</div>` : ''}
+            </div>
+        `;
+    }).join('');
+
+    const win = window.open('', '_blank', 'width=360,height=650');
+    if (!win) return showToast('Permite las ventanas emergentes para imprimir el ticket', 'warning');
+
+    win.document.write(`<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Ticket Monedero ${codigo}</title>
+<style>
+    @page { size: 80mm auto; margin: 4mm; }
+    body { font-family: 'Courier New', monospace; font-size: 12px; color: #000; margin: 0; padding: 6px; width: 72mm; }
+    .center { text-align: center; }
+    .bold { font-weight: bold; }
+    .divider { border-top: 1px dashed #000; margin: 8px 0; }
+    .row { display: flex; justify-content: space-between; margin: 3px 0; }
+    .mov-row { border-bottom: 1px dotted #ccc; padding: 4px 0; font-size: 11px; }
+    .mov-top { display: flex; justify-content: space-between; gap: 6px; }
+    .mov-sub { font-size: 10px; color: #333; margin-top: 2px; }
+    .saldo-box { border: 2px solid #000; padding: 6px; text-align: center; margin-top: 8px; }
+    .saldo-val { font-size: 18px; font-weight: bold; }
+</style>
+</head>
+<body>
+    <div class="center bold" style="font-size:14px;">CUMBRIA BIENESTAR</div>
+    <div class="center" style="font-size:11px;">BALANCE BONO MONEDERO</div>
+    <div class="divider"></div>
+    <div class="row"><span>Código:</span><span class="bold">${codigo}</span></div>
+    <div class="row"><span>Titular:</span><span>${cliente}</span></div>
+    <div class="row"><span>Fecha:</span><span>${new Date().toLocaleDateString('es-ES')} ${new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}</span></div>
+    <div class="divider"></div>
+    <div class="bold" style="margin-bottom:4px;">MOVIMIENTOS / CONSUMOS:</div>
+    ${rowsHtml}
+    <div class="divider"></div>
+    <div class="row"><span>Total Cargado:</span><span>${totalCargado.toFixed(2)} €</span></div>
+    <div class="row"><span>Total Consumido:</span><span>-${totalConsumido.toFixed(2)} €</span></div>
+    <div class="saldo-box">
+        <div style="font-size:10px;">SALDO RESTANTE POR CONSUMIR</div>
+        <div class="saldo-val">${saldoRestante.toFixed(2)} €</div>
+    </div>
+    <div class="center" style="margin-top:10px; font-size:10px;">Gracias por su visita</div>
+    <script>window.onload = function(){ setTimeout(function(){ window.print(); }, 250); };<\/script>
+</body>
+</html>`);
+    win.document.close();
+}
+
+async function imprimirTicketMonederoActual() {
+    const code = document.getElementById('vm-code')?.value;
+    if (!code) return;
+    let bono = (typeof state !== 'undefined' && Array.isArray(state.bonos))
+        ? state.bonos.find(b => b.bono === code || b.codigo === code)
+        : null;
+    if (!bono && typeof firebase !== 'undefined') {
+        try {
+            const doc = await firebase.firestore().collection('spa_vouchers').doc(code).get();
+            if (doc.exists) bono = { ...doc.data(), bono: code };
+        } catch (e) { console.warn(e); }
+    }
+    if (bono) imprimirTicketMonedero(bono);
+}

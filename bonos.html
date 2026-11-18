@@ -307,7 +307,7 @@
                     </div>
 
                     <!-- CONTROL SESIONES -->
-                    <div
+                    <div id="vm-sessions-card"
                         style="background: #fff; padding: 12px 14px; border-radius: 10px; border: 1px solid #e2e8f0; box-shadow: 0 1px 2px rgba(0,0,0,0.02);">
                         <h4
                             style="font-size: 0.7rem; text-transform: uppercase; color: #475569; margin: 0 0 8px 0; font-weight: 800; display: flex; align-items: center; gap: 6px;">
@@ -336,6 +336,45 @@
                             style="font-size: 0.68rem; color: #0369a1; background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 6px; padding: 6px 9px; margin-top: 8px; line-height: 1.35;">
                             <i class="fas fa-info-circle"></i> <strong>Canje automático:</strong> El uso del bono se descuenta al reservar individualmente cada servicio.
                         </div>
+                    </div>
+
+                    <!-- CONTROL MONEDERO (Solo para bonos tipo Monedero) -->
+                    <div id="vm-monedero-card"
+                        style="display: none; background: linear-gradient(135deg, #ecfdf5 0%, #f0fdf4 100%); padding: 14px; border-radius: 10px; border: 1px solid #86efac; box-shadow: 0 2px 6px rgba(16, 185, 129, 0.08);">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                            <h4 style="font-size: 0.72rem; text-transform: uppercase; color: #065f46; margin: 0; font-weight: 800; display: flex; align-items: center; gap: 6px;">
+                                <i class="fas fa-wallet" style="color: #059669;"></i> Saldo Monedero
+                            </h4>
+                            <span style="background: #059669; color: #fff; font-size: 0.65rem; font-weight: 800; padding: 2px 8px; border-radius: 999px;">MONEDERO</span>
+                        </div>
+                        <div style="background: #fff; border: 1px solid #bbf7d0; border-radius: 8px; padding: 10px 12px; text-align: center; margin-bottom: 10px;">
+                            <div style="font-size: 0.65rem; font-weight: 700; color: #64748b; text-transform: uppercase;">Saldo Disponible</div>
+                            <div id="vm-monedero-disponible" style="font-size: 1.6rem; font-weight: 900; color: #059669; line-height: 1.2;">0.00 €</div>
+                        </div>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px;">
+                            <div style="background: #fff; border: 1px solid #e2e8f0; border-radius: 6px; padding: 6px 8px; text-align: center;">
+                                <div style="font-size: 0.62rem; font-weight: 700; color: #64748b; text-transform: uppercase;">Cargado</div>
+                                <div id="vm-monedero-total" style="font-size: 0.88rem; font-weight: 800; color: #0f172a;">0.00 €</div>
+                            </div>
+                            <div style="background: #fff; border: 1px solid #e2e8f0; border-radius: 6px; padding: 6px 8px; text-align: center;">
+                                <div style="font-size: 0.62rem; font-weight: 700; color: #64748b; text-transform: uppercase;">Consumido</div>
+                                <div id="vm-monedero-consumido" style="font-size: 0.88rem; font-weight: 800; color: #dc2626;">0.00 €</div>
+                            </div>
+                        </div>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
+                            <button type="button" onclick="openMonederoRechargeModal()"
+                                style="background: #059669; color: #fff; border: none; border-radius: 6px; padding: 7px 8px; font-size: 0.74rem; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 5px;">
+                                <i class="fas fa-plus-circle"></i> Recargar
+                            </button>
+                            <button type="button" onclick="openMonederoConsumeModal()"
+                                style="background: #d97706; color: #fff; border: none; border-radius: 6px; padding: 7px 8px; font-size: 0.74rem; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 5px;">
+                                <i class="fas fa-minus-circle"></i> Descontar
+                            </button>
+                        </div>
+                        <button type="button" onclick="bookWithMonedero()"
+                            style="width: 100%; margin-top: 6px; background: #0284c7; color: #fff; border: none; border-radius: 6px; padding: 7px 8px; font-size: 0.75rem; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px;">
+                            <i class="fas fa-calendar-plus"></i> Reservar Cita con Monedero
+                        </button>
                     </div>
 
                     <!-- MENSAJE REGALO Y NOTAS INTERNAS -->
@@ -370,6 +409,11 @@
                         <!-- Injected by SpaPaymentControl.renderPaymentBlock() -->
                     </div>
 
+                    <!-- MOVIMIENTOS DEL MONEDERO (Solo para Monederos) -->
+                    <div id="vm-monedero-ledger-container" style="display: none; flex-direction: column; gap: 8px;">
+                        <!-- Injected by JS -->
+                    </div>
+
                     <!-- ITEMS BREAKDOWN -->
                     <div id="vm-items-container" style="display: flex; flex-direction: column; gap: 6px;">
                         <!-- Injected by JS -->
@@ -385,11 +429,18 @@
             <!-- FOOTER: Debe estar DENTRO de modal-content -->
             <div class="modal-footer"
                 style="padding: 12px 24px; background: #f8fafc; border-top: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center;">
-                <button type="button" id="vm-download-pdf-btn" onclick="descargarBonoPDFActual()"
-                    class="btn btn-outline"
-                    style="min-width: 150px; height: 40px; font-size: 0.85rem; font-weight: 700; border-color: #059669; color: #059669; border-radius: 8px;">
-                    <i class="fas fa-file-pdf"></i> <span>Descargar PDF</span>
-                </button>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                    <button type="button" id="vm-download-pdf-btn" onclick="descargarBonoPDFActual()"
+                        class="btn btn-outline"
+                        style="min-width: 150px; height: 40px; font-size: 0.85rem; font-weight: 700; border-color: #059669; color: #059669; border-radius: 8px;">
+                        <i class="fas fa-file-pdf"></i> <span>Descargar PDF</span>
+                    </button>
+                    <button type="button" id="vm-print-ticket-btn" onclick="imprimirTicketMonederoActual()"
+                        class="btn btn-outline"
+                        style="display: none; min-width: 140px; height: 40px; font-size: 0.85rem; font-weight: 700; border-color: #475569; color: #334155; border-radius: 8px;">
+                        <i class="fas fa-receipt"></i> <span>Imprimir Ticket</span>
+                    </button>
+                </div>
                 <div style="display: flex; gap: 10px;">
                     <button type="button" id="vm-recalculate-btn" onclick="recalculateVoucherFromCatalog()"
                         class="btn btn-outline" title="Actualizar precio y servicios desde el catálogo de Zenit"
@@ -482,6 +533,24 @@
                         <div class="lv-section-header">
                             <span class="lv-section-badge lv-section-badge-gold"><i class="fas fa-spa"></i></span>
                             <h3>Detalle del Bono</h3>
+                        </div>
+
+                        <!-- Selector Tipo de Bono: Sesiones vs Monedero -->
+                        <div class="form-group lv-field" style="margin-bottom: 12px;">
+                            <input type="hidden" id="lv-voucher-mode" value="sessions">
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; background: #f1f5f9; padding: 4px; border-radius: 8px; border: 1px solid #e2e8f0;">
+                                <button type="button" id="lv-mode-btn-sessions" onclick="setLocalVoucherMode('sessions')"
+                                    style="padding: 7px 10px; border-radius: 6px; border: none; font-size: 0.78rem; font-weight: 700; cursor: pointer; background: #fff; color: #0f172a; box-shadow: 0 1px 2px rgba(0,0,0,0.06); display: flex; align-items: center; justify-content: center; gap: 6px;">
+                                    <i class="fas fa-layer-group" style="color: #8b5cf6;"></i> Bono de Sesiones
+                                </button>
+                                <button type="button" id="lv-mode-btn-monedero" onclick="setLocalVoucherMode('monedero')"
+                                    style="padding: 7px 10px; border-radius: 6px; border: none; font-size: 0.78rem; font-weight: 700; cursor: pointer; background: transparent; color: #64748b; display: flex; align-items: center; justify-content: center; gap: 6px;">
+                                    <i class="fas fa-wallet" style="color: #059669;"></i> Bono Monedero (€)
+                                </button>
+                            </div>
+                            <div id="lv-monedero-hint" style="display: none; margin-top: 6px; padding: 7px 10px; background: #ecfdf5; border: 1px solid #86efac; border-radius: 6px; font-size: 0.72rem; color: #065f46; line-height: 1.35;">
+                                <i class="fas fa-wallet"></i> <strong>Modo Monedero:</strong> El cliente compra un saldo en euros que se irá descontando según consuma servicios. Se puede recargar y si un servicio supera el saldo, abonará la diferencia.
+                            </div>
                         </div>
 
                         <div class="form-group lv-field">
