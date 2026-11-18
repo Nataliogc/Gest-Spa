@@ -1459,13 +1459,11 @@ window.generarRankingBonos = async function (channel = 'all') {
             if (!voucherMatchesReportFilters(b, _activeReportMode, fromVal, toVal)) return;
             const cleanName = normalizeBonoRankingName(b.producto || 'Desconocido');
             const key = cleanName.toLowerCase();
+            const resolved = resolveCatalogCode(b, key);
+            if (!resolved.code) return; // Ignorar bonos/productos sin ID de catálogo
+
             if (!stats[key]) {
-                stats[key] = { displayName: cleanName, variantCounts: {}, count: 0, revenue: 0, code: '', sku: '' };
-            }
-            if (!stats[key].code) {
-                const resolved = resolveCatalogCode(b, key);
-                if (resolved.code) stats[key].code = resolved.code;
-                if (resolved.sku) stats[key].sku = resolved.sku;
+                stats[key] = { displayName: cleanName, variantCounts: {}, count: 0, revenue: 0, code: resolved.code, sku: resolved.sku || '' };
             }
             const rev = parseFloat(b.importe || b.precio || 0) || 0;
             stats[key].variantCounts[cleanName] = (stats[key].variantCounts[cleanName] || 0) + 1;
@@ -1634,16 +1632,12 @@ window.generarInformeServicios = async function () {
                 if (match) {
                     catalog[match].sold++;
                     catalog[match].revenue += rev;
-                } else {
-                    if (!catalog[name]) catalog[name] = { category: 'Descatalogado / Externo', sold: 0, revenue: 0 };
-                    catalog[name].sold++;
-                    catalog[name].revenue += rev;
                 }
             }
         });
 
         const sorted = Object.entries(catalog)
-            .filter(x => x[1].sold > 0)
+            .filter(x => x[1].sold > 0 && x[1].code)
             .sort((a, b) => b[1].sold - a[1].sold);
 
         const maxSold = sorted[0]?.[1]?.sold || 1;

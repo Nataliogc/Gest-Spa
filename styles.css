@@ -1252,8 +1252,9 @@ body.is-modal-only .modal-content {
    MODAL NUEVA VENTA LOCAL (#local-voucher-modal)
    ========================================================= */
 #local-voucher-modal .lv-modal-content {
-    max-width: 980px;
-    width: 94%;
+    max-width: 1360px;
+    width: 95vw;
+    max-height: 92vh;
     border-radius: 20px;
     border: 1px solid #e2e8f0;
     box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.35);
@@ -1331,9 +1332,9 @@ body.is-modal-only .modal-content {
 
 #local-voucher-modal .lv-layout-grid {
     display: grid;
-    grid-template-columns: 0.88fr 1.25fr;
-    gap: 20px;
-    align-items: start;
+    grid-template-columns: 0.9fr 1.18fr 1.05fr;
+    gap: 18px;
+    align-items: stretch;
 }
 
 #local-voucher-modal .lv-card {
@@ -1548,14 +1549,28 @@ body.is-modal-only .modal-content {
 
 /* Grid de Importe / Dto / Sesiones / Personas */
 #local-voucher-modal .lv-params-grid {
-    display: grid;
-    grid-template-columns: 1.1fr 0.85fr 0.85fr 1.35fr;
+    display: flex;
+    flex-wrap: wrap;
     gap: 10px;
     margin-top: 12px;
 }
 
 #local-voucher-modal .lv-params-grid .lv-field {
+    flex: 1 1 85px;
+    min-width: 0;
     margin-bottom: 0;
+}
+
+#local-voucher-modal .lv-params-grid .lv-field-pax {
+    flex: 1.45 1 135px;
+}
+
+#local-voucher-modal .lv-select-pax:disabled {
+    background: #f1f5f9;
+    color: #475569;
+    cursor: not-allowed;
+    border-style: dashed;
+    opacity: 0.9;
 }
 
 #local-voucher-modal .lv-affix-wrap {
@@ -1696,32 +1711,20 @@ body.is-modal-only .modal-content {
     color: #ffffff;
 }
 
-/* Contenido del Bono (Carrito) */
-#local-voucher-modal .lv-cart-section {
-    margin-top: 16px;
-    padding-top: 14px;
-    border-top: 1px dashed #e2e8f0;
-}
-
-#local-voucher-modal .lv-cart-header {
-    font-size: 0.75rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: #64748b;
-    margin-bottom: 8px;
+/* Contenido del Bono (Carrito - Columna 3) */
+#local-voucher-modal .lv-card-cart {
     display: flex;
-    align-items: center;
-    gap: 6px;
+    flex-direction: column;
 }
 
 #local-voucher-modal .lv-cart-list {
+    flex: 1;
     background: #f8fafc;
     border: 1px solid #e2e8f0;
     border-radius: 10px;
     padding: 10px;
-    min-height: 64px;
-    max-height: 185px;
+    min-height: 220px;
+    max-height: 390px;
     overflow-y: auto;
 }
 
@@ -1813,13 +1816,23 @@ body.is-modal-only .modal-content {
     box-shadow: 0 4px 12px rgba(212, 175, 55, 0.3);
 }
 
+@media (max-width: 1120px) {
+    #local-voucher-modal .lv-layout-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    #local-voucher-modal .lv-card-cart {
+        grid-column: span 2;
+    }
+}
+
 @media (max-width: 820px) {
     #local-voucher-modal .lv-layout-grid {
         grid-template-columns: 1fr;
     }
 
-    #local-voucher-modal .lv-params-grid {
-        grid-template-columns: repeat(2, 1fr);
+    #local-voucher-modal .lv-card-cart {
+        grid-column: span 1;
     }
 
     #local-voucher-modal .lv-modal-footer {

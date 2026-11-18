@@ -5301,7 +5301,12 @@ function openLocalVoucherModal() {
     const discountReasonContainer = document.getElementById("lv-discount-reason-container");
     if (discountReasonContainer) discountReasonContainer.style.display = 'none';
     document.getElementById("lv-sessions").value = 1;
-    document.getElementById("lv-pax").value = "1";
+    const paxReset = document.getElementById("lv-pax");
+    if (paxReset) {
+        paxReset.value = "1";
+        paxReset.disabled = false;
+        paxReset.title = "";
+    }
     document.getElementById("lv-product-custom").style.display = 'none';
     document.getElementById("lv-phone").value = '';
     // FIXED: Element removed
@@ -5494,9 +5499,20 @@ window.selectProductForLocalVoucher = (productData) => {
             if (!prod.custom) customInput.focus();
         }
         if (detailsDiv) detailsDiv.style.display = 'none';
+    const paxClear = document.getElementById("lv-pax");
+    if (paxClear) {
+        paxClear.value = "1";
+        paxClear.disabled = false;
+        paxClear.title = "";
+    }
 
         const priceContainer = document.getElementById("lv-price-container");
         if (priceContainer) priceContainer.style.display = 'block';
+        const paxCustom = document.getElementById("lv-pax");
+        if (paxCustom) {
+            paxCustom.disabled = false;
+            paxCustom.title = "";
+        }
         if (priceInput) priceInput.value = prod.precio || '';
         if (sessionsInput) sessionsInput.value = prod.sesiones || 1;
         if (searchInput) searchInput.value = 'PRODUCTO PERSONALIZADO';
@@ -5579,7 +5595,16 @@ window.selectProductForLocalVoucher = (productData) => {
             } else {
                 parsedPax = parseInt(prod.personas || prod.pax || 1);
             }
-            paxInput.value = String(parsedPax);
+            const isCoupleProduct = parsedPax === 2 || /pareja|para\s*dos|2\s*pers/i.test(prod.nombre || '');
+            if (isCoupleProduct) {
+                paxInput.value = "2";
+                paxInput.disabled = true;
+                paxInput.title = "Fijado por el producto (experiencia en pareja para 2 personas)";
+            } else {
+                paxInput.value = String(parsedPax);
+                paxInput.disabled = false;
+                paxInput.title = "";
+            }
         }
     }
 };
@@ -5606,6 +5631,12 @@ function checkCustomProduct(select) {
         if (priceInput) priceInput.value = '';
         if (sessionsInput) sessionsInput.value = 1;
         if (detailsDiv) detailsDiv.style.display = 'none';
+    const paxClear = document.getElementById("lv-pax");
+    if (paxClear) {
+        paxClear.value = "1";
+        paxClear.disabled = false;
+        paxClear.title = "";
+    }
         customInput.focus();
     } else {
         customInput.style.display = 'none';
@@ -5827,6 +5858,12 @@ function addToCartLocal() {
 
     const detailsDiv = document.getElementById("lv-product-details");
     if (detailsDiv) detailsDiv.style.display = 'none';
+    const paxClear = document.getElementById("lv-pax");
+    if (paxClear) {
+        paxClear.value = "1";
+        paxClear.disabled = false;
+        paxClear.title = "";
+    }
 }
 
 function renderLVCart() {
@@ -6058,6 +6095,8 @@ function renderExtrasSelector() {
 
     let html = '<option value="">-- Seleccionar Extra --</option>';
     state.complementos.forEach(c => {
+        const lowerName = (c.nombre || '').toLowerCase();
+        if (lowerName.includes('alojamiento')) return;
         html += `<option value="${c.id}">${c.nombre} (+${parseFloat(c.precio).toFixed(2)}€)</option>`;
     });
     select.innerHTML = html;
