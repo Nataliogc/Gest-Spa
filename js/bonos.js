@@ -585,7 +585,7 @@ function setupBonoListeners() {
     }
 
     // Phone Format Listeners
-    const phoneInputs = ["lv-phone", "vm-telefono", "av-telefono"];
+    const phoneInputs = ["lv-phone", "mn-phone", "vm-telefono", "av-telefono"];
     phoneInputs.forEach(id => {
         const input = document.getElementById(id);
         if (input) {
@@ -5448,15 +5448,10 @@ function setBonosTypeView(viewMode) {
     renderBonosFromState();
 }
 
-function openLocalVoucherModal(initialMode = 'sessions') {
+function openLocalVoucherModal() {
     state.lvCart = [];
     state.lvSelectedProduct = null;
-    if (document.getElementById('lv-monedero-concept')) document.getElementById('lv-monedero-concept').value = '';
-    if (document.getElementById('lv-monedero-amount')) document.getElementById('lv-monedero-amount').value = '';
-    if (document.getElementById('lv-monedero-paymethod')) document.getElementById('lv-monedero-paymethod').value = '';
-    if (document.getElementById('lv-monedero-message')) document.getElementById('lv-monedero-message').value = '';
     if (typeof selectLocalPayMethod === 'function') selectLocalPayMethod('');
-    if (typeof setLocalVoucherMode === 'function') setLocalVoucherMode(initialMode === 'monedero' ? 'monedero' : 'sessions');
     renderLVCart();
     loadActiveComplementos();
 
@@ -6178,10 +6173,7 @@ function removeFromLVCart(index) {
 }
 
 async function createLocalVoucher() {
-    const voucherMode = document.getElementById("lv-voucher-mode")?.value || 'sessions';
-    const isMonederoMode = voucherMode === 'monedero';
-
-    if (!isMonederoMode && state.lvCart.length === 0) {
+    if (state.lvCart.length === 0) {
         return showToast("Añade al menos un producto al bono", "warning");
     }
 
@@ -6206,7 +6198,7 @@ async function createLocalVoucher() {
     // === FORMA DE PAGO OBLIGATORIA: no se crea ningún bono sin cobrar ===
     const payMethod = document.getElementById("lv-paymethod")?.value || '';
     const payUser = window.currentUser?.name || 'Recepción';
-    const requiresPayment = isMonederoMode || state.lvCart.some(i => (parseFloat(i.price) || 0) > 0);
+    const requiresPayment = state.lvCart.some(i => (parseFloat(i.price) || 0) > 0);
     if (requiresPayment && !payMethod) {
         const section = document.getElementById("lv-payment-section");
         if (section) {
@@ -6237,147 +6229,75 @@ async function createLocalVoucher() {
     };
 
     const now = new Date();
-    let newVoucher = null;
+    // FIX: Para packs/rituales con items_breakdown > 1, el precio NO debe multiplicarse por sessions
+    const totalPrice = state.lvCart.reduce((sum, i) => {
+        const isPack = i.items_breakdown && i.items_breakdown.length > 1;
+        return sum + (isPack ? i.price : (i.price * i.sessions));
+    }, 0);
+    const totalSessions = state.lvCart.reduce((sum, i) => sum + i.sessions, 0);
+    const productNames = state.lvCart.map(i => i.name).join(" + ");
 
-    if (isMonederoMode) {
-        const concept = document.getElementById("lv-monedero-concept")?.value.trim();
-        const amount = parseFloat(document.getElementById("lv-monedero-amount")?.value) || 0;
-        const giftMsg = document.getElementById("lv-monedero-message")?.value.trim() || '';
-
-        if (!concept) {
-            document.getElementById("lv-monedero-concept")?.focus();
-            return showToast("Indica qué se regala o el concepto del monedero", "warning");
-        }
-        if (amount <= 0) {
-            document.getElementById("lv-monedero-amount")?.focus();
-            return showToast("Introduce un saldo inicial (€) mayor que 0", "warning");
-        }
-
-        if (payMethod === 'pasarela' && (!window._lastLvPayGold || window._lastLvPayGold.code !== code)) {
-            const pgOk = await generateLocalVoucherPayGoldLink(code, amount, concept);
-            if (!pgOk) return;
-        }
-        const pgInfo = (payMethod === 'pasarela' && window._lastLvPayGold) ? window._lastLvPayGold : null;
-
-        newVoucher = {
-            bono: code,
-            codigo: code,
-            cliente: clientName,
-            email: document.getElementById("lv-email").value.trim(),
-            telefono: clientPhone,
-            producto: concept,
-            precio: amount,
-            importe: amount,
-            fecha: getLocalDateYMD(now),
-            estado: 'pending',
-            origen: 'local',
-            tipo_bono: 'monedero',
-            es_monedero: true,
-            saldo_inicial: amount,
-            saldo_total: amount,
-            saldo_consumido: 0,
-            saldo_disponible: amount,
-            mensaje_regalo: giftMsg,
-            sesiones_totales: 1,
-            sesiones_usadas: 0,
-            pax_por_sesion: 1,
-            items_desglosados: [],
-            movimientos_monedero: [{
-                id: 'mov_' + Math.random().toString(36).substr(2, 9),
-                tipo: 'alta',
-                fecha: now.toISOString(),
-                concepto: concept,
-                importe_servicio: amount,
-                importe_descontado: amount,
-                exceso_a_pagar: 0,
-                saldo_resultante: amount,
-                metodo_pago: payMethod,
-                usuario: window.currentUser?.name || 'Recepción'
-            }],
-            createdAt: now.toISOString(),
-            manual_update: true,
-            updated_at: now.toISOString(),
-            ...buildPaidFields(amount, 'Alta Bono Monedero'),
-            ...(pgInfo ? {
-                payment_link: pgInfo.paymentUrl,
-                paygold_order: pgInfo.orderDisplay,
-                paygold_redsys_order: pgInfo.orderId,
-                paygold_amount: amount
-            } : {}),
-            service_payment_status: null,
-            snapshot_price: amount
-        };
-    } else {
-        // FIX: Para packs/rituales con items_breakdown > 1, el precio NO debe multiplicarse por sessions
-        const totalPrice = state.lvCart.reduce((sum, i) => {
-            const isPack = i.items_breakdown && i.items_breakdown.length > 1;
-            return sum + (isPack ? i.price : (i.price * i.sessions));
-        }, 0);
-        const totalSessions = state.lvCart.reduce((sum, i) => sum + i.sessions, 0);
-        const productNames = state.lvCart.map(i => i.name).join(" + ");
-
-        if (payMethod === 'pasarela' && totalPrice > 0 && (!window._lastLvPayGold || window._lastLvPayGold.code !== code)) {
-            const pgOk = await generateLocalVoucherPayGoldLink(code, totalPrice, productNames);
-            if (!pgOk) return;
-        }
-        const pgInfo = (payMethod === 'pasarela' && window._lastLvPayGold) ? window._lastLvPayGold : null;
-
-        let allItems = [];
-        state.lvCart.forEach(cartItem => {
-            if (cartItem.items_breakdown) {
-                for (let s = 0; s < cartItem.sessions; s++) {
-                    allItems = allItems.concat(cartItem.items_breakdown.map(it => ({
-                        ...it,
-                        itemId: 'it_' + Math.random().toString(36).substr(2, 9),
-                        used: 0
-                    })));
-                }
-            }
-        });
-
-        const discountPercent = state.lvCart.length > 0 ? Math.max(...state.lvCart.map(i => parseFloat(i.discount_percent) || 0)) : 0;
-        const discountReasons = state.lvCart
-            .filter(i => (parseFloat(i.discount_percent) || 0) > 0 && i.discount_reason)
-            .map(i => i.discount_reason.trim());
-        const discountReason = [...new Set(discountReasons)].join(' | ');
-
-        newVoucher = {
-            bono: code,
-            codigo: code,
-            cliente: clientName,
-            email: document.getElementById("lv-email").value.trim(),
-            telefono: clientPhone,
-            producto: productNames,
-            precio: totalPrice,
-            importe: totalPrice,
-            fecha: getLocalDateYMD(now),
-            estado: 'pending',
-            origen: 'local',
-            sesiones_totales: totalSessions,
-            sesiones_usadas: 0,
-            pax_por_sesion: state.lvCart.length > 0 ? Math.max(...state.lvCart.map(i => i.pax || 1)) : 1,
-            items_desglosados: allItems,
-            discount_percent_max: discountPercent,
-            discount_reason: discountReason,
-            discount_total_amount: state.lvCart.reduce((sum, i) => {
-                const rawPrice = (i.originalProduct ? parseFloat(i.originalProduct.precio) : i.price) || i.price;
-                const diff = (rawPrice - i.price) * i.sessions;
-                return sum + (diff > 0 ? diff : 0);
-            }, 0),
-            createdAt: now.toISOString(),
-            manual_update: true,
-            updated_at: now.toISOString(),
-            ...buildPaidFields(totalPrice, `Alta Bono: ${productNames}`),
-            ...(pgInfo ? {
-                payment_link: pgInfo.paymentUrl,
-                paygold_order: pgInfo.orderDisplay,
-                paygold_redsys_order: pgInfo.orderId,
-                paygold_amount: totalPrice
-            } : {}),
-            service_payment_status: null,
-            snapshot_price: totalPrice
-        };
+    if (payMethod === 'pasarela' && totalPrice > 0 && (!window._lastLvPayGold || window._lastLvPayGold.code !== code)) {
+        const pgOk = await generateLocalVoucherPayGoldLink(code, totalPrice, productNames);
+        if (!pgOk) return;
     }
+    const pgInfo = (payMethod === 'pasarela' && window._lastLvPayGold) ? window._lastLvPayGold : null;
+
+    let allItems = [];
+    state.lvCart.forEach(cartItem => {
+        if (cartItem.items_breakdown) {
+            for (let s = 0; s < cartItem.sessions; s++) {
+                allItems = allItems.concat(cartItem.items_breakdown.map(it => ({
+                    ...it,
+                    itemId: 'it_' + Math.random().toString(36).substr(2, 9),
+                    used: 0
+                })));
+            }
+        }
+    });
+
+    const discountPercent = state.lvCart.length > 0 ? Math.max(...state.lvCart.map(i => parseFloat(i.discount_percent) || 0)) : 0;
+    const discountReasons = state.lvCart
+        .filter(i => (parseFloat(i.discount_percent) || 0) > 0 && i.discount_reason)
+        .map(i => i.discount_reason.trim());
+    const discountReason = [...new Set(discountReasons)].join(' | ');
+
+    const newVoucher = {
+        bono: code,
+        codigo: code,
+        cliente: clientName,
+        email: document.getElementById("lv-email").value.trim(),
+        telefono: clientPhone,
+        producto: productNames,
+        precio: totalPrice,
+        importe: totalPrice,
+        fecha: getLocalDateYMD(now),
+        estado: 'pending',
+        origen: 'local',
+        sesiones_totales: totalSessions,
+        sesiones_usadas: 0,
+        pax_por_sesion: state.lvCart.length > 0 ? Math.max(...state.lvCart.map(i => i.pax || 1)) : 1,
+        items_desglosados: allItems,
+        discount_percent_max: discountPercent,
+        discount_reason: discountReason,
+        discount_total_amount: state.lvCart.reduce((sum, i) => {
+            const rawPrice = (i.originalProduct ? parseFloat(i.originalProduct.precio) : i.price) || i.price;
+            const diff = (rawPrice - i.price) * i.sessions;
+            return sum + (diff > 0 ? diff : 0);
+        }, 0),
+        createdAt: now.toISOString(),
+        manual_update: true,
+        updated_at: now.toISOString(),
+        ...buildPaidFields(totalPrice, `Alta Bono: ${productNames}`),
+        ...(pgInfo ? {
+            payment_link: pgInfo.paymentUrl,
+            paygold_order: pgInfo.orderDisplay,
+            paygold_redsys_order: pgInfo.orderId,
+            paygold_amount: totalPrice
+        } : {}),
+        service_payment_status: null,
+        snapshot_price: totalPrice
+    };
 
     // Generar searchTokens para que sea buscable localmente de inmediato
     if (typeof generateSearchTokens === 'function') {
@@ -6414,42 +6334,7 @@ async function createLocalVoucher() {
         closeLocalVoucherModal();
         await cargarBonos();
 
-        if (isMonederoMode) {
-            const pgUrl = newVoucher.payment_link || '';
-            const cleanTel = (newVoucher.telefono || '').replace(/\D/g, '');
-            const waText = pgUrl ? `Hola ${clientName}, aquí tienes el enlace seguro de pago (TPV Virtual Redsys) para tu Bono Monedero ${code} (${newVoucher.producto} - ${newVoucher.saldo_disponible.toFixed(2)} €) en Cumbria Bienestar:\n👉 ${pgUrl}` : '';
-            const action = await openMonederoNativeDialog({
-                title: `<i class="fas fa-check-circle"></i> Monedero ${code} Creado`,
-                headerBg: '#059669',
-                confirmText: 'Abrir Panel Monedero',
-                confirmBg: '#0f172a',
-                bodyHtml: `
-                    <p style="margin:0 0 10px 0;">Se ha creado el Monedero <b>${code}</b> para <b>${clientName}</b> con un saldo de <b style="color:#059669;">${newVoucher.saldo_disponible.toFixed(2)} €</b>.</p>
-                    ${pgUrl ? `
-                        <div style="margin-bottom:10px; padding:10px; background:#fffbeb; border:1px solid #fcd34d; border-radius:8px; font-size:0.76rem; color:#92400e;">
-                            <div style="font-weight:800; margin-bottom:4px;"><i class="fas fa-link"></i> Enlace TPV Virtual (Redsys):</div>
-                            <div style="background:#fff; padding:6px 8px; border-radius:6px; border:1px solid #fde68a; font-family:monospace; word-break:break-all; margin-bottom:8px;">${pgUrl}</div>
-                            <div style="display:flex; gap:6px;">
-                                <button type="button" onclick="navigator.clipboard.writeText('${pgUrl}'); showToast('Enlace TPV copiado', 'success');" style="flex:1; padding:6px 8px; border-radius:6px; border:none; background:#047857; color:#fff; font-weight:700; cursor:pointer;"><i class="fas fa-copy"></i> Copiar Enlace</button>
-                                ${cleanTel ? `<a href="https://wa.me/34${cleanTel}?text=${encodeURIComponent(waText)}" target="_blank" style="flex:1; padding:6px 8px; border-radius:6px; background:#25d366; color:#fff; font-weight:700; text-decoration:none; text-align:center;"><i class="fab fa-whatsapp"></i> WhatsApp</a>` : ''}
-                            </div>
-                        </div>
-                    ` : ''}
-                    <p style="margin:0; font-size:0.8rem; color:#64748b;">¿Quieres imprimir el comprobante ahora o abrir su panel de control?</p>
-                `,
-                extraButtons: [
-                    { text: 'Balance PDF', bg: '#059669', value: 'pdf' },
-                    { text: 'Ticket 80mm', bg: '#334155', value: 'ticket' }
-                ]
-            });
-            if (action === 'pdf' && typeof generarPDFBalanceMonedero === 'function') {
-                await generarPDFBalanceMonedero(newVoucher, null, newVoucher.mensaje_regalo || '');
-            } else if (action === 'ticket' && typeof imprimirTicketMonedero === 'function') {
-                imprimirTicketMonedero(newVoucher);
-            } else if (action === true) {
-                openVoucherManagement(code);
-            }
-        } else if (newVoucher.payment_link) {
+        if (newVoucher.payment_link) {
             const pgUrl = newVoucher.payment_link;
             const cleanTel = (newVoucher.telefono || '').replace(/\D/g, '');
             const waText = `Hola ${clientName}, aquí tienes el enlace seguro de pago (TPV Virtual Redsys) para tu Bono ${code} (${newVoucher.producto} - ${newVoucher.precio.toFixed(2)} €) en Cumbria Bienestar:\n👉 ${pgUrl}`;
@@ -8899,51 +8784,26 @@ async function syncSingleVoucher(code) {
 // MÓDULO BONO MONEDERO (Saldo €, Recargas, Consumos y Balance)
 // ============================================================================
 
-function setLocalVoucherMode(mode) {
-    const modeInput = document.getElementById('lv-voucher-mode');
-    const hint = document.getElementById('lv-monedero-hint');
-    const monFields = document.getElementById('lv-monedero-fields');
-    const sesFields = document.getElementById('lv-sessions-fields');
-    const monSummary = document.getElementById('lv-monedero-summary');
-    const cartList = document.getElementById('lv-cart-list');
-    const totalBar = document.querySelector('#local-voucher-modal .lv-total-bar');
-    const cartTitle = document.getElementById('lv-cart-title');
-    const saveBtnSpan = document.querySelector('#lv-save-btn span');
-    const modalTitle = document.getElementById('lv-modal-title');
-    const modalSubtitle = document.getElementById('lv-modal-subtitle');
-    const headerIcon = document.getElementById('lv-header-icon');
+function openMonederoCreateModal() {
+    ['mn-client', 'mn-email', 'mn-phone', 'mn-code', 'mn-concept', 'mn-amount', 'mn-message'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+    });
+    window._lastMnPayGold = null;
+    selectMonederoPayMethod('');
+    updateMonederoPreview();
+    const modal = document.getElementById('monedero-voucher-modal');
+    if (modal) modal.style.display = 'flex';
+}
 
-    if (modeInput) modeInput.value = mode;
-    const isMon = mode === 'monedero';
-
-    if (modalTitle) {
-        modalTitle.textContent = isMon ? 'Emitir Bono Monedero (€)' : 'Venta Local de Bonos Regalo';
-    }
-    if (modalSubtitle) {
-        modalSubtitle.textContent = isMon
-            ? 'Vale monedero con saldo en euros para consumir en servicios'
-            : 'Emisión rápida de bono regalo presencial en recepción';
-    }
-    if (headerIcon) {
-        headerIcon.innerHTML = isMon ? '<i class="fas fa-wallet"></i>' : '<i class="fas fa-gift"></i>';
-        headerIcon.style.background = isMon ? '#ecfdf5' : '';
-        headerIcon.style.color = isMon ? '#059669' : '';
-    }
-    if (hint) hint.style.display = isMon ? 'block' : 'none';
-    if (monFields) monFields.style.display = isMon ? 'flex' : 'none';
-    if (sesFields) sesFields.style.display = isMon ? 'none' : 'block';
-    if (monSummary) monSummary.style.display = isMon ? 'flex' : 'none';
-    if (cartList) cartList.style.display = isMon ? 'none' : '';
-    if (totalBar) totalBar.style.display = isMon ? 'none' : '';
-    if (cartTitle) cartTitle.textContent = isMon ? 'Resumen del Monedero' : 'Contenido del Bono';
-    if (saveBtnSpan) saveBtnSpan.textContent = isMon ? 'Crear Monedero' : 'Crear Bono';
-
-    if (isMon) updateMonederoPreview();
+function closeMonederoCreateModal() {
+    const modal = document.getElementById('monedero-voucher-modal');
+    if (modal) modal.style.display = 'none';
 }
 
 function setMonederoPreset(amount) {
-    const amtInput = document.getElementById('lv-monedero-amount');
-    const conceptInput = document.getElementById('lv-monedero-concept');
+    const amtInput = document.getElementById('mn-amount');
+    const conceptInput = document.getElementById('mn-concept');
     if (amtInput) amtInput.value = parseFloat(amount).toFixed(2);
     if (conceptInput && !conceptInput.value.trim()) {
         conceptInput.value = `Bono Monedero ${amount} €`;
@@ -8980,31 +8840,60 @@ function selectLocalPayMethod(method) {
         status.textContent = method ? '✓ ' + (LV_PAY_LABELS[method] || method) : 'Obligatorio';
         status.style.color = method ? '#047857' : '#b91c1c';
     }
+}
+
+function selectMonederoPayMethod(method) {
+    const input = document.getElementById('mn-paymethod');
+    if (input) input.value = method || '';
+    if (!method) window._lastMnPayGold = null;
+    document.querySelectorAll('#mn-payment-section .mn-pay-btn').forEach(btn => {
+        const active = btn.dataset.method === method;
+        btn.style.background = active ? '#059669' : '#fff';
+        btn.style.color = active ? '#fff' : '#334155';
+        btn.style.borderColor = active ? '#059669' : '#cbd5e1';
+    });
+    const tpvBox = document.getElementById('mn-tpv-link-box');
+    const tpvRes = document.getElementById('mn-tpv-link-result');
+    if (tpvBox) tpvBox.style.display = (method === 'pasarela') ? 'block' : 'none';
+    if (tpvRes && method !== 'pasarela') {
+        tpvRes.style.display = 'none';
+        tpvRes.innerHTML = '';
+    }
+    const section = document.getElementById('mn-payment-section');
+    const status = document.getElementById('mn-paymethod-status');
+    if (section) {
+        section.style.borderColor = method ? '#86efac' : '#fecaca';
+        section.style.background = method ? '#f0fdf4' : '#fff7f7';
+    }
+    if (status) {
+        status.textContent = method ? '✓ ' + (LV_PAY_LABELS[method] || method) : 'Obligatorio';
+        status.style.color = method ? '#047857' : '#b91c1c';
+    }
     updateMonederoPreview();
 }
 
-async function generateLocalVoucherPayGoldLink(forcedCode = null, forcedAmount = null, forcedConcept = null) {
+async function generatePayGoldLinkForForm({ prefix, forcedCode = null, forcedAmount = null, forcedConcept = null }) {
     if (!window.PayGoldService || typeof window.PayGoldService.generateLink !== 'function') {
         showToast('Servicio TPV Virtual (PayGold) no disponible', 'error');
         return null;
     }
-    const isMon = document.getElementById('lv-voucher-mode')?.value === 'monedero';
-    const clientName = document.getElementById('lv-client-name')?.value.trim() || 'Cliente';
-    const clientPhone = (document.getElementById('lv-phone')?.value || '').replace(/\D/g, '');
-    const clientEmail = document.getElementById('lv-email')?.value.trim() || '';
+    const isMon = prefix === 'mn';
+    const clientName = document.getElementById(`${prefix}-client`)?.value.trim() || 'Cliente';
+    const clientPhone = (document.getElementById(`${prefix}-phone`)?.value || '').replace(/\D/g, '');
+    const clientEmail = document.getElementById(`${prefix}-email`)?.value.trim() || '';
 
     let amount = forcedAmount;
     let concept = forcedConcept;
     if (amount === null || amount === undefined) {
         if (isMon) {
-            amount = parseFloat(document.getElementById('lv-monedero-amount')?.value) || 0;
-            concept = document.getElementById('lv-monedero-concept')?.value.trim() || 'Bono Monedero';
+            amount = parseFloat(document.getElementById('mn-amount')?.value) || 0;
+            concept = document.getElementById('mn-concept')?.value.trim() || 'Bono Monedero';
         } else {
             amount = (state.lvCart || []).reduce((sum, i) => {
                 const isPack = i.items_breakdown && i.items_breakdown.length > 1;
                 return sum + (isPack ? i.price : (i.price * i.sessions));
             }, 0);
-            concept = (state.lvCart || []).map(i => i.name).join(' + ') || 'Bono Spa';
+            concept = (state.lvCart || []).map(i => i.name).join(' + ') || 'Bono Regalo Spa';
         }
     }
     if (!amount || amount <= 0) {
@@ -9012,7 +8901,7 @@ async function generateLocalVoucherPayGoldLink(forcedCode = null, forcedAmount =
         return null;
     }
 
-    let codeInput = document.getElementById('lv-code');
+    const codeInput = document.getElementById(`${prefix}-code`);
     let code = forcedCode || (codeInput ? codeInput.value.trim() : '');
     if (code && !/^(Tarj|LOC|BONO)-/i.test(code)) code = `Tarj-${code}`;
     if (!code) {
@@ -9024,8 +8913,8 @@ async function generateLocalVoucherPayGoldLink(forcedCode = null, forcedAmount =
     const orderDisplay = `BONO-${cleanTail}`;
     const redsysOrderId = `0000BON${cleanTail}`;
 
-    const btn = document.getElementById('lv-gen-tpv-btn');
-    const resBox = document.getElementById('lv-tpv-link-result');
+    const btn = document.getElementById(`${prefix}-gen-tpv-btn`);
+    const resBox = document.getElementById(`${prefix}-tpv-link-result`);
     const origHtml = btn ? btn.innerHTML : '';
     if (btn) {
         btn.disabled = true;
@@ -9037,7 +8926,7 @@ async function generateLocalVoucherPayGoldLink(forcedCode = null, forcedAmount =
         const result = await window.PayGoldService.generateLink({
             app: 'spa',
             hotel: 'cumbria',
-            amount: amount,
+            amount,
             groupId: code,
             referenceId: code,
             orderId: redsysOrderId,
@@ -9049,13 +8938,15 @@ async function generateLocalVoucherPayGoldLink(forcedCode = null, forcedAmount =
             depositLabel: concept
         });
 
-        window._lastLvPayGold = {
+        const payload = {
             code,
             amount,
             paymentUrl: result.paymentUrl,
             orderId: result.orderId || redsysOrderId,
             orderDisplay
         };
+        if (isMon) window._lastMnPayGold = payload;
+        else window._lastLvPayGold = payload;
 
         if (resBox) {
             const waText = `Hola ${clientName}, aquí tienes el enlace seguro de pago (TPV Virtual Redsys) para tu Bono ${code} (${concept} - ${amount.toFixed(2)} €) en Cumbria Bienestar:\n👉 ${result.paymentUrl}`;
@@ -9077,7 +8968,7 @@ async function generateLocalVoucherPayGoldLink(forcedCode = null, forcedAmount =
             `;
         }
         showToast('Enlace de TPV Virtual generado', 'success');
-        return window._lastLvPayGold;
+        return payload;
     } catch (err) {
         console.error('[TPV Virtual Bono] Error:', err);
         showToast('Error generando enlace TPV: ' + (err.message || err), 'error');
@@ -9090,19 +8981,209 @@ async function generateLocalVoucherPayGoldLink(forcedCode = null, forcedAmount =
     }
 }
 
+async function generateLocalVoucherPayGoldLink(forcedCode = null, forcedAmount = null, forcedConcept = null) {
+    return generatePayGoldLinkForForm({ prefix: 'lv', forcedCode, forcedAmount, forcedConcept });
+}
+
+async function generateMonederoPayGoldLink(forcedCode = null, forcedAmount = null, forcedConcept = null) {
+    return generatePayGoldLinkForForm({ prefix: 'mn', forcedCode, forcedAmount, forcedConcept });
+}
+
 function updateMonederoPreview() {
-    const concept = document.getElementById('lv-monedero-concept')?.value.trim() || 'Bono Monedero';
-    const amount = parseFloat(document.getElementById('lv-monedero-amount')?.value) || 0;
-    const method = document.getElementById('lv-paymethod')?.value || '';
+    const concept = document.getElementById('mn-concept')?.value.trim() || 'Bono Monedero';
+    const amount = parseFloat(document.getElementById('mn-amount')?.value) || 0;
+    const method = document.getElementById('mn-paymethod')?.value || '';
     const payText = method ? LV_PAY_LABELS[method] : 'Sin seleccionar (obligatorio)';
 
-    const prevConcept = document.getElementById('lv-mon-prev-concept');
-    const prevPay = document.getElementById('lv-mon-prev-pay');
-    const prevAmount = document.getElementById('lv-mon-prev-amount');
+    const prevConcept = document.getElementById('mn-prev-concept');
+    const prevPay = document.getElementById('mn-prev-pay');
+    const prevAmount = document.getElementById('mn-prev-amount');
 
     if (prevConcept) prevConcept.textContent = concept;
     if (prevPay) prevPay.textContent = payText;
     if (prevAmount) prevAmount.textContent = `${amount.toFixed(2)} €`;
+}
+
+async function createMonederoVoucher() {
+    const clientName = document.getElementById('mn-client')?.value.trim();
+    if (!clientName) return showToast('Escribe el nombre del cliente', 'warning');
+
+    const phoneField = document.getElementById('mn-phone');
+    const clientPhone = phoneField?.value.trim() || '';
+    if (!clientPhone) {
+        if (phoneField) {
+            phoneField.style.borderColor = 'red';
+            phoneField.focus();
+            setTimeout(() => phoneField.style.borderColor = '', 3000);
+        }
+        return showToast('El teléfono es obligatorio', 'warning');
+    }
+
+    const concept = document.getElementById('mn-concept')?.value.trim();
+    if (!concept) {
+        document.getElementById('mn-concept')?.focus();
+        return showToast('Indica qué se regala o el concepto del monedero', 'warning');
+    }
+
+    const amount = parseFloat(document.getElementById('mn-amount')?.value) || 0;
+    if (amount <= 0) {
+        document.getElementById('mn-amount')?.focus();
+        return showToast('Introduce un saldo inicial (€) mayor que 0', 'warning');
+    }
+
+    const payMethod = document.getElementById('mn-paymethod')?.value || '';
+    if (!payMethod) {
+        const section = document.getElementById('mn-payment-section');
+        if (section) {
+            section.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            section.style.boxShadow = '0 0 0 3px rgba(220,38,38,0.35)';
+            setTimeout(() => section.style.boxShadow = '', 2500);
+        }
+        return showToast('Selecciona la forma de pago. No se puede crear un monedero sin cobrarlo.', 'warning');
+    }
+
+    let codeInput = document.getElementById('mn-code')?.value.trim() || '';
+    if (codeInput && !/^(Tarj|LOC|BONO)-/i.test(codeInput)) codeInput = `Tarj-${codeInput}`;
+    const code = codeInput || `LOC-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
+
+    if (payMethod === 'pasarela' && (!window._lastMnPayGold || window._lastMnPayGold.code !== code)) {
+        const pgOk = await generateMonederoPayGoldLink(code, amount, concept);
+        if (!pgOk) return;
+    }
+    const pgInfo = (payMethod === 'pasarela' && window._lastMnPayGold) ? window._lastMnPayGold : null;
+
+    const now = new Date();
+    const payUser = window.currentUser?.name || 'Recepción';
+    const giftMsg = document.getElementById('mn-message')?.value.trim() || '';
+
+    const newVoucher = {
+        bono: code,
+        codigo: code,
+        cliente: clientName,
+        email: document.getElementById('mn-email')?.value.trim() || '',
+        telefono: clientPhone,
+        producto: concept,
+        precio: amount,
+        importe: amount,
+        fecha: getLocalDateYMD(now),
+        estado: 'pending',
+        origen: 'local',
+        tipo_bono: 'monedero',
+        es_monedero: true,
+        saldo_inicial: amount,
+        saldo_total: amount,
+        saldo_consumido: 0,
+        saldo_disponible: amount,
+        mensaje_regalo: giftMsg,
+        sesiones_totales: 1,
+        sesiones_usadas: 0,
+        pax_por_sesion: 1,
+        items_desglosados: [],
+        movimientos_monedero: [{
+            id: 'mov_' + Math.random().toString(36).substr(2, 9),
+            tipo: 'alta',
+            fecha: now.toISOString(),
+            concepto: concept,
+            importe_servicio: amount,
+            importe_descontado: amount,
+            exceso_a_pagar: 0,
+            saldo_resultante: amount,
+            metodo_pago: payMethod,
+            usuario: payUser
+        }],
+        createdAt: now.toISOString(),
+        manual_update: true,
+        updated_at: now.toISOString(),
+        estado_pago: 'pagado',
+        importe_pagado: amount,
+        importe_pendiente: 0,
+        metodo_pago: payMethod,
+        pagos: [{
+            id: 'pay_' + Math.random().toString(36).substr(2, 9),
+            fecha: now.toISOString(),
+            importe: amount,
+            metodo: payMethod,
+            concepto: 'Alta Bono Monedero',
+            usuario: payUser
+        }],
+        ...(pgInfo ? {
+            payment_link: pgInfo.paymentUrl,
+            paygold_order: pgInfo.orderDisplay,
+            paygold_redsys_order: pgInfo.orderId,
+            paygold_amount: amount
+        } : {}),
+        service_payment_status: null,
+        snapshot_price: amount
+    };
+
+    if (typeof generateSearchTokens === 'function') {
+        newVoucher.searchTokens = generateSearchTokens(newVoucher);
+    }
+
+    const btn = document.getElementById('mn-save-btn');
+    const btnSpan = btn?.querySelector('span');
+    try {
+        if (btn) btn.disabled = true;
+        if (btnSpan) btnSpan.textContent = 'CREANDO...';
+
+        if (window.apiLocal) {
+            await apiLocal.saveBono({ ...newVoucher, syncStatus: 'pending' });
+            if (window.updateGlobalSyncStatus) updateGlobalSyncStatus('pending');
+        }
+        try {
+            await db.collection('spa_vouchers').doc(code).set(newVoucher);
+            if (window.apiLocal) await apiLocal.markSynced('bonos', code, code);
+            if (window.updateGlobalSyncStatus) updateGlobalSyncStatus('synced');
+            showToast('Bono Monedero creado y sincronizado', 'success');
+        } catch (fsErr) {
+            console.warn('Fallo sync creación monedero (permanece en local):', fsErr);
+            if (window.updateGlobalSyncStatus) updateGlobalSyncStatus('offline');
+            showToast('Monedero creado localmente (Pendiente de subir)', 'info');
+        }
+
+        closeMonederoCreateModal();
+        await cargarBonos();
+
+        const pgUrl = newVoucher.payment_link || '';
+        const cleanTel = (newVoucher.telefono || '').replace(/\D/g, '');
+        const waText = pgUrl ? `Hola ${clientName}, aquí tienes el enlace seguro de pago (TPV Virtual Redsys) para tu Bono Monedero ${code} (${newVoucher.producto} - ${newVoucher.saldo_disponible.toFixed(2)} €) en Cumbria Bienestar:\n👉 ${pgUrl}` : '';
+        const action = await openMonederoNativeDialog({
+            title: `<i class="fas fa-check-circle"></i> Monedero ${code} Creado`,
+            headerBg: '#059669',
+            confirmText: 'Abrir Panel Monedero',
+            confirmBg: '#0f172a',
+            bodyHtml: `
+                <p style="margin:0 0 10px 0;">Se ha creado el Monedero <b>${code}</b> para <b>${clientName}</b> con un saldo de <b style="color:#059669;">${newVoucher.saldo_disponible.toFixed(2)} €</b>.</p>
+                ${pgUrl ? `
+                    <div style="margin-bottom:10px; padding:10px; background:#fffbeb; border:1px solid #fcd34d; border-radius:8px; font-size:0.76rem; color:#92400e;">
+                        <div style="font-weight:800; margin-bottom:4px;"><i class="fas fa-link"></i> Enlace TPV Virtual (Redsys):</div>
+                        <div style="background:#fff; padding:6px 8px; border-radius:6px; border:1px solid #fde68a; font-family:monospace; word-break:break-all; margin-bottom:8px;">${pgUrl}</div>
+                        <div style="display:flex; gap:6px;">
+                            <button type="button" onclick="navigator.clipboard.writeText('${pgUrl}'); showToast('Enlace TPV copiado', 'success');" style="flex:1; padding:6px 8px; border-radius:6px; border:none; background:#047857; color:#fff; font-weight:700; cursor:pointer;"><i class="fas fa-copy"></i> Copiar Enlace</button>
+                            ${cleanTel ? `<a href="https://wa.me/34${cleanTel}?text=${encodeURIComponent(waText)}" target="_blank" style="flex:1; padding:6px 8px; border-radius:6px; background:#25d366; color:#fff; font-weight:700; text-decoration:none; text-align:center;"><i class="fab fa-whatsapp"></i> WhatsApp</a>` : ''}
+                        </div>
+                    </div>
+                ` : ''}
+                <p style="margin:0; font-size:0.8rem; color:#64748b;">¿Quieres imprimir el comprobante ahora o abrir su panel de control?</p>
+            `,
+            extraButtons: [
+                { text: 'Balance PDF', bg: '#059669', value: 'pdf' },
+                { text: 'Ticket 80mm', bg: '#334155', value: 'ticket' }
+            ]
+        });
+        if (action === 'pdf' && typeof generarPDFBalanceMonedero === 'function') {
+            await generarPDFBalanceMonedero(newVoucher, null, newVoucher.mensaje_regalo || '');
+        } else if (action === 'ticket' && typeof imprimirTicketMonedero === 'function') {
+            imprimirTicketMonedero(newVoucher);
+        } else if (action === true) {
+            openVoucherManagement(code);
+        }
+    } catch (err) {
+        showToast('Error creando monedero: ' + err.message, 'error');
+    } finally {
+        if (btn) btn.disabled = false;
+        if (btnSpan) btnSpan.textContent = 'Crear Monedero';
+    }
 }
 
 function setupVoucherMonederoUI(v) {
