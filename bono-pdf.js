@@ -185,7 +185,7 @@ async function generarPDFBono(datos, download = true) {
             "1. Validez y Caducidad",
             "En su bono tiene la fecha de caducidad. Una vez caducado, no podrá realizarse el servicio ni se reembolsará el importe. Si el bono caduca, por cortesía se permitirá su uso hasta el final del mes de vencimiento.",
             "2. Reservas",
-            "Es imprescindible reservar cita previa llamando al 926 27 00 04 o en la recepción del Spa. Tenga su bono a mano para facilitar el código. No se aceptan reservas por correo electrónico.",
+            "Es imprescindible reservar cita previa llamando al 926 23 33 64 o en la recepción del Spa (Lunes a Sábado: 10:00 – 22:00 · Domingo: 10:00 – 15:00). Tenga su bono a mano para facilitar el código. También puede contactarnos en bienestar@encumbria.es.",
             "3. Política de Cancelación",
             "Las cancelaciones o modificaciones deben realizarse con al menos 24 horas de antelación. De lo contrario, el bono quedará anulado.",
             "4. Puntualidad",

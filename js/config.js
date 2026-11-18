@@ -1,5 +1,32 @@
 // config.js - Lógica de Configuración del Sistema
 
+const DEFAULT_BONO_CONFIG = {
+    phone: "926 23 33 64",
+    email: "bienestar@encumbria.es",
+    address: "Ctra. Toledo, 26, 13005 Ciudad Real",
+    schedule: "Lunes a Sábado: 10:00 – 22:00 · Domingo: 10:00 – 15:00",
+    website: "www.cumbriabienestar.es",
+    conditionsText: [
+        "1. Validez y Caducidad",
+        "En su bono tiene la fecha de caducidad. Una vez caducado, no podrá realizarse el servicio ni se reembolsará el importe. Si el bono caduca, por cortesía se permitirá su uso hasta el final del mes de vencimiento.",
+        "",
+        "2. Reservas",
+        "Es imprescindible reservar cita previa llamando al {{telefono}} o en la recepción del Spa (Horario: {{horario}}). Tenga su bono a mano para facilitar el código. También puede contactarnos en {{email}}.",
+        "",
+        "3. Política de Cancelación",
+        "Las cancelaciones o modificaciones deben realizarse con al menos 24 horas de antelación. De lo contrario, el bono quedará anulado.",
+        "",
+        "4. Puntualidad",
+        "Se ruega máxima puntualidad. En caso de retraso, el tiempo del tratamiento se reducirá para no perjudicar a las citas posteriores, sin reducción de precio.",
+        "",
+        "5. Salud y Normativa",
+        "Avise de cualquier condición física, embarazo o alergia al reservar. El acceso al Spa es para mayores de 12 años. El uso de gorro y chanclas es obligatorio.",
+        "",
+        "6. Hotel (si aplica)",
+        "Los bonos con estancia están sujetos a la disponibilidad del hotel."
+    ].join("\n")
+};
+
 const spaConfigState = {
     spaConfig: {
         capacity: 20,
@@ -9,7 +36,33 @@ const spaConfigState = {
         wc_url: "https://cumbriabienestar.es",
         wc_key: "",
         wc_secret: "",
-        wc_push_key: ""
+        wc_push_key: "",
+        bonoConfig: {
+            phone: "926 23 33 64",
+            email: "bienestar@encumbria.es",
+            address: "Ctra. Toledo, 26, 13005 Ciudad Real",
+            schedule: "Lunes a Sábado: 10:00 – 22:00 · Domingo: 10:00 – 15:00",
+            website: "www.cumbriabienestar.es",
+            conditionsText: [
+                "1. Validez y Caducidad",
+                "En su bono tiene la fecha de caducidad. Una vez caducado, no podrá realizarse el servicio ni se reembolsará el importe. Si el bono caduca, por cortesía se permitirá su uso hasta el final del mes de vencimiento.",
+                "",
+                "2. Reservas",
+                "Es imprescindible reservar cita previa llamando al {{telefono}} o en la recepción del Spa (Horario: {{horario}}). Tenga su bono a mano para facilitar el código. También puede contactarnos en {{email}}.",
+                "",
+                "3. Política de Cancelación",
+                "Las cancelaciones o modificaciones deben realizarse con al menos 24 horas de antelación. De lo contrario, el bono quedará anulado.",
+                "",
+                "4. Puntualidad",
+                "Se ruega máxima puntualidad. En caso de retraso, el tiempo del tratamiento se reducirá para no perjudicar a las citas posteriores, sin reducción de precio.",
+                "",
+                "5. Salud y Normativa",
+                "Avise de cualquier condición física, embarazo o alergia al reservar. El acceso al Spa es para mayores de 12 años. El uso de gorro y chanclas es obligatorio.",
+                "",
+                "6. Hotel (si aplica)",
+                "Los bonos con estancia están sujetos a la disponibilidad del hotel."
+            ].join("\n")
+        }
     },
     masterItems: [],
     spaces: [],
@@ -145,6 +198,10 @@ async function cargarSpaConfig() {
         const doc = await db.collection("spa_config").doc("settings").get();
         if (doc.exists) {
             spaConfigState.spaConfig = { ...spaConfigState.spaConfig, ...doc.data() };
+            spaConfigState.spaConfig.bonoConfig = {
+                ...DEFAULT_BONO_CONFIG,
+                ...(doc.data().bonoConfig || {})
+            };
 
             // Ensure schedules exist
             if (!spaConfigState.spaConfig.schedules) {
@@ -174,12 +231,66 @@ function updateSettingsUI() {
         "cfg-price-weekend-hotel": spaConfigState.spaConfig.hotelPriceWeekend || 18,
         // Dynamic Pricing for Particular
         "cfg-price-weekday-particular": spaConfigState.spaConfig.particularPriceWeekday || 25,
-        "cfg-price-weekend-particular": spaConfigState.spaConfig.particularPriceWeekend || 25
+        "cfg-price-weekend-particular": spaConfigState.spaConfig.particularPriceWeekend || 25,
+        "cfg-bono-phone": (spaConfigState.spaConfig.bonoConfig && spaConfigState.spaConfig.bonoConfig.phone) || DEFAULT_BONO_CONFIG.phone,
+        "cfg-bono-email": (spaConfigState.spaConfig.bonoConfig && spaConfigState.spaConfig.bonoConfig.email) || DEFAULT_BONO_CONFIG.email,
+        "cfg-bono-address": (spaConfigState.spaConfig.bonoConfig && spaConfigState.spaConfig.bonoConfig.address) || DEFAULT_BONO_CONFIG.address,
+        "cfg-bono-schedule": (spaConfigState.spaConfig.bonoConfig && spaConfigState.spaConfig.bonoConfig.schedule) || DEFAULT_BONO_CONFIG.schedule,
+        "cfg-bono-website": (spaConfigState.spaConfig.bonoConfig && spaConfigState.spaConfig.bonoConfig.website) || DEFAULT_BONO_CONFIG.website,
+        "cfg-bono-conditions": (spaConfigState.spaConfig.bonoConfig && spaConfigState.spaConfig.bonoConfig.conditionsText) || DEFAULT_BONO_CONFIG.conditionsText
     };
     for (const [id, val] of Object.entries(ids)) {
         const el = document.getElementById(id);
         if (el) el.value = val || "";
     }
+    renderBonoConditionsPreview();
+}
+
+function renderBonoConditionsPreview() {
+    const bodyEl = document.getElementById("cfg-bono-preview-body");
+    const footerEl = document.getElementById("cfg-bono-preview-footer");
+    if (!bodyEl || !footerEl) return;
+
+    const phone = document.getElementById("cfg-bono-phone")?.value.trim() || DEFAULT_BONO_CONFIG.phone;
+    const email = document.getElementById("cfg-bono-email")?.value.trim() || DEFAULT_BONO_CONFIG.email;
+    const address = document.getElementById("cfg-bono-address")?.value.trim() || DEFAULT_BONO_CONFIG.address;
+    const schedule = document.getElementById("cfg-bono-schedule")?.value.trim() || DEFAULT_BONO_CONFIG.schedule;
+    const website = document.getElementById("cfg-bono-website")?.value.trim() || DEFAULT_BONO_CONFIG.website;
+    const rawText = document.getElementById("cfg-bono-conditions")?.value ?? DEFAULT_BONO_CONFIG.conditionsText;
+
+    const resolved = rawText
+        .replace(/\{\{telefono\}\}/g, phone)
+        .replace(/\{\{email\}\}/g, email)
+        .replace(/\{\{direccion\}\}/g, address)
+        .replace(/\{\{horario\}\}/g, schedule)
+        .replace(/\{\{web\}\}/g, website);
+
+    const escapeHtml = (str) => str
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+
+    const lines = resolved.split(/\r?\n/).filter(l => l.trim() !== "");
+    bodyEl.innerHTML = lines.map(line => {
+        const trimmed = line.trim();
+        if (/^\d+\./.test(trimmed)) {
+            return `<div style="font-weight: 700; color: #1a2b3c; margin-top: 14px; margin-bottom: 4px;">${escapeHtml(trimmed)}</div>`;
+        }
+        return `<div style="margin-bottom: 6px; color: #334155;">${escapeHtml(trimmed)}</div>`;
+    }).join("");
+
+    footerEl.innerHTML = `
+        <div>Cumbria Bienestar · ${escapeHtml(address)} · ${escapeHtml(website)}</div>
+        <div style="margin-top: 3px;">Tel: ${escapeHtml(phone)} · ${escapeHtml(email)} · Horario: ${escapeHtml(schedule)}</div>
+    `;
+}
+
+function resetBonoConditionsDefault() {
+    if (!confirm("¿Restaurar el texto de condiciones de uso por defecto?")) return;
+    const el = document.getElementById("cfg-bono-conditions");
+    if (el) el.value = DEFAULT_BONO_CONFIG.conditionsText;
+    renderBonoConditionsPreview();
+    showToast("Texto restaurado. Pulsa 'Guardar Condiciones de Bonos' para aplicar.", "info");
 }
 
 async function saveSpaSettings() {
@@ -218,6 +329,23 @@ async function saveSpaSettings() {
     const priceWeekendParticular = parseFloat(document.getElementById("cfg-price-weekend-particular")?.value) || 25;
     spaConfigState.spaConfig.particularPriceWeekday = priceWeekdayParticular;
     spaConfigState.spaConfig.particularPriceWeekend = priceWeekendParticular;
+
+    // Bono Conditions & Contact Config
+    const bonoPhoneEl = document.getElementById("cfg-bono-phone");
+    const bonoEmailEl = document.getElementById("cfg-bono-email");
+    const bonoAddressEl = document.getElementById("cfg-bono-address");
+    const bonoScheduleEl = document.getElementById("cfg-bono-schedule");
+    const bonoWebsiteEl = document.getElementById("cfg-bono-website");
+    const bonoConditionsEl = document.getElementById("cfg-bono-conditions");
+
+    spaConfigState.spaConfig.bonoConfig = {
+        phone: bonoPhoneEl ? bonoPhoneEl.value.trim() : DEFAULT_BONO_CONFIG.phone,
+        email: bonoEmailEl ? bonoEmailEl.value.trim() : DEFAULT_BONO_CONFIG.email,
+        address: bonoAddressEl ? bonoAddressEl.value.trim() : DEFAULT_BONO_CONFIG.address,
+        schedule: bonoScheduleEl ? bonoScheduleEl.value.trim() : DEFAULT_BONO_CONFIG.schedule,
+        website: bonoWebsiteEl ? bonoWebsiteEl.value.trim() : DEFAULT_BONO_CONFIG.website,
+        conditionsText: bonoConditionsEl ? bonoConditionsEl.value : DEFAULT_BONO_CONFIG.conditionsText
+    };
 
     // Save Schedules
     const newSchedules = {};

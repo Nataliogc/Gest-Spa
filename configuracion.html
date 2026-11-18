@@ -35,16 +35,15 @@
 
 
             <li><a href="reservas-spa.html" class="nav-link"><i class="fas fa-water"></i> Spa</a></li>
-            <li><a href="reservas-salas.html?type=cabinas" class="nav-link"><i class="fas fa-cubes"></i> Cabinas</a>
-            </li>
             <li><a href="agenda-salas.html" class="nav-link"><i class="fas fa-calendar-alt"></i> Ocupación</a></li>
 
             <li class="dropdown">
                 <a href="#" class="nav-link dropdown-toggle">
-                    <i class="fas fa-door-open"></i> Salas <i class="fas fa-caret-down"
+                    <i class="fas fa-door-open"></i> Salas y Cabinas <i class="fas fa-caret-down"
                         style="font-size: 0.7em; margin-left: 5px;"></i>
                 </a>
                 <ul class="dropdown-menu">
+                    <li><a href="reservas-salas.html?type=cabinas"><i class="fas fa-cubes"></i> Cabinas</a></li>
                     <li><a href="reservas-salas.html?type=suite"><i class="fas fa-gem"></i> Suite</a></li>
                     <li><a href="reservas-salas.html?type=panacea"><i class="fas fa-columns"></i> Panacea & VIP</a></li>
                     <li><a href="reservas-salas.html?type=peluqueria"><i class="fas fa-cut"></i> Peluquería</a></li>
@@ -99,7 +98,7 @@
 
                 <!-- SUB-NAVEGACIÓN POR TABS -->
                 <div
-                    style="display: flex; gap: 10px; margin-bottom: 25px; border-bottom: 1px solid var(--border); padding-bottom: 10px;">
+                    style="display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 25px; border-bottom: 1px solid var(--border); padding-bottom: 10px;">
                     <button class="config-tab btn active" onclick="switchConfigTab('tab-general', this)">
                         <i class="fas fa-tools"></i> General
                     </button>
@@ -117,6 +116,9 @@
                     </button>
                     <button class="config-tab btn" onclick="switchConfigTab('tab-complementos', this)">
                         <i class="fas fa-plus-circle"></i> Complementos / Extras
+                    </button>
+                    <button class="config-tab btn" onclick="switchConfigTab('tab-condiciones-bonos', this)">
+                        <i class="fas fa-file-contract"></i> Condiciones Bonos
                     </button>
                     <button class="config-tab btn" onclick="switchConfigTab('tab-mantenimiento', this)">
                         <i class="fas fa-wrench"></i> Mantenimiento
@@ -649,6 +651,104 @@
                                             </tr>
                                         </tbody>
                                     </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- TAB CONDICIONES BONOS -->
+                    <div id="tab-condiciones-bonos" class="config-tab-content" style="display: none;">
+                        <div style="max-width: 1400px; margin: 0 auto;">
+                            <div style="text-align: center; margin-bottom: 25px;">
+                                <button onclick="saveSpaSettings()" class="btn btn-accent"
+                                    style="padding: 12px 30px; font-weight: 600; font-size: 1rem; background: #dda85d; border-color: #dda85d;">
+                                    <i class="fas fa-save"></i> Guardar Condiciones de Bonos
+                                </button>
+                            </div>
+
+                            <div style="display: grid; grid-template-columns: 1fr 1.4fr; gap: 25px; align-items: start;">
+                                <!-- DATOS DE CONTACTO Y HORARIO -->
+                                <div class="stat-card" style="border-left: 4px solid #1a2b3c;">
+                                    <h3
+                                        style="margin: 0 0 20px 0; font-size: 1rem; color: var(--text); font-weight: 700; display: flex; align-items: center; gap: 10px;">
+                                        <i class="fas fa-address-card" style="color: #1a2b3c;"></i> DATOS DE CONTACTO Y HORARIO
+                                    </h3>
+
+                                    <div style="display: grid; gap: 14px;">
+                                        <div class="form-group">
+                                            <label style="font-size: 0.78rem; font-weight: 600; text-transform: uppercase; color: #64748b;">Teléfono de Reservas</label>
+                                            <input type="text" id="cfg-bono-phone" value="926 23 33 64"
+                                                oninput="renderBonoConditionsPreview()" class="param-input"
+                                                style="width: 100%; margin-top: 6px; padding: 10px 12px; border-radius: 6px; border: 1px solid #e2e8f0;">
+                                        </div>
+                                        <div class="form-group">
+                                            <label style="font-size: 0.78rem; font-weight: 600; text-transform: uppercase; color: #64748b;">Email de Contacto</label>
+                                            <input type="email" id="cfg-bono-email" value="bienestar@encumbria.es"
+                                                oninput="renderBonoConditionsPreview()" class="param-input"
+                                                style="width: 100%; margin-top: 6px; padding: 10px 12px; border-radius: 6px; border: 1px solid #e2e8f0;">
+                                        </div>
+                                        <div class="form-group">
+                                            <label style="font-size: 0.78rem; font-weight: 600; text-transform: uppercase; color: #64748b;">Dirección</label>
+                                            <input type="text" id="cfg-bono-address" value="Ctra. Toledo, 26, 13005 Ciudad Real"
+                                                oninput="renderBonoConditionsPreview()" class="param-input"
+                                                style="width: 100%; margin-top: 6px; padding: 10px 12px; border-radius: 6px; border: 1px solid #e2e8f0;">
+                                        </div>
+                                        <div class="form-group">
+                                            <label style="font-size: 0.78rem; font-weight: 600; text-transform: uppercase; color: #64748b;">Horario</label>
+                                            <input type="text" id="cfg-bono-schedule" value="Lunes a Sábado: 10:00 – 22:00 · Domingo: 10:00 – 15:00"
+                                                oninput="renderBonoConditionsPreview()" class="param-input"
+                                                style="width: 100%; margin-top: 6px; padding: 10px 12px; border-radius: 6px; border: 1px solid #e2e8f0;">
+                                        </div>
+                                        <div class="form-group">
+                                            <label style="font-size: 0.78rem; font-weight: 600; text-transform: uppercase; color: #64748b;">Web (Pie de página)</label>
+                                            <input type="text" id="cfg-bono-website" value="www.cumbriabienestar.es"
+                                                oninput="renderBonoConditionsPreview()" class="param-input"
+                                                style="width: 100%; margin-top: 6px; padding: 10px 12px; border-radius: 6px; border: 1px solid #e2e8f0;">
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- TEXTO DE CONDICIONES DE USO -->
+                                <div class="stat-card" style="border-left: 4px solid #dda85d;">
+                                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; gap: 10px; flex-wrap: wrap;">
+                                        <h3 style="margin: 0; font-size: 1rem; color: var(--text); font-weight: 700; display: flex; align-items: center; gap: 10px;">
+                                            <i class="fas fa-file-alt" style="color: #dda85d;"></i> TEXTO DE CONDICIONES DE USO (PDF)
+                                        </h3>
+                                        <button type="button" onclick="resetBonoConditionsDefault()" class="btn btn-outline btn-sm"
+                                            style="font-size: 0.78rem; padding: 6px 12px;">
+                                            <i class="fas fa-undo"></i> Restaurar por defecto
+                                        </button>
+                                    </div>
+
+                                    <div style="background: #fffbeb; border-radius: 8px; padding: 12px; margin-bottom: 15px; border: 1px solid #fde68a;">
+                                        <p style="margin: 0; font-size: 0.76rem; color: #92400e; line-height: 1.5;">
+                                            Las líneas que empiezan por número y punto (ej: <b>1. Validez y Caducidad</b>) se muestran en <b>negrita</b>.<br>
+                                            Etiquetas disponibles: <b>{{telefono}}</b>, <b>{{email}}</b>, <b>{{direccion}}</b>, <b>{{horario}}</b>, <b>{{web}}</b>.
+                                        </p>
+                                    </div>
+
+                                    <textarea id="cfg-bono-conditions" rows="16" oninput="renderBonoConditionsPreview()"
+                                        placeholder="Escribe aquí las condiciones de uso de los bonos..."
+                                        style="width: 100%; border-radius: 8px; border: 1px solid #e2e8f0; font-size: 0.88rem; line-height: 1.5; padding: 12px; resize: vertical; background: #fff; font-family: inherit;"></textarea>
+                                </div>
+                            </div>
+
+                            <!-- VISTA PREVIA -->
+                            <div class="stat-card" style="margin-top: 25px; border-left: 4px solid #64748b;">
+                                <h3 style="margin: 0 0 15px 0; font-size: 0.95rem; color: var(--text); font-weight: 700; display: flex; align-items: center; gap: 10px;">
+                                    <i class="fas fa-eye" style="color: #64748b;"></i> VISTA PREVIA (PÁGINA 2 DEL BONO PDF)
+                                </h3>
+                                <div style="background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; max-width: 780px; margin: 0 auto; box-shadow: 0 4px 12px rgba(0,0,0,0.06);">
+                                    <div style="background: #1a2b3c; color: #fff; text-align: center; padding: 10px; font-size: 0.8rem; letter-spacing: 0.08em;">
+                                        TÉRMINOS Y CONDICIONES
+                                    </div>
+                                    <div style="padding: 28px 36px;">
+                                        <div style="font-size: 1.05rem; font-weight: 700; color: #1a2b3c; border-bottom: 2px solid #bfa46f; display: inline-block; padding-bottom: 4px; margin-bottom: 18px;">
+                                            Condiciones de Uso
+                                        </div>
+                                        <div id="cfg-bono-preview-body" style="font-size: 0.85rem; color: #333; line-height: 1.55;"></div>
+                                        <div id="cfg-bono-preview-footer" style="margin-top: 26px; padding-top: 12px; border-top: 1px solid #e2e8f0; text-align: center; font-size: 0.75rem; color: #64748b;"></div>
+                                    </div>
                                 </div>
                             </div>
                         </div>

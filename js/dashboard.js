@@ -39,10 +39,10 @@ function initDashboard() {
     cargarNotasDia();
 
     // Listeners
-    document.getElementById("dashboard-search")?.addEventListener("input", renderDashboard);
     document.getElementById("dashboard-search")?.addEventListener("keypress", (e) => {
         if (e.key === 'Enter') {
-            buscarReservasGlobal(e.target.value);
+            clearTimeout(_dashboardSearchTimer);
+            buscarReservasGlobal(e.target.value, true);
         }
     });
     document.getElementById("filter-status")?.addEventListener("change", renderDashboard);
@@ -378,8 +378,11 @@ function renderDashboard() {
         // ...
         const now = new Date();
         dataToShow = state.citas.filter(c => {
+            const cleanTermDigits = term.replace(/\D/g, '');
+            const phoneDigits = String(c.tel || c.telefono || c.phone || c.movil || '').replace(/\D/g, '');
             const matchesTerm = (c.nombre || "").toLowerCase().includes(term) ||
-                (c.servicio || "").toLowerCase().includes(term);
+                (c.servicio || "").toLowerCase().includes(term) ||
+                (cleanTermDigits.length >= 3 && phoneDigits.includes(cleanTermDigits));
             const matchesStatus = statusFilter === "" || c.status === statusFilter || (statusFilter === "confirmada" && c.status === "finalizada");
             const matchesStaff = staffFilter === "" || c.terapeuta === staffFilter;
 
@@ -767,8 +770,38 @@ function getStatusIcon(status) {
     }
 }
 
-async function buscarReservasGlobal(term) {
-    if (!term || term.length < 3) {
+let _dashboardSearchTimer = null;
+let _allReservasCache = null;
+let _allReservasCacheTime = 0;
+const GLOBAL_SEARCH_CACHE_TTL_MS = 120000; // 2 minutos
+
+function normalizeSearchStr(str) {
+    return String(str || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .trim();
+}
+
+window.handleDashboardSearch = function (val) {
+    const clean = (val || '').trim();
+    clearTimeout(_dashboardSearchTimer);
+
+    if (clean.length < 3) {
+        state.searchMode = false;
+        state.searchCitas = [];
+        renderDashboard();
+        return;
+    }
+
+    _dashboardSearchTimer = setTimeout(() => {
+        buscarReservasGlobal(clean, false);
+    }, 300);
+};
+
+async function buscarReservasGlobal(term, forceRefresh = false) {
+    const cleanTerm = (term || '').trim();
+    if (!cleanTerm || cleanTerm.length < 3) {
         state.searchMode = false;
         state.searchCitas = [];
         renderDashboard();
@@ -776,44 +809,79 @@ async function buscarReservasGlobal(term) {
     }
 
     const tbody = document.getElementById("dashboard-table-body");
-    if (tbody) tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding: 40px;"><i class="fas fa-spinner fa-spin"></i> Buscando en todo el historial...</td></tr>`;
+    const nowMs = Date.now();
+    const cacheValid = !forceRefresh && _allReservasCache && (nowMs - _allReservasCacheTime < GLOBAL_SEARCH_CACHE_TTL_MS);
+
+    if (!cacheValid && tbody) {
+        tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; padding: 40px;"><i class="fas fa-spinner fa-spin"></i> Buscando en todo el historial (pasadas y futuras)...</td></tr>`;
+    }
 
     try {
-        const collections = ["reservas_spa", "reservas_suite", "reservas_panacea", "reservas_vip", "reservas_peluqueria", "reservas_cabina1", "reservas_cabina2", "reservas_cabina3"];
-        const searchPromises = [];
+        if (!cacheValid) {
+            const collections = [
+                "reservas_spa", "reservas_suite", "reservas_panacea", "reservas_vip",
+                "reservas_peluqueria", "reservas_gimnasio", "reservas_complementos",
+                "reservas_cabinas", "reservas_cabina1", "reservas_cabina2", "reservas_cabina3"
+            ];
 
-        // Firestore range search (Case sensitive start-match is limited)
-        // Intentaremos normalizar un poco o simplemente buscar tal cual
-        collections.forEach(col => {
-            // Buscamos coincidencias que empiecen por el término
-            const q = db.collection(col)
-                .where("nombre", ">=", term)
-                .where("nombre", "<=", term + "\uf8ff")
-                .limit(20);
-            searchPromises.push(q.get());
-        });
+            const snapshots = await Promise.all(collections.map(col => db.collection(col).get()));
+            const allDocs = [];
 
-        const snapshots = await Promise.all(searchPromises);
-        let results = [];
-
-        snapshots.forEach((snap, index) => {
-            snap.forEach(doc => {
-                const data = doc.data();
-                let moduleType = 'spa';
+            snapshots.forEach((snap, index) => {
                 const col = collections[index];
+                let moduleType = 'spa';
                 if (col === 'reservas_suite') moduleType = 'suite';
-                else if (col === 'reservas_panacea' || col === 'reservas_vip') moduleType = 'panacea';
+                else if (col === 'reservas_panacea') moduleType = 'panacea';
+                else if (col === 'reservas_vip') moduleType = 'vip';
                 else if (col === 'reservas_peluqueria') moduleType = 'peluqueria';
+                else if (col === 'reservas_gimnasio') moduleType = 'gym';
+                else if (col === 'reservas_complementos') moduleType = 'complementos';
+                else if (col === 'reservas_cabinas') moduleType = 'cabinas';
                 else if (col === 'reservas_cabina1') moduleType = 'cabina1';
                 else if (col === 'reservas_cabina2') moduleType = 'cabina2';
                 else if (col === 'reservas_cabina3') moduleType = 'cabina3';
 
-                results.push({ id: doc.id, moduleType, ...data });
+                snap.forEach(doc => {
+                    const data = doc.data();
+                    allDocs.push({ id: doc.id, moduleType, ...data });
+                });
             });
+
+            _allReservasCache = allDocs;
+            _allReservasCacheTime = nowMs;
+        }
+
+        const normTerm = normalizeSearchStr(cleanTerm);
+        const termTokens = normTerm.split(/\s+/).filter(Boolean);
+        const digitsTerm = cleanTerm.replace(/\D/g, '');
+
+        const results = _allReservasCache.filter(item => {
+            const normName = normalizeSearchStr(item.nombre || item.cliente || '');
+            const normService = normalizeSearchStr(item.servicio || item.service || '');
+            const normCode = normalizeSearchStr(item.res_id || item.id || item.bono || item.localizador || '');
+            const rawPhone = String(item.tel || item.telefono || item.phone || item.movil || '');
+            const phoneDigits = rawPhone.replace(/\D/g, '');
+
+            // Coincidencia por teléfono (si el término tiene al menos 3 dígitos)
+            if (digitsTerm.length >= 3 && phoneDigits.includes(digitsTerm)) {
+                return true;
+            }
+
+            // Coincidencia por nombre (todos los tokens deben aparecer en el nombre)
+            if (termTokens.length > 0 && termTokens.every(t => normName.includes(t))) {
+                return true;
+            }
+
+            // Coincidencia por código de reserva / bono o servicio
+            if (normCode.includes(normTerm) || normService.includes(normTerm)) {
+                return true;
+            }
+
+            return false;
         });
 
-        // Ordenar por fecha desc (más recientes primero)
-        results.sort((a, b) => b.fecha.localeCompare(a.fecha) || b.hora.localeCompare(a.hora));
+        // Ordenar por fecha desc (futuras y más recientes primero), luego hora desc
+        results.sort((a, b) => (b.fecha || '').localeCompare(a.fecha || '') || (b.hora || '').localeCompare(a.hora || ''));
 
         state.searchMode = true;
         state.searchCitas = results;

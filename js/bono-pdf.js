@@ -64,6 +64,48 @@ function drawVectorLogo(doc, x, y, w, h) {
     doc.setDrawColor(191, 164, 111); doc.line(cx - 20, cy + 30, cx + 20, cy + 30);
 }
 
+const DEFAULT_BONO_PDF_CONFIG = {
+    phone: "926 23 33 64",
+    email: "bienestar@encumbria.es",
+    address: "Ctra. Toledo, 26, 13005 Ciudad Real",
+    schedule: "Lunes a Sábado: 10:00 – 22:00 · Domingo: 10:00 – 15:00",
+    website: "www.cumbriabienestar.es",
+    conditionsText: [
+        "1. Validez y Caducidad",
+        "En su bono tiene la fecha de caducidad. Una vez caducado, no podrá realizarse el servicio ni se reembolsará el importe. Si el bono caduca, por cortesía se permitirá su uso hasta el final del mes de vencimiento.",
+        "",
+        "2. Reservas",
+        "Es imprescindible reservar cita previa llamando al {{telefono}} o en la recepción del Spa (Horario: {{horario}}). Tenga su bono a mano para facilitar el código. También puede contactarnos en {{email}}.",
+        "",
+        "3. Política de Cancelación",
+        "Las cancelaciones o modificaciones deben realizarse con al menos 24 horas de antelación. De lo contrario, el bono quedará anulado.",
+        "",
+        "4. Puntualidad",
+        "Se ruega máxima puntualidad. En caso de retraso, el tiempo del tratamiento se reducirá para no perjudicar a las citas posteriores, sin reducción de precio.",
+        "",
+        "5. Salud y Normativa",
+        "Avise de cualquier condición física, embarazo o alergia al reservar. El acceso al Spa es para mayores de 12 años. El uso de gorro y chanclas es obligatorio.",
+        "",
+        "6. Hotel (si aplica)",
+        "Los bonos con estancia están sujetos a la disponibilidad del hotel."
+    ].join("\n")
+};
+
+async function loadBonoPdfConfig() {
+    try {
+        const fsDb = window.db || (typeof firebase !== 'undefined' ? firebase.firestore() : null);
+        if (fsDb) {
+            const doc = await fsDb.collection("spa_config").doc("settings").get();
+            if (doc.exists && doc.data().bonoConfig) {
+                return { ...DEFAULT_BONO_PDF_CONFIG, ...doc.data().bonoConfig };
+            }
+        }
+    } catch (e) {
+        console.warn("[PDF] No se pudo cargar bonoConfig de Firestore, usando valores por defecto:", e);
+    }
+    return { ...DEFAULT_BONO_PDF_CONFIG };
+}
+
 async function generarPDFBono(datos, download = true) {
     try {
         const { jsPDF } = window.jspdf;
@@ -220,26 +262,20 @@ async function generarPDFBono(datos, download = true) {
 
         doc.setTextColor(textDark); doc.setFontSize(9); doc.setFont('helvetica', 'normal');
 
-        const condicionesTexto = [
-            "1. Validez y Caducidad",
-            // TEXTO ACTUALIZADO
-            "En su bono tiene la fecha de caducidad. Una vez caducado, no podrá realizarse el servicio ni se reembolsará el importe. Si el bono caduca, por cortesía se permitirá su uso hasta el final del mes de vencimiento.",
-            "2. Reservas",
-            "Es imprescindible reservar cita previa llamando al 926 27 00 04 o en la recepción del Spa. Tenga su bono a mano para facilitar el código. No se aceptan reservas por correo electrónico.",
-            "3. Política de Cancelación",
-            "Las cancelaciones o modificaciones deben realizarse con al menos 24 horas de antelación. De lo contrario, el bono quedará anulado.",
-            "4. Puntualidad",
-            "Se ruega máxima puntualidad. En caso de retraso, el tiempo del tratamiento se reducirá para no perjudicar a las citas posteriores, sin reducción de precio.",
-            "5. Salud y Normativa",
-            "Avise de cualquier condición física, embarazo o alergia al reservar. El acceso al Spa es para mayores de 12 años. El uso de gorro y chanclas es obligatorio.",
-            "6. Hotel (si aplica)",
-            "Los bonos con estancia están sujetos a la disponibilidad del hotel."
-        ];
+        const bonoCfg = await loadBonoPdfConfig();
+        const rawConditions = (bonoCfg.conditionsText || DEFAULT_BONO_PDF_CONFIG.conditionsText)
+            .replace(/\{\{telefono\}\}/g, bonoCfg.phone || DEFAULT_BONO_PDF_CONFIG.phone)
+            .replace(/\{\{email\}\}/g, bonoCfg.email || DEFAULT_BONO_PDF_CONFIG.email)
+            .replace(/\{\{direccion\}\}/g, bonoCfg.address || DEFAULT_BONO_PDF_CONFIG.address)
+            .replace(/\{\{horario\}\}/g, bonoCfg.schedule || DEFAULT_BONO_PDF_CONFIG.schedule)
+            .replace(/\{\{web\}\}/g, bonoCfg.website || DEFAULT_BONO_PDF_CONFIG.website);
+
+        const condicionesTexto = rawConditions.split(/\r?\n/).filter(l => l.trim() !== "");
 
         condicionesTexto.forEach((texto) => {
-            // Limpieza texto condiciones también por seguridad
             const txt = cleanPDFText(texto);
-            if (txt.match(/^\d\./)) {
+            if (!txt) return;
+            if (txt.match(/^\d+\./)) {
                 y2 += 6; doc.setFont('helvetica', 'bold'); doc.text(txt, 25, y2); y2 += 5;
                 doc.setFont('helvetica', 'normal');
             } else {
@@ -249,9 +285,10 @@ async function generarPDFBono(datos, download = true) {
             }
         });
 
-        doc.setDrawColor(200); doc.line(20, 275, 190, 275);
-        doc.setFontSize(8); doc.setTextColor(150);
-        doc.text('Cumbria Bienestar · Ciudad Real · www.cumbriabienestar.es', 105, 280, { align: 'center' });
+        doc.setDrawColor(200); doc.line(20, 271, 190, 271);
+        doc.setFontSize(8); doc.setTextColor(130);
+        doc.text(cleanPDFText(`Cumbria Bienestar · ${bonoCfg.address || DEFAULT_BONO_PDF_CONFIG.address} · ${bonoCfg.website || DEFAULT_BONO_PDF_CONFIG.website}`), 105, 276, { align: 'center' });
+        doc.text(cleanPDFText(`Tel: ${bonoCfg.phone || DEFAULT_BONO_PDF_CONFIG.phone} · ${bonoCfg.email || DEFAULT_BONO_PDF_CONFIG.email} · Horario: ${bonoCfg.schedule || DEFAULT_BONO_PDF_CONFIG.schedule}`), 105, 281, { align: 'center' });
 
         if (download) doc.save(`bono-${datos.codigo}.pdf`);
         return download ? null : doc.output('blob');

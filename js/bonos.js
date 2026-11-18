@@ -6368,13 +6368,15 @@ async function createLocalVoucher() {
             });
         }
 
+        await openVoucherManagement(code);
+
     } catch (err) {
         showToast("Error creando bono: " + err.message, "error");
     } finally {
         const btn = document.getElementById("lv-save-btn");
         const btnText = btn.querySelector("span") || btn;
         btn.disabled = false;
-        if (btnText.tagName === 'SPAN') btnText.textContent = "Crear Bono";
+        if (btnText.tagName === 'SPAN') btnText.textContent = "Crear Bono Regalo";
     }
 }
 
