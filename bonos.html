@@ -28,7 +28,7 @@
         <!-- LEFT: Cumbria Logo -->
         <div style="display: flex; align-items: center; gap: 15px;">
             <img src="logo-spa.jpg" alt="Cumbria Bienestar" style="height: 65px; width: auto; object-fit: contain;">
-            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.90 (18/11/2026)">v2.3.90</span>
+            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.91 (18/11/2026)">v2.3.91</span>
         </div>
 
         <ul class="nav-links" style="flex:1;">
@@ -342,9 +342,19 @@
                                     style="padding: 5px 6px; font-size: 0.85rem; font-weight: 700; text-align:center; border-radius: 6px;">
                             </div>
                         </div>
-                        <div
+                        <div id="vm-auto-redeem-info"
                             style="font-size: 0.68rem; color: #0369a1; background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 6px; padding: 6px 9px; margin-top: 8px; line-height: 1.35;">
                             <i class="fas fa-info-circle"></i> <strong>Canje automático:</strong> El uso del bono se descuenta al reservar individualmente cada servicio.
+                        </div>
+                        <div id="vm-excloc-actions" style="display: none; gap: 6px; margin-top: 8px;">
+                            <button type="button" onclick="marcarCanjeado()"
+                                style="flex: 1; background: #10b981; color: #fff; border: none; border-radius: 6px; padding: 6px 8px; font-size: 0.72rem; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 5px;">
+                                <i class="fas fa-check"></i> Canjear 1 ses.
+                            </button>
+                            <button type="button" onclick="marcarCompleto()"
+                                style="flex: 1; background: #059669; color: #fff; border: none; border-radius: 6px; padding: 6px 8px; font-size: 0.72rem; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 5px;">
+                                <i class="fas fa-check-double"></i> Canjear Todo
+                            </button>
                         </div>
                     </div>
 

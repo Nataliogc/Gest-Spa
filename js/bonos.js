@@ -3040,9 +3040,9 @@ function renderBonosFromState(missingNum = null) {
             const matchesBono = bonoStr.includes(searchTerm);
             const matchesPhoneDigits = searchDigits.length >= 3 && telDigits.includes(searchDigits);
 
-            if (matchesBono || matchesPhoneDigits) return true;
-
             if (!matchesTokens &&
+                !matchesBono &&
+                !matchesPhoneDigits &&
                 !clienteStr.includes(searchTerm) &&
                 !bonoStr.includes(searchTerm) &&
                 !emailStr.includes(searchTerm) &&
@@ -4091,6 +4091,15 @@ async function openVoucherManagement(code) {
                         </button>
                     `;
 
+                    if (isExcLocVoucher(v)) {
+                        buttonsHtml += `
+                            <button class="btn btn-sm" onclick="validateServiceItem(${idx}, true)" title="Canjear 1 sesión sin reserva (solo exc.Loc)"
+                                style="padding:2px 8px; font-size:0.7rem; background:#10b981; color:#fff; border:none; border-radius:4px; margin-left:4px;">
+                                <i class="fas fa-check"></i> Canjear
+                            </button>
+                        `;
+                    }
+
                     // Añadir botón de validación manual para Restaurante/Otros
                     if (spaceName.toLowerCase().includes('rest') || spaceName.toLowerCase().includes('hotel') || spaceName.toLowerCase().includes('comida')) {
                         buttonsHtml += `
@@ -4506,7 +4515,47 @@ async function openVoucherManagement(code) {
     document.getElementById("vm-sesiones-total").value = finalDisplaySessions;
 
     // Inicializar usadas (se actualizará tras el historial)
-    document.getElementById("vm-sesiones-usadas").value = v.sesiones_usadas || 0;
+    const usedInputEl = document.getElementById("vm-sesiones-usadas");
+    usedInputEl.value = v.sesiones_usadas || 0;
+
+    // Permitir edición y canje manual sin reserva SOLO para bonos exc.Loc
+    const isExcLoc = isExcLocVoucher(v);
+    if (isExcLoc) {
+        usedInputEl.readOnly = false;
+        usedInputEl.onclick = null;
+        usedInputEl.style.background = '#fff';
+        usedInputEl.style.color = '#0f172a';
+        usedInputEl.style.cursor = 'text';
+        usedInputEl.title = 'Editable manualmente (solo bonos exc.Loc)';
+    } else {
+        usedInputEl.readOnly = true;
+        usedInputEl.onclick = () => {
+            if (typeof notifyManualRedemptionBlocked === 'function') notifyManualRedemptionBlocked();
+        };
+        usedInputEl.style.background = '#f1f5f9';
+        usedInputEl.style.color = '#475569';
+        usedInputEl.style.cursor = 'not-allowed';
+        usedInputEl.title = 'Se actualiza automáticamente al realizar las reservas individuales';
+    }
+
+    const excLocActionsEl = document.getElementById("vm-excloc-actions");
+    if (excLocActionsEl) {
+        excLocActionsEl.style.display = (isExcLoc && v.estado !== 'anulado') ? 'flex' : 'none';
+    }
+    const autoRedeemInfoEl = document.getElementById("vm-auto-redeem-info");
+    if (autoRedeemInfoEl) {
+        if (isExcLoc) {
+            autoRedeemInfoEl.style.background = '#ecfdf5';
+            autoRedeemInfoEl.style.borderColor = '#86efac';
+            autoRedeemInfoEl.style.color = '#065f46';
+            autoRedeemInfoEl.innerHTML = '<i class="fas fa-edit"></i> <strong>Bono exc.Loc (Excel):</strong> Puedes modificar las sesiones usadas manualmente y canjear sin crear reserva en historial.';
+        } else {
+            autoRedeemInfoEl.style.background = '#f0f9ff';
+            autoRedeemInfoEl.style.borderColor = '#bae6fd';
+            autoRedeemInfoEl.style.color = '#0369a1';
+            autoRedeemInfoEl.innerHTML = '<i class="fas fa-info-circle"></i> <strong>Canje automático:</strong> El uso del bono se descuenta al reservar individualmente cada servicio.';
+        }
+    }
 
     let paxPorSesion = v.pax_por_sesion || v.pax_sesion;
     if ((!paxPorSesion || paxPorSesion === 1) && suggestedPax > 1) {
@@ -4802,8 +4851,36 @@ async function saveVoucherChanges() {
 
         // Auto estado logic (Item-aware)
         // Priority: If already cancelled, preserve 'anulado'
+        const isExcLoc = isExcLocVoucher(v || code);
         if (v && v.estado === 'anulado') {
             updates.estado = 'anulado';
+        } else if (isExcLoc) {
+            // SOLO para bonos exc.Loc: permitir edición y canje manual sin reserva de historial
+            const globalComplete = updates.sesiones_usadas >= updates.sesiones_totales && updates.sesiones_totales > 0;
+            const globalPartial = updates.sesiones_usadas > 0;
+
+            if (globalComplete) {
+                updates.estado = 'completed';
+                if (updates.items_desglosados && updates.items_desglosados.length > 0) {
+                    updates.items_desglosados.forEach(item => {
+                        const itemTotal = item.sessions || item.sesiones || 1;
+                        if ((item.used || 0) < itemTotal) {
+                            item.used = itemTotal;
+                            item.usadas = itemTotal;
+                        }
+                    });
+                }
+            } else if (globalPartial) {
+                updates.estado = 'partially';
+            } else {
+                updates.estado = 'pending';
+                if (updates.items_desglosados && updates.items_desglosados.length > 0) {
+                    updates.items_desglosados.forEach(item => {
+                        item.used = 0;
+                        item.usadas = 0;
+                    });
+                }
+            }
         } else if (updates.items_desglosados && updates.items_desglosados.length > 0) {
             // PACK / DESGLOSE: Solo puede estar completado si TODOS los items tienen sus reservas/validaciones individuales
             const allItemsComplete = updates.items_desglosados.every(item => (item.used || 0) >= (item.sessions || item.sesiones || 1));
@@ -4912,6 +4989,13 @@ function isAccommodationVoucher(voucher) {
     return productName.includes('alojamiento') || productName.includes('desayuno');
 }
 
+function isExcLocVoucher(voucherOrCode) {
+    const raw = typeof voucherOrCode === 'string'
+        ? voucherOrCode
+        : (voucherOrCode?.bono || voucherOrCode?.codigo || '');
+    return String(raw).trim().toLowerCase().startsWith('exc.loc');
+}
+
 window.notifyManualRedemptionBlocked = function () {
     showToast("Nueva función: No se puede marcar como canjeado manualmente. Debes realizar las reservas individualmente desde cada servicio.", "warning");
 };
@@ -4927,11 +5011,57 @@ function marcarCanjeado() {
         return;
     }
 
+    // Permitir canje manual sin reserva SOLO para bonos exc.Loc
+    if (isExcLocVoucher(voucher || code)) {
+        let used = parseInt(document.getElementById("vm-sesiones-usadas").value) || 0;
+        const total = parseInt(document.getElementById("vm-sesiones-total").value) || 1;
+        if (used < total) {
+            document.getElementById("vm-sesiones-usadas").value = used + 1;
+            if (state.editingVoucherItems && state.editingVoucherItems.length > 0) {
+                const pendingItem = state.editingVoucherItems.find(it => (it.used || 0) < (it.sessions || it.sesiones || 1));
+                if (pendingItem) {
+                    pendingItem.used = (pendingItem.used || 0) + 1;
+                    pendingItem.usadas = pendingItem.used;
+                }
+            }
+            if (typeof renderEditableBreakdown === 'function') {
+                renderEditableBreakdown();
+            }
+            saveVoucherChanges();
+        } else {
+            showToast("El bono ya está completo", "warning");
+        }
+        return;
+    }
+
     // Bloquear canje manual sin reserva individual
     notifyManualRedemptionBlocked();
 }
 
 function marcarCompleto() {
+    const code = document.getElementById("vm-code").value;
+    const voucher = state.bonos.find(b => (b.bono || b.codigo) === code);
+
+    // Permitir canje completo sin reserva SOLO para bonos exc.Loc
+    if (isExcLocVoucher(voucher || code)) {
+        const total = parseInt(document.getElementById("vm-sesiones-total").value) || 1;
+        document.getElementById("vm-sesiones-usadas").value = total;
+
+        if (state.editingVoucherItems && state.editingVoucherItems.length > 0) {
+            state.editingVoucherItems.forEach(item => {
+                const sessionsTotal = item.sessions || item.sesiones || 1;
+                item.used = sessionsTotal;
+                item.usadas = sessionsTotal;
+            });
+            if (typeof renderEditableBreakdown === 'function') {
+                renderEditableBreakdown();
+            }
+        }
+
+        saveVoucherChanges();
+        return;
+    }
+
     notifyManualRedemptionBlocked();
 }
 
@@ -6489,18 +6619,20 @@ async function markServiceUsed(itemIndex, voucher) {
         await saveVoucherChanges();
         showToast(`✔ Componente "${item.name}" validado`, "success");
 
-        // Opcional: ofrecer abrir reservas si es un servicio de espacio físico
-        setTimeout(() => {
-            const space = (item.space || '').toLowerCase();
-            const isComplemento = space === 'complemento';
+        // Opcional: ofrecer abrir reservas si es un servicio de espacio físico (no para exc.Loc)
+        if (!isExcLocVoucher(voucher)) {
+            setTimeout(() => {
+                const space = (item.space || '').toLowerCase();
+                const isComplemento = space === 'complemento';
 
-            if (!isComplemento && item.used <= (item.sessions || 1)) {
-                // Si el usuario quiere reservar ahora
-                if (confirm(`¿Quieres crear una reserva en el calendario para "${item.name}" ahora?`)) {
-                    goToReservation(voucher.cliente, item.name, voucherCode, space);
+                if (!isComplemento && item.used <= (item.sessions || 1)) {
+                    // Si el usuario quiere reservar ahora
+                    if (confirm(`¿Quieres crear una reserva en el calendario para "${item.name}" ahora?`)) {
+                        goToReservation(voucher.cliente, item.name, voucherCode, space);
+                    }
                 }
-            }
-        }, 1000);
+            }, 1000);
+        }
 
     } catch (error) {
         console.error("Error validando servicio:", error);
