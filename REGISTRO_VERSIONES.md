@@ -8,7 +8,7 @@ Este documento mantiene el **control de versión única y global** para todo el 
 
 | Parámetro | Valor Actual |
 | :--- | :--- |
-| **Versión Global del Sistema** | **`v2.3.84`** |
+| **Versión Global del Sistema** | **`v2.3.85`** |
 | **Fecha de Última Actualización** | **18/11/2026** |
 | **Estado General** | Operativo en Producción |
 
@@ -47,6 +47,11 @@ Cualquier cambio en los siguientes módulos impacta en la versión global:
 ---
 
 ## 📝 Historial Unificado de Versiones
+
+### [v2.3.85] - 18/11/2026
+- **Tipo:** PATCH
+- **Archivos:** Módulos del sistema
+- **Descripción:** TPV Virtual en venta local, precio tarifa en reservas con monedero, anulados sin contar como pagados y vista Bono Monedero
 
 ### [v2.3.84] - 18/11/2026
 - **Tipo:** PATCH
