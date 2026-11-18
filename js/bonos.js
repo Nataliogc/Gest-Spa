@@ -910,6 +910,29 @@ async function openRestauranteFromVoucher(client, service, code, space, pax, pho
     }
 }
 
+// Bloqueo de uso: un bono anulado o caducado no admite reservas, recargas ni consumos
+function getVoucherBlockReason(v) {
+    if (!v) return null;
+    const estado = String(v.estado || '').toLowerCase();
+    if (estado === 'anulado' || estado === 'cancelled' || estado === 'anulada') {
+        return 'Este bono está ANULADO. No se pueden realizar reservas ni consumos. Reactívalo primero si procede.';
+    }
+    if (estado === 'expired' || (typeof checkVoucherExpiry === 'function' && checkVoucherExpiry(v))) {
+        return 'Este bono está CADUCADO. No se pueden realizar reservas ni consumos. Amplía la fecha de validez si procede.';
+    }
+    return null;
+}
+
+function assertVoucherUsable(code) {
+    const v = state.bonos.find(b => b.bono === code || b.codigo === code);
+    const reason = getVoucherBlockReason(v);
+    if (reason) {
+        showToast(`🚫 ${reason}`, 'error', 6000);
+        return false;
+    }
+    return true;
+}
+
 // Helper para redirección
 async function goToReservation(client, service, code, space, pax, skipPaymentCheck = false) {
     service = decodeURIComponent(service || '').trim();
@@ -918,6 +941,8 @@ async function goToReservation(client, service, code, space, pax, skipPaymentChe
     space = decodeURIComponent(space || '').trim();
     // pax is usually a number or unencoded string, but safe to decode if string
     if (typeof pax === 'string') pax = decodeURIComponent(pax).trim();
+
+    if (!assertVoucherUsable(code)) return;
 
     // === PAYMENT CONTROL CHECK ===
     if (!skipPaymentCheck) {
@@ -1111,6 +1136,8 @@ window.goToPackReservation = async function (encodedClient, encodedPackName, enc
     const client = decodeURIComponent(encodedClient || '');
     const packName = decodeURIComponent(encodedPackName || '');
     const code = decodeURIComponent(encodedCode || '');
+
+    if (!assertVoucherUsable(code)) return;
 
     if (!confirm(`¿Ir a Ocupación para reservar el pack completo '${packName}' para ${client || 'el cliente'}?`)) return;
 
@@ -8770,6 +8797,31 @@ function setupVoucherMonederoUI(v) {
         if (recalcBtn) recalcBtn.style.display = 'none';
         if (resyncBtn) resyncBtn.style.display = 'none';
 
+        // Bloquear acciones de uso si el bono está anulado o caducado
+        const blockReason = getVoucherBlockReason(v);
+        if (monederoCard) {
+            monederoCard.querySelectorAll('button').forEach(btn => {
+                const isUseAction = /Recargar|Descontar|Reservar/i.test(btn.textContent || '');
+                if (!isUseAction) return;
+                btn.disabled = !!blockReason;
+                btn.style.opacity = blockReason ? '0.4' : '1';
+                btn.style.cursor = blockReason ? 'not-allowed' : 'pointer';
+                btn.title = blockReason || '';
+            });
+            let banner = document.getElementById('vm-monedero-block-banner');
+            if (blockReason) {
+                if (!banner) {
+                    banner = document.createElement('div');
+                    banner.id = 'vm-monedero-block-banner';
+                    banner.style.cssText = 'margin-bottom:10px; padding:7px 10px; background:#fef2f2; border:1px solid #fecaca; color:#b91c1c; border-radius:6px; font-size:0.72rem; font-weight:700; line-height:1.35;';
+                    monederoCard.insertBefore(banner, monederoCard.children[1] || null);
+                }
+                banner.innerHTML = `<i class="fas fa-ban"></i> ${blockReason}`;
+            } else if (banner) {
+                banner.remove();
+            }
+        }
+
         const saldoTotal = parseFloat(v.saldo_total ?? v.importe ?? v.precio ?? 0) || 0;
         const saldoConsumido = parseFloat(v.saldo_consumido ?? 0) || 0;
         const saldoDisponible = Math.max(0, parseFloat(v.saldo_disponible ?? (saldoTotal - saldoConsumido)) || 0);
@@ -8950,6 +9002,7 @@ function openMonederoNativeDialog({ title, headerBg = '#059669', bodyHtml, confi
 async function convertVoucherToMonedero(code) {
     const v = await getCurrentModalVoucher(code);
     if (!v) return;
+    { const r = getVoucherBlockReason(v); if (r) return showToast(`🚫 ${r}`, 'error', 6000); }
     const baseAmount = parseFloat(v.importe ?? v.precio ?? 0) || 0;
 
     const amount = await openMonederoNativeDialog({
@@ -9006,6 +9059,7 @@ async function openMonederoRechargeModal() {
     if (!code) return;
     const v = await getCurrentModalVoucher(code);
     if (!v) return;
+    { const r = getVoucherBlockReason(v); if (r) return showToast(`🚫 ${r}`, 'error', 6000); }
 
     const formValues = await openMonederoNativeDialog({
         title: `<i class="fas fa-wallet"></i> Recargar Monedero ${code}`,
@@ -9126,6 +9180,7 @@ async function openMonederoConsumeModal() {
     if (!code) return;
     const v = await getCurrentModalVoucher(code);
     if (!v) return;
+    { const r = getVoucherBlockReason(v); if (r) return showToast(`🚫 ${r}`, 'error', 6000); }
 
     const prevTotal = parseFloat(v.saldo_total ?? v.importe ?? v.precio ?? 0) || 0;
     const prevConsumido = parseFloat(v.saldo_consumido ?? 0) || 0;
@@ -9252,6 +9307,7 @@ async function bookWithMonedero() {
     const code = document.getElementById('vm-code')?.value;
     const client = document.getElementById('vm-cliente')?.value || '';
     if (!code) return;
+    if (!assertVoucherUsable(code)) return;
 
     const target = await openMonederoNativeDialog({
         title: '<i class="fas fa-calendar-plus"></i> ¿Dónde quieres reservar?',
