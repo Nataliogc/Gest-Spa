@@ -48,7 +48,7 @@
     <div class="sidebar">
         <div style="display: flex; align-items: center; gap: 15px;">
             <img src="logo-spa.jpg" alt="Cumbria Bienestar" style="height: 65px; width: auto; object-fit: contain;">
-            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.89 (18/11/2026)">v2.3.89</span>
+            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.90 (18/11/2026)">v2.3.90</span>
         </div>
 
         <ul class="nav-links" style="flex:1;">
@@ -133,72 +133,63 @@
                     <div class="dashboard-main"
                         style="display: flex; flex-direction: column; height: 100%; overflow: hidden;">
 
-                        <!-- Ultra-Compact Dashboard Header -->
-                        <div
-                            style="margin-bottom: 10px; background: #fff; padding: 8px 12px; border-radius: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); display: flex; align-items: center; gap: 10px; overflow-x: auto;">
+                        <!-- Dashboard Filter Toolbar -->
+                        <div class="dashboard-toolbar">
+                            <div class="dashboard-toolbar-left">
+                                <!-- Date Nav -->
+                                <div class="dash-date-nav">
+                                    <button type="button" onclick="changeDashboardDate(-1)" class="dash-date-btn" title="Día anterior">
+                                        <i class="fas fa-chevron-left" style="font-size: 0.8rem;"></i>
+                                    </button>
+                                    <input type="date" id="dashboard-date-picker" class="dash-date-input" onchange="loadDashboardDate(this.value)">
+                                    <button type="button" onclick="changeDashboardDate(1)" class="dash-date-btn" title="Día siguiente">
+                                        <i class="fas fa-chevron-right" style="font-size: 0.8rem;"></i>
+                                    </button>
+                                    <button type="button" onclick="loadDashboardDate('today')" class="dash-today-btn" title="Ir a hoy">
+                                        Hoy
+                                    </button>
+                                </div>
 
-                            <!-- Date Nav -->
-                            <div
-                                style="display: flex; align-items: center; gap: 2px; background: #f1f5f9; padding: 2px; border-radius: 6px; flex-shrink: 0;">
-                                <button onclick="changeDashboardDate(-1)" class="btn-icon-only" title="Anterior"
-                                    style="border:none; background:transparent; cursor:pointer; padding: 4px 6px; color: #64748b;">
-                                    <i class="fas fa-chevron-left" style="font-size: 0.8rem;"></i>
-                                </button>
-                                <input type="date" id="dashboard-date-picker" onchange="loadDashboardDate(this.value)"
-                                    style="border:none; background:transparent; font-size: 0.8rem; font-weight: 600; color: #334155; cursor: pointer; outline: none; width: 110px;">
-                                <button onclick="changeDashboardDate(1)" class="btn-icon-only" title="Siguiente"
-                                    style="border:none; background:transparent; cursor:pointer; padding: 4px 6px; color: #64748b;">
-                                    <i class="fas fa-chevron-right" style="font-size: 0.8rem;"></i>
-                                </button>
-                                <button onclick="loadDashboardDate('today')" title="Hoy"
-                                    style="background: var(--accent); color: white; border: none; padding: 2px 8px; border-radius: 4px; font-size: 0.7rem; font-weight: 600; margin-left: 2px;">
-                                    Hoy
-                                </button>
+                                <div class="dash-toolbar-divider"></div>
+
+                                <!-- Filters -->
+                                <div class="dash-filter-group">
+                                    <select id="filter-status" class="dash-filter-select" title="Filtrar por estado" onchange="renderDashboard()">
+                                        <option value="">Todos los Estados</option>
+                                        <option value="confirmada" selected>Confirmada</option>
+                                        <option value="pendiente">Pendiente</option>
+                                        <option value="anulada">Anulada</option>
+                                        <option value="no_show">No Show</option>
+                                    </select>
+                                    <select id="filter-room" class="dash-filter-select" title="Filtrar por sala" onchange="renderDashboard()">
+                                        <option value="">Todas las Salas</option>
+                                        <option value="spa">Spa</option>
+                                        <option value="cabinas">Cabinas</option>
+                                        <option value="suite">Suite</option>
+                                        <option value="panacea">Panacea</option>
+                                        <option value="vip">Vip</option>
+                                        <option value="peluqueria">Peluquería</option>
+                                    </select>
+                                    <select id="filter-staff" class="dash-filter-select dash-filter-staff" title="Filtrar por terapeuta" onchange="renderDashboard()">
+                                        <option value="">Todos los Terapeutas</option>
+                                    </select>
+                                </div>
+
+                                <label class="dash-toggle-pill" title="Mostrar citas cuya hora ya ha pasado">
+                                    <input type="checkbox" id="show-past-citas" onchange="renderDashboard()">
+                                    <span>Pasadas</span>
+                                </label>
                             </div>
-
-                            <div style="width: 1px; height: 20px; background: #e2e8f0; flex-shrink: 0;"></div>
-
-                            <!-- Filters -->
-                            <div
-                                style="display: flex; align-items: center; border: 1px solid #e2e8f0; border-radius: 6px; background: #fff; overflow: hidden; flex-shrink: 0;">
-                                <select id="filter-status" title="Estado" onchange="renderDashboard()"
-                                    style="border: none; border-right: 1px solid #f8fafc; padding: 4px 8px; font-size: 0.75rem; font-weight: 600; color: #475569; background: transparent; cursor: pointer; outline: none;">
-                                    <option value="">Todos los Estados</option>
-                                    <option value="confirmada" selected>Confirmada</option>
-                                    <option value="pendiente">Pendiente</option>
-                                    <option value="anulada">Anulada</option>
-                                    <option value="no_show">No Show</option>
-                                </select>
-                                <select id="filter-room" title="Sala" onchange="renderDashboard()"
-                                    style="border: none; border-right: 1px solid #f8fafc; padding: 4px 8px; font-size: 0.75rem; font-weight: 600; color: #475569; background: transparent; cursor: pointer; outline: none;">
-                                    <option value="">Todas las Salas</option>
-                                    <option value="spa">Spa</option>
-                                    <option value="cabinas">Cabinas</option>
-                                    <option value="suite">Suite</option>
-                                    <option value="panacea">Panacea</option>
-                                    <option value="vip">Vip</option>
-                                    <option value="peluqueria">Peluquería</option>
-                                </select>
-                                <select id="filter-staff" title="Terapeuta" onchange="renderDashboard()"
-                                    style="border: none; padding: 4px 8px; font-size: 0.75rem; font-weight: 600; color: #475569; background: transparent; cursor: pointer; outline: none; max-width: 120px;">
-                                    <option value="">Todos los Terapeutas</option>
-                                </select>
-                            </div>
-
-                            <label
-                                style="display: flex; align-items: center; gap: 4px; font-size: 0.75rem; color: #64748b; cursor: pointer; white-space: nowrap; flex-shrink: 0;">
-                                <input type="checkbox" id="show-past-citas" onchange="renderDashboard()"> Pasadas
-                            </label>
 
                             <!-- Search -->
-                            <div style="flex-grow: 1; display: flex; justify-content: flex-end;">
-                                <div style="position: relative; max-width: 200px; width: 100%;">
-                                    <i class="fas fa-search"
-                                        style="position: absolute; left: 8px; top: 50%; transform: translateY(-50%); color: #94a3b8; font-size: 0.75rem;"></i>
-                                    <input type="text" id="dashboard-search" placeholder="Buscar nombre o teléfono..."
-                                        oninput="handleDashboardSearch(this.value)"
-                                        style="padding: 4px 8px 4px 26px; border: 1px solid #e2e8f0; border-radius: 20px; font-size: 0.8rem; width: 100%; outline: none;">
-                                </div>
+                            <div class="dash-search-wrap">
+                                <i class="fas fa-search dash-search-icon"></i>
+                                <input type="text" id="dashboard-search" class="dash-search-input" placeholder="Buscar nombre o teléfono..."
+                                    oninput="handleDashboardSearch(this.value)">
+                                <button type="button" class="dash-search-clear" title="Limpiar búsqueda"
+                                    onclick="const inp = document.getElementById('dashboard-search'); inp.value = ''; handleDashboardSearch(''); inp.focus();">
+                                    <i class="fas fa-times"></i>
+                                </button>
                             </div>
 
                             <!-- Hidden Title for Logic Compatibility -->

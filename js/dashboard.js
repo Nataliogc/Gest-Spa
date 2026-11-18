@@ -707,28 +707,27 @@ function renderDashboard() {
 
         const clientTel = c.tel || c.telefono || '';
         const payUrl = c.payment_link || c.paygold_link || '';
-        const isPastSearchRow = isGlobalSearch && isAppointmentPast(c);
+        const isPastRow = isAppointmentPast(c);
         const isTodaySearchRow = isGlobalSearch && String(c.fecha || '') === todayRefStr;
-        const searchRowStyle = isGlobalSearch
-            ? (isPastSearchRow
-                ? 'background:#f8fafc; opacity:0.78; border-left: 3px solid #cbd5e1;'
-                : (isTodaySearchRow
-                    ? 'background:#f0f9ff; border-left: 3px solid #3b82f6;'
-                    : 'background:#ffffff; border-left: 3px solid #10b981;'))
-            : '';
+        const rowStateClass = isPastRow
+            ? 'dash-row-past'
+            : (isGlobalSearch ? (isTodaySearchRow ? 'dash-row-today' : 'dash-row-future') : '');
         const fechaBadgeHtml = isGlobalSearch
-            ? (isPastSearchRow
-                ? `<div style="margin-top:2px;"><span style="display:inline-block; font-size:0.65rem; font-weight:700; padding:1px 6px; border-radius:4px; background:#e2e8f0; color:#475569;">PASADA</span></div>`
+            ? (isPastRow
+                ? `<div style="margin-top:3px;"><span class="dash-badge-past">PASADA</span></div>`
                 : (isTodaySearchRow
-                    ? `<div style="margin-top:2px;"><span style="display:inline-block; font-size:0.65rem; font-weight:700; padding:1px 6px; border-radius:4px; background:#dbeafe; color:#1d4ed8;">HOY</span></div>`
-                    : `<div style="margin-top:2px;"><span style="display:inline-block; font-size:0.65rem; font-weight:700; padding:1px 6px; border-radius:4px; background:#d1fae5; color:#047857;">FUTURA</span></div>`))
+                    ? `<div style="margin-top:3px;"><span style="display:inline-block; font-size:0.65rem; font-weight:700; padding:1px 6px; border-radius:4px; background:#dbeafe; color:#1d4ed8; border:1px solid #bfdbfe;">HOY</span></div>`
+                    : `<div style="margin-top:3px;"><span style="display:inline-block; font-size:0.65rem; font-weight:700; padding:1px 6px; border-radius:4px; background:#d1fae5; color:#047857; border:1px solid #a7f3d0;">FUTURA</span></div>`))
+            : '';
+        const horaPastBadgeHtml = (!isGlobalSearch && isPastRow)
+            ? `<div style="margin-top:2px;"><span class="dash-badge-past">PASADA</span></div>`
             : '';
 
         return `
-            <tr style="${isNoShow ? 'opacity: 0.5;' : ''} ${searchRowStyle} vertical-align: middle;">
+            <tr class="${rowStateClass}" style="${isNoShow ? 'opacity: 0.5;' : ''} vertical-align: middle;">
                 <td class="col-id" style="vertical-align: middle; font-size:0.8rem; color:#666; text-align:left;">${c.res_id || c.id.substr(0, 4)}</td>
-                ${isGlobalSearch ? `<td class="col-fecha" style="vertical-align: middle; font-size:0.8rem; text-align:center; font-weight:${isPastSearchRow ? '500' : '700'}; color:${isPastSearchRow ? '#64748b' : '#0f172a'};">${formatDateES(c.fecha)}${fechaBadgeHtml}</td>` : ''}
-                <td class="col-hora" style="vertical-align: middle; font-weight:bold; color:var(--accent); text-align:center;">${c.hora}</td>
+                ${isGlobalSearch ? `<td class="col-fecha" style="vertical-align: middle; font-size:0.8rem; text-align:center; font-weight:${isPastRow ? '500' : '700'}; color:${isPastRow ? '#64748b' : '#0f172a'};">${formatDateES(c.fecha)}${fechaBadgeHtml}</td>` : ''}
+                <td class="col-hora" style="vertical-align: middle; font-weight:bold; color:var(--accent); text-align:center;">${c.hora}${horaPastBadgeHtml}</td>
                 <td class="col-cliente" style="vertical-align: middle; text-align:left; ${isNoShow ? 'text-decoration: line-through;' : ''}">${c.nombre}</td>
                 <td class="col-servicio" style="vertical-align: middle; text-align:left;">${serviceName}</td>
                 <td class="col-sala" style="vertical-align: middle; font-size:0.8rem; color:#64748b; text-align:left;">${roomName}</td>
