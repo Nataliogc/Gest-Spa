@@ -6166,6 +6166,26 @@
 
             window._isInitializingEdit = true;
             window._currentPricingMode = res.pricing_mode || null;
+
+            // Resetear y comprobar si esta reserva ya tiene un Circuito Spa adicional guardado
+            const addonDateEl = document.getElementById("spa-addon-date");
+            const addonTimeEl = document.getElementById("spa-addon-time");
+            if (addonDateEl) addonDateEl.value = "";
+            if (addonTimeEl) addonTimeEl.value = "";
+            if (typeof window.toggleSpaAddonTab === 'function') window.toggleSpaAddonTab(false);
+            if (id && window.db) {
+                db.collection("reservas_spa").doc(`${id}_spa_addon`).get().then(addonSnap => {
+                    if (window.currentEditingId !== id) return;
+                    if (addonSnap.exists) {
+                        const ad = addonSnap.data();
+                        if (ad && ad.status !== 'anulada') {
+                            if (addonDateEl) addonDateEl.value = ad.fecha || res.fecha || "";
+                            if (addonTimeEl) addonTimeEl.value = ad.hora || "";
+                            if (typeof window.toggleSpaAddonTab === 'function') window.toggleSpaAddonTab(true);
+                        }
+                    }
+                }).catch(() => {});
+            }
             document.getElementById("res-nombre").value = res.nombre;
 
             // Formatear teléfono al cargar (3x3)
@@ -6760,6 +6780,13 @@
             window._spaOverbookingModeBase = null;
             window._spaOverbookingMode = null;
             window._spaReceptionist = null;
+
+            // Limpiar SIEMPRE estado del Circuito Spa adicional al cerrar para no arrastrar fechas
+            const addonDateClose = document.getElementById("spa-addon-date");
+            const addonTimeClose = document.getElementById("spa-addon-time");
+            if (addonDateClose) addonDateClose.value = "";
+            if (addonTimeClose) addonTimeClose.value = "";
+            if (typeof window.toggleSpaAddonTab === 'function') window.toggleSpaAddonTab(false);
 
             // Limpiar SIEMPRE cualquier bono residual en memoria al salir o cerrar
             clearPendingVoucher();
@@ -7638,36 +7665,41 @@
                         const spaDate = document.getElementById("spa-addon-date")?.value || payload.fecha;
                         const spaTime = (document.getElementById("spa-addon-time")?.value || "").replace(/h$/i, '').trim();
                         if (spaDate && spaTime) {
-                            const spaAddonUnit = getStandaloneSpaAddonUnitPrice();
-                            const spaAddonPax = payload.pax || 2;
-                            const spaAddonPayload = {
-                                res_id: payload.res_id || savedId,
-                                parent_id: savedId,
-                                parent_service: payload.servicio,
-                                is_pack_child: true,
-                                collection: "reservas_spa",
-                                sala: "spa",
-                                nombre: payload.nombre,
-                                tel: payload.tel || "",
-                                fecha: spaDate,
-                                hora: spaTime,
-                                duracion: 60,
-                                pax: spaAddonPax,
-                                servicio: "Circuito Spa",
-                                origen: payload.origen,
-                                hotel: payload.hotel || "",
-                                hab: payload.hab || "",
-                                bono: payload.bono || "",
-                                localizador: payload.bono || "",
-                                obs: payload.obs || "",
-                                precio_pax: spaAddonUnit,
-                                precio_total: spaAddonUnit * spaAddonPax,
-                                status: payload.status || "confirmada",
-                                created_at: new Date().toISOString(),
-                                updated_at: new Date().toISOString()
-                            };
-                            await db.collection("reservas_spa").doc(`${savedId}_spa_addon`).set(spaAddonPayload, { merge: true });
-                            showToast(`Circuito Spa añadido a las ${spaTime}h`, "success");
+                            try {
+                                const spaAddonUnit = getStandaloneSpaAddonUnitPrice();
+                                const spaAddonPax = payload.pax || 2;
+                                const spaAddonPayload = {
+                                    res_id: payload.res_id || savedId,
+                                    parent_id: savedId,
+                                    parent_service: payload.servicio,
+                                    is_pack_child: true,
+                                    collection: "reservas_spa",
+                                    sala: "spa",
+                                    nombre: payload.nombre,
+                                    tel: payload.tel || "",
+                                    fecha: spaDate,
+                                    hora: spaTime,
+                                    duracion: 60,
+                                    pax: spaAddonPax,
+                                    servicio: "Circuito Spa",
+                                    origen: payload.origen,
+                                    hotel: payload.hotel || "",
+                                    hab: payload.hab || "",
+                                    bono: payload.bono || "",
+                                    localizador: payload.bono || "",
+                                    obs: payload.obs || "",
+                                    precio_pax: spaAddonUnit,
+                                    precio_total: spaAddonUnit * spaAddonPax,
+                                    status: payload.status || "confirmada",
+                                    created_at: new Date().toISOString(),
+                                    updated_at: new Date().toISOString()
+                                };
+                                await db.collection("reservas_spa").doc(`${savedId}_spa_addon`).set(spaAddonPayload, { merge: true });
+                                showToast(`Circuito Spa añadido el ${spaDate} a las ${spaTime}h`, "success");
+                            } catch (spaAddonErr) {
+                                console.error("Error guardando Circuito Spa adicional:", spaAddonErr);
+                                alert("La reserva de sala se guardó, pero hubo un error al guardar el Circuito Spa: " + spaAddonErr.message);
+                            }
                         }
                     }
                 } catch (fsErr) {

@@ -742,7 +742,7 @@
             setTimeout(() => {
                 const frame = document.getElementById('quick-form-frame');
                 if (frame && (!frame.src || frame.src === 'about:blank' || frame.src.endsWith('about:blank'))) {
-                    frame.src = 'reservas-salas.html?type=cabinas&embedded=1&modal=1&prewarm=1&_v=2.3.56';
+                    frame.src = 'reservas-salas.html?type=cabinas&embedded=1&modal=1&prewarm=1&_v=2.3.57';
                 }
             }, 350);
 
@@ -1350,7 +1350,7 @@
             } catch (e) {}
             // Mantener vivo el iframe si ya está pre-calentado (y no venimos de una URL con action=new sin prewarm)
             if (frame && (!frame.contentWindow || !frame.contentWindow._gestSpaQuickModalReady)) {
-                frame.src = 'reservas-salas.html?type=cabinas&embedded=1&modal=1&prewarm=1&_v=2.3.56';
+                frame.src = 'reservas-salas.html?type=cabinas&embedded=1&modal=1&prewarm=1&_v=2.3.57';
             }
             if (refresh) setTimeout(() => renderGrid(true), 150);
         }
