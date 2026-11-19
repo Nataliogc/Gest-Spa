@@ -1357,7 +1357,7 @@
 
     <!-- Dexie loaded by db-local.js -->
     <!-- <script src="https://unpkg.com/dexie@latest/dist/dexie.js"></script> -->
-    <script src="js/app-core.js?v=2.3.29"></script>
+    <script src="js/app-core.js?v=2.3.49"></script>
     <script src="js/monedero-helper.js"></script>
     <script src="js/spa-packs-registry.js?v=2.3.30"></script>
     <script src="js/service-catalog.js?v=1"></script>
@@ -6444,8 +6444,10 @@
                 }
 
                 // Remote DB
+                const isNewReservation = !(id && id.length > 10);
+                let savedId = id;
                 try {
-                    if (id.length > 10) {
+                    if (!isNewReservation) {
                         // Check for Collection Move (Room Change)
                         if (originalColl && originalColl !== targetColl) {
                             console.log(`[MOVE] Moving reservation ${id} from ${originalColl} to ${targetColl}`);
@@ -6459,6 +6461,7 @@
                         }
                     } else {
                         const docRef = await db.collection(targetColl).add(payload);
+                        savedId = docRef.id;
                         if (window.apiLocal) await apiLocal.markSynced('reservas', payload.res_id, docRef.id);
                     }
                     if (window.updateGlobalSyncStatus) updateGlobalSyncStatus('synced');
@@ -6488,6 +6491,10 @@
                 }
 
                 closeModal();
+
+                if (isNewReservation && typeof window.promptReservationWhatsApp === 'function' && !(window.opener && !window.opener.closed && payload.origen === 'bono')) {
+                    window.promptReservationWhatsApp({ ...payload, id: savedId, collection: targetColl });
+                }
 
                 // Notificar al Drawer padre si está embebido
                 if (window.parent && window.parent !== window) {

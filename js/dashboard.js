@@ -1086,13 +1086,28 @@ window.addEventListener('keydown', (e) => {
 });
 
 window.sendWhatsAppConfirmation = async function (id, telefono, cliente, fecha, hora, moduleType, payUrl, balanceAmount, serviceName, pax) {
-    if (!telefono || telefono.length < 9) {
+    const cleanTel = (typeof window.normalizeWhatsAppPhone === "function")
+        ? window.normalizeWhatsAppPhone(telefono)
+        : String(telefono || "").replace(/\D/g, "");
+    if (!cleanTel || cleanTel.length < 9) {
         alert("No se detecta teléfono válido para este cliente.");
         return;
     }
 
+    const citaObj = (state && Array.isArray(state.citas)) ? state.citas.find(c => c.id === id) : null;
     let texto = "";
-    if (payUrl && balanceAmount > 0.05 && typeof window.buildPayGoldCommercialMessage === "function") {
+    if (typeof window.buildReservationWhatsAppMessage === "function") {
+        texto = window.buildReservationWhatsAppMessage({
+            ...(citaObj || {}),
+            cliente: cliente,
+            servicio: serviceName || citaObj?.servicio || "Circuito Spa",
+            fecha: fecha,
+            hora: hora,
+            pax: pax || citaObj?.pax || 1,
+            payUrl: payUrl || citaObj?.payment_link || citaObj?.paygold_link || "",
+            balanceAmount: typeof balanceAmount === "number" ? balanceAmount : undefined
+        });
+    } else if (payUrl && balanceAmount > 0.05 && typeof window.buildPayGoldCommercialMessage === "function") {
         texto = window.buildPayGoldCommercialMessage({
             clientName: cliente,
             serviceName: serviceName || "Circuito Spa",
@@ -1109,8 +1124,8 @@ window.sendWhatsAppConfirmation = async function (id, telefono, cliente, fecha, 
     }
 
     const encodedText = encodeURIComponent(texto);
-    const cleanTel = telefono.replace(/\D/g, "");
-    const url = `https://wa.me/34${cleanTel}?text=${encodedText}`;
+    const waPhone = cleanTel.length === 9 ? `34${cleanTel}` : cleanTel;
+    const url = `https://wa.me/${waPhone}?text=${encodedText}`;
     window.open(url, "_blank");
 
     // Marcar como enviado en la base de datos visualmente

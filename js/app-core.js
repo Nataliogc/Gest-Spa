@@ -2707,4 +2707,158 @@ window.promptMesachefOnDateTimeChange = async function ({ id, payload, oldDate, 
     }
 };
 
+// --- WHATSAPP CONFIRMACIÓN DE RESERVA + CONDICIONES DEL SERVICIO (Cumbria Bienestar) ---
+
+window.normalizeWhatsAppPhone = function (rawPhone) {
+    const digits = String(rawPhone || '').replace(/\D/g, '');
+    if (digits.length < 9) return '';
+    if (digits.length === 9) return '34' + digits;
+    if (digits.startsWith('00')) return digits.slice(2);
+    return digits;
+};
+
+window.buildReservationWhatsAppMessage = function (params) {
+    const p = params || {};
+    const cliente = String(p.cliente || p.nombre || 'Estimado/a cliente').trim();
+    const servicio = String(p.servicio || p.serviceName || 'Circuito Spa').trim();
+    const pax = parseInt(p.pax || 1, 10) || 1;
+    const paxStr = pax > 1 ? ` (${pax} personas)` : '';
+    const hora = String(p.hora || '').replace(/h$/i, '').trim();
+
+    let dateStr = String(p.fecha || '').trim();
+    if (dateStr && /^\d{4}-\d{2}-\d{2}/.test(dateStr)) {
+        const parts = dateStr.slice(0, 10).split('-');
+        const dateObj = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10), 12, 0, 0);
+        if (!isNaN(dateObj.getTime())) {
+            dateStr = dateObj.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
+            dateStr = dateStr.charAt(0).toUpperCase() + dateStr.slice(1);
+        } else {
+            dateStr = `${parts[2]}/${parts[1]}/${parts[0]}`;
+        }
+    }
+
+    const origenRaw = String(p.origen || p.origin || '').toLowerCase().trim();
+    const isVoucherOrIncluded = !!(
+        p.bono || p.num_bono || p.sin_cargo === true ||
+        ['bono', 'voucher', 'hotel_inc', 'groupon', 'smartbox', 'wonderbox', 'ego', 'sin_cargo'].includes(origenRaw)
+    );
+
+    const total = parseFloat(p.precio_total ?? p.precio ?? p.total ?? p.payment?.total ?? 0) || 0;
+    let paid = parseFloat(p.payment?.paid ?? p.paid_amount ?? p.importe_pagado ?? 0) || 0;
+    if (String(p.estado_pago || '').toLowerCase() === 'pagado' || p.paygold_status === 'COBRADO' || p.paygold_status === 'PAGADO') {
+        paid = total;
+    }
+    const balanceAmount = (typeof p.balanceAmount === 'number' && !isNaN(p.balanceAmount))
+        ? Math.max(0, p.balanceAmount)
+        : (isVoucherOrIncluded ? 0 : Math.max(0, total - paid));
+
+    const payUrl = String(p.payUrl || p.payment_link || p.paygold_link || '').trim();
+    const hasPendingPayment = balanceAmount > 0.05 && !isVoucherOrIncluded;
+
+    let msg = `🌿 *CUMBRIA BIENESTAR — Spa & Hotel* 🌿\n\n`;
+    msg += `Hola *${cliente}*,\n`;
+    msg += `Le confirmamos los datos de su reserva:\n\n`;
+    msg += `✨ *Servicio:* ${servicio}${paxStr}\n`;
+    if (dateStr) msg += `📅 *Fecha:* ${dateStr}\n`;
+    if (hora) msg += `⏰ *Hora:* ${hora}h\n`;
+
+    if (hasPendingPayment) {
+        const amountStr = balanceAmount.toFixed(2).replace('.', ',');
+        msg += `💶 *Importe pendiente:* ${amountStr} €\n\n`;
+        msg += `💳 *Cobro de la Reserva:*\n`;
+        if (payUrl) {
+            msg += `Para garantizar su cita, deberá abonar el importe con al menos *24 horas de antelación* mediante nuestro enlace seguro de pago:\n👉 ${payUrl}\n`;
+        } else {
+            msg += `Este servicio tiene un importe pendiente de *${amountStr} €*. Para garantizar la reserva, el abono deberá realizarse con al menos *24 horas de antelación* (o según las indicaciones de recepción).\n`;
+        }
+    }
+
+    msg += `\n📋 *CONDICIONES DEL SERVICIO*\n\n`;
+    msg += `📌 *Política de Cancelación:*\n`;
+    msg += `Las cancelaciones o modificaciones deben realizarse con al menos 24 horas de antelación. De lo contrario, el bono quedará anulado.\n\n`;
+    msg += `⏱️ *Puntualidad:*\n`;
+    msg += `Se ruega máxima puntualidad. En caso de retraso, el tiempo del tratamiento se reducirá para no perjudicar a las citas posteriores, sin reducción de precio.\n\n`;
+    msg += `🩺 *Salud y Normativa:*\n`;
+    msg += `Avise de cualquier condición física, embarazo o alergia al reservar. El acceso al Spa es para mayores de 12 años. El uso de gorro y chanclas es obligatorio.\n\n`;
+    msg += `Por favor, responda a este mensaje para confirmar su asistencia. ¡Le esperamos!`;
+
+    return msg;
+};
+
+window.promptReservationWhatsApp = function (resData) {
+    if (!resData) return;
+    if (resData.status === 'anulada' || resData.status === 'no_show') return;
+
+    const cleanPhone = window.normalizeWhatsAppPhone(resData.tel || resData.telefono);
+    if (!cleanPhone) return;
+
+    const existing = document.getElementById('gest-spa-wa-prompt-overlay');
+    if (existing) existing.remove();
+
+    const defaultMsg = window.buildReservationWhatsAppMessage(resData);
+    const cliente = String(resData.nombre || resData.cliente || 'Cliente').trim();
+
+    const overlay = document.createElement('div');
+    overlay.id = 'gest-spa-wa-prompt-overlay';
+    overlay.style.cssText = 'position:fixed; inset:0; background:rgba(15,23,42,0.55); z-index:99999; display:flex; align-items:center; justify-content:center; padding:16px; backdrop-filter:blur(2px);';
+
+    overlay.innerHTML = `
+        <div style="background:#fff; border-radius:14px; max-width:520px; width:100%; box-shadow:0 20px 50px rgba(0,0,0,0.22); overflow:hidden; font-family:inherit;">
+            <div style="background:#f0fdf4; border-bottom:1px solid #dcfce7; padding:16px 20px; display:flex; align-items:center; justify-content:space-between; gap:12px;">
+                <div style="display:flex; align-items:center; gap:10px;">
+                    <span style="width:36px; height:36px; border-radius:50%; background:#25D366; color:#fff; display:inline-flex; align-items:center; justify-content:center; font-size:1.15rem; flex-shrink:0;">
+                        <i class="fab fa-whatsapp"></i>
+                    </span>
+                    <div>
+                        <div style="font-weight:700; color:#14532d; font-size:0.98rem;">¿Enviar WhatsApp de confirmación?</div>
+                        <div style="font-size:0.8rem; color:#166534;">${cliente.replace(/</g, '&lt;')} · +${cleanPhone}</div>
+                    </div>
+                </div>
+                <button type="button" id="gest-spa-wa-close-x" style="border:none; background:transparent; color:#64748b; font-size:1.25rem; cursor:pointer; padding:4px 8px;">&times;</button>
+            </div>
+            <div style="padding:16px 20px;">
+                <label style="display:block; font-size:0.78rem; font-weight:600; color:#475569; margin-bottom:6px;">
+                    Mensaje preparado (puedes editarlo antes de abrir WhatsApp):
+                </label>
+                <textarea id="gest-spa-wa-msg-input" style="width:100%; height:220px; border:1px solid #cbd5e1; border-radius:8px; padding:10px 12px; font-size:0.84rem; line-height:1.45; color:#1e293b; resize:vertical; font-family:inherit; box-sizing:border-box;"></textarea>
+                <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:14px;">
+                    <button type="button" id="gest-spa-wa-cancel" style="padding:9px 16px; border-radius:8px; border:1px solid #cbd5e1; background:#fff; color:#475569; font-weight:600; font-size:0.86rem; cursor:pointer;">
+                        Ahora no
+                    </button>
+                    <button type="button" id="gest-spa-wa-send" style="padding:9px 18px; border-radius:8px; border:none; background:#25D366; color:#fff; font-weight:700; font-size:0.86rem; cursor:pointer; display:inline-flex; align-items:center; gap:7px; box-shadow:0 2px 6px rgba(37,211,102,0.35);">
+                        <i class="fab fa-whatsapp" style="font-size:1rem;"></i> Abrir WhatsApp y enviar
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(overlay);
+    const textarea = document.getElementById('gest-spa-wa-msg-input');
+    if (textarea) textarea.value = defaultMsg;
+
+    const closeOverlay = () => overlay.remove();
+    document.getElementById('gest-spa-wa-close-x')?.addEventListener('click', closeOverlay);
+    document.getElementById('gest-spa-wa-cancel')?.addEventListener('click', closeOverlay);
+    overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) closeOverlay();
+    });
+
+    document.getElementById('gest-spa-wa-send')?.addEventListener('click', async () => {
+        const finalMsg = textarea ? textarea.value : defaultMsg;
+        const waUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(finalMsg)}`;
+        window.open(waUrl, '_blank');
+        closeOverlay();
+
+        if (resData.id && resData.collection && typeof db !== 'undefined') {
+            try {
+                await db.collection(resData.collection).doc(resData.id).update({ whatsappSent: true });
+            } catch (e) {
+                console.warn('[WA] No se pudo marcar whatsappSent en Firestore:', e);
+            }
+        }
+    });
+};
+
+
 
