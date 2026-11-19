@@ -8,8 +8,8 @@ Este documento mantiene el **control de versión única y global** para todo el 
 
 | Parámetro | Valor Actual |
 | :--- | :--- |
-| **Versión Global del Sistema** | **`v2.3.92`** |
-| **Fecha de Última Actualización** | **18/11/2026** |
+| **Versión Global del Sistema** | **`v2.3.93`** |
+| **Fecha de Última Actualización** | **19/11/2026** |
 | **Estado General** | Operativo en Producción |
 
 ---
@@ -47,6 +47,11 @@ Cualquier cambio en los siguientes módulos impacta en la versión global:
 ---
 
 ## 📝 Historial Unificado de Versiones
+
+### [v2.3.93] - 19/11/2026
+- **Tipo:** PATCH
+- **Archivos:** `index.html`, `js/dashboard.js`
+- **Descripción:** Confirmacion de reserva por cliente manteniendo No Show habilitado en el panel principal
 
 ### [v2.3.92] - 18/11/2026
 - **Tipo:** PATCH

@@ -741,11 +741,11 @@ function renderDashboard() {
                 <td class="col-acciones" style="vertical-align: middle; text-align:center; white-space: nowrap;">
                     <div style="display:inline-flex; align-items:center; justify-content:center; gap:5px;">
                         ${isConfirmed && !isNoShow && !c.attended ? `
-                            <button class="btn-icon" title="Confirmar Asistencia (Presentado)" onclick="markAttendance('${c.id}', '${c.moduleType}')" style="color:#f59e0b;">
+                            <button class="btn-icon" title="Marcar reserva confirmada por cliente" onclick="markAttendance('${c.id}', '${c.moduleType}')" style="color:#f59e0b;">
                                 <i class="fas fa-user-check"></i>
                             </button>
-                        ` : (c.attended ? `
-                            <button class="btn-icon" title="Asistencia confirmada - Desmarcar" onclick="unmarkAttendance('${c.id}', '${c.moduleType}')" style="color:#10b981;">
+                        ` : (c.attended && !isNoShow ? `
+                            <button class="btn-icon" title="Reserva confirmada por cliente - Desmarcar" onclick="unmarkAttendance('${c.id}', '${c.moduleType}')" style="color:#10b981;">
                                 <i class="fas fa-check-double"></i>
                             </button>
                         ` : (isNoShow ? `
@@ -759,7 +759,7 @@ function renderDashboard() {
                                 ${c.whatsappSent ? '<i class="fas fa-check-circle" style="font-size:0.6rem; color:green; vertical-align:top;"></i>' : ''}
                             </button>
                         ` : ''}
-                        ${isConfirmed && !isNoShow && !c.attended ? `
+                        ${isConfirmed && !isNoShow ? `
                             <button class="btn-icon" title="Marcar No Show" onclick="markAsNoShow('${c.id}', '${c.moduleType}')" style="color:#94a3b8; font-size:0.8rem;">
                                 <i class="fas fa-user-times"></i>
                             </button>
@@ -1885,7 +1885,7 @@ window.markAttendance = async function (resId, moduleType) {
             cita.attended = true;
             cita.status = 'confirmada';
         }
-        showToast('✅ Asistencia marcada', 'success');
+        showToast('✅ Reserva confirmada por cliente', 'success');
         renderDashboard();
     } catch (err) {
         console.error('Error marking attendance:', err);
@@ -1898,7 +1898,7 @@ window.unmarkAttendance = async function (resId, moduleType) {
         await window.dbCoreUpdateAttendance(resId, moduleType, false);
         const cita = state.citas.find(c => c.id === resId);
         if (cita) cita.attended = false;
-        showToast('✅ Asistencia desmarcada', 'info');
+        showToast('✅ Confirmación desmarcada', 'info');
         renderDashboard();
     } catch (err) {
         console.error('Error unmarking attendance:', err);
