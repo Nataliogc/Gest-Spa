@@ -8,7 +8,7 @@ Este documento mantiene el **control de versión única y global** para todo el 
 
 | Parámetro | Valor Actual |
 | :--- | :--- |
-| **Versión Global del Sistema** | **`v2.3.93`** |
+| **Versión Global del Sistema** | **`v2.3.94`** |
 | **Fecha de Última Actualización** | **19/11/2026** |
 | **Estado General** | Operativo en Producción |
 
@@ -47,6 +47,11 @@ Cualquier cambio en los siguientes módulos impacta en la versión global:
 ---
 
 ## 📝 Historial Unificado de Versiones
+
+### [v2.3.94] - 19/11/2026
+- **Tipo:** PATCH
+- **Archivos:** Módulos del sistema
+- **Descripción:** WhatsApp automatico al guardar reserva con condiciones del servicio y aviso de cobro
 
 ### [v2.3.93] - 19/11/2026
 - **Tipo:** PATCH
