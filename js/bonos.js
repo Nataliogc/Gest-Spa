@@ -98,16 +98,30 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 function initBonos() {
-    // RESTAURADO: Forzar fecha de hoy por defecto como pide el usuario
+    // Filtros por defecto al entrar en Bonos: Todos los Bonos + Hoy + Activos (Pendientes) + Solo hoy + Todos pagos
+    const searchInput = document.getElementById("voucher-search");
+    if (searchInput) {
+        searchInput.value = "";
+    }
+
     const dateInput = document.getElementById("voucher-date");
     if (dateInput) {
         dateInput.value = getLocalDateYMD();
     }
 
-    // Filtro por defecto: Activos (Pendientes) según petición del usuario
     const filterInput = document.getElementById("voucher-filter");
     if (filterInput) {
         filterInput.value = "pending";
+    }
+
+    const monthsInput = document.getElementById("bonos-filter-months");
+    if (monthsInput) {
+        monthsInput.value = "0";
+    }
+
+    const paymentInput = document.getElementById("filter-payment-status");
+    if (paymentInput) {
+        paymentInput.value = "";
     }
 
     // Load static data

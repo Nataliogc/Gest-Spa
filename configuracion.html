@@ -25,7 +25,7 @@
         <!-- LEFT: Cumbria Logo -->
         <div style="display: flex; align-items: center; gap: 15px;">
             <img src="logo-spa.jpg" alt="Cumbria Bienestar" style="height: 65px; width: auto; object-fit: contain;">
-            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.94 (19/11/2026)">v2.3.94</span>
+            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.95 (19/11/2026)">v2.3.95</span>
         </div>
 
         <ul class="nav-links" style="flex:1;">
@@ -100,6 +100,9 @@
                     <button class="config-tab btn active" onclick="switchConfigTab('tab-general', this)">
                         <i class="fas fa-tools"></i> General
                     </button>
+                    <button class="config-tab btn" onclick="switchConfigTab('tab-whatsapp', this)">
+                        <i class="fab fa-whatsapp" style="color: #25D366;"></i> WhatsApp
+                    </button>
                     <button class="config-tab btn" onclick="switchConfigTab('tab-conexiones', this)">
                         <i class="fas fa-plug"></i> Conexiones
                     </button>
@@ -170,31 +173,6 @@
                                     </div>
                                 </div>
 
-                                <!-- WHATSAPP -->
-                                <div class="stat-card" style="border-left: 4px solid #25D366;">
-                                    <h3
-                                        style="margin: 0 0 25px 0; font-size: 1rem; color: var(--text); font-weight: 700; display: flex; align-items: center; gap: 10px;">
-                                        <span
-                                            style="border-left: 4px solid #25D366; height: 20px; display: block;"></span>
-                                        <i class="fab fa-whatsapp"></i> RECORDATORIOS WHATSAPP
-                                    </h3>
-                                    <div
-                                        style="background: #f0fdf4; border-radius: 8px; padding: 12px; margin-bottom: 15px; border: 1px solid #dcfce7;">
-                                        <p style="margin: 0; font-size: 0.75rem; color: #166534; line-height: 1.4;">
-                                            El mensaje usa etiquetas inteligentes que se rellenan solas:<br>
-                                            <b>{{nombre}}</b>, <b>{{fecha}}</b>, <b>{{hora}}</b>, <b>{{espacio}}</b>,
-                                            <b>{{servicio}}</b>, <b>{{telefono}}</b>, <b>{{pax}}</b>, <b>{{total}}</b>,
-                                            <b>{{notas}}</b>.
-                                        </p>
-                                    </div>
-                                    <textarea id="cfg-whatsapp-template" placeholder="Escribe tu plantilla aquí..."
-                                        style="width: 100%; height: 180px; border-radius: 8px; border: 1px solid #e2e8f0; font-size: 0.9rem; padding: 12px; resize: vertical; background: #fff;"></textarea>
-
-
-
-
-                                </div>
-
                                 <!-- TIEMPO DE LIMPIEZA  -->
                                 <div class="stat-card" style="border-left: 4px solid #f59e0b;">
                                     <h3
@@ -221,6 +199,132 @@
                             </div>
 
 
+                        </div>
+                    </div>
+
+                    <!-- TAB WHATSAPP -->
+                    <div id="tab-whatsapp" class="config-tab-content" style="display: none;">
+                        <div style="max-width: 1400px; margin: 0 auto;">
+                            <div style="text-align: center; margin-bottom: 25px;">
+                                <button onclick="saveSpaSettings()" class="btn btn-accent"
+                                    style="padding: 12px 30px; font-weight: 600; font-size: 1rem; background: #25D366; border-color: #25D366; color: #fff;">
+                                    <i class="fab fa-whatsapp"></i> Guardar Configuración WhatsApp
+                                </button>
+                            </div>
+
+                            <!-- REGLAS DE SELECCIÓN AUTOMÁTICA -->
+                            <div class="stat-card" style="border-left: 4px solid #25D366; margin-bottom: 25px;">
+                                <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 18px;">
+                                    <h3 style="margin: 0; font-size: 1rem; color: var(--text); font-weight: 700; display: flex; align-items: center; gap: 10px;">
+                                        <span style="border-left: 4px solid #25D366; height: 20px; display: block;"></span>
+                                        <i class="fas fa-sliders-h" style="color: #25D366;"></i> REGLAS DE ENVÍO (QUÉ MODELO SE USA EN CADA CASO)
+                                    </h3>
+                                    <label style="display: inline-flex; align-items: center; gap: 8px; background: #f0fdf4; border: 1px solid #bbf7d0; padding: 8px 14px; border-radius: 8px; cursor: pointer; font-size: 0.84rem; font-weight: 600; color: #166534;">
+                                        <input type="checkbox" id="cfg-wa-prompt-new" checked style="width: 16px; height: 16px; accent-color: #25D366;">
+                                        Mostrar aviso de WhatsApp al guardar nueva reserva
+                                    </label>
+                                </div>
+
+                                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px;">
+                                    <div class="form-group" style="margin: 0;">
+                                        <label style="font-size: 0.78rem; font-weight: 700; color: #475569; text-transform: uppercase;">Al crear reserva (sin cobro pendiente)</label>
+                                        <select id="cfg-wa-rule-new-nopay" class="param-input" style="width: 100%; margin-top: 6px; padding: 10px; border-radius: 6px; border: 1px solid #e2e8f0;">
+                                            <option value="confirmacion">Confirmación de reserva (sin cobro)</option>
+                                            <option value="recordatorio">Recordatorio de cita</option>
+                                            <option value="cobro">Reserva con cobro pendiente</option>
+                                            <option value="paygold">Pago con enlace PayGold</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group" style="margin: 0;">
+                                        <label style="font-size: 0.78rem; font-weight: 700; color: #475569; text-transform: uppercase;">Al crear reserva (con cobro pendiente)</label>
+                                        <select id="cfg-wa-rule-new-pay" class="param-input" style="width: 100%; margin-top: 6px; padding: 10px; border-radius: 6px; border: 1px solid #e2e8f0;">
+                                            <option value="cobro">Reserva con cobro pendiente</option>
+                                            <option value="confirmacion">Confirmación de reserva (sin cobro)</option>
+                                            <option value="paygold">Pago con enlace PayGold</option>
+                                            <option value="recordatorio">Recordatorio de cita</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group" style="margin: 0;">
+                                        <label style="font-size: 0.78rem; font-weight: 700; color: #475569; text-transform: uppercase;">Cuando hay enlace PayGold activo</label>
+                                        <select id="cfg-wa-rule-paygold" class="param-input" style="width: 100%; margin-top: 6px; padding: 10px; border-radius: 6px; border: 1px solid #e2e8f0;">
+                                            <option value="paygold">Pago con enlace PayGold</option>
+                                            <option value="cobro">Reserva con cobro pendiente</option>
+                                            <option value="confirmacion">Confirmación de reserva (sin cobro)</option>
+                                            <option value="recordatorio">Recordatorio de cita</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group" style="margin: 0;">
+                                        <label style="font-size: 0.78rem; font-weight: 700; color: #475569; text-transform: uppercase;">Botón WhatsApp del Panel Principal</label>
+                                        <select id="cfg-wa-rule-dashboard" class="param-input" style="width: 100%; margin-top: 6px; padding: 10px; border-radius: 6px; border: 1px solid #e2e8f0;">
+                                            <option value="auto">Automático (PayGold / Cobro / Recordatorio)</option>
+                                            <option value="recordatorio">Siempre Recordatorio de cita</option>
+                                            <option value="confirmacion">Siempre Confirmación de reserva</option>
+                                            <option value="cobro">Siempre Reserva con cobro</option>
+                                            <option value="paygold">Siempre Pago con enlace PayGold</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div style="background: #f0fdf4; border-radius: 8px; padding: 10px 14px; margin-top: 16px; border: 1px solid #dcfce7;">
+                                    <p style="margin: 0; font-size: 0.76rem; color: #166534; line-height: 1.5;">
+                                        <i class="fas fa-magic"></i> <strong>Etiquetas inteligentes disponibles:</strong>
+                                        <code>{{nombre}}</code>, <code>{{servicio}}</code>, <code>{{pax}}</code>, <code>{{pax_texto}}</code>,
+                                        <code>{{fecha}}</code>, <code>{{hora}}</code>, <code>{{espacio}}</code>, <code>{{importe}}</code>,
+                                        <code>{{enlace_pago}}</code>, <code>{{telefono}}</code>, <code>{{notas}}</code>.
+                                    </p>
+                                </div>
+                            </div>
+
+                            <!-- PLANTILLAS EDITABLES (2x2) -->
+                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(460px, 1fr)); gap: 22px; align-items: start;">
+                                <div class="stat-card" style="border-left: 4px solid #10b981;">
+                                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+                                        <h3 style="margin: 0; font-size: 0.95rem; font-weight: 700; color: var(--text);">
+                                            <i class="fas fa-check-circle" style="color: #10b981;"></i> 1. Confirmación de Reserva (sin cobro)
+                                        </h3>
+                                        <button type="button" onclick="resetWhatsAppTemplate('confirmacion')" class="btn btn-outline btn-sm" style="font-size: 0.75rem; padding: 4px 10px;">
+                                            <i class="fas fa-undo"></i> Restaurar
+                                        </button>
+                                    </div>
+                                    <textarea id="cfg-wa-tpl-confirmacion" style="width: 100%; height: 240px; border-radius: 8px; border: 1px solid #e2e8f0; font-size: 0.85rem; line-height: 1.45; padding: 12px; resize: vertical; background: #fff;"></textarea>
+                                </div>
+
+                                <div class="stat-card" style="border-left: 4px solid #f59e0b;">
+                                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+                                        <h3 style="margin: 0; font-size: 0.95rem; font-weight: 700; color: var(--text);">
+                                            <i class="fas fa-euro-sign" style="color: #f59e0b;"></i> 2. Reserva con Cobro Pendiente
+                                        </h3>
+                                        <button type="button" onclick="resetWhatsAppTemplate('cobro')" class="btn btn-outline btn-sm" style="font-size: 0.75rem; padding: 4px 10px;">
+                                            <i class="fas fa-undo"></i> Restaurar
+                                        </button>
+                                    </div>
+                                    <textarea id="cfg-wa-tpl-cobro" style="width: 100%; height: 240px; border-radius: 8px; border: 1px solid #e2e8f0; font-size: 0.85rem; line-height: 1.45; padding: 12px; resize: vertical; background: #fff;"></textarea>
+                                </div>
+
+                                <div class="stat-card" style="border-left: 4px solid #3b82f6;">
+                                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+                                        <h3 style="margin: 0; font-size: 0.95rem; font-weight: 700; color: var(--text);">
+                                            <i class="fas fa-credit-card" style="color: #3b82f6;"></i> 3. Pago con Enlace PayGold
+                                        </h3>
+                                        <button type="button" onclick="resetWhatsAppTemplate('paygold')" class="btn btn-outline btn-sm" style="font-size: 0.75rem; padding: 4px 10px;">
+                                            <i class="fas fa-undo"></i> Restaurar
+                                        </button>
+                                    </div>
+                                    <textarea id="cfg-wa-tpl-paygold" style="width: 100%; height: 240px; border-radius: 8px; border: 1px solid #e2e8f0; font-size: 0.85rem; line-height: 1.45; padding: 12px; resize: vertical; background: #fff;"></textarea>
+                                </div>
+
+                                <div class="stat-card" style="border-left: 4px solid #8b5cf6;">
+                                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+                                        <h3 style="margin: 0; font-size: 0.95rem; font-weight: 700; color: var(--text);">
+                                            <i class="fas fa-bell" style="color: #8b5cf6;"></i> 4. Recordatorio de Cita
+                                        </h3>
+                                        <button type="button" onclick="resetWhatsAppTemplate('recordatorio')" class="btn btn-outline btn-sm" style="font-size: 0.75rem; padding: 4px 10px;">
+                                            <i class="fas fa-undo"></i> Restaurar
+                                        </button>
+                                    </div>
+                                    <textarea id="cfg-wa-tpl-recordatorio" style="width: 100%; height: 240px; border-radius: 8px; border: 1px solid #e2e8f0; font-size: 0.85rem; line-height: 1.45; padding: 12px; resize: vertical; background: #fff;"></textarea>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -1019,8 +1123,8 @@
     <script src="firebase-config.js"></script>
     <script src="js/spa-packs-registry.js?v=2.3.40"></script>
     <script src="js/service-catalog.js?v=2.3.40"></script>
-    <script src="js/app-core.js?v=2.3.40"></script>
-    <script src="js/config.js?v=2.3.40"></script>
+    <script src="js/app-core.js?v=2.3.50"></script>
+    <script src="js/config.js?v=2.3.41"></script>
 
 </body>
 

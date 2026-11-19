@@ -202,6 +202,13 @@ async function cargarSpaConfig() {
                 ...DEFAULT_BONO_CONFIG,
                 ...(doc.data().bonoConfig || {})
             };
+            const defWa = window.DEFAULT_WHATSAPP_CONFIG || { promptOnNewReservation: true, rules: {}, templates: {} };
+            const savedWa = doc.data().whatsappConfig || {};
+            spaConfigState.spaConfig.whatsappConfig = {
+                promptOnNewReservation: typeof savedWa.promptOnNewReservation === 'boolean' ? savedWa.promptOnNewReservation : defWa.promptOnNewReservation,
+                rules: { ...defWa.rules, ...(savedWa.rules || {}) },
+                templates: { ...defWa.templates, ...(savedWa.templates || {}) }
+            };
 
             // Ensure schedules exist
             if (!spaConfigState.spaConfig.schedules) {
@@ -244,6 +251,33 @@ function updateSettingsUI() {
         if (el) el.value = val || "";
     }
     renderBonoConditionsPreview();
+    const defWa = window.DEFAULT_WHATSAPP_CONFIG || { promptOnNewReservation: true, rules: {}, templates: {} };
+    const waCfg = spaConfigState.spaConfig.whatsappConfig || defWa;
+    const waPromptEl = document.getElementById("cfg-wa-prompt-new");
+    if (waPromptEl) waPromptEl.checked = waCfg.promptOnNewReservation !== false;
+    const waFields = {
+        "cfg-wa-rule-new-nopay": waCfg.rules?.newNoPayment || defWa.rules.newNoPayment,
+        "cfg-wa-rule-new-pay": waCfg.rules?.newWithPayment || defWa.rules.newWithPayment,
+        "cfg-wa-rule-paygold": waCfg.rules?.paygold || defWa.rules.paygold,
+        "cfg-wa-rule-dashboard": waCfg.rules?.dashboardButton || defWa.rules.dashboardButton,
+        "cfg-wa-tpl-confirmacion": waCfg.templates?.confirmacion || defWa.templates.confirmacion,
+        "cfg-wa-tpl-cobro": waCfg.templates?.cobro || defWa.templates.cobro,
+        "cfg-wa-tpl-paygold": waCfg.templates?.paygold || defWa.templates.paygold,
+        "cfg-wa-tpl-recordatorio": waCfg.templates?.recordatorio || defWa.templates.recordatorio
+    };
+    for (const [id, val] of Object.entries(waFields)) {
+        const el = document.getElementById(id);
+        if (el) el.value = val || "";
+    }
+}
+
+function resetWhatsAppTemplate(key) {
+    const defWa = window.DEFAULT_WHATSAPP_CONFIG;
+    if (!defWa || !defWa.templates || !defWa.templates[key]) return;
+    if (!confirm("¿Restaurar esta plantilla de WhatsApp a su texto por defecto?")) return;
+    const el = document.getElementById(`cfg-wa-tpl-${key}`);
+    if (el) el.value = defWa.templates[key];
+    showToast("Plantilla restaurada. Pulsa 'Guardar Configuración WhatsApp' para aplicar.", "info");
 }
 
 function renderBonoConditionsPreview() {
@@ -296,7 +330,28 @@ function resetBonoConditionsDefault() {
 async function saveSpaSettings() {
     const capacity = parseInt(document.getElementById("cfg-spa-capacity").value) || 20;
     const cleaning = parseInt(document.getElementById("cfg-spa-cleaning").value) || 0;
-    const template = document.getElementById("cfg-whatsapp-template").value;
+    const oldTplEl = document.getElementById("cfg-whatsapp-template");
+    const template = oldTplEl ? oldTplEl.value : (document.getElementById("cfg-wa-tpl-confirmacion")?.value || spaConfigState.spaConfig.whatsappTemplate || "");
+    const defWa = window.DEFAULT_WHATSAPP_CONFIG || { promptOnNewReservation: true, rules: {}, templates: {} };
+    spaConfigState.spaConfig.whatsappConfig = {
+        promptOnNewReservation: document.getElementById("cfg-wa-prompt-new") ? document.getElementById("cfg-wa-prompt-new").checked : true,
+        rules: {
+            newNoPayment: document.getElementById("cfg-wa-rule-new-nopay")?.value || defWa.rules.newNoPayment,
+            newWithPayment: document.getElementById("cfg-wa-rule-new-pay")?.value || defWa.rules.newWithPayment,
+            paygold: document.getElementById("cfg-wa-rule-paygold")?.value || defWa.rules.paygold,
+            dashboardButton: document.getElementById("cfg-wa-rule-dashboard")?.value || defWa.rules.dashboardButton
+        },
+        templates: {
+            confirmacion: document.getElementById("cfg-wa-tpl-confirmacion")?.value || defWa.templates.confirmacion,
+            cobro: document.getElementById("cfg-wa-tpl-cobro")?.value || defWa.templates.cobro,
+            paygold: document.getElementById("cfg-wa-tpl-paygold")?.value || defWa.templates.paygold,
+            recordatorio: document.getElementById("cfg-wa-tpl-recordatorio")?.value || defWa.templates.recordatorio
+        }
+    };
+    window._waConfigCache = spaConfigState.spaConfig.whatsappConfig;
+    try {
+        localStorage.setItem("gest_spa_whatsapp_config", JSON.stringify(spaConfigState.spaConfig.whatsappConfig));
+    } catch (_) {}
 
     // Update state object so it's included in the payload
     spaConfigState.spaConfig.capacity = capacity;

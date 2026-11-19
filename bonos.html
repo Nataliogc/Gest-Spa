@@ -28,7 +28,7 @@
         <!-- LEFT: Cumbria Logo -->
         <div style="display: flex; align-items: center; gap: 15px;">
             <img src="logo-spa.jpg" alt="Cumbria Bienestar" style="height: 65px; width: auto; object-fit: contain;">
-            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.94 (19/11/2026)">v2.3.94</span>
+            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.95 (19/11/2026)">v2.3.95</span>
         </div>
 
         <ul class="nav-links" style="flex:1;">
@@ -116,7 +116,7 @@
                 <div class="filters-container"
                     style="display: flex; gap: 10px; align-items: center; margin-top: 20px; flex-wrap: wrap;">
                     <div style="display: flex; gap: 5px; flex: 1; min-width: 240px;">
-                        <input type="text" id="voucher-search"
+                        <input type="text" id="voucher-search" autocomplete="off"
                             placeholder="🔍 Buscar por código, teléfono o nombre de cliente..." class="param-input"
                             style="flex: 1;">
                         <button id="clear-search-btn" onclick="clearSearch()" class="btn btn-outline"
@@ -126,9 +126,9 @@
                         </button>
                     </div>
 
-                    <input type="date" id="voucher-date" class="param-input" style="width: 160px;">
+                    <input type="date" id="voucher-date" autocomplete="off" class="param-input" style="width: 160px;">
 
-                    <select id="voucher-filter" class="param-input" style="width: 180px;">
+                    <select id="voucher-filter" autocomplete="off" class="param-input" style="width: 180px;">
                         <option value="all">Todos los Estados</option>
                         <option value="pending" selected>Activos (Pendientes)</option>
                         <option value="partially">Canjeado Parcial</option>
@@ -137,7 +137,7 @@
                         <option value="anulado">Anulados</option>
                     </select>
 
-                    <select id="bonos-filter-months" class="param-input" style="width: 180px;" onchange="onBonosRangeFilterChange()"
+                    <select id="bonos-filter-months" autocomplete="off" class="param-input" style="width: 180px;" onchange="onBonosRangeFilterChange()"
                         title="Filtrar por antigüedad para reducir lecturas">
                         <option value="0" selected>Solo hoy</option>
                         <option value="0.25">Última semana</option>
@@ -148,9 +148,9 @@
                     </select>
 
                     <!-- Filtro Estado Pago -->
-                    <select id="filter-payment-status" class="param-input" style="width: 150px;"
+                    <select id="filter-payment-status" autocomplete="off" class="param-input" style="width: 150px;"
                         onchange="cargarBonos()">
-                        <option value="">💳 Todos pagos</option>
+                        <option value="" selected>💳 Todos pagos</option>
                         <option value="pagado">💳 Pagado</option>
                         <option value="parcial">💳 Parcial</option>
                         <option value="pendiente">💳 Pendiente</option>
@@ -1119,7 +1119,7 @@
     <script src="js/services/paygoldService.js?v=2.3.85"></script>
 
     <script src="js/reservation-drawer.js?v=2.3.67"></script>
-    <script src="js/bonos.js?v=2.3.85"></script>
+    <script src="js/bonos.js?v=2.3.86"></script>
     <script src="js/bonos-history-helper.js?v=2.3.67"></script>
 </body>
 

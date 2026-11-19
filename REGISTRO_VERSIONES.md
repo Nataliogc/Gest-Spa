@@ -8,7 +8,7 @@ Este documento mantiene el **control de versión única y global** para todo el 
 
 | Parámetro | Valor Actual |
 | :--- | :--- |
-| **Versión Global del Sistema** | **`v2.3.94`** |
+| **Versión Global del Sistema** | **`v2.3.95`** |
 | **Fecha de Última Actualización** | **19/11/2026** |
 | **Estado General** | Operativo en Producción |
 
@@ -47,6 +47,11 @@ Cualquier cambio en los siguientes módulos impacta en la versión global:
 ---
 
 ## 📝 Historial Unificado de Versiones
+
+### [v2.3.95] - 19/11/2026
+- **Tipo:** PATCH
+- **Archivos:** `agenda-salas.html`, `bonos.html`, `configuracion.html`, `index.html`, `js/app-core.js`, `js/bonos.js`, `js/config.js`, `js/dashboard.js`, `reservas-salas.html`, `reservas-spa.html`, `reservas.html`
+- **Descripción:** Pestana WhatsApp independiente con plantillas y reglas, filtros por defecto en Bonos y colores oficiales por tratamiento en Ocupacion
 
 ### [v2.3.94] - 19/11/2026
 - **Tipo:** PATCH

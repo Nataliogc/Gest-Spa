@@ -1099,6 +1099,7 @@ window.sendWhatsAppConfirmation = async function (id, telefono, cliente, fecha, 
     if (typeof window.buildReservationWhatsAppMessage === "function") {
         texto = window.buildReservationWhatsAppMessage({
             ...(citaObj || {}),
+            context: "dashboardButton",
             cliente: cliente,
             servicio: serviceName || citaObj?.servicio || "Circuito Spa",
             fecha: fecha,
