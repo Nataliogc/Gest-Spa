@@ -55,7 +55,9 @@ async function renderVoucherHistory(bonoCode, internalValidations = []) {
         ];
 
         const voucherObj = (typeof state !== 'undefined' && Array.isArray(state.bonos))
-            ? (state.bonos.find(b => b.bono === cleanBonoCode || b.codigo === cleanBonoCode) || null)
+            ? (state.bonos.find(b => b.bono === cleanBonoCode || b.codigo === cleanBonoCode)
+                || state.bonos.find(b => String(b.bono || b.codigo || '').trim() === cleanBonoCode)
+                || null)
             : null;
         const clientEmail = voucherObj ? voucherObj.email : null;
 
@@ -288,16 +290,25 @@ async function renderVoucherHistory(bonoCode, internalValidations = []) {
 
         if (allReservations.length === 0) {
             const usedCount = voucherObj ? (parseInt(voucherObj.sesiones_usadas) || 0) : 0;
+            const rawEstadoHist = voucherObj ? String(voucherObj.estado || '').toLowerCase().trim() : '';
+            const isAnulado = ['anulado', 'cancelled', 'cancelado'].includes(rawEstadoHist);
             const isCompleted = voucherObj && (voucherObj.estado === 'completed' || usedCount > 0);
             if (isCompleted) {
+                const escapedCode = cleanBonoCode.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+                const resetBtnHtml = (!isAnulado && typeof window.reconcileVoucherSessionsWithHistory === 'function')
+                    ? `<button type="button" onclick="reconcileVoucherSessionsWithHistory('${escapedCode}')" style="margin-top: 8px; background: #0ea5e9; color: #fff; border: none; border-radius: 6px; padding: 5px 10px; font-size: 0.72rem; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 5px;">
+                           <i class="fas fa-sync-alt"></i> Restablecer sesiones a 0
+                       </button>`
+                    : '';
                 contentDiv.innerHTML = `
                     <div style="font-size: 0.8rem; color: #475569; background: #fff; padding: 12px 14px; border: 1px dashed #cbd5e1; border-radius: 8px; display: flex; align-items: center; gap: 10px;">
                         <i class="fas fa-info-circle" style="color: #0ea5e9; font-size: 1.1rem;"></i>
-                        <div>
+                        <div style="flex: 1;">
                             <div style="font-weight: 700; color: #334155;">Sin citas vinculadas con el código ${cleanBonoCode}</div>
                             <div style="font-size: 0.73rem; color: #64748b; margin-top: 2px;">
                                 Este bono figura con <strong>${usedCount} ${usedCount === 1 ? 'sesión usada' : 'sesiones usadas'}</strong> (canjeado previamente o sin código asignado en la cita).
                             </div>
+                            ${resetBtnHtml}
                         </div>
                     </div>`;
             } else {

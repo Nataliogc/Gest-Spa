@@ -500,7 +500,7 @@
         <!-- LEFT: Cumbria Logo -->
         <div style="display: flex; align-items: center; gap: 15px;">
             <img src="logo-spa.jpg" alt="Cumbria Bienestar" style="height: 65px; width: auto; object-fit: contain;">
-            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.95 (19/11/2026)">v2.3.95</span>
+            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.96 (23/11/2026)">v2.3.96</span>
         </div>
 
         <ul class="nav-links" style="flex:1;">
@@ -1396,7 +1396,7 @@
 
     <!-- Dexie loaded by db-local.js -->
     <!-- <script src="https://unpkg.com/dexie@latest/dist/dexie.js"></script> -->
-    <script src="js/app-core.js?v=2.3.50"></script>
+    <script src="js/app-core.js?v=2.3.51"></script>
     <script src="js/monedero-helper.js"></script>
     <script src="js/spa-packs-registry.js?v=2.3.55"></script>
     <script src="js/service-catalog.js?v=1"></script>
@@ -2392,7 +2392,14 @@
 
         async function validateBonoBalance(bonoId, currentResId = null) {
             try {
-                const doc = await db.collection("spa_vouchers").doc(bonoId).get();
+                const cleanBonoId = String(bonoId || '').trim();
+                if (!cleanBonoId) return;
+
+                let doc = await db.collection("spa_vouchers").doc(cleanBonoId).get();
+                if (!doc.exists) {
+                    const docSpace = await db.collection("spa_vouchers").doc(cleanBonoId + ' ').get();
+                    if (docSpace.exists) doc = docSpace;
+                }
                 if (!doc.exists) return;
 
                 const data = doc.data();
@@ -2408,7 +2415,7 @@
                 }
 
                 if (window.MonederoHelper && window.MonederoHelper.isMonedero(data)) {
-                    window.MonederoHelper.registerVoucher(bonoId, data);
+                    window.MonederoHelper.registerVoucher(cleanBonoId, data);
                     window.MonederoHelper.syncMonederoFormUI();
                     await updatePriceAutomation();
                     await updateTotal();
@@ -2421,15 +2428,20 @@
                     window.MonederoHelper.clearActiveVoucher();
                 }
 
-                const total = data.sesiones_totales || 1;
-                const used = data.sesiones_usadas || 0;
+                let total = data.sesiones_totales || 1;
+                let used = data.sesiones_usadas || 0;
+                if (typeof window.reconcileVoucherBalanceIfDesynced === 'function') {
+                    const reconciled = await window.reconcileVoucherBalanceIfDesynced(cleanBonoId, data, currentResId, doc.ref);
+                    total = reconciled.total;
+                    used = reconciled.used;
+                }
 
                 let balance = total - used;
 
                 // Si estamos editando, las sesiones de ESTA reserva cuentan como disponibles
                 if (currentResId) {
                     const currentRes = currentData.find(r => r.id === currentResId);
-                    if (currentRes && currentRes.bono === bonoId) {
+                    if (currentRes && String(currentRes.bono || '').trim() === cleanBonoId) {
                         balance += (currentRes.sesiones_consumidas || 1);
                     }
                 }
@@ -2451,6 +2463,9 @@
                     notice.style.border = "1px solid var(--accent)";
                     notice.innerHTML = `<i class="fas fa-info-circle"></i> Saldo disponible: <b>${balance} sesiones</b>.`;
 
+                    if ((parseInt(sesionesInput.value) || 0) <= 0) {
+                        sesionesInput.value = 1;
+                    }
                     // Ajustar si el valor actual es mayor al balance
                     if (parseInt(sesionesInput.value) > balance) {
                         sesionesInput.value = balance;
@@ -6607,19 +6622,24 @@
                 if (!result.isConfirmed) return;
 
                 try {
-                    await window.cancelPackReservation(id);
+                    const cancelRes = await window.cancelPackReservation(id);
 
                     // Refund voucher if applicable
                     if (resData.origen === 'bono' && resData.bono) {
-                        const vDoc = await db.collection("spa_vouchers").doc(resData.bono).get();
-                        if (vDoc.exists) {
-                            const vData = vDoc.data();
-                            const newUsed = Math.max(0, (vData.sesiones_usadas || 0) - 1);
-                            await db.collection("spa_vouchers").doc(resData.bono).update({
-                                sesiones_usadas: newUsed,
-                                estado: newUsed === 0 ? 'pending' : 'partially',
-                                last_updated: new Date().toISOString()
-                            });
+                        const refundSessions = Math.max(1, cancelRes?.cancelledCount || (1 + (resData.childs?.length || 0)));
+                        if (typeof window.refundVoucherSessionsOnCancel === 'function') {
+                            await window.refundVoucherSessionsOnCancel(resData.bono, refundSessions, resData.servicio, true);
+                        } else {
+                            const vDoc = await db.collection("spa_vouchers").doc(resData.bono).get();
+                            if (vDoc.exists) {
+                                const vData = vDoc.data();
+                                const newUsed = Math.max(0, (vData.sesiones_usadas || 0) - refundSessions);
+                                await db.collection("spa_vouchers").doc(resData.bono).update({
+                                    sesiones_usadas: newUsed,
+                                    estado: newUsed === 0 ? 'pending' : 'partially',
+                                    last_updated: new Date().toISOString()
+                                });
+                            }
                         }
                     }
 
@@ -6676,6 +6696,8 @@
                             serviceName: resData.servicio,
                             reservationId: id
                         });
+                    } else if (typeof window.refundVoucherSessionsOnCancel === 'function') {
+                        await window.refundVoucherSessionsOnCancel(resData.bono, resData.sesiones_consumidas || 1, resData.servicio, false);
                     } else {
                         const vDoc = await db.collection("spa_vouchers").doc(resData.bono).get();
                         if (vDoc.exists) {
@@ -7247,6 +7269,9 @@
                     }
                     const isMonedero = window.MonederoHelper && window.MonederoHelper.isMonedero(vData);
                     if (!isMonedero) {
+                        if (typeof window.reconcileVoucherBalanceIfDesynced === 'function') {
+                            await window.reconcileVoucherBalanceIfDesynced(bonoCode, vData, id, vDoc.ref);
+                        }
                         const totalSesiones = vData.sesiones_totales || 1;
                         const isPackBooking = !!(window._packItems && window._packItems.length > 0);
                         if (isPackBooking) {
