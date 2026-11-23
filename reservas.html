@@ -498,7 +498,7 @@
         <!-- LEFT: Cumbria Logo -->
         <div style="display: flex; align-items: center; gap: 15px;">
             <img src="logo-spa.jpg" alt="Cumbria Bienestar" style="height: 65px; width: auto; object-fit: contain;">
-            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.96 (23/11/2026)">v2.3.96</span>
+            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.97 (23/11/2026)">v2.3.97</span>
         </div>
 
         <ul class="nav-links" style="flex:1;">
@@ -1361,7 +1361,7 @@
     <script src="js/monedero-helper.js"></script>
     <script src="js/spa-packs-registry.js?v=2.3.30"></script>
     <script src="js/service-catalog.js?v=1"></script>
-    <script src="js/service-pricing.js?v=2.3.30"></script>
+    <script src="js/service-pricing.js?v=2.3.97"></script>
 
     <script>
         const db = firebase.firestore();
@@ -1851,11 +1851,7 @@
             document.getElementById("form-date").addEventListener("change", updatePriceAutomation);
 
             document.getElementById("res-precio-pax").addEventListener("input", () => {
-                const pax = parseInt(document.getElementById("res-pax").value) || 1;
-                const pPax = parseFloat(document.getElementById("res-precio-pax").value) || 0;
-                const total = pPax * pax;
-                document.getElementById("res-precio-total").value = total.toFixed(2);
-                document.getElementById("res-total-text").textContent = total.toFixed(2) + " €";
+                window._userEditedPricePax = true;
             });
 
             // Formatear teléfono: 3 bloques de 3 números (XXX XXX XXX)
@@ -5283,13 +5279,36 @@
             }
             if (document.getElementById("res-bono")) document.getElementById("res-bono").value = resolvedBono;
             document.getElementById("res-pax").value = res.pax;
-            const savedTotal = parseFloat(res.precio_total !== undefined && res.precio_total !== null ? res.precio_total : (res.precio || (res.payment && res.payment.total) || 0));
-            const savedPax = parseInt(res.pax) || 1;
-            let savedPricePax = parseFloat(res.precio_pax !== undefined && res.precio_pax !== null ? res.precio_pax : (savedPax > 0 ? (savedTotal / savedPax) : 0));
-            // Si hay un total guardado y el precio_pax guardado * pax no coincide con el total (ej. total 100€ con 2 pax y precio_pax 25€):
-            // Preservar estrictamente el precio guardado de la reserva (0€ para socios o cortesías)
-            if (savedTotal > 0 && savedPax > 0 && Math.abs((savedPricePax * savedPax) - savedTotal) > 0.05) {
-                savedPricePax = savedTotal / savedPax;
+            const savedTotal = parseFloat(res.precio_total !== undefined && res.precio_total !== null ? res.precio_total : (res.precio || (res.payment && res.payment.total) || 0)) || 0;
+            const savedPax = Math.max(1, parseInt(res.pax, 10) || 1);
+            const rawSavedPricePax = (res.precio_pax !== undefined && res.precio_pax !== null && String(res.precio_pax).trim() !== '')
+                ? parseFloat(res.precio_pax)
+                : null;
+            const savedExtrasSum = Array.isArray(res.extras_info)
+                ? res.extras_info.reduce((sum, it) => sum + (parseFloat(it?.price) || 0), 0)
+                : 0;
+            const hasSavedDiscount = !!(res.descuento_aplicado || (res.descuento_valor && res.descuento_valor > 0) || (res.descuento_importe && res.descuento_importe > 0));
+            const savedDescTipo = hasSavedDiscount ? (res.descuento_tipo || 'porcentaje') : 'porcentaje';
+            const savedDescValor = hasSavedDiscount ? (parseFloat(res.descuento_valor || res.descuento_importe || 0) || 0) : 0;
+
+            let savedPricePax;
+            if (typeof window.reconcileEditBasePricePax === 'function') {
+                savedPricePax = window.reconcileEditBasePricePax({
+                    savedTotal,
+                    savedPax,
+                    rawPricePax: rawSavedPricePax,
+                    extrasTotal: savedExtrasSum,
+                    spaAddonTotal: 0,
+                    descTipo: savedDescTipo,
+                    descValor: savedDescValor
+                });
+            } else {
+                savedPricePax = (rawSavedPricePax !== null && !isNaN(rawSavedPricePax))
+                    ? rawSavedPricePax
+                    : (savedPax > 0 ? (savedTotal / savedPax) : 0);
+                if (savedTotal > 0 && savedPax > 0 && Math.abs((savedPricePax * savedPax) - savedTotal) > 0.05) {
+                    savedPricePax = savedTotal / savedPax;
+                }
             }
             document.getElementById("res-precio-pax").value = savedPricePax.toFixed(2);
             document.getElementById("res-precio-total").value = savedTotal.toFixed(2);
@@ -5323,8 +5342,39 @@
             }
             populateRoomOptions(resModule);
 
+            const restoreSavedExtras = () => {
+                if (res.extras_info && Array.isArray(res.extras_info)) {
+                    const customContainer = document.getElementById("custom-extras-list");
+                    if (customContainer) customContainer.innerHTML = '';
+
+                    res.extras_info.forEach(item => {
+                        if (item.type === 'standard') {
+                            const cb = document.querySelector(`.comp-checkbox[data-name="${item.name}"]`);
+                            if (cb) cb.checked = true;
+                        } else if (item.type === 'custom') {
+                            addCustomExtra(item.name, item.price, false, item, true);
+                        }
+                    });
+                } else if (res.complementos && Array.isArray(res.complementos)) {
+                    res.complementos.forEach(compName => {
+                        const cb = document.querySelector(`.comp-checkbox[data-name="${compName}"]`);
+                        if (cb) {
+                            cb.checked = true;
+                        } else {
+                            addCustomExtra(compName, 0, false, null, true);
+                        }
+                    });
+                }
+            };
+
             populateServices();
-            renderComplementos();
+            Promise.resolve(renderComplementos()).then(() => {
+                if (document.getElementById("form-id")?.value !== id) return;
+                restoreSavedExtras();
+                if (isPast && !window._pastReservationUnlocked) {
+                    document.getElementById("complementos-list")?.querySelectorAll("input, select, button").forEach(el => el.disabled = true);
+                }
+            }).catch(() => {});
 
             const candidatePackName = res.parent_service || res.pack_name || res.pack_origen || ((typeof window.isPackService === 'function' && window.isPackService(res.servicio)) ? res.servicio : '');
             const matchedPackDef = (candidatePackName && typeof window.findPackDefinition === 'function') ? window.findPackDefinition(candidatePackName) : null;
@@ -5359,36 +5409,6 @@
 
             // Trigger toggleRoomField to show correct fields based on origin
             if (typeof toggleRoomField === 'function') toggleRoomField();
-
-            // Marcar complementos guardados
-            if (res.extras_info && Array.isArray(res.extras_info)) {
-                // Clear existing
-                const customContainer = document.getElementById("custom-extras-list");
-                if (customContainer) customContainer.innerHTML = '';
-
-                res.extras_info.forEach(item => {
-                    if (item.type === 'standard') {
-                        // Check standard checkbox
-                        const cb = document.querySelector(`.comp-checkbox[data-name="${item.name}"]`);
-                        if (cb) cb.checked = true;
-                    } else if (item.type === 'custom') {
-                        // Add custom extra with full data
-                        addCustomExtra(item.name, item.price, false, item);
-                    }
-                });
-            } else if (res.complementos && Array.isArray(res.complementos)) {
-                // Fallback for old format (Strings only)
-                // Try to match with checkboxes, if not, add as custom with 0 price (or try to guess?)
-                res.complementos.forEach(compName => {
-                    const cb = document.querySelector(`.comp-checkbox[data-name="${compName}"]`);
-                    if (cb) {
-                        cb.checked = true;
-                    } else {
-                        // If not in catalog, add as custom text
-                        addCustomExtra(compName, 0);
-                    }
-                });
-            }
 
             if (document.getElementById("inputDuration")) {
                 let dur = parseInt(res.duracion) || 0;
@@ -7586,7 +7606,7 @@
             select.value = "";
         }
 
-        function addCustomExtra(name = "", price = 0, isStandard = false, extraData = null) {
+        function addCustomExtra(name = "", price = 0, isStandard = false, extraData = null, skipTotal = false) {
             const list = document.getElementById("custom-extras-list");
             const div = document.createElement("div");
             const isCompact = currentModule.code.startsWith('cabina');
@@ -7614,7 +7634,7 @@
                 </button>
             `;
             list.appendChild(div);
-            updateTotal();
+            if (!skipTotal) updateTotal();
         }
 
         function removeCustomExtra(btn) {
@@ -9032,7 +9052,7 @@
     </script>
     <!-- PayGold Redsys Cumbria Integration -->
     <script src="js/services/paygoldService.js?v=2.3.21"></script>
-    <script src="js/spa-paygold.js?v=2.3.21"></script>
+    <script src="js/spa-paygold.js?v=2.3.97"></script>
 </body>
 
 </html>

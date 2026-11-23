@@ -500,7 +500,7 @@
         <!-- LEFT: Cumbria Logo -->
         <div style="display: flex; align-items: center; gap: 15px;">
             <img src="logo-spa.jpg" alt="Cumbria Bienestar" style="height: 65px; width: auto; object-fit: contain;">
-            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.96 (23/11/2026)">v2.3.96</span>
+            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.97 (23/11/2026)">v2.3.97</span>
         </div>
 
         <ul class="nav-links" style="flex:1;">
@@ -975,7 +975,13 @@
                                             <i class="fas fa-water"></i> Circuito Spa (60') adicional
                                             <span id="spa-addon-price-badge" style="margin-left:6px; background:#dbeafe; color:#1d4ed8; padding:2px 7px; border-radius:999px; font-size:0.68rem; font-weight:700; display:none;"></span>
                                         </span>
-                                        <div style="display: flex; align-items: center; gap: 6px;">
+                                        <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+                                            <label style="font-size: 0.68rem; font-weight: 700; color: #1e40af; display: inline-flex; align-items: center; gap: 4px; margin: 0;">Pax
+                                                <input type="number" id="spa-addon-pax" min="1" max="20" value="1"
+                                                    oninput="this.dataset.manual='1'; renderStandaloneSpaAddonChips(); updateTotal();"
+                                                    onchange="this.dataset.manual='1'; renderStandaloneSpaAddonChips(); updateTotal();"
+                                                    style="width: 48px; padding: 2px 5px; border: 1px solid #93c5fd; border-radius: 5px; font-size: 0.74rem; font-weight: 700; text-align: center; background: #fff;">
+                                            </label>
                                             <input type="date" id="spa-addon-date" onchange="renderStandaloneSpaAddonChips(); updateTotal();"
                                                 style="padding: 2px 5px; border: 1px solid #93c5fd; border-radius: 5px; font-size: 0.72rem; font-weight: 600; background: #fff;">
                                             <input type="time" id="spa-addon-time" onchange="renderStandaloneSpaAddonChips()"
@@ -1400,7 +1406,7 @@
     <script src="js/monedero-helper.js"></script>
     <script src="js/spa-packs-registry.js?v=2.3.55"></script>
     <script src="js/service-catalog.js?v=1"></script>
-    <script src="js/service-pricing.js?v=2.3.30"></script>
+    <script src="js/service-pricing.js?v=2.3.97"></script>
 
     <script>
         const db = firebase.firestore();
@@ -2115,11 +2121,7 @@
             document.getElementById("form-date").addEventListener("change", updatePriceAutomation);
 
             document.getElementById("res-precio-pax").addEventListener("input", () => {
-                const pax = parseInt(document.getElementById("res-pax").value) || 1;
-                const pPax = parseFloat(document.getElementById("res-precio-pax").value) || 0;
-                const total = pPax * pax;
-                document.getElementById("res-precio-total").value = total.toFixed(2);
-                document.getElementById("res-total-text").textContent = total.toFixed(2) + " €";
+                window._userEditedPricePax = true;
             });
 
             // Formatear teléfono: 3 bloques de 3 números (XXX XXX XXX)
@@ -4717,6 +4719,32 @@
             }
         };
 
+        function getStandaloneSpaAddonPax() {
+            const el = document.getElementById("spa-addon-pax");
+            const val = el ? parseInt(el.value, 10) : NaN;
+            if (Number.isFinite(val) && val > 0) return val;
+            const mainPax = parseInt(document.getElementById("res-pax")?.value, 10);
+            return (Number.isFinite(mainPax) && mainPax > 0) ? mainPax : 1;
+        }
+
+        function updateSpaAddonPriceBadge() {
+            const spaBadge = document.getElementById("spa-addon-price-badge");
+            if (!spaBadge) return;
+            const packAlreadyHasSpa = Array.isArray(window._packItems) && window._packItems.some(i => i.active !== false && (String(i.espacio || '').toLowerCase() === 'spa' || (i.nombre || '').toLowerCase().includes('circuito')));
+            if (window._spaAddonActive && !packAlreadyHasSpa) {
+                const spaUnit = getStandaloneSpaAddonUnitPrice();
+                const spaPax = getStandaloneSpaAddonPax();
+                const spaTotal = spaUnit * spaPax;
+                spaBadge.style.display = "inline-block";
+                spaBadge.textContent = spaPax > 1
+                    ? `+${spaTotal.toFixed(2)} € (${spaPax} pax)`
+                    : `+${spaTotal.toFixed(2)} €`;
+            } else {
+                spaBadge.style.display = "none";
+                spaBadge.textContent = "";
+            }
+        }
+
         function getStandaloneSpaAddonUnitPrice() {
             const dateStr = document.getElementById("spa-addon-date")?.value || document.getElementById("form-date")?.value;
             const dateObj = dateStr ? new Date(dateStr + 'T12:00:00') : new Date();
@@ -4730,7 +4758,7 @@
             return parseFloat(isWeekend ? (cfg.particularPriceWeekend || 25) : (cfg.particularPriceWeekday || 25)) || 0;
         }
 
-        window.toggleSpaAddonTab = function (forceState = null) {
+        window.toggleSpaAddonTab = function (forceState = null, options = {}) {
             const panel = document.getElementById("spa-addon-panel");
             const btn = document.getElementById("btn-toggle-spa-addon");
             if (!panel || !btn) return;
@@ -4743,8 +4771,12 @@
                 btn.innerHTML = '<i class="fas fa-check"></i> Circuito Spa añadido';
                 const dateEl = document.getElementById("spa-addon-date");
                 const timeEl = document.getElementById("spa-addon-time");
+                const paxEl = document.getElementById("spa-addon-pax");
                 const baseDate = document.getElementById("form-date")?.value || new Date().toISOString().split('T')[0];
                 if (dateEl && !dateEl.value) dateEl.value = baseDate;
+                if (paxEl && !paxEl.value && paxEl.dataset.manual !== '1') {
+                    paxEl.value = Math.max(1, parseInt(document.getElementById("res-pax")?.value, 10) || 1);
+                }
                 if (timeEl && !timeEl.value) {
                     const formT = (document.getElementById("form-time")?.value || "17:00").replace(/h$/i, '').trim();
                     const [fh] = formT.split(':').map(Number);
@@ -4757,7 +4789,8 @@
                 btn.style.color = "#0284c7";
                 btn.innerHTML = '<i class="fas fa-water"></i> + Añadir Circuito Spa';
             }
-            if (typeof updateTotal === 'function') updateTotal();
+            updateSpaAddonPriceBadge();
+            if (!options?.skipRecalc && typeof updateTotal === 'function') updateTotal();
         };
 
         window.selectStandaloneSpaAddonSlot = function (time) {
@@ -4787,7 +4820,7 @@
                         paxByTime[r.hora] = (paxByTime[r.hora] || 0) + (parseInt(r.pax) || 1);
                     }
                 });
-                const pax = parseInt(document.getElementById("res-pax")?.value) || 2;
+                const pax = getStandaloneSpaAddonPax();
                 const cap = cfg.capacity || 20;
                 const chips = slots.map(t => {
                     const used = paxByTime[t] || 0;
@@ -5632,11 +5665,22 @@
         // Old updateTotal removed. New one is below.
 
         document.getElementById("res-pax").addEventListener("input", () => {
+            const addonPaxEl = document.getElementById("spa-addon-pax");
+            const paxVal = Math.max(1, parseInt(document.getElementById("res-pax").value, 10) || 1);
+            if (addonPaxEl && addonPaxEl.dataset.manual !== '1') {
+                addonPaxEl.value = paxVal;
+                if (window._spaAddonActive && typeof window.renderStandaloneSpaAddonChips === 'function') {
+                    window.renderStandaloneSpaAddonChips();
+                }
+            }
             // Recalculate price per pax first (for origins with payment like Particular/Hotel NO Inc)
             updatePriceAutomation();
             updateTotal();
         });
-        document.getElementById("res-precio-pax").addEventListener("input", updateTotal);
+        document.getElementById("res-precio-pax").addEventListener("input", () => {
+            window._userEditedPricePax = true;
+            updateTotal();
+        });
 
         function toggleRoomField() {
             // This function is now fully implemented at the bottom of the file
@@ -5656,8 +5700,15 @@
 
         async function showBookingForm() {
             window._isInitializingEdit = false;
+            window._userEditedPricePax = false;
+            window._loadedSpaAddonExists = false;
             window._currentPricingMode = null;
-            if (typeof window.toggleSpaAddonTab === 'function') window.toggleSpaAddonTab(false);
+            const addonPaxReset = document.getElementById("spa-addon-pax");
+            if (addonPaxReset) {
+                addonPaxReset.value = "";
+                delete addonPaxReset.dataset.manual;
+            }
+            if (typeof window.toggleSpaAddonTab === 'function') window.toggleSpaAddonTab(false, { skipRecalc: true });
             if (!selectedTime) return;
 
             const dateStr = document.getElementById("main-date-picker").value;
@@ -5806,6 +5857,11 @@
             if (bonoFieldReset) bonoFieldReset.value = "";
             const isCabin = currentModule.code === 'cabinas' || currentModule.code === 'cabina1' || currentModule.code === 'cabina2' || currentModule.code === 'cabina3';
             document.getElementById("res-pax").value = isCabin ? 1 : 2;
+            const addonPaxInit = document.getElementById("spa-addon-pax");
+            if (addonPaxInit) {
+                addonPaxInit.value = isCabin ? 1 : 2;
+                delete addonPaxInit.dataset.manual;
+            }
             document.getElementById("res-precio-pax").value = 0;
             document.getElementById("res-total-text").textContent = "0.00 €";
             const sinCargoInp = document.getElementById("res-sin-cargo-autorizado");
@@ -5821,7 +5877,7 @@
             populateRoomOptions(); // Default to current
             populateServices();
             renderComplementos();
-            if (typeof window.toggleSpaAddonTab === 'function') window.toggleSpaAddonTab(false);
+            if (typeof window.toggleSpaAddonTab === 'function') window.toggleSpaAddonTab(false, { skipRecalc: true });
 
             // Default service logic
             const resService = document.getElementById("res-servicio");
@@ -6180,6 +6236,8 @@
             document.getElementById("audit-info").innerHTML = auditHtml;
 
             window._isInitializingEdit = true;
+            window._userEditedPricePax = false;
+            window._loadedSpaAddonExists = false;
             window._currentPricingMode = res.pricing_mode || null;
             const svcSelReset = document.getElementById("res-servicio");
             if (svcSelReset) {
@@ -6190,22 +6248,14 @@
             // Resetear y comprobar si esta reserva ya tiene un Circuito Spa adicional guardado
             const addonDateEl = document.getElementById("spa-addon-date");
             const addonTimeEl = document.getElementById("spa-addon-time");
+            const addonPaxEl = document.getElementById("spa-addon-pax");
             if (addonDateEl) addonDateEl.value = "";
             if (addonTimeEl) addonTimeEl.value = "";
-            if (typeof window.toggleSpaAddonTab === 'function') window.toggleSpaAddonTab(false);
-            if (id && window.db) {
-                db.collection("reservas_spa").doc(`${id}_spa_addon`).get().then(addonSnap => {
-                    if (window.currentEditingId !== id) return;
-                    if (addonSnap.exists) {
-                        const ad = addonSnap.data();
-                        if (ad && ad.status !== 'anulada') {
-                            if (addonDateEl) addonDateEl.value = ad.fecha || res.fecha || "";
-                            if (addonTimeEl) addonTimeEl.value = ad.hora || "";
-                            if (typeof window.toggleSpaAddonTab === 'function') window.toggleSpaAddonTab(true);
-                        }
-                    }
-                }).catch(() => {});
+            if (addonPaxEl) {
+                addonPaxEl.value = "";
+                delete addonPaxEl.dataset.manual;
             }
+            if (typeof window.toggleSpaAddonTab === 'function') window.toggleSpaAddonTab(false, { skipRecalc: true });
             document.getElementById("res-nombre").value = res.nombre;
 
             // Formatear teléfono al cargar (3x3)
@@ -6230,17 +6280,124 @@
             let resolvedBono = res.bono || res.localizador || res.num_bono || res.voucher || res.bono_id || res.codigo_bono || res.campoBono || res.referencia || "";
             if (document.getElementById("res-bono")) document.getElementById("res-bono").value = resolvedBono;
             document.getElementById("res-pax").value = res.pax;
-            const savedTotal = parseFloat(res.precio_total !== undefined && res.precio_total !== null ? res.precio_total : (res.precio || (res.payment && res.payment.total) || 0));
-            const savedPax = parseInt(res.pax) || 1;
-            let savedPricePax = parseFloat(res.precio_pax !== undefined && res.precio_pax !== null ? res.precio_pax : (savedPax > 0 ? (savedTotal / savedPax) : 0));
-            // Si hay un total guardado y el precio_pax guardado * pax no coincide con el total (ej. total 100€ con 2 pax y precio_pax 25€):
-            // Preservar estrictamente el precio guardado de la reserva (0€ para socios o cortesías)
-            if (savedTotal > 0 && savedPax > 0 && Math.abs((savedPricePax * savedPax) - savedTotal) > 0.05) {
-                savedPricePax = savedTotal / savedPax;
+            const savedTotal = parseFloat(res.precio_total !== undefined && res.precio_total !== null ? res.precio_total : (res.precio || (res.payment && res.payment.total) || 0)) || 0;
+            const savedPax = Math.max(1, parseInt(res.pax, 10) || 1);
+            const rawSavedPricePax = (res.precio_pax !== undefined && res.precio_pax !== null && String(res.precio_pax).trim() !== '')
+                ? parseFloat(res.precio_pax)
+                : null;
+            const savedExtrasSum = Array.isArray(res.extras_info)
+                ? res.extras_info.reduce((sum, it) => sum + (parseFloat(it?.price) || 0), 0)
+                : 0;
+            const hasSavedDiscount = !!(res.descuento_aplicado || (res.descuento_valor && res.descuento_valor > 0) || (res.descuento_importe && res.descuento_importe > 0));
+            const savedDescTipo = hasSavedDiscount ? (res.descuento_tipo || 'porcentaje') : 'porcentaje';
+            const savedDescValor = hasSavedDiscount ? (parseFloat(res.descuento_valor || res.descuento_importe || 0) || 0) : 0;
+
+            let knownSpaTotal = 0;
+            if (res.spa_addon && res.spa_addon.active) {
+                window._loadedSpaAddonExists = true;
+                if (addonDateEl) addonDateEl.value = res.spa_addon.fecha || res.fecha || "";
+                if (addonTimeEl) addonTimeEl.value = res.spa_addon.hora || "";
+                const addonPaxVal = Math.max(1, parseInt(res.spa_addon.pax, 10) || savedPax);
+                if (addonPaxEl) {
+                    addonPaxEl.value = addonPaxVal;
+                    if (res.spa_addon.pax && addonPaxVal !== savedPax) {
+                        addonPaxEl.dataset.manual = '1';
+                    }
+                }
+                if (typeof window.toggleSpaAddonTab === 'function') {
+                    window.toggleSpaAddonTab(true, { skipRecalc: true });
+                }
+                const storedSpaTotal = parseFloat(res.spa_addon.precio_total);
+                knownSpaTotal = (Number.isFinite(storedSpaTotal) && storedSpaTotal > 0)
+                    ? storedSpaTotal
+                    : (getStandaloneSpaAddonUnitPrice() * getStandaloneSpaAddonPax());
+                if (typeof updateSpaAddonPriceBadge === 'function') updateSpaAddonPriceBadge();
+            }
+
+            let savedPricePax;
+            if ((res.spa_addon !== undefined || currentModule.code === 'spa') && typeof window.reconcileEditBasePricePax === 'function') {
+                savedPricePax = window.reconcileEditBasePricePax({
+                    savedTotal,
+                    savedPax,
+                    rawPricePax: rawSavedPricePax,
+                    extrasTotal: savedExtrasSum,
+                    spaAddonTotal: knownSpaTotal,
+                    descTipo: savedDescTipo,
+                    descValor: savedDescValor
+                });
+            } else {
+                savedPricePax = (rawSavedPricePax !== null && !isNaN(rawSavedPricePax))
+                    ? rawSavedPricePax
+                    : (savedPax > 0 ? (savedTotal / savedPax) : 0);
             }
             document.getElementById("res-precio-pax").value = savedPricePax.toFixed(2);
             document.getElementById("res-precio-total").value = savedTotal.toFixed(2);
             document.getElementById("res-total-text").textContent = savedTotal.toFixed(2) + " €";
+
+            if (id && window.db) {
+                db.collection("reservas_spa").doc(`${id}_spa_addon`).get().then(addonSnap => {
+                    if (window.currentEditingId !== id) return;
+                    if (addonSnap.exists) {
+                        const ad = addonSnap.data();
+                        if (ad && ad.status !== 'anulada') {
+                            window._loadedSpaAddonExists = true;
+                            if (addonDateEl) addonDateEl.value = ad.fecha || res.fecha || "";
+                            if (addonTimeEl) addonTimeEl.value = ad.hora || "";
+                            const adPaxVal = Math.max(1, parseInt(ad.pax, 10) || savedPax);
+                            if (addonPaxEl) {
+                                addonPaxEl.value = adPaxVal;
+                                if (ad.pax && adPaxVal !== savedPax) {
+                                    addonPaxEl.dataset.manual = '1';
+                                }
+                            }
+                            if (typeof window.toggleSpaAddonTab === 'function') {
+                                window.toggleSpaAddonTab(true, { skipRecalc: true });
+                            }
+                            const loadedSpaTotal = (parseFloat(ad.precio_total) > 0)
+                                ? parseFloat(ad.precio_total)
+                                : (getStandaloneSpaAddonUnitPrice() * getStandaloneSpaAddonPax());
+                            if (!window._userEditedPricePax && typeof window.reconcileEditBasePricePax === 'function') {
+                                const reconciled = window.reconcileEditBasePricePax({
+                                    savedTotal,
+                                    savedPax,
+                                    rawPricePax: rawSavedPricePax,
+                                    extrasTotal: savedExtrasSum,
+                                    spaAddonTotal: loadedSpaTotal,
+                                    descTipo: savedDescTipo,
+                                    descValor: savedDescValor
+                                });
+                                const pInp = document.getElementById("res-precio-pax");
+                                if (pInp) pInp.value = reconciled.toFixed(2);
+                                const tInp = document.getElementById("res-precio-total");
+                                if (tInp) tInp.value = savedTotal.toFixed(2);
+                                const tTxt = document.getElementById("res-total-text");
+                                if (tTxt) tTxt.textContent = savedTotal.toFixed(2) + " €";
+                                if (typeof updateSpaAddonPriceBadge === 'function') updateSpaAddonPriceBadge();
+                                if (typeof window.updatePaymentControlBlock === 'function') window.updatePaymentControlBlock();
+                            }
+                            return;
+                        }
+                    }
+                    if (!window._userEditedPricePax && !(res.spa_addon && res.spa_addon.active) && typeof window.reconcileEditBasePricePax === 'function') {
+                        const reconciled = window.reconcileEditBasePricePax({
+                            savedTotal,
+                            savedPax,
+                            rawPricePax: rawSavedPricePax,
+                            extrasTotal: savedExtrasSum,
+                            spaAddonTotal: 0,
+                            descTipo: savedDescTipo,
+                            descValor: savedDescValor
+                        });
+                        const pInp = document.getElementById("res-precio-pax");
+                        if (pInp) pInp.value = reconciled.toFixed(2);
+                        const tInp = document.getElementById("res-precio-total");
+                        if (tInp) tInp.value = savedTotal.toFixed(2);
+                        const tTxt = document.getElementById("res-total-text");
+                        if (tTxt) tTxt.textContent = savedTotal.toFixed(2) + " €";
+                        if (typeof window.updatePaymentControlBlock === 'function') window.updatePaymentControlBlock();
+                    }
+                }).catch(() => {});
+            }
             // Cargar datos de descuento si existían (después de fijar precio/total)
             if (res.descuento_aplicado || (res.descuento_valor && res.descuento_valor > 0) || (res.descuento_importe && res.descuento_importe > 0)) {
                 if (document.getElementById("res-descuento-tipo")) document.getElementById("res-descuento-tipo").value = res.descuento_tipo || 'porcentaje';
@@ -6268,8 +6425,39 @@
             }
             populateRoomOptions(resModule);
 
+            const restoreSavedExtras = () => {
+                if (res.extras_info && Array.isArray(res.extras_info)) {
+                    const customContainer = document.getElementById("custom-extras-list");
+                    if (customContainer) customContainer.innerHTML = '';
+
+                    res.extras_info.forEach(item => {
+                        if (item.type === 'standard') {
+                            const cb = document.querySelector(`.comp-checkbox[data-name="${item.name}"]`);
+                            if (cb) cb.checked = true;
+                        } else if (item.type === 'custom') {
+                            addCustomExtra(item.name, item.price, false, item, true);
+                        }
+                    });
+                } else if (res.complementos && Array.isArray(res.complementos)) {
+                    res.complementos.forEach(compName => {
+                        const cb = document.querySelector(`.comp-checkbox[data-name="${compName}"]`);
+                        if (cb) {
+                            cb.checked = true;
+                        } else {
+                            addCustomExtra(compName, 0, false, null, true);
+                        }
+                    });
+                }
+            };
+
             populateServices();
-            renderComplementos();
+            Promise.resolve(renderComplementos()).then(() => {
+                if (window.currentEditingId !== id) return;
+                restoreSavedExtras();
+                if (isPast && !window._pastReservationUnlocked) {
+                    document.getElementById("complementos-list")?.querySelectorAll("input, select, button").forEach(el => el.disabled = true);
+                }
+            }).catch(() => {});
 
             // Si la reserva pertenece a un Pack Multiservicio, mostrar el pack inmediatamente y cargar fases hermanas en paralelo
             const candidatePackName = res.parent_service || res.pack_name || res.pack_origen || ((typeof window.isPackService === 'function' && window.isPackService(res.servicio)) ? res.servicio : '');
@@ -6301,33 +6489,6 @@
 
             // Trigger toggleRoomField to show correct fields based on origin
             if (typeof toggleRoomField === 'function') toggleRoomField();
-
-            // Marcar complementos guardados
-            if (res.extras_info && Array.isArray(res.extras_info)) {
-                // Clear existing
-                const customContainer = document.getElementById("custom-extras-list");
-                if (customContainer) customContainer.innerHTML = '';
-
-                res.extras_info.forEach(item => {
-                    if (item.type === 'standard') {
-                        // Check standard checkbox
-                        const cb = document.querySelector(`.comp-checkbox[data-name="${item.name}"]`);
-                        if (cb) cb.checked = true;
-                    } else if (item.type === 'custom') {
-                        // Add custom extra with full data
-                        addCustomExtra(item.name, item.price, false, item);
-                    }
-                });
-            } else if (res.complementos && Array.isArray(res.complementos)) {
-                res.complementos.forEach(compName => {
-                    const cb = document.querySelector(`.comp-checkbox[data-name="${compName}"]`);
-                    if (cb) {
-                        cb.checked = true;
-                    } else {
-                        addCustomExtra(compName, 0);
-                    }
-                });
-            }
 
             if (document.getElementById("inputDuration")) {
                 let dur = parseInt(res.duracion) || 0;
@@ -6681,6 +6842,20 @@
                     cancelled_at: new Date().toISOString()
                 });
 
+                try {
+                    const addonRef = db.collection("reservas_spa").doc(`${id}_spa_addon`);
+                    const addonSnap = await addonRef.get();
+                    if (addonSnap.exists && addonSnap.data()?.status !== 'anulada') {
+                        await addonRef.update({
+                            status: 'anulada',
+                            cancelled_at: new Date().toISOString(),
+                            updated_at: new Date().toISOString()
+                        });
+                    }
+                } catch (addonCancelErr) {
+                    console.warn("Error anulando Circuito Spa adicional:", addonCancelErr);
+                }
+
                 // Sync status change to Mesachef
                 if (window.syncReservationToMesachef) {
                     await window.syncReservationToMesachef(id, { ...resData, status: 'anulada' });
@@ -6764,6 +6939,22 @@
                     updated_at: new Date().toISOString()
                 });
 
+                if (resData.spa_addon?.active) {
+                    try {
+                        const addonRef = db.collection("reservas_spa").doc(`${id}_spa_addon`);
+                        const addonSnap = await addonRef.get();
+                        if (addonSnap.exists) {
+                            await addonRef.update({
+                                status: 'confirmada',
+                                cancelled_at: firebase.firestore.FieldValue.delete(),
+                                updated_at: new Date().toISOString()
+                            });
+                        }
+                    } catch (addonReactErr) {
+                        console.warn("Error reactivando Circuito Spa adicional:", addonReactErr);
+                    }
+                }
+
                 // Sync status change to Mesachef
                 if (window.syncReservationToMesachef) {
                     await window.syncReservationToMesachef(id, { ...resData, status: 'confirmada' });
@@ -6784,6 +6975,12 @@
                 const res = currentData.find(r => r.id === id);
                 const targetColl = res ? (res.collection || currentModule.collection) : currentModule.collection;
                 await db.collection(targetColl).doc(id).delete();
+
+                try {
+                    await db.collection("reservas_spa").doc(`${id}_spa_addon`).delete();
+                } catch (addonDelErr) {
+                    console.warn("Error eliminando Circuito Spa adicional:", addonDelErr);
+                }
 
                 // Delete from Mesachef if it exists there
                 if (window.deleteReservationInMesachef) {
@@ -6806,6 +7003,8 @@
             window._autoOpenedEditId = null;
             window._isNewReservationOpening = false;
             window._editingPackSiblings = null;
+            window._userEditedPricePax = false;
+            window._loadedSpaAddonExists = false;
 
             // Clear Overbooking Globals
             window._spaOverbookingModeBase = null;
@@ -6820,9 +7019,14 @@
             }
             const addonDateClose = document.getElementById("spa-addon-date");
             const addonTimeClose = document.getElementById("spa-addon-time");
+            const addonPaxClose = document.getElementById("spa-addon-pax");
             if (addonDateClose) addonDateClose.value = "";
             if (addonTimeClose) addonTimeClose.value = "";
-            if (typeof window.toggleSpaAddonTab === 'function') window.toggleSpaAddonTab(false);
+            if (addonPaxClose) {
+                addonPaxClose.value = "";
+                delete addonPaxClose.dataset.manual;
+            }
+            if (typeof window.toggleSpaAddonTab === 'function') window.toggleSpaAddonTab(false, { skipRecalc: true });
 
             // Limpiar SIEMPRE cualquier bono residual en memoria al salir o cerrar
             clearPendingVoucher();
@@ -7368,6 +7572,15 @@
                 if (isGym) { targetColl = "reservas_gimnasio"; finalOrigin = "gimnasio"; finalStatus = 'finalizada'; }
                 else if (isComplement) { targetColl = "reservas_complementos"; finalStatus = 'finalizada'; }
 
+                const packAlreadyHasSpaOnSave = Array.isArray(window._packItems) && window._packItems.some(i => i.active !== false && (String(i.espacio || '').toLowerCase() === 'spa' || (i.nombre || '').toLowerCase().includes('circuito')));
+                const spaAddonDateVal = document.getElementById("spa-addon-date")?.value || date;
+                const spaAddonTimeVal = (document.getElementById("spa-addon-time")?.value || "").replace(/h$/i, '').trim();
+                const isSpaAddonSaving = !!(window._spaAddonActive && !packAlreadyHasSpaOnSave && spaAddonDateVal && spaAddonTimeVal);
+                const spaAddonUnitSave = isSpaAddonSaving ? getStandaloneSpaAddonUnitPrice() : 0;
+                const spaAddonPaxSave = isSpaAddonSaving ? getStandaloneSpaAddonPax() : 0;
+                const spaAddonTotalSave = isSpaAddonSaving ? parseFloat((spaAddonUnitSave * spaAddonPaxSave).toFixed(2)) : 0;
+                const existingResForAddon = (id && currentData) ? currentData.find(r => r.id === id) : null;
+
                 const targetModuleEntry = Object.values(window.MODULES || {}).find(m => m.collection === targetColl);
                 const payload = {
                     collection: targetColl,
@@ -7375,6 +7588,16 @@
                     status: finalStatus,
                     complementos: complementosNames,
                     extras_info: extrasInfo,
+                    spa_addon: isSpaAddonSaving
+                        ? {
+                            active: true,
+                            fecha: spaAddonDateVal,
+                            hora: spaAddonTimeVal,
+                            pax: spaAddonPaxSave,
+                            precio_pax: spaAddonUnitSave,
+                            precio_total: spaAddonTotalSave
+                        }
+                        : null,
                     nombre: nombreField.value.trim(),
                     tel: document.getElementById("res-tel").value,
                     origen: finalOrigin,
@@ -7702,47 +7925,54 @@
                         });
                     }
 
-                    // Crear reserva adicional de Circuito Spa si se activó la pestaña "+ Añadir Circuito Spa"
-                    const packAlreadyHasSpaOnSave = Array.isArray(window._packItems) && window._packItems.some(i => i.active !== false && (String(i.espacio || '').toLowerCase() === 'spa' || (i.nombre || '').toLowerCase().includes('circuito')));
-                    if (window._spaAddonActive && !packAlreadyHasSpaOnSave) {
-                        const spaDate = document.getElementById("spa-addon-date")?.value || payload.fecha;
-                        const spaTime = (document.getElementById("spa-addon-time")?.value || "").replace(/h$/i, '').trim();
-                        if (spaDate && spaTime) {
-                            try {
-                                const spaAddonUnit = getStandaloneSpaAddonUnitPrice();
-                                const spaAddonPax = payload.pax || 2;
-                                const spaAddonPayload = {
-                                    res_id: payload.res_id || savedId,
-                                    parent_id: savedId,
-                                    parent_service: payload.servicio,
-                                    is_pack_child: true,
-                                    collection: "reservas_spa",
-                                    sala: "spa",
-                                    nombre: payload.nombre,
-                                    tel: payload.tel || "",
-                                    fecha: spaDate,
-                                    hora: spaTime,
-                                    duracion: 60,
-                                    pax: spaAddonPax,
-                                    servicio: "Circuito Spa",
-                                    origen: payload.origen,
-                                    hotel: payload.hotel || "",
-                                    hab: payload.hab || "",
-                                    bono: payload.bono || "",
-                                    localizador: payload.bono || "",
-                                    obs: payload.obs || "",
-                                    precio_pax: spaAddonUnit,
-                                    precio_total: spaAddonUnit * spaAddonPax,
-                                    status: payload.status || "confirmada",
-                                    created_at: new Date().toISOString(),
+                    // Crear o actualizar reserva adicional de Circuito Spa si se activó la pestaña "+ Añadir Circuito Spa"
+                    if (isSpaAddonSaving) {
+                        try {
+                            const spaAddonPayload = {
+                                res_id: payload.res_id || savedId,
+                                parent_id: savedId,
+                                parent_service: payload.servicio,
+                                is_pack_child: true,
+                                collection: "reservas_spa",
+                                sala: "spa",
+                                nombre: payload.nombre,
+                                tel: payload.tel || "",
+                                fecha: spaAddonDateVal,
+                                hora: spaAddonTimeVal,
+                                duracion: 60,
+                                pax: spaAddonPaxSave,
+                                servicio: "Circuito Spa",
+                                origen: payload.origen,
+                                hotel: payload.hotel || "",
+                                hab: payload.hab || "",
+                                bono: payload.bono || "",
+                                localizador: payload.bono || "",
+                                obs: payload.obs || "",
+                                precio_pax: spaAddonUnitSave,
+                                precio_total: spaAddonTotalSave,
+                                status: payload.status || "confirmada",
+                                created_at: new Date().toISOString(),
+                                updated_at: new Date().toISOString()
+                            };
+                            await db.collection("reservas_spa").doc(`${savedId}_spa_addon`).set(spaAddonPayload, { merge: true });
+                            showToast(`Circuito Spa añadido el ${spaAddonDateVal} a las ${spaAddonTimeVal}h (${spaAddonPaxSave} pax)`, "success");
+                        } catch (spaAddonErr) {
+                            console.error("Error guardando Circuito Spa adicional:", spaAddonErr);
+                            alert("La reserva de sala se guardó, pero hubo un error al guardar el Circuito Spa: " + spaAddonErr.message);
+                        }
+                    } else if (!isNewReservation && (window._loadedSpaAddonExists || existingResForAddon?.spa_addon?.active)) {
+                        try {
+                            const oldAddonRef = db.collection("reservas_spa").doc(`${savedId}_spa_addon`);
+                            const oldAddonSnap = await oldAddonRef.get();
+                            if (oldAddonSnap.exists && oldAddonSnap.data()?.status !== 'anulada') {
+                                await oldAddonRef.update({
+                                    status: 'anulada',
+                                    cancelled_at: new Date().toISOString(),
                                     updated_at: new Date().toISOString()
-                                };
-                                await db.collection("reservas_spa").doc(`${savedId}_spa_addon`).set(spaAddonPayload, { merge: true });
-                                showToast(`Circuito Spa añadido el ${spaDate} a las ${spaTime}h`, "success");
-                            } catch (spaAddonErr) {
-                                console.error("Error guardando Circuito Spa adicional:", spaAddonErr);
-                                alert("La reserva de sala se guardó, pero hubo un error al guardar el Circuito Spa: " + spaAddonErr.message);
+                                });
                             }
+                        } catch (spaAddonCancelErr) {
+                            console.warn("Error anulando Circuito Spa adicional desmarcado:", spaAddonCancelErr);
                         }
                     }
                 } catch (fsErr) {
@@ -7757,6 +7987,8 @@
                 if (window._openPayGoldAfterSave) {
                     window._openPayGoldAfterSave = false;
                     document.getElementById("form-id").value = savedId;
+                    window.currentEditingId = savedId;
+                    window.currentEditingCollection = targetColl;
                     const dispEl = document.getElementById("res-id-display");
                     if (dispEl) dispEl.textContent = payload.res_id || savedId;
                     isSavingReservation = false;
@@ -8874,7 +9106,7 @@
             select.value = "";
         }
 
-        function addCustomExtra(name = "", price = 0, isStandard = false, extraData = null) {
+        function addCustomExtra(name = "", price = 0, isStandard = false, extraData = null, skipTotal = false) {
             const list = document.getElementById("custom-extras-list");
             const div = document.createElement("div");
             const isCompact = currentModule.code.startsWith('cabina');
@@ -8902,7 +9134,7 @@
                 </button>
             `;
             list.appendChild(div);
-            updateTotal();
+            if (!skipTotal) updateTotal();
         }
 
         function removeCustomExtra(btn) {
@@ -8926,6 +9158,7 @@
             if (window._isInitializingEdit && !isNaN(existingTotal) && existingTotal > 0) {
                 const totalText = document.getElementById("res-total-text");
                 if (totalText) totalText.textContent = existingTotal.toFixed(2) + " €";
+                if (typeof updateSpaAddonPriceBadge === 'function') updateSpaAddonPriceBadge();
                 if (typeof window.updatePaymentControlBlock === 'function') {
                     window.updatePaymentControlBlock();
                 }
@@ -8975,20 +9208,14 @@
             });
 
             // Suplemento Circuito Spa adicional (no incluido en el bono/servicio base)
-            const spaBadge = document.getElementById("spa-addon-price-badge");
             const packAlreadyHasSpa = Array.isArray(window._packItems) && window._packItems.some(i => i.active !== false && (String(i.espacio || '').toLowerCase() === 'spa' || (i.nombre || '').toLowerCase().includes('circuito')));
             if (window._spaAddonActive && !packAlreadyHasSpa) {
                 const spaUnit = getStandaloneSpaAddonUnitPrice();
-                const spaTotal = spaUnit * Math.max(1, pax);
+                const spaPax = getStandaloneSpaAddonPax();
+                const spaTotal = spaUnit * spaPax;
                 total += spaTotal;
-                if (spaBadge) {
-                    spaBadge.style.display = "inline-block";
-                    spaBadge.textContent = `+${spaTotal.toFixed(2)} €`;
-                }
-            } else if (spaBadge) {
-                spaBadge.style.display = "none";
-                spaBadge.textContent = "";
             }
+            if (typeof updateSpaAddonPriceBadge === 'function') updateSpaAddonPriceBadge();
 
             // CÁLCULO DE DESCUENTO EN RESERVA
             const descTipoInp = document.getElementById("res-descuento-tipo");
@@ -10476,7 +10703,7 @@
     </div>
     <!-- PayGold Redsys Cumbria Integration -->
     <script src="js/services/paygoldService.js?v=2.3.21"></script>
-    <script src="js/spa-paygold.js?v=2.3.21"></script>
+    <script src="js/spa-paygold.js?v=2.3.97"></script>
 </body>
 
 </html>

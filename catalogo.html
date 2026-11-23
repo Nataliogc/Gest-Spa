@@ -216,7 +216,7 @@
         <!-- LEFT: Cumbria Logo -->
         <div style="display: flex; align-items: center; gap: 15px;">
             <img src="logo-spa.jpg" alt="Cumbria Bienestar" style="height: 65px; width: auto; object-fit: contain;">
-            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.96 (23/11/2026)">v2.3.96</span>
+            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.97 (23/11/2026)">v2.3.97</span>
         </div>
 
         <ul class="nav-links" style="flex:1;">
@@ -289,6 +289,10 @@
                     <input type="text" id="catalog-search" class="search-input" placeholder="Buscar servicio..."
                         onkeyup="handleSearch(this.value)">
                 </div>
+                <button id="btn-sync-master-prices" class="btn btn-warning" onclick="syncAllCatalogPricesToMaster()"
+                    style="display: none; height: 40px; font-weight: 700; background: #fffbeb; color: #b45309; border: 1px solid #f59e0b;">
+                    <i class="fas fa-sync-alt"></i> Sincronizar Tarifas (<span id="sync-master-prices-count">0</span>)
+                </button>
                 <button id="btn-auto-config" class="btn btn-warning me-2" onclick="autoAssignSpaces()"
                     style="height: 40px; font-weight: 600; margin-right: 10px;">
                     <i class="fas fa-magic"></i> Auto-Configurar
@@ -665,12 +669,125 @@
             }
         }
 
+        function normalizeItemKey(val) {
+            return String(val || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+                .toLowerCase().replace(/[’′]/g, "'").replace(/[–—]/g, '-')
+                .replace(/\s*-\s*/g, '-').replace(/\s+/g, ' ').trim();
+        }
+
+        function isSyncableSingleCatalogService(svc) {
+            if (!svc || svc.active === false || svc.deleted) return false;
+            if (svc.es_bono === true || svc.tipo === 'bono') return false;
+            const cat = String(svc.categoria || svc.category || '').toLowerCase();
+            if (cat.includes('bono')) return false;
+            const sNorm = normalizeItemKey(svc.nombre || svc.name || '');
+            if (sNorm.startsWith('bono') || sNorm.includes('sesion') || sNorm.includes('sesiones')) return false;
+            if ((parseInt(svc.sesiones, 10) || 1) > 1 || svc.pax === 'group') return false;
+            if (!Array.isArray(svc.items_incluidos) || svc.items_incluidos.length !== 1) return false;
+            if (Array.isArray(svc.secuencia) && svc.secuencia.length > 1) return false;
+            const p = Number(svc.precio);
+            return Number.isFinite(p) && p >= 0;
+        }
+
+        function findMatchingMasterItems(itemName, svcPax = null) {
+            const targetKey = normalizeItemKey(itemName);
+            if (!targetKey || !Array.isArray(state.masterItems)) return [];
+            const sPax = parseInt(svcPax, 10);
+            return state.masterItems.filter(mi => {
+                if (!mi || mi.active === false || mi.deleted) return false;
+                if (normalizeItemKey(mi.name || mi.nombre) !== targetKey) return false;
+                const mPax = parseInt(mi.pax_max ?? mi.pax, 10);
+                if (Number.isFinite(sPax) && sPax > 0 && Number.isFinite(mPax) && mPax > 0 && sPax !== mPax) return false;
+                return true;
+            });
+        }
+
+        function getCatalogMasterPriceMismatch(svc) {
+            if (!isSyncableSingleCatalogService(svc) || !state.masterItems || state.masterItems.length === 0) return null;
+            const matches = findMatchingMasterItems(svc.items_incluidos[0], svc.pax);
+            if (matches.length === 0) return null;
+            const catalogPrice = Number(svc.precio);
+            const mismatched = matches.find(mi => {
+                const mp = Number(mi.price_pax ?? mi.price ?? mi.precio ?? 0);
+                return !Number.isFinite(mp) || Math.abs(mp - catalogPrice) > 0.01;
+            });
+            if (!mismatched) return null;
+            const masterPrice = Number(mismatched.price_pax ?? mismatched.price ?? mismatched.precio ?? 0) || 0;
+            return { masterItem: mismatched, matches, catalogPrice, masterPrice };
+        }
+
+        function updateSyncMasterPricesButton() {
+            const btn = document.getElementById("btn-sync-master-prices");
+            const countEl = document.getElementById("sync-master-prices-count");
+            if (!btn) return;
+            let count = 0;
+            (state.services || []).forEach(svc => {
+                if (getCatalogMasterPriceMismatch(svc)) count++;
+            });
+            if (countEl) countEl.textContent = String(count);
+            btn.style.display = count > 0 ? "inline-flex" : "none";
+        }
+
+        async function syncAllCatalogPricesToMaster() {
+            const btn = document.getElementById("btn-sync-master-prices");
+            const nowIso = new Date().toISOString();
+            const updates = [];
+            const seenMasterIds = new Set();
+
+            (state.services || []).forEach(svc => {
+                const mismatch = getCatalogMasterPriceMismatch(svc);
+                if (!mismatch) return;
+                mismatch.matches.forEach(mi => {
+                    if (!seenMasterIds.has(mi.id)) {
+                        seenMasterIds.add(mi.id);
+                        updates.push({ masterItem: mi, newPrice: mismatch.catalogPrice });
+                    }
+                });
+            });
+
+            if (updates.length === 0) {
+                updateSyncMasterPricesButton();
+                showToast("Todas las tarifas ya están sincronizadas", "info");
+                return;
+            }
+
+            if (btn) btn.disabled = true;
+            try {
+                const batchSize = 400;
+                for (let i = 0; i < updates.length; i += batchSize) {
+                    const batch = db.batch();
+                    const chunk = updates.slice(i, i + batchSize);
+                    chunk.forEach(({ masterItem, newPrice }) => {
+                        batch.update(db.collection("spa_item_master").doc(masterItem.id), {
+                            price_pax: newPrice,
+                            price_updated_at: nowIso,
+                            updated_at: nowIso
+                        });
+                    });
+                    await batch.commit();
+                }
+                updates.forEach(({ masterItem, newPrice }) => {
+                    masterItem.price_pax = newPrice;
+                    masterItem.price_updated_at = nowIso;
+                    masterItem.updated_at = nowIso;
+                });
+                renderServices();
+                showToast(`${updates.length} tarifa(s) sincronizadas con reservas`, "success");
+            } catch (err) {
+                console.error("Error sincronizando tarifas:", err);
+                showToast("Error al sincronizar tarifas: " + err.message, "error");
+            } finally {
+                if (btn) btn.disabled = false;
+            }
+        }
+
         async function cargarMasterItems() {
             try {
                 const snapshot = await db.collection("spa_item_master").orderBy("name", "asc").get();
                 state.masterItems = [];
                 snapshot.forEach(doc => state.masterItems.push({ id: doc.id, ...doc.data() }));
                 updateMasterDatalist();
+                if (state.services.length > 0) renderServices();
             } catch (err) {
                 console.error("Error cargando items maestros:", err);
             }
@@ -805,6 +922,7 @@
                     <i class="fas fa-search" style="font-size: 2rem; margin-bottom: 10px; opacity: 0.2;"></i>
                     <p>No se encontraron servicios que coincidan.</p>
                 </div>`;
+                updateSyncMasterPricesButton();
                 return;
             }
 
@@ -812,6 +930,7 @@
                 // Un pack es cualquier servicio con más de un item incluido
                 const isPack = item.items_incluidos && Array.isArray(item.items_incluidos) && item.items_incluidos.length > 1;
                 const isTrash = state.currentTab === 'papelera';
+                const mismatch = !isTrash ? getCatalogMasterPriceMismatch(item) : null;
 
                 // Opacity style for trash
                 const styleOpacity = isTrash ? 'opacity: 0.6;' : '';
@@ -838,7 +957,10 @@
                                 <span style="font-weight:400; margin-left:8px; opacity:0.6;">ID: ${item.wc_id || item.id}</span>
                             </div>
                         </h4>
-                        <span style="color: var(--accent); font-weight: 800; font-size: 1.1rem; white-space: nowrap;">${item.precio}€</span>
+                        <div style="text-align: right; flex-shrink: 0;">
+                            <span style="color: var(--accent); font-weight: 800; font-size: 1.1rem; white-space: nowrap;">${item.precio}€</span>
+                            ${mismatch ? `<div style="margin-top: 3px; font-size: 0.64rem; font-weight: 700; color: #b45309; background: #fef3c7; border: 1px solid #fcd34d; border-radius: 4px; padding: 1px 5px; white-space: nowrap;" title="El Maestro de Ítems usado en reservas tiene otro precio">⚠️ Tarifa reservas: ${mismatch.masterPrice.toFixed(2)}€</div>` : ''}
+                        </div>
                     </div>
 
                     <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 12px; color: var(--text-muted); font-size: 0.75rem; font-weight: 500;">
@@ -884,6 +1006,7 @@
                     </div>
                 </div>
             `}).join('');
+            updateSyncMasterPricesButton();
         }
 
         async function restoreService(id) {
@@ -1044,23 +1167,37 @@
             btnText.textContent = "GUARDANDO...";
 
             const id = idParam || nombre.toLowerCase().replace(/[^a-z0-9]/g, '-');
-
+            const nowIso = new Date().toISOString();
+            const parsedPrecio = parseFloat(document.getElementById("sm-precio").value);
+            const parsedDur = parseInt(document.getElementById("sm-duracion").value) || 0;
+            const parsedPax = document.getElementById("sm-pax").value === 'group' ? 'group' : (parseInt(document.getElementById("sm-pax").value) || 1);
+            const parsedSesiones = isNaN(parseInt(document.getElementById("sm-sesiones").value)) ? 1 : parseInt(document.getElementById("sm-sesiones").value);
+            const parsedCategoria = document.getElementById("sm-categoria").value || '';
 
             const items = Array.from(document.querySelectorAll(".sm-item-select")).map(i => i.value.trim()).filter(v => v);
+            const isSingleDirectItem = items.length === 1 && parsedSesiones <= 1 && parsedPax !== 'group'
+                && !parsedCategoria.toLowerCase().includes('bono') && !normalizeItemKey(nombre).startsWith('bono');
 
             // AUTO-GUARDAR NUEVOS ITEMS EN EL MAESTRO
             for (const itemName of items) {
-                const exists = state.masterItems.some(mi => mi.name.toLowerCase() === itemName.toLowerCase());
+                const exists = state.masterItems.some(mi => normalizeItemKey(mi.name) === normalizeItemKey(itemName));
                 if (!exists) {
                     try {
-                        await db.collection("spa_item_master").add({
+                        const newMasterObj = {
                             name: itemName,
+                            price_pax: (isSingleDirectItem && Number.isFinite(parsedPrecio) && parsedPrecio >= 0) ? parsedPrecio : 0,
+                            duration: parsedDur,
+                            pax_max: parsedPax === 'group' ? 1 : parsedPax,
                             pack_only: false,
                             standalone: true,
                             venta_directa: true,
                             sale_mode: 'directa',
-                            created_at: new Date().toISOString()
-                        });
+                            price_updated_at: nowIso,
+                            updated_at: nowIso,
+                            created_at: nowIso
+                        };
+                        const docRef = await db.collection("spa_item_master").add(newMasterObj);
+                        state.masterItems.push({ id: docRef.id, ...newMasterObj });
                         console.log("Nuevo item añadido al maestro:", itemName);
                     } catch (e) {
                         console.warn("No se pudo auto-guardar item en el maestro:", itemName);
@@ -1107,13 +1244,13 @@
 
             const data = {
                 nombre: nombre,
-                precio: parseFloat(document.getElementById("sm-precio").value),
-                duracion: parseInt(document.getElementById("sm-duracion").value) || 0,
-                pax: document.getElementById("sm-pax").value === 'group' ? 'group' : (parseInt(document.getElementById("sm-pax").value) || 1),
-                sesiones: isNaN(parseInt(document.getElementById("sm-sesiones").value)) ? 1 : parseInt(document.getElementById("sm-sesiones").value),
+                precio: parsedPrecio,
+                duracion: parsedDur,
+                pax: parsedPax,
+                sesiones: parsedSesiones,
                 required_therapists: isNaN(parseInt(document.getElementById("sm-required-therapists").value)) ? 1 : parseInt(document.getElementById("sm-required-therapists").value),
                 imagen: document.getElementById("sm-imagen").value.trim(),
-                categoria: document.getElementById("sm-categoria").value,
+                categoria: parsedCategoria,
                 espacio: espacioValue, // Legacy support
                 allowedSpaces: allowedSpaces, // New Multi-Selection
                 descripcion: document.getElementById("sm-descripcion").value,
@@ -1127,12 +1264,28 @@
                 venta_local: document.getElementById("sm-venta-local").checked,
 
                 active: true,
-                last_updated: new Date().toISOString()
+                price_updated_at: nowIso,
+                last_updated: nowIso
             };
 
             try {
                 await db.collection("spa_services").doc(id).set(data, { merge: true });
-                showToast("Servicio guardado correctamente", "success");
+                let masterPriceSynced = false;
+                if (isSyncableSingleCatalogService(data)) {
+                    const matchedMasters = findMatchingMasterItems(data.items_incluidos[0], data.pax);
+                    for (const mi of matchedMasters) {
+                        await db.collection("spa_item_master").doc(mi.id).update({
+                            price_pax: data.precio,
+                            price_updated_at: nowIso,
+                            updated_at: nowIso
+                        });
+                        mi.price_pax = data.precio;
+                        mi.price_updated_at = nowIso;
+                        mi.updated_at = nowIso;
+                        masterPriceSynced = true;
+                    }
+                }
+                showToast(masterPriceSynced ? "Servicio guardado y tarifa sincronizada con reservas" : "Servicio guardado correctamente", "success");
                 closeServiceModal();
                 cargarCatalogoFirestore();
             } catch (err) {

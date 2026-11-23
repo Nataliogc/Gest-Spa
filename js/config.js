@@ -919,14 +919,55 @@ document.addEventListener('click', () => {
 
 async function updateMasterItemField(id, field, value) {
     try {
-        await db.collection("spa_item_master").doc(id).update({
+        const nowIso = new Date().toISOString();
+        const updateObj = {
             [field]: value,
-            updated_at: new Date().toISOString()
-        });
+            updated_at: nowIso
+        };
+        if (field === 'price_pax') {
+            updateObj.price_updated_at = nowIso;
+        }
+        await db.collection("spa_item_master").doc(id).update(updateObj);
         // Si cambiamos nombre, la UI se refresca sola con el onchange, 
         // pero para consistencia estado local:
         const item = spaConfigState.masterItems.find(i => i.id === id);
-        if (item) item[field] = value;
+        if (item) {
+            item[field] = value;
+            if (field === 'price_pax') item.price_updated_at = nowIso;
+        }
+
+        if (field === 'price_pax' && item && Number.isFinite(value) && value >= 0 && Array.isArray(spaConfigState.catalogServices)) {
+            const norm = v => String(v || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[’′]/g, "'").replace(/[–—]/g, '-').replace(/\s*-\s*/g, '-').replace(/\s+/g, ' ').trim();
+            const itemKey = norm(item.name || item.nombre);
+            const itemPax = parseInt(item.pax_max ?? item.pax, 10);
+            const matchingCatalog = spaConfigState.catalogServices.filter(svc => {
+                if (!svc || svc.active === false || svc.deleted) return false;
+                if (svc.es_bono === true || svc.tipo === 'bono') return false;
+                const cat = String(svc.categoria || svc.category || '').toLowerCase();
+                if (cat.includes('bono')) return false;
+                const sNorm = norm(svc.nombre || svc.name || '');
+                if (sNorm.startsWith('bono') || sNorm.includes('sesion') || sNorm.includes('sesiones')) return false;
+                if ((parseInt(svc.sesiones, 10) || 1) > 1 || svc.pax === 'group') return false;
+                if (!Array.isArray(svc.items_incluidos) || svc.items_incluidos.length !== 1) return false;
+                if (Array.isArray(svc.secuencia) && svc.secuencia.length > 1) return false;
+                if (norm(svc.items_incluidos[0]) !== itemKey) return false;
+                const sPax = parseInt(svc.pax, 10);
+                if (Number.isFinite(sPax) && sPax > 0 && Number.isFinite(itemPax) && itemPax > 0 && sPax !== itemPax) return false;
+                return true;
+            });
+            if (matchingCatalog.length === 1) {
+                const targetSvc = matchingCatalog[0];
+                await db.collection("spa_services").doc(targetSvc.id).update({
+                    precio: value,
+                    price_updated_at: nowIso,
+                    last_updated: nowIso
+                });
+                targetSvc.precio = value;
+                targetSvc.price_updated_at = nowIso;
+                targetSvc.last_updated = nowIso;
+                showToast(`Tarifa sincronizada en Catálogo ("${targetSvc.nombre}"): ${value.toFixed(2)}€`, "success");
+            }
+        }
 
     } catch (err) {
         showToast("Error actualizando: " + err.message, "error");

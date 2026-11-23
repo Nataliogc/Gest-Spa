@@ -51,6 +51,48 @@
             `*Cumbria Spa & Hotel*`;
     }
 
+    function resolveReservationCollection(res, resId) {
+        const isValidColl = c => typeof c === 'string' && c.trim() !== '' && c.trim() !== 'reservas_cabinas_placeholder';
+        const mapKeyToColl = (rawKey) => {
+            if (!rawKey) return null;
+            const key = String(rawKey).trim();
+            if (isValidColl(key) && key.startsWith('reservas_')) return key;
+            if (typeof window !== 'undefined' && window.MODULES) {
+                const direct = window.MODULES[key] || window.MODULES[key.toLowerCase()];
+                if (direct && isValidColl(direct.collection)) return direct.collection;
+            }
+            const lower = key.toLowerCase();
+            if (lower === 'chon' || lower === 'cabina 1' || lower === 'cabinauno') return 'reservas_cabina1';
+            if (lower === 'mar' || lower === 'cabina 2' || lower === 'cabinados') return 'reservas_cabina2';
+            if (lower === 'mari' || lower === 'cabina 3' || lower === 'cabinatres') return 'reservas_cabina3';
+            return null;
+        };
+
+        if (res) {
+            if (isValidColl(res.collection)) return res.collection;
+            if (isValidColl(res._collection)) return res._collection;
+            const fromResKey = mapKeyToColl(res._moduleCode) || mapKeyToColl(res.sala) || mapKeyToColl(res.moduleType);
+            if (isValidColl(fromResKey)) return fromResKey;
+        }
+
+        if (typeof document !== 'undefined') {
+            const domRoomVal = document.getElementById('res-sala')?.value || document.getElementById('res-room')?.value || '';
+            const fromDom = mapKeyToColl(domRoomVal);
+            if (isValidColl(fromDom)) return fromDom;
+        }
+
+        if (typeof window !== 'undefined') {
+            if (window.currentModule && isValidColl(window.currentModule.collection)) {
+                return window.currentModule.collection;
+            }
+            if (isValidColl(window.currentEditingCollection)) {
+                return window.currentEditingCollection;
+            }
+        }
+        return 'reservas_spa';
+    }
+    window.resolvePayGoldCollection = resolveReservationCollection;
+
     // Exponer generador de mensaje comercial globalmente
     window.buildPayGoldCommercialMessage = buildPayGoldCommercialMessage;
 
@@ -126,16 +168,7 @@
         };
 
         // Identificar colección de Firestore correspondiente
-        let targetColl = 'reservas_spa';
-        if (res && res._moduleCode && window.MODULES && window.MODULES[res._moduleCode]) {
-            targetColl = window.MODULES[res._moduleCode].collection;
-        } else if (res && res.collection) {
-            targetColl = res.collection;
-        } else if (res && res.moduleType && window.MODULES && window.MODULES[res.moduleType]) {
-            targetColl = window.MODULES[res.moduleType].collection;
-        } else if (window.currentModule && window.currentModule.collection) {
-            targetColl = window.currentModule.collection;
-        }
+        const targetColl = resolveReservationCollection(res, resId);
 
         // 1. Guardar en Firestore del Spa
         if (typeof db !== 'undefined' && db && resId) {
@@ -278,7 +311,7 @@
 
         checkByOrderId: async function (orderId, resId, resObj) {
             if (!resId || !window.db) return null;
-            const targetColl = (resObj && resObj.collection) || (window.currentModule && window.currentModule.collection) || 'reservas_spa';
+            const targetColl = resolveReservationCollection(resObj, resId);
             try {
                 const docSnap = await window.db.collection(targetColl).doc(resId).get();
                 if (docSnap.exists) {
@@ -872,24 +905,45 @@
             currentPayGoldOrderId = spaOrderDisplay;
 
             // Actualizar doc en Firestore si está disponible
-            let targetColl = (window.currentModule && window.currentModule.collection) 
-                ? window.currentModule.collection 
-                : (window.currentEditingCollection || document.getElementById('res-room')?.value || 'reservas_spa');
+            let targetColl = resolveReservationCollection(res, resId);
             if (typeof db !== 'undefined' && db && resId) {
+                const payGoldUpdate = {
+                    payment_link: result.paymentUrl,
+                    paygold_order: spaOrderDisplay,
+                    paygold_redsys_order: result.orderId || redsysOrderId,
+                    paygold_amount: amount,
+                    paygold_status: "PENDIENTE",
+                    paygold_expiry: expiryDate,
+                    paygold_created_at: new Date().toISOString()
+                };
                 try {
-                    await db.collection(targetColl).doc(resId).update({
-                        payment_link: result.paymentUrl,
-                        paygold_order: spaOrderDisplay,
-                        paygold_redsys_order: result.orderId || redsysOrderId,
-                        paygold_amount: amount,
-                        paygold_status: "PENDIENTE",
-                        paygold_expiry: expiryDate,
-                        paygold_created_at: new Date().toISOString()
-                    });
+                    try {
+                        await db.collection(targetColl).doc(resId).update(payGoldUpdate);
+                    } catch (updErr) {
+                        const isNotFound = updErr && (updErr.code === 'not-found' || /No document to update/i.test(updErr.message || ''));
+                        if (isNotFound) {
+                            const fallbackColls = ['reservas_cabina1', 'reservas_cabina2', 'reservas_cabina3', 'reservas_suite', 'reservas_panacea', 'reservas_vip', 'reservas_peluqueria', 'reservas_spa'];
+                            let persisted = false;
+                            for (const fc of fallbackColls) {
+                                if (fc === targetColl) continue;
+                                const snap = await db.collection(fc).doc(resId).get();
+                                if (snap.exists) {
+                                    await db.collection(fc).doc(resId).update(payGoldUpdate);
+                                    targetColl = fc;
+                                    persisted = true;
+                                    break;
+                                }
+                            }
+                            if (!persisted) throw updErr;
+                        } else {
+                            throw updErr;
+                        }
+                    }
                     // Actualizar memoria local si existe
                     if (typeof currentData !== 'undefined' && Array.isArray(currentData)) {
                         const localRes = currentData.find(r => r.id === resId);
                         if (localRes) {
+                            localRes.collection = localRes.collection || targetColl;
                             localRes.payment_link = result.paymentUrl;
                             localRes.paygold_order = spaOrderDisplay;
                             localRes.paygold_redsys_order = result.orderId || redsysOrderId;
@@ -1102,7 +1156,7 @@
 
         // Activar escucha en tiempo real reactiva sobre esta reserva
         if (resId && window.PayGoldAutoSync && typeof window.PayGoldAutoSync.listenActiveReservation === 'function') {
-            const targetColl = (res && res.collection) || (window.currentModule && window.currentModule.collection) || 'reservas_spa';
+            const targetColl = resolveReservationCollection(res, resId);
             window.PayGoldAutoSync.listenActiveReservation(resId, targetColl);
         }
 

@@ -8,7 +8,7 @@ Este documento mantiene el **control de versión única y global** para todo el 
 
 | Parámetro | Valor Actual |
 | :--- | :--- |
-| **Versión Global del Sistema** | **`v2.3.96`** |
+| **Versión Global del Sistema** | **`v2.3.97`** |
 | **Fecha de Última Actualización** | **23/11/2026** |
 | **Estado General** | Operativo en Producción |
 
@@ -47,6 +47,11 @@ Cualquier cambio en los siguientes módulos impacta en la versión global:
 ---
 
 ## 📝 Historial Unificado de Versiones
+
+### [v2.3.97] - 23/11/2026
+- **Tipo:** PATCH
+- **Archivos:** `catalogo.html`, `configuracion.html`, `disponibilidad-terapeutas.html`, `index.html`, `js/config.js`, `js/service-pricing.js`, `js/spa-paygold.js`, `reservas-salas.html`, `reservas-spa.html`, `reservas.html`, `vision-general.html`
+- **Descripción:** Corrección de inflado de precios al editar con Circuito Spa adicional, sincronización bidireccional Catálogo-Maestro, PAX independiente en Circuito Spa adicional y colección PayGold en Cabinas
 
 ### [v2.3.96] - 23/11/2026
 - **Tipo:** PATCH
