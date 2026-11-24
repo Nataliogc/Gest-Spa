@@ -499,7 +499,7 @@
         <!-- LEFT: Cumbria Logo -->
         <div style="display: flex; align-items: center; gap: 15px;">
             <img src="logo-spa.jpg" alt="Cumbria Bienestar" style="height: 65px; width: auto; object-fit: contain;">
-            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.99 (24/11/2026)">v2.3.99</span>
+            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.100 (24/11/2026)">v2.3.100</span>
         </div>
 
         <ul class="nav-links" style="flex:1;">
@@ -5043,7 +5043,7 @@
             document.getElementById("res-nombre").value = res.nombre;
 
             // Formatear teléfono al cargar (3x3)
-            let rawTel = (res.tel || "").replace(/\D/g, "");
+            let rawTel = String(res.tel || res.telefono || "").replace(/\D/g, "");
             let formattedTel = "";
             for (let i = 0; i < rawTel.length; i++) {
                 if (i > 0 && i % 3 === 0) formattedTel += " ";
@@ -7531,7 +7531,6 @@
             const sessionsGroup = document.getElementById("sessions-group");
             const extraContainer = document.getElementById("extra-fields-row");
             const pagoBlock = document.getElementById("pago-particular-block");
-            const telGroup = document.getElementById("tel-group");
 
             // 1. Reset all to hidden
             if (hotelGroup) hotelGroup.style.display = "none";
@@ -7539,7 +7538,6 @@
             if (bonoGroup) bonoGroup.style.display = "none";
             if (sessionsGroup) sessionsGroup.style.display = "none";
             if (pagoBlock) pagoBlock.style.display = "none";
-            if (telGroup) telGroup.style.display = "block"; // Default visible
 
             // 2. Determine visibility based on logic
             const isHotel = (origen === 'hotel_inc' || origen === 'hotel_no_inc');
@@ -7555,7 +7553,6 @@
                 if (bonoGroup) bonoGroup.style.display = "block";
                 if (origen === 'bono') {
                     if (sessionsGroup) sessionsGroup.style.display = "block";
-                    if (telGroup) telGroup.style.display = "none"; // Voucher has phone
                 }
             }
 
