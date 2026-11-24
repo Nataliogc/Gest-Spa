@@ -8,8 +8,8 @@ Este documento mantiene el **control de versión única y global** para todo el 
 
 | Parámetro | Valor Actual |
 | :--- | :--- |
-| **Versión Global del Sistema** | **`v2.3.97`** |
-| **Fecha de Última Actualización** | **23/11/2026** |
+| **Versión Global del Sistema** | **`v2.3.98`** |
+| **Fecha de Última Actualización** | **24/11/2026** |
 | **Estado General** | Operativo en Producción |
 
 ---
@@ -47,6 +47,11 @@ Cualquier cambio en los siguientes módulos impacta en la versión global:
 ---
 
 ## 📝 Historial Unificado de Versiones
+
+### [v2.3.98] - 24/11/2026
+- **Tipo:** PATCH
+- **Archivos:** `bonos.html`, `js/app-core.js`, `js/bonos.js`, `js/service-pricing.js`, `reservas-salas.html`, `reservas-spa.html`, `reservas.html`, `scripts/test-pricing-addon-and-paygold.js`, `js/bono-sessions-helper.js`, `scripts/test-bono-sessions-and-spa-addon.js`
+- **Descripción:** Corrección de sesiones en bonos (Re-sync WC, guardado sin redistribución destructiva, sin doble descuento al editar) y precio 0€ en Circuito Spa adicional para bonos y orígenes incluidos
 
 ### [v2.3.97] - 23/11/2026
 - **Tipo:** PATCH

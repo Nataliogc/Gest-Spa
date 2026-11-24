@@ -202,7 +202,80 @@
         return parseFloat((baseServiceTotal / pax).toFixed(2));
     }
 
+    function resolveStandaloneSpaAddonUnitPrice({
+        origen = 'particular',
+        isMonedero = false,
+        dateStr = '',
+        spaConfig = {}
+    } = {}) {
+        const orig = String(origen || 'particular').toLowerCase().trim();
+        const hasTariffPrice = (orig === 'particular' || orig === 'hotel_no_inc' || (orig === 'bono' && !!isMonedero));
+        if (!hasTariffPrice) return 0;
+
+        const dateObj = dateStr ? new Date(`${dateStr}T12:00:00`) : new Date();
+        const dayOfWeek = Number.isNaN(dateObj.getTime()) ? new Date().getDay() : dateObj.getDay();
+        const isWeekend = dayOfWeek === 0 || dayOfWeek === 5 || dayOfWeek === 6;
+        const cfg = spaConfig || {};
+
+        if (orig === 'hotel_no_inc') {
+            return parseFloat(isWeekend ? (cfg.hotelPriceWeekend || 18) : (cfg.hotelPriceWeekday || 12)) || 0;
+        }
+        return parseFloat(isWeekend ? (cfg.particularPriceWeekend || 25) : (cfg.particularPriceWeekday || 25)) || 0;
+    }
+
+    function reconcileIncludedOriginSpaAddonEdit({
+        origen = 'particular',
+        isMonedero = false,
+        savedTotal = 0,
+        rawPricePax = null,
+        savedExtrasSum = 0,
+        hasSpaAddon = false,
+        storedSpaTotal = null
+    } = {}) {
+        const orig = String(origen || 'particular').toLowerCase().trim();
+        const isIncludedOrigin = !(orig === 'particular' || orig === 'hotel_no_inc' || (orig === 'bono' && !!isMonedero));
+        const parsedSavedTotal = Number.isFinite(Number(savedTotal)) ? Number(savedTotal) : 0;
+        const parsedExtrasSum = Number.isFinite(Number(savedExtrasSum)) ? Number(savedExtrasSum) : 0;
+
+        if (!isIncludedOrigin) {
+            const hasStored = storedSpaTotal !== null && storedSpaTotal !== undefined && String(storedSpaTotal).trim() !== ''
+                && Number.isFinite(Number(storedSpaTotal)) && Number(storedSpaTotal) >= 0;
+            return {
+                isIncludedOrigin: false,
+                effectiveSpaAddonTotal: hasStored ? Number(storedSpaTotal) : null,
+                effectiveSavedTotal: parsedSavedTotal,
+                healed: false
+            };
+        }
+
+        const hasNoBasePrice = rawPricePax === null || rawPricePax === undefined || String(rawPricePax).trim() === '' || Number(rawPricePax) === 0;
+        if (hasSpaAddon && hasNoBasePrice && parsedSavedTotal > parsedExtrasSum) {
+            return {
+                isIncludedOrigin: true,
+                effectiveSpaAddonTotal: 0,
+                effectiveSavedTotal: parseFloat(parsedExtrasSum.toFixed(2)),
+                healed: true
+            };
+        }
+
+        return {
+            isIncludedOrigin: true,
+            effectiveSpaAddonTotal: 0,
+            effectiveSavedTotal: parsedSavedTotal,
+            healed: false
+        };
+    }
+
     root.resolveServicePricing = resolveServicePricing;
     root.reconcileEditBasePricePax = reconcileEditBasePricePax;
-    if (typeof module !== 'undefined') module.exports = { resolveServicePricing, reconcileEditBasePricePax };
+    root.resolveStandaloneSpaAddonUnitPrice = resolveStandaloneSpaAddonUnitPrice;
+    root.reconcileIncludedOriginSpaAddonEdit = reconcileIncludedOriginSpaAddonEdit;
+    if (typeof module !== 'undefined') {
+        module.exports = {
+            resolveServicePricing,
+            reconcileEditBasePricePax,
+            resolveStandaloneSpaAddonUnitPrice,
+            reconcileIncludedOriginSpaAddonEdit
+        };
+    }
 })(typeof window !== 'undefined' ? window : globalThis);

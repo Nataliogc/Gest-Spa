@@ -500,7 +500,7 @@
         <!-- LEFT: Cumbria Logo -->
         <div style="display: flex; align-items: center; gap: 15px;">
             <img src="logo-spa.jpg" alt="Cumbria Bienestar" style="height: 65px; width: auto; object-fit: contain;">
-            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.97 (23/11/2026)">v2.3.97</span>
+            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.98 (24/11/2026)">v2.3.98</span>
         </div>
 
         <ul class="nav-links" style="flex:1;">
@@ -1402,11 +1402,12 @@
 
     <!-- Dexie loaded by db-local.js -->
     <!-- <script src="https://unpkg.com/dexie@latest/dist/dexie.js"></script> -->
-    <script src="js/app-core.js?v=2.3.51"></script>
+    <script src="js/app-core.js?v=2.3.98"></script>
+    <script src="js/bono-sessions-helper.js?v=2.3.98"></script>
     <script src="js/monedero-helper.js"></script>
     <script src="js/spa-packs-registry.js?v=2.3.55"></script>
     <script src="js/service-catalog.js?v=1"></script>
-    <script src="js/service-pricing.js?v=2.3.97"></script>
+    <script src="js/service-pricing.js?v=2.3.98"></script>
 
     <script>
         const db = firebase.firestore();
@@ -2428,6 +2429,10 @@
                 }
                 if (window.MonederoHelper && window.MonederoHelper.clearActiveVoucher) {
                     window.MonederoHelper.clearActiveVoucher();
+                }
+                if (typeof updateSpaAddonPriceBadge === 'function') updateSpaAddonPriceBadge();
+                if (window._spaAddonActive && !currentResId && typeof updateTotal === 'function') {
+                    updateTotal();
                 }
 
                 let total = data.sesiones_totales || 1;
@@ -4736,9 +4741,17 @@
                 const spaPax = getStandaloneSpaAddonPax();
                 const spaTotal = spaUnit * spaPax;
                 spaBadge.style.display = "inline-block";
-                spaBadge.textContent = spaPax > 1
-                    ? `+${spaTotal.toFixed(2)} € (${spaPax} pax)`
-                    : `+${spaTotal.toFixed(2)} €`;
+                if (spaTotal <= 0) {
+                    spaBadge.style.background = "#dcfce7";
+                    spaBadge.style.color = "#15803d";
+                    spaBadge.textContent = "Incluido (0.00 €)";
+                } else {
+                    spaBadge.style.background = "#dbeafe";
+                    spaBadge.style.color = "#1d4ed8";
+                    spaBadge.textContent = spaPax > 1
+                        ? `+${spaTotal.toFixed(2)} € (${spaPax} pax)`
+                        : `+${spaTotal.toFixed(2)} €`;
+                }
             } else {
                 spaBadge.style.display = "none";
                 spaBadge.textContent = "";
@@ -4747,11 +4760,17 @@
 
         function getStandaloneSpaAddonUnitPrice() {
             const dateStr = document.getElementById("spa-addon-date")?.value || document.getElementById("form-date")?.value;
+            const origen = document.getElementById("res-origen")?.value || 'particular';
+            const isMonedero = (origen === 'bono') && Boolean(window.MonederoHelper && window.MonederoHelper.isActiveBookingMonedero && window.MonederoHelper.isActiveBookingMonedero());
+            const cfg = (typeof spaConfig !== 'undefined' && spaConfig) ? spaConfig : {};
+            if (typeof window.resolveStandaloneSpaAddonUnitPrice === 'function') {
+                return window.resolveStandaloneSpaAddonUnitPrice({ origen, isMonedero, dateStr, spaConfig: cfg });
+            }
+            const hasTariff = (origen === 'particular' || origen === 'hotel_no_inc' || isMonedero);
+            if (!hasTariff) return 0;
             const dateObj = dateStr ? new Date(dateStr + 'T12:00:00') : new Date();
             const dayOfWeek = dateObj.getDay();
             const isWeekend = dayOfWeek === 0 || dayOfWeek === 5 || dayOfWeek === 6;
-            const origen = document.getElementById("res-origen")?.value || 'particular';
-            const cfg = (typeof spaConfig !== 'undefined' && spaConfig) ? spaConfig : {};
             if (origen === 'hotel_no_inc') {
                 return parseFloat(isWeekend ? (cfg.hotelPriceWeekend || 18) : (cfg.hotelPriceWeekday || 12)) || 0;
             }
@@ -5703,6 +5722,7 @@
             window._userEditedPricePax = false;
             window._loadedSpaAddonExists = false;
             window._currentPricingMode = null;
+            window._editingOriginalReservation = null;
             const addonPaxReset = document.getElementById("spa-addon-pax");
             if (addonPaxReset) {
                 addonPaxReset.value = "";
@@ -6162,6 +6182,7 @@
 
             // GLOBAL ID TRACKING FALLBACK
             window.currentEditingId = id;
+            window._editingOriginalReservation = res ? { ...res, id: res.id || id } : null;
 
             const isAnulada = res.status === 'anulada';
             const btnCancel = document.getElementById("btn-cancelar");
@@ -6292,7 +6313,15 @@
             const savedDescTipo = hasSavedDiscount ? (res.descuento_tipo || 'porcentaje') : 'porcentaje';
             const savedDescValor = hasSavedDiscount ? (parseFloat(res.descuento_valor || res.descuento_importe || 0) || 0) : 0;
 
+            const isMonederoEdit = (res.origen === 'bono') && Boolean(
+                (parseFloat(res.monedero_descontado) || 0) > 0
+                || (parseFloat(res.pagado_con_monedero) || 0) > 0
+                || (window.MonederoHelper && window.MonederoHelper.isActiveBookingMonedero && window.MonederoHelper.isActiveBookingMonedero())
+            );
+
+            let effectiveDisplayTotal = savedTotal;
             let knownSpaTotal = 0;
+            let addonEditSync = null;
             if (res.spa_addon && res.spa_addon.active) {
                 window._loadedSpaAddonExists = true;
                 if (addonDateEl) addonDateEl.value = res.spa_addon.fecha || res.fecha || "";
@@ -6308,16 +6337,34 @@
                     window.toggleSpaAddonTab(true, { skipRecalc: true });
                 }
                 const storedSpaTotal = parseFloat(res.spa_addon.precio_total);
-                knownSpaTotal = (Number.isFinite(storedSpaTotal) && storedSpaTotal > 0)
-                    ? storedSpaTotal
-                    : (getStandaloneSpaAddonUnitPrice() * getStandaloneSpaAddonPax());
+                addonEditSync = (typeof window.reconcileIncludedOriginSpaAddonEdit === 'function')
+                    ? window.reconcileIncludedOriginSpaAddonEdit({
+                        origen: res.origen,
+                        isMonedero: isMonederoEdit,
+                        savedTotal,
+                        rawPricePax: rawSavedPricePax,
+                        savedExtrasSum,
+                        hasSpaAddon: true,
+                        storedSpaTotal: Number.isFinite(storedSpaTotal) ? storedSpaTotal : null
+                    })
+                    : null;
+                if (addonEditSync && addonEditSync.isIncludedOrigin) {
+                    knownSpaTotal = 0;
+                    effectiveDisplayTotal = addonEditSync.effectiveSavedTotal;
+                } else {
+                    knownSpaTotal = (Number.isFinite(storedSpaTotal) && storedSpaTotal > 0)
+                        ? storedSpaTotal
+                        : (getStandaloneSpaAddonUnitPrice() * getStandaloneSpaAddonPax());
+                }
                 if (typeof updateSpaAddonPriceBadge === 'function') updateSpaAddonPriceBadge();
             }
 
             let savedPricePax;
-            if ((res.spa_addon !== undefined || currentModule.code === 'spa') && typeof window.reconcileEditBasePricePax === 'function') {
+            if (addonEditSync && addonEditSync.healed) {
+                savedPricePax = 0;
+            } else if ((res.spa_addon !== undefined || currentModule.code === 'spa') && typeof window.reconcileEditBasePricePax === 'function') {
                 savedPricePax = window.reconcileEditBasePricePax({
-                    savedTotal,
+                    savedTotal: effectiveDisplayTotal,
                     savedPax,
                     rawPricePax: rawSavedPricePax,
                     extrasTotal: savedExtrasSum,
@@ -6328,11 +6375,11 @@
             } else {
                 savedPricePax = (rawSavedPricePax !== null && !isNaN(rawSavedPricePax))
                     ? rawSavedPricePax
-                    : (savedPax > 0 ? (savedTotal / savedPax) : 0);
+                    : (savedPax > 0 ? (effectiveDisplayTotal / savedPax) : 0);
             }
             document.getElementById("res-precio-pax").value = savedPricePax.toFixed(2);
-            document.getElementById("res-precio-total").value = savedTotal.toFixed(2);
-            document.getElementById("res-total-text").textContent = savedTotal.toFixed(2) + " €";
+            document.getElementById("res-precio-total").value = effectiveDisplayTotal.toFixed(2);
+            document.getElementById("res-total-text").textContent = effectiveDisplayTotal.toFixed(2) + " €";
 
             if (id && window.db) {
                 db.collection("reservas_spa").doc(`${id}_spa_addon`).get().then(addonSnap => {
@@ -6353,25 +6400,47 @@
                             if (typeof window.toggleSpaAddonTab === 'function') {
                                 window.toggleSpaAddonTab(true, { skipRecalc: true });
                             }
-                            const loadedSpaTotal = (parseFloat(ad.precio_total) > 0)
-                                ? parseFloat(ad.precio_total)
-                                : (getStandaloneSpaAddonUnitPrice() * getStandaloneSpaAddonPax());
-                            if (!window._userEditedPricePax && typeof window.reconcileEditBasePricePax === 'function') {
-                                const reconciled = window.reconcileEditBasePricePax({
+                            const storedAdTotal = parseFloat(ad.precio_total);
+                            const addonEditAsync = (typeof window.reconcileIncludedOriginSpaAddonEdit === 'function')
+                                ? window.reconcileIncludedOriginSpaAddonEdit({
+                                    origen: res.origen,
+                                    isMonedero: isMonederoEdit,
                                     savedTotal,
-                                    savedPax,
                                     rawPricePax: rawSavedPricePax,
-                                    extrasTotal: savedExtrasSum,
-                                    spaAddonTotal: loadedSpaTotal,
-                                    descTipo: savedDescTipo,
-                                    descValor: savedDescValor
-                                });
+                                    savedExtrasSum,
+                                    hasSpaAddon: true,
+                                    storedSpaTotal: Number.isFinite(storedAdTotal) ? storedAdTotal : null
+                                })
+                                : null;
+                            const loadedSpaTotal = (addonEditAsync && addonEditAsync.isIncludedOrigin)
+                                ? 0
+                                : ((Number.isFinite(storedAdTotal) && storedAdTotal > 0)
+                                    ? storedAdTotal
+                                    : (getStandaloneSpaAddonUnitPrice() * getStandaloneSpaAddonPax()));
+                            const asyncTotalDisplay = (addonEditAsync && addonEditAsync.isIncludedOrigin)
+                                ? addonEditAsync.effectiveSavedTotal
+                                : effectiveDisplayTotal;
+                            if (!window._userEditedPricePax) {
+                                let reconciled = 0;
+                                if (addonEditAsync && addonEditAsync.healed) {
+                                    reconciled = 0;
+                                } else if (typeof window.reconcileEditBasePricePax === 'function') {
+                                    reconciled = window.reconcileEditBasePricePax({
+                                        savedTotal: asyncTotalDisplay,
+                                        savedPax,
+                                        rawPricePax: rawSavedPricePax,
+                                        extrasTotal: savedExtrasSum,
+                                        spaAddonTotal: loadedSpaTotal,
+                                        descTipo: savedDescTipo,
+                                        descValor: savedDescValor
+                                    });
+                                }
                                 const pInp = document.getElementById("res-precio-pax");
                                 if (pInp) pInp.value = reconciled.toFixed(2);
                                 const tInp = document.getElementById("res-precio-total");
-                                if (tInp) tInp.value = savedTotal.toFixed(2);
+                                if (tInp) tInp.value = asyncTotalDisplay.toFixed(2);
                                 const tTxt = document.getElementById("res-total-text");
-                                if (tTxt) tTxt.textContent = savedTotal.toFixed(2) + " €";
+                                if (tTxt) tTxt.textContent = asyncTotalDisplay.toFixed(2) + " €";
                                 if (typeof updateSpaAddonPriceBadge === 'function') updateSpaAddonPriceBadge();
                                 if (typeof window.updatePaymentControlBlock === 'function') window.updatePaymentControlBlock();
                             }
@@ -6380,7 +6449,7 @@
                     }
                     if (!window._userEditedPricePax && !(res.spa_addon && res.spa_addon.active) && typeof window.reconcileEditBasePricePax === 'function') {
                         const reconciled = window.reconcileEditBasePricePax({
-                            savedTotal,
+                            savedTotal: effectiveDisplayTotal,
                             savedPax,
                             rawPricePax: rawSavedPricePax,
                             extrasTotal: savedExtrasSum,
@@ -6391,9 +6460,9 @@
                         const pInp = document.getElementById("res-precio-pax");
                         if (pInp) pInp.value = reconciled.toFixed(2);
                         const tInp = document.getElementById("res-precio-total");
-                        if (tInp) tInp.value = savedTotal.toFixed(2);
+                        if (tInp) tInp.value = effectiveDisplayTotal.toFixed(2);
                         const tTxt = document.getElementById("res-total-text");
-                        if (tTxt) tTxt.textContent = savedTotal.toFixed(2) + " €";
+                        if (tTxt) tTxt.textContent = effectiveDisplayTotal.toFixed(2) + " €";
                         if (typeof window.updatePaymentControlBlock === 'function') window.updatePaymentControlBlock();
                     }
                 }).catch(() => {});
@@ -7003,6 +7072,7 @@
             window._autoOpenedEditId = null;
             window._isNewReservationOpening = false;
             window._editingPackSiblings = null;
+            window._editingOriginalReservation = null;
             window._userEditedPricePax = false;
             window._loadedSpaAddonExists = false;
 
@@ -7383,6 +7453,12 @@
 
                 // FORCE FALLBACK
                 let id = document.getElementById("form-id").value || window.currentEditingId;
+                const originalResIdBeforeSave = id || '';
+                const isEditingExistingRes = Boolean(originalResIdBeforeSave);
+                const existingResBeforeSave = isEditingExistingRes
+                    ? ((typeof currentData !== 'undefined' && Array.isArray(currentData) ? currentData.find(r => r.id === originalResIdBeforeSave) : null)
+                        || (window._editingOriginalReservation && window._editingOriginalReservation.id === originalResIdBeforeSave ? window._editingOriginalReservation : null))
+                    : null;
                 let date = document.getElementById("form-date").value;
                 let time = document.getElementById("form-time").value;
                 const sesionesConsumidas = parseInt(document.getElementById("res-sesiones")?.value) || 1;
@@ -7488,7 +7564,15 @@
                         } else {
                             const snaps = await db.collection(currentModule.collection).where("bono", "==", bonoCode).get();
                             let sesionesReservadas = 0;
-                            snaps.forEach(doc => { if (doc.id !== id && doc.data().status !== 'anulada') sesionesReservadas += (doc.data().sesiones_consumidas || 1); });
+                            snaps.forEach(doc => {
+                                if (doc.id === id) return;
+                                const d = doc.data();
+                                if (d.status === 'anulada') return;
+                                const c = (window.BonoSessionsHelper && typeof window.BonoSessionsHelper.getReservationConsumedSessions === 'function')
+                                    ? window.BonoSessionsHelper.getReservationConsumedSessions(d, doc.id)
+                                    : ((d.sesiones_consumidas !== undefined && d.sesiones_consumidas !== null && String(d.sesiones_consumidas).trim() !== '') ? (parseInt(d.sesiones_consumidas, 10) || 0) : 1);
+                                sesionesReservadas += c;
+                            });
                             if ((sesionesReservadas + currentSessionCount) > totalSesiones) {
                                 alert(`¡LÍMITE EXCEDIDO!\n\nEste bono tiene ${totalSesiones} sesiones.\nYa hay ${sesionesReservadas} usadas.\nNo se puede completar.`);
                                 isSavingReservation = false; btn.disabled = false; btn.innerHTML = originalText; return;
@@ -7929,10 +8013,11 @@
                     if (isSpaAddonSaving) {
                         try {
                             const spaAddonPayload = {
-                                res_id: payload.res_id || savedId,
+                                res_id: existingResBeforeSave?.res_id || payload.res_id || savedId,
                                 parent_id: savedId,
                                 parent_service: payload.servicio,
                                 is_pack_child: true,
+                                sesiones_consumidas: 0,
                                 collection: "reservas_spa",
                                 sala: "spa",
                                 nombre: payload.nombre,
@@ -7980,8 +8065,24 @@
                     showToast("Guardado localmente", "info");
                 }
 
-                if (payload.origen === 'bono' && payload.bono) {
-                    updateVoucherSessions(payload.bono, sesionesConsumidas, payload.servicio).catch(console.warn);
+                const voucherDelta = (window.BonoSessionsHelper && typeof window.BonoSessionsHelper.computeVoucherDeltaOnEdit === 'function')
+                    ? window.BonoSessionsHelper.computeVoucherDeltaOnEdit({
+                        isNewReservation: !isEditingExistingRes && isNewReservation,
+                        prevRes: existingResBeforeSave,
+                        prevDocId: originalResIdBeforeSave,
+                        newOrigen: payload.origen,
+                        newBono: payload.bono,
+                        newConsumed: sesionesConsumidas
+                    })
+                    : ((isNewReservation && payload.origen === 'bono' && payload.bono)
+                        ? { refundBono: '', refundAmount: 0, deductBono: payload.bono, deductAmount: sesionesConsumidas }
+                        : { refundBono: '', refundAmount: 0, deductBono: '', deductAmount: 0 });
+
+                if (voucherDelta.refundBono && voucherDelta.refundAmount > 0 && typeof window.refundVoucherSessionsOnCancel === 'function') {
+                    window.refundVoucherSessionsOnCancel(voucherDelta.refundBono, voucherDelta.refundAmount, existingResBeforeSave?.servicio || payload.servicio, false).catch(console.warn);
+                }
+                if (voucherDelta.deductBono && voucherDelta.deductAmount > 0) {
+                    updateVoucherSessions(voucherDelta.deductBono, voucherDelta.deductAmount, payload.servicio).catch(console.warn);
                 }
 
                 if (window._openPayGoldAfterSave) {
@@ -8047,26 +8148,56 @@
 
             async function updateVoucherSessions(bonoId, consumed, serviceName = null) {
                 try {
-                    const vDoc = await db.collection("spa_vouchers").doc(bonoId).get();
+                    const cleanBonoId = String(bonoId || '').trim();
+                    if (!cleanBonoId) return;
+                    let vRef = db.collection("spa_vouchers").doc(cleanBonoId);
+                    let vDoc = await vRef.get();
+                    if (!vDoc.exists) {
+                        const vDocSpace = await db.collection("spa_vouchers").doc(cleanBonoId + ' ').get();
+                        if (vDocSpace.exists) {
+                            vDoc = vDocSpace;
+                            vRef = vDocSpace.ref;
+                        }
+                    }
                     if (vDoc.exists) {
                         const vData = vDoc.data();
                         if (window.MonederoHelper && window.MonederoHelper.isMonedero(vData)) return;
-                        const newUsedTotal = (vData.sesiones_usadas || 0) + consumed;
+                        const delta = Math.max(1, parseInt(consumed, 10) || 1);
+                        const newUsedTotal = (parseInt(vData.sesiones_usadas, 10) || 0) + delta;
+                        const totalSesiones = parseInt(vData.sesiones_totales || vData.sesiones_total, 10) || 1;
                         const updates = { sesiones_usadas: newUsedTotal, last_updated: new Date().toISOString() };
-                        const items = vData.items_desglosados || vData.desglosados || [];
-                        if (items.length > 0 && serviceName) {
-                            const normalizedSearch = serviceName.toLowerCase().trim();
-                            let itemMatched = false;
-                            items.forEach(item => {
-                                const itemName = (item.name || item.nombre || '').toLowerCase().trim();
-                                if (itemName === normalizedSearch || normalizedSearch.includes(itemName) || itemName.includes(normalizedSearch)) {
-                                    const currentUsed = item.used ?? item.usadas ?? 0;
-                                    item.used = currentUsed + consumed; item.usadas = item.used; itemMatched = true;
+                        const rawItems = vData.items_desglosados || vData.desglosados || [];
+                        const items = Array.isArray(rawItems) ? rawItems.map(it => ({ ...it })) : [];
+                        if (items.length > 0) {
+                            const normalizedSearch = String(serviceName || '').toLowerCase().trim();
+                            let matchedIdx = -1;
+                            if (normalizedSearch) {
+                                matchedIdx = items.findIndex(item => {
+                                    const itemName = (item.name || item.nombre || '').toLowerCase().trim();
+                                    const used = item.used ?? item.usadas ?? 0;
+                                    const tot = item.sessions ?? item.sesiones ?? 1;
+                                    return used < tot && itemName && (itemName === normalizedSearch || normalizedSearch.includes(itemName) || itemName.includes(normalizedSearch));
+                                });
+                                if (matchedIdx === -1) {
+                                    matchedIdx = items.findIndex(item => {
+                                        const itemName = (item.name || item.nombre || '').toLowerCase().trim();
+                                        return itemName && (itemName === normalizedSearch || normalizedSearch.includes(itemName) || itemName.includes(normalizedSearch));
+                                    });
                                 }
-                            });
-                            if (itemMatched) updates.items_desglosados = items;
+                            }
+                            if (matchedIdx !== -1) {
+                                const currentUsed = items[matchedIdx].used ?? items[matchedIdx].usadas ?? 0;
+                                items[matchedIdx].used = currentUsed + delta;
+                                items[matchedIdx].usadas = items[matchedIdx].used;
+                                updates.items_desglosados = items;
+                            }
+                            const allComplete = items.every(it => (it.used ?? it.usadas ?? 0) >= (it.sessions ?? it.sesiones ?? 1));
+                            if (allComplete) updates.estado = 'completed';
+                            else if (newUsedTotal > 0 && String(vData.estado || '').toLowerCase() !== 'anulado') updates.estado = 'partially';
+                        } else if (String(vData.estado || '').toLowerCase() !== 'anulado') {
+                            updates.estado = newUsedTotal >= totalSesiones ? 'completed' : (newUsedTotal > 0 ? 'partially' : 'pending');
                         }
-                        await db.collection("spa_vouchers").doc(bonoId).update(updates);
+                        await vRef.update(updates);
                     }
                 } catch (vErr) { console.warn("Error bono:", vErr); }
             }

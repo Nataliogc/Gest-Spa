@@ -750,6 +750,8 @@ function simplifyNameForMatching(name) {
 function findCatalogProduct(voucher) {
     if (!voucher || !state.catalogProducts.length) return null;
 
+    const isMultiCart = Boolean(window.BonoSessionsHelper && window.BonoSessionsHelper.isMultiItemCartVoucher(voucher));
+
     // 1. Intentar match por variation_id o product_id (WooCommerce IDs)
     let vId = voucher.variation_id;
     let pId = voucher.product_id;
@@ -760,16 +762,28 @@ function findCatalogProduct(voucher) {
         pId = voucher.items_desglosados[0].product_id || voucher.items_desglosados[0].wc_id || voucher.items_desglosados[0].id;
     }
 
-    if (vId || pId) {
-        const vIdStr = vId ? String(vId).trim() : '';
-        const pIdStr = pId ? String(pId).trim() : '';
+    const normId = (val) => {
+        if (val === null || val === undefined) return '';
+        const s = String(val).trim();
+        return (!s || s === '0') ? '' : s;
+    };
+    const vIdStr = normId(vId);
+    const pIdStr = normId(pId);
 
-        const idMatch = state.catalogProducts.find(p => {
-            const catalogWcId = p.wc_id ? String(p.wc_id).trim() : '';
-            return (vIdStr && (catalogWcId === vIdStr || p.id === `wc-${vIdStr}`)) ||
-                (pIdStr && (catalogWcId === pIdStr || p.id === `wc-${pIdStr}`));
+    if (vIdStr) {
+        const vMatch = state.catalogProducts.find(p => {
+            const catalogVarId = normId(p.variation_id);
+            const catalogWcId = normId(p.wc_id);
+            return catalogVarId === vIdStr || catalogWcId === vIdStr || p.id === `wc-${vIdStr}`;
         });
-        if (idMatch) return idMatch;
+        if (vMatch) return vMatch;
+    } else if (pIdStr && !isMultiCart) {
+        const pMatch = state.catalogProducts.find(p => {
+            const catalogWcId = normId(p.wc_id);
+            const catalogProdId = normId(p.product_id);
+            return catalogWcId === pIdStr || catalogProdId === pIdStr || p.id === `wc-${pIdStr}`;
+        });
+        if (pMatch) return pMatch;
     }
 
     // 2. Fallback a match por nombre simplificado + precio
@@ -789,6 +803,9 @@ function findCatalogProduct(voucher) {
     // Fallback a match por nombre exacto original
     match = state.catalogProducts.find(p => (p.nombre || '').toLowerCase() === productName);
     if (match) return match;
+
+    // En carritos multi-producto no hacer match parcial engañoso con un solo servicio
+    if (isMultiCart) return null;
 
     // Partial match candidates
     const candidates = state.catalogProducts.filter(p => {
@@ -2344,8 +2361,9 @@ async function sincronizarConTienda(persistentData, btn, originalText) {
 
                 // NUEVO: Asegurar que IDs se guardan/actualizan en bonos existentes
                 const firstItem = b.items_desglosados?.[0] || {};
-                const topPId = b.product_id || firstItem.product_id;
-                const topVId = b.variation_id || firstItem.variation_id;
+                const isMultiCartExisting = Array.isArray(b.items_desglosados) && b.items_desglosados.length > 1;
+                const topPId = isMultiCartExisting ? (b.product_id || null) : (b.product_id || firstItem.product_id || null);
+                const topVId = isMultiCartExisting ? (b.variation_id || null) : (b.variation_id || firstItem.variation_id || null);
 
                 // Preparar datos a actualizar
                 const updateData = {};
@@ -2433,26 +2451,43 @@ async function sincronizarConTienda(persistentData, btn, originalText) {
 
                 // Refinar cálculo de sesiones por item
                 if (b.items_desglosados) {
-                    calculatedTotal = 0;
                     b.items_desglosados.forEach(item => {
                         // Pasar IDs para detección precisa por item
                         // NOTA: El plugin WooCommerce (robahotel) devuelve 'nombre' y 'cantidad'
                         // mientras que el modo legacy usa 'name' y 'sessions'
                         const itemName = item.name || item.nombre || '';
-                        const itemQuantity = item.cantidad || 1; // Cantidad comprada en WooCommerce
+                        const itemQuantity = Math.max(1, parseInt(item.cantidad, 10) || 1); // Cantidad comprada en WooCommerce
                         const det = detectSessions({
                             producto: itemName,
                             importe: item.price || item.precio,
                             product_id: item.product_id,
                             variation_id: item.variation_id,
-                            cantidad: itemQuantity
+                            cantidad: 1 // Detección unitaria; multiplicamos por cantidad una sola vez abajo
                         });
+                        const itemCatMatch = (window.BonoSessionsHelper && typeof window.BonoSessionsHelper.findCatalogMatchForSessionDetection === 'function')
+                            ? window.BonoSessionsHelper.findCatalogMatchForSessionDetection({
+                                producto: itemName,
+                                product_id: item.product_id,
+                                variation_id: item.variation_id
+                            }, state.catalogProducts)
+                            : null;
                         // Normalizar el item para que tenga siempre el campo 'name'
                         if (!item.name && item.nombre) item.name = item.nombre;
-                        item.sessions = det.total * itemQuantity; // Sesiones = detectadas × cantidad
+                        item.sessions = (window.BonoSessionsHelper && typeof window.BonoSessionsHelper.calculateItemSessions === 'function')
+                            ? window.BonoSessionsHelper.calculateItemSessions({
+                                name: itemName,
+                                catalogMatch: itemCatMatch,
+                                apiSessions: item.sessions,
+                                quantity: itemQuantity,
+                                detectedTextSessions: det.total
+                            })
+                            : (det.total * itemQuantity);
                         item.pax = det.paxPerSession;
-                        calculatedTotal += item.sessions;
                     });
+                    calculatedTotal = (window.BonoSessionsHelper && typeof window.BonoSessionsHelper.sumReservableItemSessions === 'function')
+                        ? window.BonoSessionsHelper.sumReservableItemSessions(b.items_desglosados)
+                        : b.items_desglosados.reduce((acc, it) => acc + (parseInt(it.sessions, 10) || 1), 0);
+                    if (!calculatedTotal && b.items_desglosados.length > 0) calculatedTotal = 1;
                 }
 
                 b.sesiones_totales = calculatedTotal;
@@ -2474,8 +2509,9 @@ async function sincronizarConTienda(persistentData, btn, originalText) {
                 }
                 b.pax_por_sesion = calculatedPax;
 
-                // Asegurar persistencia de IDs a nivel de raíz para el bono (usa el del primer item si es nuevo)
+                // Asegurar persistencia de IDs a nivel de raíz para el bono (solo si es un único ítem)
                 const firstItem = b.items_desglosados?.[0] || {};
+                const isMultiCartNew = Array.isArray(b.items_desglosados) && b.items_desglosados.length > 1;
 
                 // NUEVO: Inicializar campos de pago para bonos de WooCommerce
                 // Los bonos de venta online deben estar PAGADOS con método 'online' por defecto
@@ -2497,8 +2533,8 @@ async function sincronizarConTienda(persistentData, btn, originalText) {
                 const topLevelDataRaw = {
                     ...b,
                     ...paymentFields,
-                    product_id: b.product_id || firstItem.product_id,
-                    variation_id: b.variation_id || firstItem.variation_id,
+                    product_id: isMultiCartNew ? (b.product_id || null) : (b.product_id || firstItem.product_id),
+                    variation_id: isMultiCartNew ? (b.variation_id || null) : (b.variation_id || firstItem.variation_id),
                     estado: finalState,
                     synced_at: new Date().toISOString(),
                     // NUEVO: Agregar searchTokens (array) para búsquedas optimizadas
@@ -2746,23 +2782,27 @@ function detectSessions(voucher) {
     const lower = (productName || '').toLowerCase().trim();
 
     // 1. Intentar buscar en el catálogo (state.catalogProducts)
-    let catalogMatch = null;
-    const vId = voucher.variation_id ? String(voucher.variation_id).trim() : null;
-    const pId = voucher.product_id ? String(voucher.product_id).trim() : null;
-
-    if (vId || pId) {
-        catalogMatch = state.catalogProducts.find(p => {
-            const catalogWcId = p.wc_id ? String(p.wc_id).trim() : '';
-            return (vId && (catalogWcId === vId || p.id === `wc-${vId}`)) ||
-                (pId && (catalogWcId === pId || p.id === `wc-${pId}`));
-        });
-    }
-
-    if (!catalogMatch && lower) {
-        // Match exacto o por nombre contenido
-        catalogMatch = state.catalogProducts.find(p => (p.nombre || '').toLowerCase() === lower);
-        if (!catalogMatch) {
-            catalogMatch = state.catalogProducts.find(p => lower.includes((p.nombre || '').toLowerCase()));
+    let catalogMatch = (window.BonoSessionsHelper && typeof window.BonoSessionsHelper.findCatalogMatchForSessionDetection === 'function')
+        ? window.BonoSessionsHelper.findCatalogMatchForSessionDetection(voucher, state.catalogProducts)
+        : null;
+    if (!catalogMatch && (!window.BonoSessionsHelper || typeof window.BonoSessionsHelper.findCatalogMatchForSessionDetection !== 'function')) {
+        const vId = voucher.variation_id ? String(voucher.variation_id).trim() : null;
+        const pId = voucher.product_id ? String(voucher.product_id).trim() : null;
+        if (vId && vId !== '0') {
+            catalogMatch = state.catalogProducts.find(p => {
+                const catalogVarId = p.variation_id ? String(p.variation_id).trim() : '';
+                const catalogWcId = p.wc_id ? String(p.wc_id).trim() : '';
+                return catalogVarId === vId || catalogWcId === vId || p.id === `wc-${vId}`;
+            });
+        } else if (pId && pId !== '0') {
+            catalogMatch = state.catalogProducts.find(p => {
+                const catalogWcId = p.wc_id ? String(p.wc_id).trim() : '';
+                const catalogProdId = p.product_id ? String(p.product_id).trim() : '';
+                return catalogWcId === pId || catalogProdId === pId || p.id === `wc-${pId}`;
+            });
+        }
+        if (!catalogMatch && lower) {
+            catalogMatch = state.catalogProducts.find(p => (p.nombre || '').toLowerCase() === lower);
         }
     }
 
@@ -2865,16 +2905,18 @@ function detectSessions(voucher) {
     // 3. Consolidar resultados
     let total = 1;
     let pax = 1;
+    const isExplicitSingleSession = /sesi[oó]n\s+de\s+\d+/i.test(lower)
+        && !/(bono|pack|sesiones|\d+\s*\+\s*\d+|\d+\s*x\s+)/i.test(lower);
 
     if (catalogMatch) {
-        total = catalogMatch.sesiones || 1;
+        total = isExplicitSingleSession ? 1 : (catalogMatch.sesiones || 1);
         pax = catalogMatch.pax || 1;
 
         // --- LÓGICA DE PACKS POR ITEMS INCLUIDOS ---
         const catalogNameLower = (catalogMatch.nombre || '').toLowerCase();
         const isCatalogPack = catalogNameLower.includes("pack") || catalogNameLower.includes("pk") || lower.includes("pack");
 
-        if (isCatalogPack && catalogMatch.items_incluidos && catalogMatch.items_incluidos.length > 1) {
+        if (!isExplicitSingleSession && isCatalogPack && catalogMatch.items_incluidos && catalogMatch.items_incluidos.length > 1) {
             // FIX: Only sum items if it's NOT a Ritual/Experience (which are 1 session packs)
             const isSingleSessionType = catalogNameLower.includes('ritual') ||
                 catalogNameLower.includes('experien') ||
@@ -2891,25 +2933,21 @@ function detectSessions(voucher) {
         BLOQUEO DEFINITIVO DEL BUG:
         Prohibido inferir sesiones extras basándose en el precio.
         El precio es soberano y no debe alterar la estructura del servicio.
-        
-        if (catalogMatch.precio > 0 && voucherPrice > 0) {
-            const catalogPrice = parseFloat(catalogMatch.precio);
-            const ratio = Math.round(voucherPrice / catalogPrice);
-            // ... (Lógica peligrosa eliminada) ...
-        } 
         */
 
         // Priorizar detección por texto si el catálogo dice 1 y el nombre es muy explícito
-        if (total === 1 && detectedTotal > 1) {
+        if (isExplicitSingleSession) {
+            total = 1;
+        } else if (total === 1 && detectedTotal > 1) {
             total = detectedTotal;
         }
     } else {
-        total = detectedTotal;
+        total = isExplicitSingleSession ? 1 : detectedTotal;
     }
 
     // PRIORIDAD MÁXIMA: Cantidad del pedido
     if (quantity > 1) {
-        const baseSessions = catalogMatch ? (catalogMatch.sesiones || 1) : detectedTotal;
+        const baseSessions = isExplicitSingleSession ? 1 : (catalogMatch ? (catalogMatch.sesiones || 1) : detectedTotal);
         total = quantity * baseSessions;
     }
 
@@ -2933,18 +2971,6 @@ function detectSessions(voucher) {
 
     if (isDouble && !isIndividual) {
         pax = 2;
-
-        // IMPORTANTE: Si es un pack de pareja, NO aplicar el ratio a las sesiones
-        // El precio alto es porque es para 2 personas, no porque sean más sesiones
-        if (catalogMatch && catalogMatch.precio > 0 && voucherPrice > 0) {
-            const catalogPrice = parseFloat(catalogMatch.precio);
-            const ratio = Math.round(voucherPrice / catalogPrice);
-
-            // Si el ratio es ~2 y ya detectamos que es pareja, ajustar
-            if (ratio === 2 && total > 1) {
-                total = Math.ceil(total / 2); // Dividir las sesiones porque el ratio era por PAX, no por sesiones
-            }
-        }
     } else if (isIndividual) {
         pax = 1;
     } else if (catalogMatch && catalogMatch.pax) {
@@ -3449,8 +3475,11 @@ function renderBonosFromState(missingNum = null) {
         }
 
         // Buscar producto en el catálogo (primero por ID, luego por nombre)
+        const isMultiCartRow = Boolean(window.BonoSessionsHelper && window.BonoSessionsHelper.isMultiItemCartVoucher(b));
         const catalogMatch = findCatalogProduct(b);
-        const thumbUrl = catalogMatch && catalogMatch.imagen ? catalogMatch.imagen : 'zenith-icon.png';
+        const thumbUrl = (catalogMatch && catalogMatch.imagen)
+            ? catalogMatch.imagen
+            : (b.items_desglosados?.[0]?.imagen || 'zenith-icon.png');
 
         // Mejorar visualización del precio: Si es 0 o vacío, intentar mostrar el del catálogo (con multiplicador)
         let displayedPrice = parseFloat(b.importe) || 0;
@@ -3485,7 +3514,7 @@ function renderBonosFromState(missingNum = null) {
             <td style="font-weight:700; ${v.isMonedero ? 'color:#065f46;' : ''}">${b.bono || '-'}</td>
             <td>
                 ${(() => {
-                const displayProductName = (b.origen !== 'local' && catalogMatch && catalogMatch.nombre) ? catalogMatch.nombre : (b.producto || '-');
+                const displayProductName = (!isMultiCartRow && b.origen !== 'local' && catalogMatch && catalogMatch.nombre) ? catalogMatch.nombre : (b.producto || '-');
                 if (v.isMonedero) {
                     return `
                     <div style="display: flex; align-items: center; gap: 8px; font-weight: 800; color: #064e3b;">
@@ -3803,6 +3832,9 @@ async function openVoucherManagement(code) {
         return;
     }
 
+    window._globalSessionsManuallyEdited = false;
+    window._globalPaxManuallyEdited = false;
+
     const detected = detectSessions(v);
 
     document.getElementById("vm-title-code").textContent = code;
@@ -3966,30 +3998,49 @@ async function openVoucherManagement(code) {
         const itemName = (item.name || '').trim().toLowerCase().replace(/\s+/g, ' ');
         const normalizedName = itemName.replace(/\s*-\s*\d+['"]?\s*(min|minutos)?/gi, '').trim();
 
-        // PRIORITY 1: Match by IDs
+        // PRIORITY 1: Match by IDs (variation_id tiene prioridad absoluta sobre product_id)
         let catalogItem = null;
         if (item.variation_id || item.product_id || item.wc_id || item.id) {
-            const vIdStr = item.variation_id ? String(item.variation_id).trim() : '';
-            const pIdStr = item.product_id ? String(item.product_id).trim() : '';
-            const wcIdStr = item.wc_id ? String(item.wc_id).trim() : '';
-            const itemIdStr = item.id ? String(item.id).trim() : '';
+            const normIdItem = (val) => {
+                if (val === null || val === undefined) return '';
+                const s = String(val).trim();
+                return (!s || s === '0') ? '' : s;
+            };
+            const vIdStr = normIdItem(item.variation_id);
+            const pIdStr = normIdItem(item.product_id);
+            const wcIdStr = normIdItem(item.wc_id);
+            const itemIdStr = normIdItem(item.id);
 
-            catalogItem = state.catalogProducts.find(p => {
-                const catalogWcId = p.wc_id ? String(p.wc_id).trim() : '';
-                const catalogFirestoreId = p.id || '';
-                return (vIdStr && (catalogWcId === vIdStr || catalogFirestoreId === `wc-${vIdStr}`)) ||
-                    (pIdStr && (catalogWcId === pIdStr || catalogFirestoreId === `wc-${pIdStr}`)) ||
-                    (wcIdStr && catalogWcId === wcIdStr) ||
-                    (itemIdStr && catalogFirestoreId === itemIdStr);
-            });
+            if (vIdStr) {
+                catalogItem = state.catalogProducts.find(p => {
+                    const catalogVarId = normIdItem(p.variation_id);
+                    const catalogWcId = normIdItem(p.wc_id);
+                    const catalogFirestoreId = p.id || '';
+                    return catalogVarId === vIdStr || catalogWcId === vIdStr || catalogFirestoreId === `wc-${vIdStr}`;
+                });
+            }
+            if (!catalogItem && !vIdStr && (pIdStr || wcIdStr || itemIdStr)) {
+                catalogItem = state.catalogProducts.find(p => {
+                    const catalogWcId = normIdItem(p.wc_id);
+                    const catalogProdId = normIdItem(p.product_id);
+                    const catalogFirestoreId = p.id || '';
+                    return (pIdStr && (catalogWcId === pIdStr || catalogProdId === pIdStr || catalogFirestoreId === `wc-${pIdStr}`)) ||
+                        (wcIdStr && catalogWcId === wcIdStr) ||
+                        (itemIdStr && catalogFirestoreId === itemIdStr);
+                });
+            }
         }
 
-        // PRIORITY 2: Match by name
+        // PRIORITY 2: Match by name (evitando emparejar servicio individual con un Bono multi-sesión)
         if (!catalogItem) {
+            const itemMentionsMulti = /(bono|sesiones|b5|b10)/i.test(itemName);
             catalogItem = state.catalogProducts.find(p => {
                 if (!p.nombre) return false;
                 const catalogName = p.nombre.trim().toLowerCase().replace(/\s+/g, ' ');
                 const catalogNormalized = catalogName.replace(/\s*-\s*\d+['"]?\s*(min|minutos)?/gi, '').trim();
+                if (!itemMentionsMulti && (catalogName.includes('bono') || (parseInt(p.sesiones, 10) || 1) > 1)) {
+                    return catalogName === itemName;
+                }
                 return catalogName === itemName || catalogNormalized === normalizedName || catalogName.includes(normalizedName) || normalizedName.includes(catalogNormalized);
             });
         }
@@ -4026,10 +4077,14 @@ async function openVoucherManagement(code) {
     // Mostrar información del PACK principal en la vista previa
     if (detectedServices.length > 0) {
         const firstService = detectedServices[0];
+        const isMultiCart = Boolean(window.BonoSessionsHelper && window.BonoSessionsHelper.isMultiItemCartVoucher({ ...v, items_desglosados: detectedServices }));
 
         // Buscar el producto principal (Pack) en el catálogo para obtener su nombre limpio e imagen real
-        const packInCatalog = catalogMatchForBreakdown || state.catalogProducts.find(p => p.nombre === (v.producto || firstService.name));
-        const packName = (v.origen !== 'local' && packInCatalog && packInCatalog.nombre) ? packInCatalog.nombre : (v.producto || firstService.name);
+        const packInCatalog = isMultiCart ? null : (catalogMatchForBreakdown || state.catalogProducts.find(p => p.nombre === (v.producto || firstService.name)));
+        const combinedCartName = isMultiCart ? detectedServices.map(s => s.name).filter(Boolean).join(' + ') : '';
+        const packName = isMultiCart
+            ? (v.producto || combinedCartName || firstService.name)
+            : ((v.origen !== 'local' && packInCatalog && packInCatalog.nombre) ? packInCatalog.nombre : (v.producto || firstService.name));
         const mainImage = (packInCatalog && packInCatalog.imagen) ? packInCatalog.imagen : (firstService.imagen || 'zenith-icon.png');
 
         // Configurar la tarjeta
@@ -4406,14 +4461,18 @@ async function openVoucherManagement(code) {
         renderEditableBreakdown();
     };
     window.updateVoucherItemSession = (idx, val) => {
-        state.editingVoucherItems[idx].sessions = parseInt(val) || 1;
+        state.editingVoucherItems[idx].sessions = Math.max(1, parseInt(val, 10) || 1);
+        window._globalSessionsManuallyEdited = false;
         // Actualizar el global para mantener consistencia
-        const newTotal = state.editingVoucherItems.reduce((acc, curr) => acc + (curr.sessions || 1), 0);
-        document.getElementById("vm-sesiones-total").value = newTotal;
+        const newTotal = (window.BonoSessionsHelper && typeof window.BonoSessionsHelper.sumReservableItemSessions === 'function')
+            ? window.BonoSessionsHelper.sumReservableItemSessions(state.editingVoucherItems)
+            : state.editingVoucherItems.reduce((acc, curr) => acc + (curr.sessions || 1), 0);
+        document.getElementById("vm-sesiones-total").value = newTotal || 1;
         window.updatePriceBadge();
     };
     window.updateVoucherItemPax = (idx, val) => {
         state.editingVoucherItems[idx].pax = parseInt(val) || 1;
+        window._globalPaxManuallyEdited = false;
         // Actualizar el global para mantener consistencia (asumiendo que todos los items deben tener el mismo pax)
         document.getElementById("vm-pax-sesion").value = val;
         window.updatePriceBadge();
@@ -4596,47 +4655,77 @@ async function openVoucherManagement(code) {
         updatePriceBadgeCalculations(v);
     };
 
-    // Función para sincronizar los PAX y Sesiones de los items internos con los campos globales
-    window.updateBreakdownFromGlobalInputs = () => {
-        const globalPax = parseInt(document.getElementById("vm-pax-sesion").value) || 1;
-        const globalSessions = parseInt(document.getElementById("vm-sesiones-total").value) || 1;
-
+    // Sincronizar SOLO PAX hacia los items del breakdown sin tocar sus sesiones
+    window.syncPaxToBreakdownItems = () => {
+        const globalPax = Math.max(1, parseInt(document.getElementById("vm-pax-sesion")?.value, 10) || 1);
         if (state.editingVoucherItems && state.editingVoucherItems.length > 0) {
-            // 1. Sincronizar PAX para todos los items
             state.editingVoucherItems.forEach(item => {
                 item.pax = globalPax;
             });
+        }
+        renderEditableBreakdown();
+        window.updatePriceBadge();
+    };
 
-            // 2. Redistribuir Sesiones (Más balanceado)
-            const itemCount = state.editingVoucherItems.length;
-            if (itemCount === 1) {
-                state.editingVoucherItems[0].sessions = globalSessions;
+    // Redistribuir sesiones solo cuando el usuario edita explícitamente #vm-sesiones-total
+    window.updateSessionsFromGlobalInput = () => {
+        const rawVal = document.getElementById("vm-sesiones-total")?.value;
+        const globalSessions = parseInt(rawVal, 10);
+        if (!Number.isFinite(globalSessions) || globalSessions < 1) return;
+
+        if (state.editingVoucherItems && state.editingVoucherItems.length > 0) {
+            if (window.BonoSessionsHelper && typeof window.BonoSessionsHelper.redistributeSessionsAcrossItems === 'function') {
+                state.editingVoucherItems = window.BonoSessionsHelper.redistributeSessionsAcrossItems(state.editingVoucherItems, globalSessions);
             } else {
-                let remaining = globalSessions;
-                state.editingVoucherItems.forEach((item, i) => {
-                    const share = Math.floor(remaining / (itemCount - i));
-                    item.sessions = Math.max(0, share);
-                    remaining -= share;
-                });
+                const itemCount = state.editingVoucherItems.length;
+                if (itemCount === 1) {
+                    state.editingVoucherItems[0].sessions = globalSessions;
+                } else {
+                    let remaining = globalSessions;
+                    state.editingVoucherItems.forEach((item, i) => {
+                        const share = Math.floor(remaining / (itemCount - i));
+                        item.sessions = Math.max(0, share);
+                        remaining -= share;
+                    });
+                }
             }
         }
 
-        // Refrescar visualmente los "muñecos" y datos
         renderEditableBreakdown();
-        // También actualizar precio
         window.updatePriceBadge();
+    };
+
+    // Alias retrocompatible: sincroniza PAX y únicamente redistribuye sesiones si se editó manualmente el total global
+    window.updateBreakdownFromGlobalInputs = () => {
+        window.syncPaxToBreakdownItems();
+        if (window._globalSessionsManuallyEdited) {
+            window.updateSessionsFromGlobalInput();
+        }
     };
 
     // Attach listeners for visual updates (Price and Breakdown)
     const paxInput = document.getElementById("vm-pax-sesion");
     if (paxInput) {
-        paxInput.onchange = window.updateBreakdownFromGlobalInputs;
-        paxInput.onkeyup = window.updateBreakdownFromGlobalInputs;
+        paxInput.oninput = () => {
+            window._globalPaxManuallyEdited = true;
+            window.syncPaxToBreakdownItems();
+        };
+        paxInput.onchange = () => {
+            window._globalPaxManuallyEdited = true;
+            window.syncPaxToBreakdownItems();
+        };
+        paxInput.onkeyup = null;
     }
     const sessionsInput = document.getElementById("vm-sesiones-total");
     if (sessionsInput) {
-        sessionsInput.onchange = window.updateBreakdownFromGlobalInputs;
-        sessionsInput.onkeyup = window.updateBreakdownFromGlobalInputs;
+        sessionsInput.oninput = () => {
+            window._globalSessionsManuallyEdited = true;
+        };
+        sessionsInput.onchange = () => {
+            window._globalSessionsManuallyEdited = true;
+            window.updateSessionsFromGlobalInput();
+        };
+        sessionsInput.onkeyup = null;
     }
 
     window.linkVoucherToCatalogProduct = () => {
@@ -4654,7 +4743,9 @@ async function openVoucherManagement(code) {
             document.getElementById("vm-producto").value = product.nombre;
 
             // Calcular total de sesiones de los nuevos items
-            const totalSessions = newItems.reduce((acc, curr) => acc + (curr.sessions || 1), 0);
+            const totalSessions = (window.BonoSessionsHelper && typeof window.BonoSessionsHelper.sumReservableItemSessions === 'function')
+                ? (window.BonoSessionsHelper.sumReservableItemSessions(newItems) || 1)
+                : newItems.reduce((acc, curr) => acc + (curr.sessions || 1), 0);
             let totalPax = newItems.length > 0 ? (newItems[0].pax || 1) : 1;
 
             // FIX: Forzar visualmente pax=2 si el nombre lo indica claramente
@@ -4663,6 +4754,7 @@ async function openVoucherManagement(code) {
             }
 
             // Actualizar inputs de sesiones y pax
+            window._globalSessionsManuallyEdited = false;
             document.getElementById("vm-sesiones-total").value = totalSessions;
             document.getElementById("vm-pax-sesion").value = totalPax;
 
@@ -4702,7 +4794,9 @@ async function openVoucherManagement(code) {
     let suggestedPax = 1;
 
     if (detectedServices.length > 0) {
-        suggestedTotal = detectedServices.reduce((sum, s) => sum + (s.sessions || s.sesiones || 1), 0);
+        suggestedTotal = (window.BonoSessionsHelper && typeof window.BonoSessionsHelper.sumReservableItemSessions === 'function')
+            ? window.BonoSessionsHelper.sumReservableItemSessions(detectedServices)
+            : detectedServices.reduce((sum, s) => sum + (s.sessions || s.sesiones || 1), 0);
         suggestedPax = detectedServices[0].pax || 1;
     }
 
@@ -4715,7 +4809,7 @@ async function openVoucherManagement(code) {
         prodNameLower.includes('escapada') ||
         (prodNameLower.includes('pack') && !prodNameLower.match(/(\d+)\s*sesion/));
 
-    if (!isSingleSessionPack && (!sessionsTotales || sessionsTotales === 1) && suggestedTotal > 1) {
+    if (!isSingleSessionPack && detectedServices.length > 0 && suggestedTotal > 0) {
         sessionsTotales = suggestedTotal;
     }
 
@@ -4845,11 +4939,18 @@ async function openVoucherManagement(code) {
                     return nameMatch || spaceMatch;
                 });
 
-                if (validReservations.length > 0) {
-                    const computedUsed = validReservations.reduce((sum) => sum + 1, 0);
+                const dedupedReservations = (window.BonoSessionsHelper && typeof window.BonoSessionsHelper.dedupeChildReservationsForItem === 'function')
+                    ? window.BonoSessionsHelper.dedupeChildReservationsForItem(validReservations)
+                    : validReservations;
+
+                if (dedupedReservations.length > 0) {
+                    const computedUsed = dedupedReservations.length;
                     if (computedUsed > (item.used || 0)) {
                         item.used = computedUsed;
                         console.log(`[BONO] Auto - updated item '${item.name}' used -> ${computedUsed} `);
+                    } else if (validReservations.length > dedupedReservations.length && (item.used || 0) === validReservations.length) {
+                        item.used = dedupedReservations.length;
+                        console.log(`[BONO] Reconciliado doble conteo en '${item.name}': ${validReservations.length} -> ${dedupedReservations.length}`);
                     }
                 }
             });
@@ -4859,9 +4960,15 @@ async function openVoucherManagement(code) {
     // -------------------------------------
     // RE-POBLAR USADAS TRAS SINCRONIZACIÓN DE HISTORIAL (bidireccional si el estado es activo/parcial)
     const currentUsedUI = parseInt(document.getElementById("vm-sesiones-usadas").value) || 0;
-    const computedUsedFromHistory = detectedServices.reduce((sum, s) => sum + (s.used || 0), 0);
+    const computedUsedFromHistory = (state.editingVoucherItems || detectedServices).reduce((sum, s) => sum + (s.used || 0), 0);
     const historyCount = Array.isArray(history)
-        ? history.reduce((sum, h) => sum + (parseInt(h.sesiones_consumidas) || 1), 0)
+        ? history.reduce((sum, h) => sum + (
+            (window.BonoSessionsHelper && typeof window.BonoSessionsHelper.getReservationConsumedSessions === 'function')
+                ? window.BonoSessionsHelper.getReservationConsumedSessions(h, h.id)
+                : ((h.sesiones_consumidas !== undefined && h.sesiones_consumidas !== null && String(h.sesiones_consumidas).trim() !== '')
+                    ? Math.max(0, parseInt(h.sesiones_consumidas, 10) || 0)
+                    : ((String(h.id || '').endsWith('_spa_addon') || (h.is_pack_child && !h.is_primary_pack)) ? 0 : 1))
+        ), 0)
         : 0;
     const realUsed = Math.max(computedUsedFromHistory, historyCount);
     const rawEstadoVoucher = String(v.estado || '').toLowerCase().trim();
@@ -5035,8 +5142,17 @@ async function saveVoucherChanges() {
             return;
         }
 
-        // Asegurar que los items del breakdown están sincronizados antes de guardar
-        if (window.updateBreakdownFromGlobalInputs) window.updateBreakdownFromGlobalInputs();
+        const vBeforeSave = state.bonos.find(b => b.bono === code);
+        const isEditableOnSave = Boolean(vBeforeSave && (vBeforeSave.origen === 'local' || (vBeforeSave.bono && vBeforeSave.bono.includes('exc.Loc'))));
+
+        // Solo redistribuir sesiones si el usuario editó manualmente #vm-sesiones-total
+        if (window._globalSessionsManuallyEdited && typeof window.updateSessionsFromGlobalInput === 'function') {
+            window.updateSessionsFromGlobalInput();
+            window._globalSessionsManuallyEdited = false;
+        } else if ((window._globalPaxManuallyEdited || !isEditableOnSave) && typeof window.syncPaxToBreakdownItems === 'function') {
+            window.syncPaxToBreakdownItems();
+        }
+        window._globalPaxManuallyEdited = false;
 
         const getInputValue = (id, defaultValue = '') => {
             const el = document.getElementById(id);
@@ -5047,23 +5163,43 @@ async function saveVoucherChanges() {
             return el.value;
         };
 
+        const itemsListSave = cleanUndefined(state.editingVoucherItems || []);
+        const prodLowerSave = String(getInputValue("vm-producto") || vBeforeSave?.producto || '').toLowerCase();
+        const isSinglePackSave = prodLowerSave.includes('ritual') ||
+            prodLowerSave.includes('experien') ||
+            prodLowerSave.includes('fantasía') ||
+            prodLowerSave.includes('sueño') ||
+            prodLowerSave.includes('escapada') ||
+            (prodLowerSave.includes('pack') && !prodLowerSave.match(/(\d+)\s*sesion/));
+        const itemsSessionsSumSave = (itemsListSave.length > 0 && window.BonoSessionsHelper && typeof window.BonoSessionsHelper.sumReservableItemSessions === 'function')
+            ? window.BonoSessionsHelper.sumReservableItemSessions(itemsListSave)
+            : 0;
+        const rawGlobalSessionsSave = parseInt(getInputValue("vm-sesiones-total", '1'), 10) || 1;
+        const finalSesionesTotalesSave = (itemsListSave.length > 0 && !isSinglePackSave && itemsSessionsSumSave > 0)
+            ? itemsSessionsSumSave
+            : rawGlobalSessionsSave;
+        const totalFieldEl = document.getElementById("vm-sesiones-total");
+        if (totalFieldEl && !isSinglePackSave && itemsSessionsSumSave > 0) {
+            totalFieldEl.value = finalSesionesTotalesSave;
+        }
+
         const updates = {
             cliente: getInputValue("vm-cliente"),
             email: getInputValue("vm-email"),
             telefono: getInputValue("vm-telefono"),
             fecha_validez: getInputValue("vm-fecha-validez"),
-            sesiones_totales: parseInt(getInputValue("vm-sesiones-total", '1')) || 1,
+            sesiones_totales: finalSesionesTotalesSave,
             sesiones_usadas: parseInt(getInputValue("vm-sesiones-usadas", '0')) || 0,
             pax_por_sesion: parseInt(getInputValue("vm-pax-sesion", '1')) || 1,
             notas_internas: getInputValue("vm-notas"),
             mensaje_regalo: getInputValue("vm-mensaje"),
             producto: getInputValue("vm-producto"),
             notes: getInputValue("vm-notas"), // Alias
-            items_desglosados: cleanUndefined(state.editingVoucherItems || []),
+            items_desglosados: itemsListSave,
             manual_update: true,
             // Preserve technical IDs if they exist in state
-            product_id: (state.bonos.find(b => b.bono === code)?.product_id) || null,
-            variation_id: (state.bonos.find(b => b.bono === code)?.variation_id) || null,
+            product_id: (vBeforeSave?.product_id) || null,
+            variation_id: (vBeforeSave?.variation_id) || null,
             // 3️⃣ BLOQUEO POST-GUARDADO (ESTABILIDAD TOTAL)
             sync_locked: true,
             sync_locked_at: new Date().toISOString(),
@@ -8590,6 +8726,59 @@ window.recalculateVoucherFromCatalog = async function () {
 };
 
 
+function preservePreviousVoucherItemUsage(rebuiltItems = [], previousItems = []) {
+    if (!Array.isArray(rebuiltItems) || rebuiltItems.length === 0) return [];
+    if (!Array.isArray(previousItems) || previousItems.length === 0) return rebuiltItems;
+
+    const norm = (s) => String(s || '').toLowerCase().replace(/\s+/g, ' ').trim();
+    const normId = (v) => (v !== null && v !== undefined && String(v).trim() !== '' && String(v).trim() !== '0') ? String(v).trim() : '';
+    const usedPrevIndices = new Set();
+
+    return rebuiltItems.map(newItem => {
+        const nVId = normId(newItem.variation_id);
+        const nPId = normId(newItem.product_id);
+        const nName = norm(newItem.name || newItem.nombre);
+
+        let matchIdx = -1;
+        if (nVId) {
+            matchIdx = previousItems.findIndex((p, i) => !usedPrevIndices.has(i) && normId(p.variation_id || p.wc_id) === nVId);
+        }
+        if (matchIdx === -1 && nPId && !nVId) {
+            matchIdx = previousItems.findIndex((p, i) => !usedPrevIndices.has(i) && normId(p.product_id || p.wc_id) === nPId);
+        }
+        if (matchIdx === -1 && nName) {
+            matchIdx = previousItems.findIndex((p, i) => !usedPrevIndices.has(i) && norm(p.name || p.nombre) === nName);
+        }
+        if (matchIdx === -1 && nName) {
+            matchIdx = previousItems.findIndex((p, i) => {
+                if (usedPrevIndices.has(i)) return false;
+                const pName = norm(p.name || p.nombre);
+                return pName && (pName.includes(nName) || nName.includes(pName));
+            });
+        }
+
+        if (matchIdx === -1) return newItem;
+        usedPrevIndices.add(matchIdx);
+        const prev = previousItems[matchIdx];
+        const prevUsed = parseInt(prev.used ?? prev.usadas, 10) || 0;
+        const merged = {
+            ...newItem,
+            itemId: prev.itemId || newItem.itemId,
+            space: newItem.space || prev.space || '',
+            used: prevUsed,
+            usadas: prevUsed,
+            validations: Array.isArray(prev.validations) ? prev.validations : (newItem.validations || []),
+            status: prevUsed >= (newItem.sessions || 1) ? 'completado' : (prev.status || newItem.status || 'pendiente')
+        };
+        if (prev.consumido) {
+            merged.consumido = true;
+            if (prev.consumido_fecha) merged.consumido_fecha = prev.consumido_fecha;
+            if (prev.consumido_usuario) merged.consumido_usuario = prev.consumido_usuario;
+        }
+        return merged;
+    });
+}
+
 // ============================================
 // FORCE RE-SYNC FROM WOOCOMMERCE
 // ============================================
@@ -8701,45 +8890,98 @@ window.resyncVoucherFromWooCommerce = async function () {
             rawItems = Object.values(rawItems);
         }
 
+        const localVoucherBeforeResync = state.bonos.find(b => b.bono === code);
         let finalItems = [];
         if (rawItems && Array.isArray(rawItems) && rawItems.length > 0) {
             console.log("[RESYNC] Usando items de API Optimizada (Array)...", rawItems);
             finalItems = rawItems.map(apiItem => {
-                // Intentar match con catálogo para imagen/espacio
-                const catMatch = state.catalogProducts.find(p => p.wc_id == apiItem.product_id || p.wc_id == apiItem.variation_id) || {};
+                const itemName = apiItem.nombre || apiItem.name || 'Servicio';
+                const itemQty = Math.max(1, parseInt(apiItem.cantidad, 10) || 1);
+                let apiVId = (apiItem.variation_id && String(apiItem.variation_id) !== '0') ? apiItem.variation_id : null;
+                let apiPId = (apiItem.product_id && String(apiItem.product_id) !== '0') ? apiItem.product_id : null;
+                if (apiVId == 6522) apiVId = 6521;
+                if (apiPId == 6522) apiPId = 6519;
+
+                const catMatch = (window.BonoSessionsHelper && typeof window.BonoSessionsHelper.findCatalogMatchForSessionDetection === 'function')
+                    ? (window.BonoSessionsHelper.findCatalogMatchForSessionDetection({
+                        producto: itemName,
+                        product_id: apiPId,
+                        variation_id: apiVId
+                    }, state.catalogProducts) || {})
+                    : (state.catalogProducts.find(p => (apiVId && (p.wc_id == apiVId || p.variation_id == apiVId)) || (!apiVId && apiPId && p.wc_id == apiPId)) || {});
+
+                const unitDet = detectSessions({
+                    producto: itemName,
+                    importe: apiItem.precio || apiItem.price || 0,
+                    product_id: apiPId,
+                    variation_id: apiVId,
+                    cantidad: 1
+                });
+                const sessions = (window.BonoSessionsHelper && typeof window.BonoSessionsHelper.calculateItemSessions === 'function')
+                    ? window.BonoSessionsHelper.calculateItemSessions({
+                        name: itemName,
+                        catalogMatch: Object.keys(catMatch).length > 0 ? catMatch : null,
+                        apiSessions: apiItem.sessions,
+                        quantity: itemQty,
+                        detectedTextSessions: unitDet.total
+                    })
+                    : (Math.max(1, parseInt(apiItem.sessions, 10) || unitDet.total || 1) * itemQty);
+
                 return {
                     itemId: 'srv_' + Math.random().toString(36).substr(2, 9),
-                    name: apiItem.nombre || apiItem.name || 'Servicio',
-                    sessions: apiItem.sessions || apiItem.cantidad || 1,
-                    space: catMatch.espacio || '', // Usar catálogo si hay, o vacío
+                    name: itemName,
+                    sessions,
+                    space: catMatch.espacio || (typeof getSpaceForService === 'function' ? getSpaceForService(itemName) : '') || '',
                     used: 0,
                     status: 'pendiente',
                     validations: [],
                     precio: apiItem.precio || apiItem.price || 0,
-                    pax: apiItem.pax || 1,
+                    pax: apiItem.pax || unitDet.paxPerSession || 1,
                     // ID CONFIRMADO
-                    variation_id: apiItem.variation_id || null,
-                    wc_id: apiItem.variation_id || apiItem.product_id || null,
-                    product_id: apiItem.product_id || null,
+                    variation_id: apiVId,
+                    wc_id: apiVId || apiPId || null,
+                    product_id: apiPId,
                     imagen: catMatch.imagen || null
                 };
             });
+            finalItems = preservePreviousVoucherItemUsage(finalItems, localVoucherBeforeResync?.items_desglosados);
         }
+
+        const isMultiItemsResync = finalItems.length > 1;
+        const resyncedProductName = freshVoucher.producto
+            || (isMultiItemsResync ? finalItems.map(it => it.name).filter(Boolean).join(' + ') : (finalItems[0]?.name || localVoucherBeforeResync?.producto || ''));
+        const resyncedProdLow = String(resyncedProductName || '').toLowerCase();
+        const isSinglePackResync = finalItems.length <= 1 && (
+            resyncedProdLow.includes('ritual') ||
+            resyncedProdLow.includes('experien') ||
+            resyncedProdLow.includes('fantasía') ||
+            resyncedProdLow.includes('sueño') ||
+            resyncedProdLow.includes('escapada') ||
+            (resyncedProdLow.includes('pack') && !resyncedProdLow.match(/(\d+)\s*sesion/))
+        );
+        const computedResyncSessions = isSinglePackResync
+            ? 1
+            : ((finalItems.length > 0 && window.BonoSessionsHelper && typeof window.BonoSessionsHelper.sumReservableItemSessions === 'function')
+                ? (window.BonoSessionsHelper.sumReservableItemSessions(finalItems) || 1)
+                : (finalItems.reduce((sum, it) => sum + (parseInt(it.sessions, 10) || 1), 0) || 1));
 
         // Update Firestore
         const docRef = db.collection("spa_vouchers").doc(code);
         const updateData = {
             importe: freshPrice,
             precio: freshPrice,
-            items_desglosados: finalItems.length > 0 ? finalItems : (freshVoucher.items_desglosados || []),
-            product_id: freshVoucher.product_id || null,
-            variation_id: freshVoucher.variation_id || null,
+            producto: resyncedProductName,
+            items_desglosados: cleanUndefined(finalItems.length > 0 ? finalItems : (freshVoucher.items_desglosados || [])),
+            sesiones_totales: computedResyncSessions,
+            pax_por_sesion: finalItems[0]?.pax || localVoucherBeforeResync?.pax_por_sesion || 1,
+            product_id: isMultiItemsResync ? null : (freshVoucher.product_id || null),
+            variation_id: isMultiItemsResync ? null : (freshVoucher.variation_id || null),
             manual_update: false, // Remove manual protection to allow future auto-syncs
             last_synced: new Date().toISOString()
         };
 
         // Fallback for IDs if missing in top level
-        if (!updateData.product_id && updateData.items_desglosados.length === 1) {
+        if (!isMultiItemsResync && !updateData.product_id && updateData.items_desglosados.length === 1) {
             updateData.product_id = updateData.items_desglosados[0].product_id || updateData.items_desglosados[0].id;
             updateData.variation_id = updateData.items_desglosados[0].variation_id;
         }
@@ -8823,11 +9065,15 @@ window.resyncVoucherFromWooCommerce = async function () {
 
         console.log(`[RESYNC] ✅ Voucher ${code} updated in Firestore`);
 
-        // Update local state
+        // Update local state & local IndexedDB
         const localVoucher = state.bonos.find(b => b.bono === code);
         if (localVoucher) {
             Object.assign(localVoucher, updateData);
+            if (window.apiLocal) {
+                await apiLocal.saveBono({ ...localVoucher, syncStatus: 'synced' }).catch(console.warn);
+            }
         }
+        if (typeof renderBonosFromState === 'function') renderBonosFromState();
 
         showToast(`✅ Bono re-sincronizado: ${freshPrice.toFixed(2)}€`, "success");
 
@@ -9279,28 +9525,128 @@ async function syncSingleVoucher(code) {
             last_wc_sync: new Date().toISOString()
         };
 
-        // --- ID SYNC ---
-        if (order.line_items && order.line_items.length > 0) {
-            const firstItem = order.line_items[0];
-            let vId = firstItem.variation_id || firstItem.product_id;
-            let pId = firstItem.product_id;
+        // --- REBUILD ITEMS, SESSIONS & IDS FROM WOOCOMMERCE ORDER ---
+        const lineItems = Array.isArray(order.line_items) ? order.line_items : [];
+        if (lineItems.length > 0) {
+            let rebuiltItems = [];
+            const firstLi = lineItems[0];
+            let firstVId = (firstLi.variation_id && String(firstLi.variation_id) !== '0') ? firstLi.variation_id : null;
+            let firstPId = (firstLi.product_id && String(firstLi.product_id) !== '0') ? firstLi.product_id : null;
+            if (firstVId == 6522) firstVId = 6521;
+            if (firstPId == 6522) firstPId = 6519;
 
-            // HOTFIX 6522 -> 6521
-            if (vId == 6522) vId = 6521;
-            if (pId == 6522) pId = 6519;
+            let expandedSinglePack = false;
+            if (lineItems.length === 1) {
+                const singleQty = Math.max(1, parseInt(firstLi.quantity, 10) || 1);
+                const singleCatMatch = (window.BonoSessionsHelper && typeof window.BonoSessionsHelper.findCatalogMatchForSessionDetection === 'function')
+                    ? window.BonoSessionsHelper.findCatalogMatchForSessionDetection({
+                        producto: firstLi.name || '',
+                        product_id: firstPId,
+                        variation_id: firstVId
+                    }, state.catalogProducts)
+                    : findCatalogProduct({ producto: firstLi.name || '', product_id: firstPId, variation_id: firstVId });
 
-            updateData.product_id = pId;
-            updateData.variation_id = vId;
+                if (singleCatMatch && Array.isArray(singleCatMatch.items_incluidos) && singleCatMatch.items_incluidos.length > 1) {
+                    const resolvedPack = resolveVoucherBreakdown({
+                        ...(vLocal || {}),
+                        producto: singleCatMatch.nombre || firstLi.name || '',
+                        product_id: firstPId,
+                        variation_id: firstVId,
+                        cantidad: singleQty
+                    }, state.catalogProducts);
+                    if (Array.isArray(resolvedPack) && resolvedPack.length > 0) {
+                        rebuiltItems = resolvedPack.map(it => ({
+                            ...it,
+                            sessions: Math.max(1, parseInt(it.sessions, 10) || 1) * singleQty
+                        }));
+                        expandedSinglePack = true;
+                    }
+                }
+            }
 
-            if (vLocal && vLocal.items_desglosados && vLocal.items_desglosados.length > 0) {
-                updateData.items_desglosados = vLocal.items_desglosados.map(item => {
-                    let itemVId = item.variation_id || item.wc_id || vId;
-                    let itemPId = item.product_id || pId;
-                    if (itemVId == 6522) itemVId = 6521;
-                    if (itemPId == 6522) itemPId = 6519;
-                    return { ...item, variation_id: itemVId, wc_id: itemVId, product_id: itemPId };
+            if (!expandedSinglePack) {
+                rebuiltItems = lineItems.map(li => {
+                    let liVId = (li.variation_id && String(li.variation_id) !== '0') ? li.variation_id : null;
+                    let liPId = (li.product_id && String(li.product_id) !== '0') ? li.product_id : null;
+                    if (liVId == 6522) liVId = 6521;
+                    if (liPId == 6522) liPId = 6519;
+
+                    const liName = li.name || 'Servicio';
+                    const liQty = Math.max(1, parseInt(li.quantity, 10) || 1);
+                    const liPrice = parseFloat(li.total) || parseFloat(li.subtotal) || parseFloat(li.price) || 0;
+
+                    const unitDet = detectSessions({
+                        producto: liName,
+                        importe: liPrice,
+                        product_id: liPId,
+                        variation_id: liVId,
+                        cantidad: 1
+                    });
+                    const itemCatMatch = (window.BonoSessionsHelper && typeof window.BonoSessionsHelper.findCatalogMatchForSessionDetection === 'function')
+                        ? window.BonoSessionsHelper.findCatalogMatchForSessionDetection({
+                            producto: liName,
+                            product_id: liPId,
+                            variation_id: liVId
+                        }, state.catalogProducts)
+                        : null;
+
+                    const sessions = (window.BonoSessionsHelper && typeof window.BonoSessionsHelper.calculateItemSessions === 'function')
+                        ? window.BonoSessionsHelper.calculateItemSessions({
+                            name: liName,
+                            catalogMatch: itemCatMatch,
+                            apiSessions: null,
+                            quantity: liQty,
+                            detectedTextSessions: unitDet.total
+                        })
+                        : (unitDet.total * liQty);
+
+                    const space = (itemCatMatch && itemCatMatch.espacio)
+                        || (typeof getSpaceForService === 'function' ? getSpaceForService(liName) : '')
+                        || '';
+
+                    return {
+                        itemId: 'srv_' + Math.random().toString(36).substr(2, 9),
+                        name: liName,
+                        sessions,
+                        space,
+                        used: 0,
+                        status: 'pendiente',
+                        validations: [],
+                        precio: liPrice,
+                        pax: unitDet.paxPerSession || (itemCatMatch && (parseInt(itemCatMatch.personas || itemCatMatch.pax, 10) || 1)) || 1,
+                        variation_id: liVId,
+                        wc_id: liVId || liPId || null,
+                        product_id: liPId,
+                        imagen: itemCatMatch?.imagen || null
+                    };
                 });
             }
+
+            const preservedItems = preservePreviousVoucherItemUsage(rebuiltItems, vLocal?.items_desglosados);
+            const rawProdName = lineItems.length > 1
+                ? lineItems.map(li => li.name).filter(Boolean).join(' + ')
+                : (firstLi.name || vLocal?.producto || '');
+            const prodLow = rawProdName.toLowerCase();
+            const isSinglePackOrder = lineItems.length === 1 && (
+                prodLow.includes('ritual') ||
+                prodLow.includes('experien') ||
+                prodLow.includes('fantasía') ||
+                prodLow.includes('sueño') ||
+                prodLow.includes('escapada') ||
+                (prodLow.includes('pack') && !prodLow.match(/(\d+)\s*sesion/))
+            );
+            const computedTotalSessions = isSinglePackOrder
+                ? Math.max(1, parseInt(firstLi.quantity, 10) || 1)
+                : ((window.BonoSessionsHelper && typeof window.BonoSessionsHelper.sumReservableItemSessions === 'function')
+                    ? (window.BonoSessionsHelper.sumReservableItemSessions(preservedItems) || 1)
+                    : (preservedItems.reduce((sum, it) => sum + (parseInt(it.sessions, 10) || 1), 0) || 1));
+
+            updateData.producto = rawProdName;
+            updateData.items_desglosados = cleanUndefined(preservedItems);
+            updateData.sesiones_totales = computedTotalSessions;
+            updateData.pax_por_sesion = preservedItems[0]?.pax || vLocal?.pax_por_sesion || 1;
+            updateData.product_id = lineItems.length === 1 ? firstPId : null;
+            updateData.variation_id = lineItems.length === 1 ? (firstVId || firstPId || null) : null;
         }
 
         // Si el precio es 0 o no tiene, intentar recuperarlo de la orden
@@ -9316,30 +9662,24 @@ async function syncSingleVoucher(code) {
             updateData.estado_pago = 'pagado';
         }
 
-        await db.collection("spa_vouchers").doc(code).update(updateData);
+        if (typeof generateSearchTokens === 'function') {
+            updateData.searchTokens = generateSearchTokens({ ...(vLocal || {}), ...updateData, bono: code });
+        }
+
+        const cleanSyncUpdates = cleanUndefined(updateData);
+        const docIdToSync = vLocal?.id || code;
+        await db.collection("spa_vouchers").doc(docIdToSync).set(cleanSyncUpdates, { merge: true });
 
         // 6. Actualizar Estado Local y UI
         if (vLocal) {
-            Object.assign(vLocal, updateData);
-
-            // Refrescar inputs del modal
-            const clienteInp = document.getElementById("vm-cliente");
-            const emailInp = document.getElementById("vm-email");
-            const telInp = document.getElementById("vm-telefono");
-
-            if (clienteInp) clienteInp.value = vLocal.cliente;
-            if (emailInp) emailInp.value = vLocal.email;
-            if (telInp) telInp.value = vLocal.telefono;
-
-            // Forzar renderizado
-            if (typeof SpaPaymentControl !== 'undefined' && typeof SpaPaymentControl.renderPaymentBlock === 'function') {
-                const pBlock = document.getElementById('vm-payment-block');
-                if (pBlock) pBlock.innerHTML = SpaPaymentControl.renderPaymentBlock(vLocal);
+            Object.assign(vLocal, cleanSyncUpdates);
+            if (window.apiLocal) {
+                await apiLocal.saveBono({ ...vLocal, syncStatus: 'synced' }).catch(console.warn);
             }
+            if (typeof renderBonosFromState === 'function') renderBonosFromState();
 
-            if (vLocal.items_desglosados && typeof renderEditableBreakdown === 'function') {
-                state.editingVoucherItems = [...vLocal.items_desglosados];
-                renderEditableBreakdown();
+            if (document.getElementById("voucher-modal")?.style.display === "flex" && document.getElementById("vm-code")?.value === code) {
+                await openVoucherManagement(code);
             }
         }
 

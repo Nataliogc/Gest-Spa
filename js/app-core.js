@@ -675,7 +675,12 @@ window.reconcileVoucherBalanceIfDesynced = async function (bonoId, vData, exclud
                 const est = String(d.estado || '').toLowerCase().trim();
                 if (st === 'anulada' || est === 'anulada' || est === 'cancelada') return;
 
-                activeResAll += (parseInt(d.sesiones_consumidas) || 1);
+                const consumed = (window.BonoSessionsHelper && typeof window.BonoSessionsHelper.getReservationConsumedSessions === 'function')
+                    ? window.BonoSessionsHelper.getReservationConsumedSessions(d, doc.id)
+                    : ((d.sesiones_consumidas !== undefined && d.sesiones_consumidas !== null && String(d.sesiones_consumidas).trim() !== '')
+                        ? Math.max(0, parseInt(d.sesiones_consumidas, 10) || 0)
+                        : ((String(doc.id || '').endsWith('_spa_addon') || (d.is_pack_child && !d.is_primary_pack) || (d.is_pack_element && !d.is_primary_pack)) ? 0 : 1));
+                activeResAll += consumed;
             });
         });
 

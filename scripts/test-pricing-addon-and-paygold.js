@@ -169,7 +169,7 @@ console.log('--- TEST: PRICING UNIFICATION, EDIT RECONCILIATION, SPA ADDON PAX &
     for (const file of ['reservas-salas.html', 'reservas-spa.html', 'reservas.html']) {
         const html = fs.readFileSync(path.join(rootDir, file), 'utf8');
         assert(html.includes('reconcileEditBasePricePax'), `${file} must use reconcileEditBasePricePax`);
-        assert(html.includes('service-pricing.js?v=2.3.97'), `${file} must load service-pricing.js?v=2.3.97`);
+        assert(html.includes('service-pricing.js?v=2.3.98'), `${file} must load service-pricing.js?v=2.3.98`);
         assert(html.includes('spa-paygold.js?v=2.3.97'), `${file} must load spa-paygold.js?v=2.3.97`);
         for (const [, code] of html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)) {
             if (code.trim()) new vm.Script(code, { filename: file });
