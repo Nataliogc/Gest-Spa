@@ -498,7 +498,7 @@
         <!-- LEFT: Cumbria Logo -->
         <div style="display: flex; align-items: center; gap: 15px;">
             <img src="logo-spa.jpg" alt="Cumbria Bienestar" style="height: 65px; width: auto; object-fit: contain;">
-            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.98 (24/11/2026)">v2.3.98</span>
+            <span class="global-version-badge" title="Gest-Spa / Zenith Manager v2.3.99 (24/11/2026)">v2.3.99</span>
         </div>
 
         <ul class="nav-links" style="flex:1;">
@@ -1357,8 +1357,8 @@
 
     <!-- Dexie loaded by db-local.js -->
     <!-- <script src="https://unpkg.com/dexie@latest/dist/dexie.js"></script> -->
-    <script src="js/app-core.js?v=2.3.98"></script>
-    <script src="js/bono-sessions-helper.js?v=2.3.98"></script>
+    <script src="js/app-core.js?v=2.3.99"></script>
+    <script src="js/bono-sessions-helper.js?v=2.3.99"></script>
     <script src="js/monedero-helper.js"></script>
     <script src="js/spa-packs-registry.js?v=2.3.30"></script>
     <script src="js/service-catalog.js?v=1"></script>
@@ -2161,7 +2161,10 @@
                 if (currentResId) {
                     const currentRes = currentData.find(r => r.id === currentResId);
                     if (currentRes && String(currentRes.bono || '').trim() === cleanBonoId) {
-                        balance += (currentRes.sesiones_consumidas || 1);
+                        const ownConsumed = (window.BonoSessionsHelper && typeof window.BonoSessionsHelper.getReservationConsumedSessions === 'function')
+                            ? window.BonoSessionsHelper.getReservationConsumedSessions(currentRes, currentResId)
+                            : (parseInt(currentRes.sesiones_consumidas, 10) || 1);
+                        balance += Math.max(1, ownConsumed);
                     }
                 }
 
@@ -6443,7 +6446,13 @@
                             btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creando Pack...';
                             result = await window.createPackReservations(parentData, activeItems);
                             showToast(`Pack creado: ${result.childIds.length} reserva(s)`, "success");
-                            if (payload.origen === 'bono' && payload.bono) updateVoucherSessions(payload.bono, 1, svcName).catch(console.warn);
+                            if (payload.origen === 'bono' && payload.bono) {
+                                if (typeof window.updateVoucherSessionsForPack === 'function') {
+                                    await window.updateVoucherSessionsForPack(payload.bono, activeItems);
+                                } else {
+                                    await updateVoucherSessions(payload.bono, activeItems.length || 1, svcName).catch(console.warn);
+                                }
+                            }
                         } else {
                             btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Guardando Pack...';
                             const existingRes = (currentData || []).find(r => r.id === id) || {};

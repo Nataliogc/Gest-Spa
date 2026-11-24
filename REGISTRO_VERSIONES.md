@@ -8,7 +8,7 @@ Este documento mantiene el **control de versión única y global** para todo el 
 
 | Parámetro | Valor Actual |
 | :--- | :--- |
-| **Versión Global del Sistema** | **`v2.3.98`** |
+| **Versión Global del Sistema** | **`v2.3.99`** |
 | **Fecha de Última Actualización** | **24/11/2026** |
 | **Estado General** | Operativo en Producción |
 
@@ -47,6 +47,11 @@ Cualquier cambio en los siguientes módulos impacta en la versión global:
 ---
 
 ## 📝 Historial Unificado de Versiones
+
+### [v2.3.99] - 24/11/2026
+- **Tipo:** PATCH
+- **Archivos:** `bonos.html`, `js/app-core.js`, `js/bono-sessions-helper.js`, `js/bonos.js`, `reservas-salas.html`, `reservas-spa.html`, `reservas.html`, `scripts/test-bono-sessions-and-spa-addon.js`
+- **Descripción:** Reconciliación automática de sesiones sobrecontadas (incluso en bonos marcados como canjeados), aislamiento de múltiples masajes en bonos y protección al editar packs
 
 ### [v2.3.98] - 24/11/2026
 - **Tipo:** PATCH

@@ -299,21 +299,142 @@ console.log('--- TEST: BONO SESSIONS HELPER, NO DOUBLE DEDUCTION & INCLUDED SPA 
     });
 }
 
-// 10. Verificación de integración HTML/JS y compilación sintáctica con vm.Script
+// 10. Reconciliación unificada de uso y aislamiento multi-masaje (matchReservationsForVoucherItem + reconcileVoucherUsageFromHistory)
+{
+    // 10a. Caso exacto BONO7873 antes de Re-sync WC (Total: 2, Usadas: 4, estado: completed, items [2/1, 2/1] con solo 2 citas RS-QQQ7)
+    const bono7873Before = {
+        bono: 'BONO7873',
+        producto: 'Circuito SPA',
+        sesiones_totales: 2,
+        sesiones_usadas: 4,
+        estado: 'completed',
+        items_desglosados: [
+            { name: 'Masaje con Piedras Volcánicas', space: 'panacea', sessions: 1, used: 2 },
+            { name: 'Circuito SPA - Circuito Spa', space: 'spa', sessions: 1, used: 2 }
+        ]
+    };
+    const history7873 = [
+        { id: 'cab3_qqq7', res_id: 'RS-QQQ7', _col: 'reservas_cabina3', servicio: 'Masaje con Piedras Volcánicas', sesiones_consumidas: 1 },
+        { id: 'spa_qqq7', res_id: 'RS-QQQ7', _col: 'reservas_spa', servicio: 'Circuito SPA - Circuito Spa', sesiones_consumidas: 0 }
+    ];
+    const recBefore = BonoSessionsHelper.reconcileVoucherUsageFromHistory(bono7873Before, history7873);
+    assert.deepEqual(recBefore.items.map(it => it.used), [1, 1], 'BONO7873 items must heal from [2, 2] to [1, 1]');
+    assert.equal(recBefore.used, 2, 'BONO7873 total used must heal from 4 to 2');
+    assert.equal(recBefore.reconciled, true);
+
+    // 10b. Caso exacto BONO7873 tras Re-sync WC (Total: 4, Usadas: 4, estado: completed, items [2/2, 2/2] con las mismas 2 citas)
+    const bono7873AfterResync = {
+        bono: 'BONO7873',
+        producto: 'Masaje con Piedras Volcánicas + Circuito SPA - Circuito Spa',
+        sesiones_totales: 4,
+        sesiones_usadas: 4,
+        estado: 'completed',
+        items_desglosados: [
+            { name: 'Masaje con Piedras Volcánicas', space: 'panacea', sessions: 2, used: 2 },
+            { name: 'Circuito SPA - Circuito Spa', space: 'spa', sessions: 2, used: 2 }
+        ]
+    };
+    const recAfterResync = BonoSessionsHelper.reconcileVoucherUsageFromHistory(bono7873AfterResync, history7873);
+    assert.deepEqual(recAfterResync.items.map(it => it.used), [1, 1], 'Each item of BONO7873 must reconcile to 1/2');
+    assert.equal(recAfterResync.used, 2);
+    assert.equal(recAfterResync.balance, 2);
+    assert.equal(recAfterResync.estado, 'partially');
+    assert.equal(recAfterResync.reconciled, true);
+
+    // 10c. BONO7873 cuando el SPA (2 pax) consumió 2 y Cabina 3 consumió 1 (Total: 4 -> Masaje sigue 1/2 reservable)
+    const history7873Spa2 = [
+        { id: 'cab3_qqq7', res_id: 'RS-QQQ7', _col: 'reservas_cabina3', servicio: 'Masaje con Piedras Volcánicas', sesiones_consumidas: 1 },
+        { id: 'spa_qqq7', res_id: 'RS-QQQ7', _col: 'reservas_spa', servicio: 'Circuito SPA - Circuito Spa', sesiones_consumidas: 2 }
+    ];
+    const recSpa2 = BonoSessionsHelper.reconcileVoucherUsageFromHistory(bono7873AfterResync, history7873Spa2);
+    assert.deepEqual(recSpa2.items.map(it => it.used), [1, 2], 'Massage must remain 1/2 when SPA reservation consumed 2 sessions');
+    assert.equal(recSpa2.used, 3);
+    assert.equal(recSpa2.balance, 1);
+    assert.equal(recSpa2.estado, 'partially');
+
+    // 10d. Aislamiento de múltiples masajes en BONO7683
+    const bono7683 = {
+        bono: 'BONO7683',
+        producto: "Masaje Relax - Sesión de 30' + Masaje Craneo-facial y espalda",
+        sesiones_totales: 2,
+        sesiones_usadas: 0,
+        estado: 'pending',
+        items_desglosados: [
+            { name: "Masaje Relax - Sesión de 30'", space: 'panacea', sessions: 1, used: 0 },
+            { name: 'Masaje Craneo-facial y espalda', space: 'panacea', sessions: 1, used: 0 }
+        ]
+    };
+    const recRelaxOnly = BonoSessionsHelper.reconcileVoucherUsageFromHistory(bono7683, [
+        { id: 'res_relax', _col: 'reservas_cabina1', servicio: "Masaje Relax - 30'", sesiones_consumidas: 1 }
+    ]);
+    assert.deepEqual(recRelaxOnly.items.map(it => it.used), [1, 0], 'Booking Masaje Relax must NOT mark Masaje Craneo-facial as used');
+    assert.equal(recRelaxOnly.used, 1);
+    assert.equal(recRelaxOnly.estado, 'partially');
+
+    // 10e. Pack de 1 sesión (Ritual Indian Ritual con 2 fases) -> siempre 1/1 completed, nunca 2/1
+    const singlePack = {
+        bono: 'BONO9001',
+        producto: 'Ritual Indian Ritual',
+        sesiones_totales: 1,
+        sesiones_usadas: 1,
+        estado: 'completed',
+        items_desglosados: [
+            { name: 'Circuito Spa', space: 'spa', sessions: 1, used: 1, parent_pack: 'Ritual Indian Ritual' },
+            { name: 'Masaje Ritual Indian', space: 'panacea', sessions: 1, used: 1, parent_pack: 'Ritual Indian Ritual' }
+        ]
+    };
+    const recSinglePack = BonoSessionsHelper.reconcileVoucherUsageFromHistory(singlePack, [
+        { id: 'p_main', res_id: 'RS-ABCD', _col: 'reservas_panacea', servicio: 'Masaje Ritual Indian', sesiones_consumidas: 1 },
+        { id: 'p_spa', res_id: 'RS-ABCD', _col: 'reservas_spa', servicio: 'Circuito Spa', is_pack_element: true, sesiones_consumidas: 0 }
+    ]);
+    assert.equal(recSinglePack.used, 1, 'Single-session pack with 2 phase bookings must count as 1, never 2/1');
+    assert.equal(recSinglePack.estado, 'completed');
+
+    // 10f. Bono histórico legítimamente completado sin historial en Firestore -> NO tocar
+    const legacyCompleted = {
+        bono: 'BONO1000',
+        producto: 'Masaje Relax',
+        sesiones_totales: 1,
+        sesiones_usadas: 1,
+        estado: 'completed',
+        items_desglosados: [{ name: 'Masaje Relax', space: 'cabina', sessions: 1, used: 1 }]
+    };
+    const recLegacy = BonoSessionsHelper.reconcileVoucherUsageFromHistory(legacyCompleted, []);
+    assert.equal(recLegacy.reconciled, false);
+    assert.equal(recLegacy.used, 1);
+    assert.equal(recLegacy.estado, 'completed');
+
+    // 10g. Bono parcialmente usado cuyas citas fueron todas anuladas -> vuelve a 0 / pending
+    const orphanedPartial = {
+        bono: 'BONO2000',
+        producto: 'Bono 5 Masajes',
+        sesiones_totales: 5,
+        sesiones_usadas: 2,
+        estado: 'partially',
+        items_desglosados: [{ name: 'Masaje Relax', space: 'cabina', sessions: 5, used: 2 }]
+    };
+    const recOrphaned = BonoSessionsHelper.reconcileVoucherUsageFromHistory(orphanedPartial, []);
+    assert.equal(recOrphaned.used, 0);
+    assert.equal(recOrphaned.items[0].used, 0);
+    assert.equal(recOrphaned.estado, 'pending');
+    assert.equal(recOrphaned.reconciled, true);
+}
+
+// 11. Verificación de integración HTML/JS y compilación sintáctica con vm.Script
 {
     const rootDir = path.resolve(__dirname, '..');
 
     for (const file of ['bonos.html', 'reservas-salas.html', 'reservas-spa.html', 'reservas.html']) {
         const html = fs.readFileSync(path.join(rootDir, file), 'utf8');
-        assert(html.includes('bono-sessions-helper.js?v=2.3.98'), `${file} must load bono-sessions-helper.js?v=2.3.98`);
-        assert(html.includes('app-core.js?v=2.3.98'), `${file} must load app-core.js?v=2.3.98`);
+        assert(html.includes('bono-sessions-helper.js?v=2.3.99'), `${file} must load bono-sessions-helper.js?v=2.3.99`);
+        assert(html.includes('app-core.js?v=2.3.99'), `${file} must load app-core.js?v=2.3.99`);
         for (const [, code] of html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)) {
             if (code.trim()) new vm.Script(code, { filename: file });
         }
     }
 
     const bonosHtml = fs.readFileSync(path.join(rootDir, 'bonos.html'), 'utf8');
-    assert(bonosHtml.includes('bonos.js?v=2.3.98'), 'bonos.html must load bonos.js?v=2.3.98');
+    assert(bonosHtml.includes('bonos.js?v=2.3.99'), 'bonos.html must load bonos.js?v=2.3.99');
 
     for (const bookingFile of ['reservas-salas.html', 'reservas-spa.html', 'reservas.html']) {
         const html = fs.readFileSync(path.join(rootDir, bookingFile), 'utf8');
@@ -322,10 +443,14 @@ console.log('--- TEST: BONO SESSIONS HELPER, NO DOUBLE DEDUCTION & INCLUDED SPA 
     }
 
     const salasHtml = fs.readFileSync(path.join(rootDir, 'reservas-salas.html'), 'utf8');
+    assert(salasHtml.includes('!id && !!(window._packItems'), 'reservas-salas.html must guard pack creation check with !id');
     assert(salasHtml.includes('sesiones_consumidas: 0'), 'reservas-salas.html must set sesiones_consumidas: 0 on spaAddonPayload');
     assert(salasHtml.includes('resolveStandaloneSpaAddonUnitPrice'), 'reservas-salas.html must use resolveStandaloneSpaAddonUnitPrice');
     assert(salasHtml.includes('reconcileIncludedOriginSpaAddonEdit'), 'reservas-salas.html must use reconcileIncludedOriginSpaAddonEdit');
     assert(salasHtml.includes('Incluido (0.00 €)'), 'reservas-salas.html must show Incluido (0.00 €) badge');
+
+    const appCoreCode = fs.readFileSync(path.join(rootDir, 'js/app-core.js'), 'utf8');
+    assert(appCoreCode.includes('reconcileVoucherUsageFromHistory'), 'js/app-core.js must call reconcileVoucherUsageFromHistory');
 
     for (const jsFile of ['js/bono-sessions-helper.js', 'js/service-pricing.js', 'js/bonos.js', 'js/app-core.js']) {
         const code = fs.readFileSync(path.join(rootDir, jsFile), 'utf8');

@@ -4886,14 +4886,97 @@ async function openVoucherManagement(code) {
         // Await history to get real reservations
         history = await renderVoucherHistory(voucherCode, v.items_desglosados);
         hasHistoryLoaded = true;
+    }
 
-        if (history && history.length > 0) {
+    const rawEstadoHistOpen = String(v.estado || '').toLowerCase().trim();
+    const canUseUnifiedReconcile = hasHistoryLoaded
+        && !isMonederoVoucher(v)
+        && !isExcLocVoucher(v)
+        && !['anulado', 'cancelled', 'cancelado', 'expired', 'caducado'].includes(rawEstadoHistOpen)
+        && window.BonoSessionsHelper
+        && typeof window.BonoSessionsHelper.reconcileVoucherUsageFromHistory === 'function';
+
+    if (canUseUnifiedReconcile) {
+        const voucherSnapshotForReconcile = {
+            ...v,
+            items_desglosados: state.editingVoucherItems,
+            sesiones_totales: finalDisplaySessions
+        };
+        const rec = window.BonoSessionsHelper.reconcileVoucherUsageFromHistory(voucherSnapshotForReconcile, history || []);
+        state.editingVoucherItems = rec.items;
+        detectedServices = rec.items;
+
+        const usedFieldEl = document.getElementById("vm-sesiones-usadas");
+        if (usedFieldEl) usedFieldEl.value = rec.used;
+        v.sesiones_usadas = rec.used;
+        v.estado = rec.estado;
+        if (rec.itemsChanged) v.items_desglosados = rec.items;
+
+        if (rec.reconciled) {
+            const voucherCode = v.bono || v.codigo || code;
+            const docId = v.id || voucherCode;
+            const trimmedVoucherCode = String(voucherCode || '').trim();
+            const stateIdx = state.bonos.findIndex(b => (b.bono || b.codigo) === voucherCode || String(b.bono || b.codigo || '').trim() === trimmedVoucherCode);
+            const cleanItemsForSave = rec.itemsChanged ? cleanUndefined(rec.items) : undefined;
+            const firestoreUpdates = {
+                sesiones_usadas: rec.used,
+                estado: rec.estado,
+                last_updated: new Date().toISOString()
+            };
+            if (cleanItemsForSave) {
+                firestoreUpdates.items_desglosados = cleanItemsForSave;
+            }
+            if (stateIdx !== -1) {
+                state.bonos[stateIdx] = {
+                    ...state.bonos[stateIdx],
+                    sesiones_usadas: rec.used,
+                    estado: rec.estado,
+                    ...(cleanItemsForSave ? { items_desglosados: cleanItemsForSave } : {})
+                };
+            }
+
+            try {
+                if (typeof db !== 'undefined' && docId) {
+                    await db.collection('spa_vouchers').doc(docId).update(firestoreUpdates);
+                }
+                if (window.apiLocal) {
+                    await apiLocal.saveBono({
+                        ...v,
+                        sesiones_usadas: rec.used,
+                        estado: rec.estado,
+                        ...(cleanItemsForSave ? { items_desglosados: cleanItemsForSave } : {}),
+                        syncStatus: 'synced'
+                    });
+                }
+            } catch (reconcileErr) {
+                console.warn('[BONO] No se pudo persistir reconciliación automática:', reconcileErr);
+            }
+
+            if (rec.used === 0 && (!history || history.length === 0)) {
+                const histContent = document.getElementById("vm-history-content");
+                if (histContent) {
+                    histContent.innerHTML = `
+                        <div style="font-size: 0.82rem; color: #94a3b8; background: #fff; font-style: italic; padding: 14px; border: 1px dashed #cbd5e1; border-radius: 8px; text-align: center;">
+                            <i class="fas fa-calendar-times" style="margin-right: 6px; opacity: 0.7;"></i> No hay reservas registradas todavía para este bono.
+                        </div>`;
+                }
+            }
+
+            if (typeof renderBonosFromState === 'function') renderBonosFromState();
+            if (typeof showToast === 'function' && (rec.used < rec.previousUsed || rec.itemsChanged)) {
+                showToast(`✅ Sesiones sincronizadas con el historial real (${rec.previousUsed} → ${rec.used}). Ya puedes reservar.`, 'success');
+            }
+        }
+    } else {
+        if (hasHistoryLoaded && history && history.length > 0) {
             console.log('[BONO] Sincronizando items con historial:', history.length, 'reservas');
             const normMatchSvc = (str) => String(str || '')
                 .toLowerCase()
                 .replace(/\s*-\s*\d+\s*['"minutos]*/gi, '')
                 .replace(/\s+/g, ' ')
                 .trim();
+            const massageCount = (state.editingVoucherItems || []).filter(it => String(it.name || it.nombre || '').toLowerCase().includes('masaje')).length;
+            const allowGenericMassageFallback = (massageCount === 1);
 
             state.editingVoucherItems.forEach(item => {
                 const iName = normMatchSvc(item.name);
@@ -4907,7 +4990,7 @@ async function openVoucherManagement(code) {
                     let nameMatch = false;
                     if (hName && iName) {
                         nameMatch = hName === iName || hName.includes(iName) || iName.includes(hName) ||
-                            (iName.includes('masaje') && hName.includes('masaje'));
+                            (allowGenericMassageFallback && iName.includes('masaje') && hName.includes('masaje'));
                     }
 
                     let spaceMatch = false;
@@ -4955,74 +5038,74 @@ async function openVoucherManagement(code) {
                 }
             });
         }
-    }
 
-    // -------------------------------------
-    // RE-POBLAR USADAS TRAS SINCRONIZACIÓN DE HISTORIAL (bidireccional si el estado es activo/parcial)
-    const currentUsedUI = parseInt(document.getElementById("vm-sesiones-usadas").value) || 0;
-    const computedUsedFromHistory = (state.editingVoucherItems || detectedServices).reduce((sum, s) => sum + (s.used || 0), 0);
-    const historyCount = Array.isArray(history)
-        ? history.reduce((sum, h) => sum + (
-            (window.BonoSessionsHelper && typeof window.BonoSessionsHelper.getReservationConsumedSessions === 'function')
-                ? window.BonoSessionsHelper.getReservationConsumedSessions(h, h.id)
-                : ((h.sesiones_consumidas !== undefined && h.sesiones_consumidas !== null && String(h.sesiones_consumidas).trim() !== '')
-                    ? Math.max(0, parseInt(h.sesiones_consumidas, 10) || 0)
-                    : ((String(h.id || '').endsWith('_spa_addon') || (h.is_pack_child && !h.is_primary_pack)) ? 0 : 1))
-        ), 0)
-        : 0;
-    const realUsed = Math.max(computedUsedFromHistory, historyCount);
-    const rawEstadoVoucher = String(v.estado || '').toLowerCase().trim();
+        // -------------------------------------
+        // RE-POBLAR USADAS TRAS SINCRONIZACIÓN DE HISTORIAL (bidireccional si el estado es activo/parcial)
+        const currentUsedUI = parseInt(document.getElementById("vm-sesiones-usadas").value) || 0;
+        const computedUsedFromHistory = (state.editingVoucherItems || detectedServices).reduce((sum, s) => sum + (s.used || 0), 0);
+        const historyCount = Array.isArray(history)
+            ? history.reduce((sum, h) => sum + (
+                (window.BonoSessionsHelper && typeof window.BonoSessionsHelper.getReservationConsumedSessions === 'function')
+                    ? window.BonoSessionsHelper.getReservationConsumedSessions(h, h.id)
+                    : ((h.sesiones_consumidas !== undefined && h.sesiones_consumidas !== null && String(h.sesiones_consumidas).trim() !== '')
+                        ? Math.max(0, parseInt(h.sesiones_consumidas, 10) || 0)
+                        : ((String(h.id || '').endsWith('_spa_addon') || (h.is_pack_child && !h.is_primary_pack)) ? 0 : 1))
+            ), 0)
+            : 0;
+        const realUsed = Math.max(computedUsedFromHistory, historyCount);
+        const rawEstadoVoucher = String(v.estado || '').toLowerCase().trim();
 
-    if (realUsed > currentUsedUI) {
-        document.getElementById("vm-sesiones-usadas").value = realUsed;
-    } else if (
-        hasHistoryLoaded &&
-        !isMonederoVoucher(v) &&
-        !isExcLocVoucher(v) &&
-        currentUsedUI > realUsed &&
-        !['anulado', 'cancelled', 'cancelado', 'completed', 'canjeado', 'agotado'].includes(rawEstadoVoucher)
-    ) {
-        const voucherCode = v.bono || v.codigo || code;
-        const docId = v.id || voucherCode;
-        const nextEstado = realUsed > 0 ? 'partially' : 'pending';
-        document.getElementById("vm-sesiones-usadas").value = realUsed;
-        v.sesiones_usadas = realUsed;
-        v.estado = nextEstado;
+        if (realUsed > currentUsedUI) {
+            document.getElementById("vm-sesiones-usadas").value = realUsed;
+        } else if (
+            hasHistoryLoaded &&
+            !isMonederoVoucher(v) &&
+            !isExcLocVoucher(v) &&
+            currentUsedUI > realUsed &&
+            !['anulado', 'cancelled', 'cancelado', 'completed', 'canjeado', 'agotado'].includes(rawEstadoVoucher)
+        ) {
+            const voucherCode = v.bono || v.codigo || code;
+            const docId = v.id || voucherCode;
+            const nextEstado = realUsed > 0 ? 'partially' : 'pending';
+            document.getElementById("vm-sesiones-usadas").value = realUsed;
+            v.sesiones_usadas = realUsed;
+            v.estado = nextEstado;
 
-        const trimmedVoucherCode = String(voucherCode || '').trim();
-        const stateIdx = state.bonos.findIndex(b => (b.bono || b.codigo) === voucherCode || String(b.bono || b.codigo || '').trim() === trimmedVoucherCode);
-        if (stateIdx !== -1) {
-            state.bonos[stateIdx] = { ...state.bonos[stateIdx], sesiones_usadas: realUsed, estado: nextEstado };
-        }
-
-        try {
-            if (typeof db !== 'undefined' && docId) {
-                await db.collection('spa_vouchers').doc(docId).update({
-                    sesiones_usadas: realUsed,
-                    estado: nextEstado,
-                    last_updated: new Date().toISOString()
-                });
+            const trimmedVoucherCode = String(voucherCode || '').trim();
+            const stateIdx = state.bonos.findIndex(b => (b.bono || b.codigo) === voucherCode || String(b.bono || b.codigo || '').trim() === trimmedVoucherCode);
+            if (stateIdx !== -1) {
+                state.bonos[stateIdx] = { ...state.bonos[stateIdx], sesiones_usadas: realUsed, estado: nextEstado };
             }
-            if (window.apiLocal) {
-                await apiLocal.saveBono({ ...v, sesiones_usadas: realUsed, estado: nextEstado, syncStatus: 'synced' });
-            }
-        } catch (reconcileErr) {
-            console.warn('[BONO] No se pudo persistir reconciliación automática:', reconcileErr);
-        }
 
-        if (realUsed === 0 && history.length === 0) {
-            const histContent = document.getElementById("vm-history-content");
-            if (histContent) {
-                histContent.innerHTML = `
-                    <div style="font-size: 0.82rem; color: #94a3b8; background: #fff; font-style: italic; padding: 14px; border: 1px dashed #cbd5e1; border-radius: 8px; text-align: center;">
-                        <i class="fas fa-calendar-times" style="margin-right: 6px; opacity: 0.7;"></i> No hay reservas registradas todavía para este bono.
-                    </div>`;
+            try {
+                if (typeof db !== 'undefined' && docId) {
+                    await db.collection('spa_vouchers').doc(docId).update({
+                        sesiones_usadas: realUsed,
+                        estado: nextEstado,
+                        last_updated: new Date().toISOString()
+                    });
+                }
+                if (window.apiLocal) {
+                    await apiLocal.saveBono({ ...v, sesiones_usadas: realUsed, estado: nextEstado, syncStatus: 'synced' });
+                }
+            } catch (reconcileErr) {
+                console.warn('[BONO] No se pudo persistir reconciliación automática:', reconcileErr);
             }
-        }
 
-        if (typeof renderBonosFromState === 'function') renderBonosFromState();
-        if (typeof showToast === 'function') {
-            showToast(`✅ Sesiones sincronizadas con el historial real (${currentUsedUI} → ${realUsed}). Ya puedes reservar.`, 'success');
+            if (realUsed === 0 && history.length === 0) {
+                const histContent = document.getElementById("vm-history-content");
+                if (histContent) {
+                    histContent.innerHTML = `
+                        <div style="font-size: 0.82rem; color: #94a3b8; background: #fff; font-style: italic; padding: 14px; border: 1px dashed #cbd5e1; border-radius: 8px; text-align: center;">
+                            <i class="fas fa-calendar-times" style="margin-right: 6px; opacity: 0.7;"></i> No hay reservas registradas todavía para este bono.
+                        </div>`;
+                }
+            }
+
+            if (typeof renderBonosFromState === 'function') renderBonosFromState();
+            if (typeof showToast === 'function') {
+                showToast(`✅ Sesiones sincronizadas con el historial real (${currentUsedUI} → ${realUsed}). Ya puedes reservar.`, 'success');
+            }
         }
     }
 
@@ -5046,9 +5129,12 @@ async function openVoucherManagement(code) {
 
     // Recalcular estado real en base a items si existen (para corregir visualmente si la DB está desfasada)
     let displayStatus = v.estado;
-    if (displayStatus !== 'anulado' && detectedServices && detectedServices.length > 0) {
-        const allItemsComplete = detectedServices.every(item => (item.used || 0) >= (item.sessions || 1));
-        const anyItemUsed = detectedServices.some(item => (item.used || 0) > 0);
+    const statusItemsAll = state.editingVoucherItems || detectedServices || [];
+    const statusItems = statusItemsAll.filter(it => !(window.BonoSessionsHelper && typeof window.BonoSessionsHelper.isComplementVoucherItem === 'function' && window.BonoSessionsHelper.isComplementVoucherItem(it)));
+    const statusList = statusItems.length > 0 ? statusItems : statusItemsAll;
+    if (displayStatus !== 'anulado' && statusList.length > 0) {
+        const allItemsComplete = statusList.every(item => (item.used || 0) >= (item.sessions || 1));
+        const anyItemUsed = statusList.some(item => (item.used || 0) > 0);
 
         if (allItemsComplete) displayStatus = 'completed';
         else if (anyItemUsed) displayStatus = 'partially';
@@ -5279,9 +5365,13 @@ async function saveVoucherChanges() {
             }
         } else if (updates.items_desglosados && updates.items_desglosados.length > 0) {
             // PACK / DESGLOSE: Solo puede estar completado si TODOS los items tienen sus reservas/validaciones individuales
-            const allItemsComplete = updates.items_desglosados.every(item => (item.used || 0) >= (item.sessions || item.sesiones || 1));
-            const anyItemUsed = updates.items_desglosados.some(item => (item.used || 0) > 0);
-            const itemsUsedSum = updates.items_desglosados.reduce((sum, item) => sum + (item.used || 0), 0);
+            const reservableSaveItems = (window.BonoSessionsHelper && typeof window.BonoSessionsHelper.isComplementVoucherItem === 'function')
+                ? updates.items_desglosados.filter(it => !window.BonoSessionsHelper.isComplementVoucherItem(it))
+                : updates.items_desglosados;
+            const statusSaveList = reservableSaveItems.length > 0 ? reservableSaveItems : updates.items_desglosados;
+            const allItemsComplete = statusSaveList.every(item => (item.used || 0) >= (item.sessions || item.sesiones || 1));
+            const anyItemUsed = statusSaveList.some(item => (item.used || 0) > 0);
+            const itemsUsedSum = statusSaveList.reduce((sum, item) => sum + (item.used || 0), 0);
             const prevUsed = v ? (v.sesiones_usadas || 0) : 0;
             const prevItemsUsed = (v && Array.isArray(v.items_desglosados))
                 ? v.items_desglosados.reduce((sum, item) => sum + (item.used || 0), 0)
@@ -5296,13 +5386,13 @@ async function saveVoucherChanges() {
 
             if (allItemsComplete) {
                 updates.estado = 'completed';
-            } else if (v && v.estado === 'completed') {
-                // Preservar estado previo en bonos ya completados históricamente al editar otros datos
+            } else if (v && v.estado === 'completed' && !anyItemUsed && updates.sesiones_totales <= (v.sesiones_totales || 1) && updates.sesiones_usadas >= updates.sesiones_totales) {
+                // Preservar estado previo solo en bonos completados históricamente sin desglose usado ni ampliación de sesiones
                 updates.estado = 'completed';
-            } else if (anyItemUsed) {
+            } else if (anyItemUsed || updates.sesiones_usadas > 0) {
                 updates.estado = 'partially';
             } else {
-                updates.estado = (v && v.estado) ? v.estado : 'pending';
+                updates.estado = 'pending';
             }
         } else {
             // Sin desglose de items: impedir incrementar sesiones usadas manualmente sin reserva
@@ -8979,6 +9069,10 @@ window.resyncVoucherFromWooCommerce = async function () {
             manual_update: false, // Remove manual protection to allow future auto-syncs
             last_synced: new Date().toISOString()
         };
+        const usedBeforeResync = parseInt(localVoucherBeforeResync?.sesiones_usadas, 10) || 0;
+        if (String(localVoucherBeforeResync?.estado || '').toLowerCase().trim() === 'completed' && computedResyncSessions > usedBeforeResync) {
+            updateData.estado = usedBeforeResync > 0 ? 'partially' : 'pending';
+        }
 
         // Fallback for IDs if missing in top level
         if (!isMultiItemsResync && !updateData.product_id && updateData.items_desglosados.length === 1) {
@@ -9647,6 +9741,10 @@ async function syncSingleVoucher(code) {
             updateData.pax_por_sesion = preservedItems[0]?.pax || vLocal?.pax_por_sesion || 1;
             updateData.product_id = lineItems.length === 1 ? firstPId : null;
             updateData.variation_id = lineItems.length === 1 ? (firstVId || firstPId || null) : null;
+            const usedBeforeSync = parseInt(vLocal?.sesiones_usadas, 10) || 0;
+            if (String(vLocal?.estado || '').toLowerCase().trim() === 'completed' && computedTotalSessions > usedBeforeSync) {
+                updateData.estado = usedBeforeSync > 0 ? 'partially' : 'pending';
+            }
         }
 
         // Si el precio es 0 o no tiene, intentar recuperarlo de la orden

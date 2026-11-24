@@ -516,8 +516,11 @@ window.updateVoucherSessionsForPack = async function (bonoId, activeItems = []) 
         if (!vDoc.exists) return;
 
         const vData = vDoc.data();
+        if (window.MonederoHelper && window.MonederoHelper.isMonedero(vData)) return;
         const consumedCount = (Array.isArray(activeItems) && activeItems.length > 0) ? activeItems.length : 1;
-        const newUsedTotal = (vData.sesiones_usadas || 0) + consumedCount;
+        const newUsedTotal = (parseInt(vData.sesiones_usadas, 10) || 0) + consumedCount;
+        const totalSesiones = parseInt(vData.sesiones_totales || vData.sesiones_total, 10) || 1;
+        const rawVEstado = String(vData.estado || '').toLowerCase().trim();
         const updates = {
             sesiones_usadas: newUsedTotal,
             last_updated: new Date().toISOString()
@@ -530,13 +533,16 @@ window.updateVoucherSessionsForPack = async function (bonoId, activeItems = []) 
         if (rawItems.length > 0) {
             const items = rawItems.map(it => ({ ...it }));
             const complementRegex = /(botella|cava|vino|champagne|champán|ramo|flores|fruta|bombones|chocolate|detalle|benjamín|benjamin|regalo|extra|accesorio|toalla|albornoz|amenities|spa kit)/i;
+            const isItemComplement = (it) => (window.BonoSessionsHelper && typeof window.BonoSessionsHelper.isComplementVoucherItem === 'function')
+                ? window.BonoSessionsHelper.isComplementVoucherItem(it)
+                : (it.tipo === 'complemento' || it.reservable === false || complementRegex.test((it.name || it.nombre || '').toLowerCase()));
             const isItemReservableUnused = (it) => {
                 const used = it.used ?? it.usadas ?? 0;
                 const total = it.sessions ?? it.sesiones ?? 1;
                 if (used >= total) return false;
                 const nm = (it.name || it.nombre || '').toLowerCase();
                 const sp = (Array.isArray(it.space) ? it.space[0] : (it.space || '')).toLowerCase();
-                if (it.tipo === 'complemento' || it.reservable === false || sp === 'complemento' || sp === 'extra' || complementRegex.test(nm)) return false;
+                if (isItemComplement(it) || sp === 'complemento' || sp === 'extra') return false;
                 if (sp === 'gimnasio' || sp === 'gym' || sp.includes('hotel') || sp.includes('rest')) return false;
                 return true;
             };
@@ -579,6 +585,15 @@ window.updateVoucherSessionsForPack = async function (bonoId, activeItems = []) 
             if (anyMatched) {
                 updates.items_desglosados = items;
             }
+            if (rawVEstado !== 'anulado' && rawVEstado !== 'cancelled' && rawVEstado !== 'cancelado') {
+                const checkItems = items.filter(it => !isItemComplement(it));
+                const listToCheck = checkItems.length > 0 ? checkItems : items;
+                const allComplete = listToCheck.every(it => (it.used ?? it.usadas ?? 0) >= (it.sessions ?? it.sesiones ?? 1));
+                if (allComplete) updates.estado = 'completed';
+                else if (newUsedTotal > 0) updates.estado = 'partially';
+            }
+        } else if (rawVEstado !== 'anulado' && rawVEstado !== 'cancelled' && rawVEstado !== 'cancelado') {
+            updates.estado = newUsedTotal >= totalSesiones ? 'completed' : (newUsedTotal > 0 ? 'partially' : 'pending');
         }
 
         await vRef.update(updates);
@@ -600,7 +615,9 @@ window.reconcileVoucherBalanceIfDesynced = async function (bonoId, vData, exclud
     const rawItems = Array.isArray(vData.items_desglosados)
         ? vData.items_desglosados
         : (Array.isArray(vData.desglosados) ? vData.desglosados : []);
-    const itemsSessionsTotal = rawItems.reduce((sum, it) => sum + (parseInt(it.sessions ?? it.sesiones) || 1), 0);
+    const itemsSessionsTotal = (window.BonoSessionsHelper && typeof window.BonoSessionsHelper.sumReservableItemSessions === 'function')
+        ? window.BonoSessionsHelper.sumReservableItemSessions(rawItems)
+        : rawItems.reduce((sum, it) => sum + (parseInt(it.sessions ?? it.sesiones) || 1), 0);
     const total = parseInt(vData.sesiones_totales || vData.sesiones_total) || itemsSessionsTotal || 1;
     const storedUsed = parseInt(vData.sesiones_usadas) || 0;
     const cleanBonoId = String(bonoId || vData.bono || vData.codigo || '').trim();
@@ -609,20 +626,9 @@ window.reconcileVoucherBalanceIfDesynced = async function (bonoId, vData, exclud
         || vData.tipo_bono === 'monedero'
         || vData.es_monedero === true;
     const isExcLoc = cleanBonoId.toLowerCase().startsWith('exc.loc');
-    const isLockedState = ['completed', 'canjeado', 'agotado', 'anulado', 'cancelled', 'cancelado', 'expired', 'caducado'].includes(rawEstado);
+    const isAnuladoOrExpired = ['anulado', 'cancelled', 'cancelado', 'expired', 'caducado'].includes(rawEstado);
 
-    if (!cleanBonoId || !window.db || isMonedero || isExcLoc || isLockedState || storedUsed <= 0) {
-        return {
-            total,
-            used: storedUsed,
-            balance: Math.max(0, total - storedUsed),
-            reconciled: false,
-            previousUsed: storedUsed
-        };
-    }
-
-    const itemsUsed = rawItems.reduce((sum, it) => sum + (parseInt(it.used ?? it.usadas) || 0), 0);
-    if (itemsUsed >= storedUsed) {
+    if (!cleanBonoId || !window.db || isMonedero || isExcLoc || isAnuladoOrExpired || storedUsed <= 0) {
         return {
             total,
             used: storedUsed,
@@ -638,12 +644,26 @@ window.reconcileVoucherBalanceIfDesynced = async function (bonoId, vData, exclud
             'reservas_cabina1', 'reservas_cabina2', 'reservas_cabina3', 'reservas_cabinas',
             'reservas_peluqueria', 'reservas_restaurante', 'reservas_gimnasio', 'reservas_complementos'
         ];
+        const SPA_AND_ROOM_COLS = [
+            'reservas_spa', 'reservas_suite', 'reservas_panacea', 'reservas_vip',
+            'reservas_cabina1', 'reservas_cabina2', 'reservas_cabina3', 'reservas_cabinas', 'reservas_peluqueria'
+        ];
 
-        const queries = RESERVATION_COLS.map(col =>
-            db.collection(col).where('bono', '==', cleanBonoId).get()
-                .then(snap => ({ col, snap }))
-                .catch(() => ({ col, snap: null }))
-        );
+        const queries = [];
+        RESERVATION_COLS.forEach(col => {
+            queries.push(
+                db.collection(col).where('bono', '==', cleanBonoId).get()
+                    .then(snap => ({ col, snap }))
+                    .catch(() => ({ col, snap: null }))
+            );
+            if (SPA_AND_ROOM_COLS.includes(col)) {
+                queries.push(
+                    db.collection(col).where('localizador', '==', cleanBonoId).get()
+                        .then(snap => ({ col, snap }))
+                        .catch(() => ({ col, snap: null }))
+                );
+            }
+        });
 
         const mesachefDb = typeof window.getMesachefFirestore === 'function' ? window.getMesachefFirestore() : null;
         if (mesachefDb) {
@@ -660,53 +680,83 @@ window.reconcileVoucherBalanceIfDesynced = async function (bonoId, vData, exclud
         }
 
         const results = await Promise.all(queries);
-        const seen = new Set();
-        let activeResAll = 0;
+        const seenKeys = new Set();
+        const seenDocIds = new Set();
+        const activeReservations = [];
 
         results.forEach(({ col, snap }) => {
             if (!snap || typeof snap.forEach !== 'function') return;
             snap.forEach(doc => {
-                const key = `${col}:${doc.id}`;
-                if (seen.has(key)) return;
-                seen.add(key);
-
                 const d = doc.data() || {};
+                const key = `${col}:${d.external_id || doc.id}`;
+                if (seenKeys.has(key) || seenDocIds.has(doc.id)) return;
+
                 const st = String(d.status || '').toLowerCase().trim();
                 const est = String(d.estado || '').toLowerCase().trim();
                 if (st === 'anulada' || est === 'anulada' || est === 'cancelada') return;
 
-                const consumed = (window.BonoSessionsHelper && typeof window.BonoSessionsHelper.getReservationConsumedSessions === 'function')
-                    ? window.BonoSessionsHelper.getReservationConsumedSessions(d, doc.id)
-                    : ((d.sesiones_consumidas !== undefined && d.sesiones_consumidas !== null && String(d.sesiones_consumidas).trim() !== '')
-                        ? Math.max(0, parseInt(d.sesiones_consumidas, 10) || 0)
-                        : ((String(doc.id || '').endsWith('_spa_addon') || (d.is_pack_child && !d.is_primary_pack) || (d.is_pack_element && !d.is_primary_pack)) ? 0 : 1));
-                activeResAll += consumed;
+                seenKeys.add(key);
+                seenDocIds.add(doc.id);
+                activeReservations.push({ ...d, id: doc.id, _col: col });
             });
         });
 
-        const realUsed = Math.max(activeResAll, itemsUsed);
-        if (realUsed < storedUsed) {
+        let rec = null;
+        if (window.BonoSessionsHelper && typeof window.BonoSessionsHelper.reconcileVoucherUsageFromHistory === 'function') {
+            rec = window.BonoSessionsHelper.reconcileVoucherUsageFromHistory(vData, activeReservations);
+        } else {
+            const activeResAll = activeReservations.reduce((sum, d) => {
+                const consumed = (d.sesiones_consumidas !== undefined && d.sesiones_consumidas !== null && String(d.sesiones_consumidas).trim() !== '')
+                    ? Math.max(0, parseInt(d.sesiones_consumidas, 10) || 0)
+                    : ((String(d.id || '').endsWith('_spa_addon') || (d.is_pack_child && !d.is_primary_pack) || (d.is_pack_element && !d.is_primary_pack)) ? 0 : 1);
+                return sum + consumed;
+            }, 0);
+            const itemsUsed = rawItems.reduce((sum, it) => sum + (parseInt(it.used ?? it.usadas) || 0), 0);
+            const isCompleted = ['completed', 'canjeado', 'agotado'].includes(rawEstado);
+            const realUsed = isCompleted
+                ? (storedUsed > total ? Math.min(storedUsed, Math.max(activeResAll, itemsUsed, total)) : storedUsed)
+                : Math.max(activeResAll, itemsUsed);
             const newEstado = realUsed === 0 ? 'pending' : (realUsed >= total ? 'completed' : 'partially');
+            rec = {
+                total,
+                used: realUsed,
+                balance: Math.max(0, total - realUsed),
+                items: rawItems,
+                estado: newEstado,
+                reconciled: realUsed < storedUsed,
+                previousUsed: storedUsed,
+                itemsChanged: false
+            };
+        }
+
+        if (rec && rec.reconciled) {
+            const updatePayload = {
+                sesiones_usadas: rec.used,
+                estado: rec.estado,
+                last_updated: new Date().toISOString()
+            };
+            if (rec.itemsChanged && Array.isArray(rec.items) && rec.items.length > 0) {
+                updatePayload.items_desglosados = rec.items;
+            }
             try {
                 const targetRef = vRef || db.collection('spa_vouchers').doc(cleanBonoId);
-                await targetRef.update({
-                    sesiones_usadas: realUsed,
-                    estado: newEstado,
-                    last_updated: new Date().toISOString()
-                });
+                await targetRef.update(updatePayload);
             } catch (persistErr) {
                 console.warn('[BONO-RECONCILE] No se pudo persistir reconciliación:', persistErr);
             }
 
-            vData.sesiones_usadas = realUsed;
-            vData.estado = newEstado;
-            console.log(`[BONO-RECONCILE] ${cleanBonoId}: sesiones_usadas ${storedUsed} -> ${realUsed} (estado: ${newEstado})`);
+            vData.sesiones_usadas = rec.used;
+            vData.estado = rec.estado;
+            if (rec.itemsChanged) {
+                vData.items_desglosados = rec.items;
+            }
+            console.log(`[BONO-RECONCILE] ${cleanBonoId}: sesiones_usadas ${storedUsed} -> ${rec.used} (estado: ${rec.estado})`);
             return {
-                total,
-                used: realUsed,
-                balance: Math.max(0, total - realUsed),
+                total: rec.total,
+                used: rec.used,
+                balance: rec.balance,
                 reconciled: true,
-                previousUsed: storedUsed
+                previousUsed: rec.previousUsed
             };
         }
     } catch (err) {
