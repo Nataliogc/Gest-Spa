@@ -8,8 +8,8 @@ Este documento mantiene el **control de versión única y global** para todo el 
 
 | Parámetro | Valor Actual |
 | :--- | :--- |
-| **Versión Global del Sistema** | **`v2.3.100`** |
-| **Fecha de Última Actualización** | **24/11/2026** |
+| **Versión Global del Sistema** | **`v2.3.101`** |
+| **Fecha de Última Actualización** | **25/11/2026** |
 | **Estado General** | Operativo en Producción |
 
 ---
@@ -47,6 +47,11 @@ Cualquier cambio en los siguientes módulos impacta en la versión global:
 ---
 
 ## 📝 Historial Unificado de Versiones
+
+### [v2.3.101] - 25/11/2026
+- **Tipo:** PATCH
+- **Archivos:** Módulos del sistema
+- **Descripción:** Reservas: al abrir Nueva Reserva tras consultar una existente se limpian servicio/pack, terapeutas, duración, total y descuento (antes se arrastraban).
 
 ### [v2.3.100] - 24/11/2026
 - **Tipo:** PATCH
