@@ -29,8 +29,8 @@
             categoria: 'pack',
             precio_defecto: 100.00,
             secuencia: [
-                { orden: 1, nombre: 'Baño Hidromasaje', espacio: 'suite', duracion: 30, requires_therapist: false, terapeutas: 0 },
-                { orden: 2, nombre: 'Relax Oriental (Masaje Relax 30 min)', espacio: 'suite', duracion: 30, requires_therapist: true, terapeutas: 2 }
+                { orden: 1, nombre: 'Baño Hidromasaje', espacio: 'panacea', duracion: 30, requires_therapist: false, terapeutas: 0 },
+                { orden: 2, nombre: 'Relax Oriental (Masaje Relax 30 min)', espacio: 'panacea', duracion: 30, requires_therapist: true, terapeutas: 2 }
             ]
         },
         'wc-6477': {
@@ -248,8 +248,8 @@
             categoria: 'pack',
             precio_defecto: 60.00,
             secuencia: [
-                { orden: 1, nombre: 'Baño Hidromasaje', espacio: 'suite', duracion: 30, requires_therapist: false, terapeutas: 0 },
-                { orden: 2, nombre: 'Relax Oriental (Masaje Relax 30 min)', espacio: 'cabina', duracion: 30, requires_therapist: true, terapeutas: 1 }
+                { orden: 1, nombre: 'Baño Hidromasaje', espacio: 'panacea', duracion: 30, requires_therapist: false, terapeutas: 0 },
+                { orden: 2, nombre: 'Relax Oriental (Masaje Relax 30 min)', espacio: 'panacea', duracion: 30, requires_therapist: true, terapeutas: 1 }
             ]
         },
         'wc-7305': {
@@ -317,12 +317,32 @@
         }
 
         // 3. Coincidencia parcial secundaria (solo si no hubo coincidencia exacta)
+        // FIX v2.3.102: "Relax Oriental 1 Pax" caía en el pack de PAREJA (2 terapeutas).
+        // Si el nombre indica 1 pax / individual (o 2 pax / pareja) se prioriza esa modalidad,
+        // y entre empates gana el nombre de pack más largo (más específico).
+        const wantsIndividual = /\b1\s*pax\b|\bindividual\b|\b1\s*persona\b/.test(norm);
+        const wantsPareja = /\b2\s*pax\b|\bpareja\b|\b2\s*personas\b/.test(norm);
+        const candidates = [];
         for (const key of Object.keys(SPA_PACKS_REGISTRY)) {
             const pack = SPA_PACKS_REGISTRY[key];
             const packNorm = normalizePackName(pack.nombre);
-            if (norm.length > 5 && packNorm.length > 5 && (norm.includes(packNorm) || packNorm.includes(norm))) {
-                return pack;
+            // Nombre base sin sufijo de modalidad ("relax oriental - individual" -> "relax oriental")
+            const packBase = packNorm.replace(/\s*-?\s*(individual|pareja|\d\s*pax)$/, '').trim();
+            const matchFull = norm.length > 5 && packNorm.length > 5 && (norm.includes(packNorm) || packNorm.includes(norm));
+            const matchBase = (wantsIndividual || wantsPareja) && packBase.length > 5 && packBase !== packNorm && norm.includes(packBase);
+            if (matchFull || matchBase) {
+                candidates.push({ pack, packNorm });
             }
+        }
+        if (candidates.length > 0) {
+            const score = c => {
+                let sc = c.packNorm.length;
+                if (wantsIndividual && (c.pack.modalidad === 'individual' || c.pack.pax === 1)) sc += 1000;
+                if (wantsPareja && (c.pack.modalidad === 'pareja' || c.pack.pax === 2)) sc += 1000;
+                return sc;
+            };
+            candidates.sort((a, b) => score(b) - score(a));
+            return candidates[0].pack;
         }
 
         return null;

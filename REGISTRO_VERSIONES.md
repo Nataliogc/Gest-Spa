@@ -8,7 +8,7 @@ Este documento mantiene el **control de versión única y global** para todo el 
 
 | Parámetro | Valor Actual |
 | :--- | :--- |
-| **Versión Global del Sistema** | **`v2.3.101`** |
+| **Versión Global del Sistema** | **`v2.3.102`** |
 | **Fecha de Última Actualización** | **25/11/2026** |
 | **Estado General** | Operativo en Producción |
 
@@ -47,6 +47,11 @@ Cualquier cambio en los siguientes módulos impacta en la versión global:
 ---
 
 ## 📝 Historial Unificado de Versiones
+
+### [v2.3.102] - 25/11/2026
+- **Tipo:** PATCH
+- **Archivos:** `configuracion.html`, `index.html`, `js/spa-packs-registry.js`, `js/spa-phase4-corrections.js`, `reservas-salas.html`, `reservas-spa.html`, `reservas.html`
+- **Descripción:** Packs Relax Oriental (individual y pareja): baño hidromasaje y masaje en SALA PANACEA (antes suite/cabina); sin hueco de 15 min entre fases en la misma sala; 'Relax Oriental 1 Pax' ya no se confunde con el pack de pareja (2 terapeutas).
 
 ### [v2.3.101] - 25/11/2026
 - **Tipo:** PATCH
