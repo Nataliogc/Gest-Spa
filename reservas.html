@@ -4859,6 +4859,37 @@
             // Re-setup form classes
             // document.getElementById("booking-form").className = "form-grid-premium"; // Removed because we use inline styles for the modern wide layout
 
+            // FIX v2.3.101: limpiar datos arrastrados de la última reserva consultada
+            // (servicio/pack, terapeutas, duración y descuento no se reseteaban al abrir "Nueva")
+            window._editingPackSiblings = null;
+            const svcSelNew = document.getElementById("res-servicio");
+            if (svcSelNew) {
+                svcSelNew.value = "";
+                delete svcSelNew.dataset.pricingMode;
+                delete svcSelNew.dataset.fixedTotal;
+            }
+            const svcSearchNew = document.getElementById("res-servicio-search");
+            if (svcSearchNew) svcSearchNew.value = "";
+            ["booking-staff", "booking-staff-2"].forEach(sid => {
+                const s = document.getElementById(sid);
+                if (s) s.value = "";
+            });
+            const terapeutaNew = document.getElementById("res-terapeuta");
+            if (terapeutaNew) terapeutaNew.value = "";
+            const durNew = document.getElementById("inputDuration");
+            if (durNew) durNew.value = 60;
+            const precioTotalNew = document.getElementById("res-precio-total");
+            if (precioTotalNew) precioTotalNew.value = 0;
+            const descTipoNew = document.getElementById("res-descuento-tipo");
+            if (descTipoNew) descTipoNew.value = "porcentaje";
+            if (typeof window.clearDescuento === 'function') {
+                const prevInit = window._isInitializingEdit;
+                window._isInitializingEdit = true; // evitar recálculo con datos a medio limpiar
+                window.clearDescuento();
+                window._isInitializingEdit = prevInit;
+            }
+            if (typeof updatePackInfo === 'function') updatePackInfo(); // repintar pack ya vacío
+
             // Reset fields (with null checks for optional fields)
             document.getElementById("res-nombre").value = "";
             document.getElementById("res-tel").value = "";
