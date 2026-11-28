@@ -3935,6 +3935,11 @@ async function openVoucherManagement(code) {
         }
 
         headerTitle.appendChild(badge);
+
+        const editCodeBtn = document.getElementById("vm-edit-code-btn");
+        if (editCodeBtn) {
+            editCodeBtn.style.display = isLocal ? "inline-flex" : "none";
+        }
     }
     // ------------------------------------------
 
@@ -8634,6 +8639,227 @@ window.removeCorruptDuplicates = async function () {
 
     alert(`💪 ¡LIMPIEZA COMPLETADA!\n\nSe han eliminado ${deletedCount} bonos basura.\n${errors.length > 0 ? `Hubo ${errors.length} errores.` : ""} \n\nLa página se recargará para mostrar los cambios.`);
     window.location.reload();
+};
+
+/**
+ * Corregir código / número de tarjeta de un bono LOCAL de forma segura.
+ * Migra el documento en spa_vouchers, actualiza reservas vinculadas y caché local.
+ */
+window.changeLocalVoucherCode = async function () {
+    const codeInputEl = document.getElementById("vm-code");
+    const editBtn = document.getElementById("vm-edit-code-btn");
+    const oldCode = (codeInputEl?.value || '').trim();
+    if (!oldCode) {
+        showToast("No se detectó el código actual del bono", "error");
+        return;
+    }
+
+    const currentVoucher = state.bonos.find(b => (b.bono || b.codigo) === oldCode)
+        || state.bonos.find(b => String(b.bono || b.codigo || '').trim() === oldCode);
+
+    const isLocalByCode = oldCode.startsWith('Tarj-') || oldCode.startsWith('LOC-') || oldCode.startsWith('exc.Loc');
+    const isLocal = isLocalByCode || (currentVoucher && currentVoucher.origen === 'local');
+    if (!isLocal) {
+        showToast("Solo se puede corregir el código en bonos de Venta Local", "warning");
+        return;
+    }
+
+    const rawNewCode = prompt(
+        `Introduce el nuevo código o número de tarjeta para el bono "${oldCode}":`,
+        oldCode
+    );
+    if (rawNewCode === null) return;
+
+    const newCode = rawNewCode.trim();
+    if (!newCode) {
+        showToast("El código no puede estar vacío", "warning");
+        return;
+    }
+    if (newCode === oldCode) {
+        showToast("El nuevo código es igual al actual", "info");
+        return;
+    }
+    if (newCode.includes('/')) {
+        showToast("El código no puede contener el carácter '/'", "error");
+        return;
+    }
+
+    // 1. Verificar colisiones en memoria, localDb y Firestore
+    const existsInState = state.bonos.some(b => String(b.bono || b.codigo || '').trim().toLowerCase() === newCode.toLowerCase());
+    if (existsInState) {
+        alert(`⚠️ Ya existe un bono con el código "${newCode}".\nNo se puede usar un código duplicado.`);
+        return;
+    }
+
+    if (window.apiLocal) {
+        const localExisting = await apiLocal.getBonoByCode(newCode);
+        if (localExisting) {
+            alert(`⚠️ Ya existe un bono local guardado con el código "${newCode}".`);
+            return;
+        }
+    }
+
+    if (!window.db) {
+        showToast("Sin conexión a la base de datos en la nube (Firestore)", "error");
+        return;
+    }
+
+    try {
+        if (editBtn) editBtn.disabled = true;
+
+        const [targetDocSnap, targetQuerySnap] = await Promise.all([
+            db.collection("spa_vouchers").doc(newCode).get(),
+            db.collection("spa_vouchers").where("bono", "==", newCode).limit(1).get()
+        ]);
+
+        if (targetDocSnap.exists || !targetQuerySnap.empty) {
+            alert(`⚠️ Ya existe un bono en la base de datos con el código "${newCode}".\nElige otro código distinto.`);
+            return;
+        }
+
+        const confirmed = confirm(
+            `¿Confirmas cambiar el código del bono?\n\n` +
+            `Código actual: ${oldCode}\n` +
+            `Código nuevo: ${newCode}\n\n` +
+            `Se transferirán todos los pagos, sesiones y reservas vinculadas al nuevo código.`
+        );
+        if (!confirmed) return;
+
+        // 2. Obtener documento original completo desde Firestore (o memoria)
+        let oldDocId = currentVoucher?.id || oldCode;
+        let oldDocSnap = await db.collection("spa_vouchers").doc(oldDocId).get();
+        if (!oldDocSnap.exists && oldDocId !== oldCode) {
+            oldDocSnap = await db.collection("spa_vouchers").doc(oldCode).get();
+            if (oldDocSnap.exists) oldDocId = oldCode;
+        }
+        if (!oldDocSnap.exists) {
+            const oldQuery = await db.collection("spa_vouchers").where("bono", "==", oldCode).limit(1).get();
+            if (!oldQuery.empty) {
+                oldDocSnap = oldQuery.docs[0];
+                oldDocId = oldDocSnap.id;
+            }
+        }
+
+        const baseData = oldDocSnap.exists ? oldDocSnap.data() : (currentVoucher ? { ...currentVoucher } : {});
+        const nowIso = new Date().toISOString();
+        const auditNote = `[Código corregido: ${oldCode} → ${newCode}]`;
+        const prevNotes = String(baseData.notas_internas || document.getElementById("vm-notas")?.value || '').trim();
+        const updatedNotes = prevNotes.includes(auditNote)
+            ? prevNotes
+            : (prevNotes ? `${prevNotes}\n${auditNote}` : auditNote);
+
+        const newBonoData = cleanUndefined({
+            ...baseData,
+            bono: newCode,
+            codigo: newCode,
+            previous_code: oldCode,
+            notas_internas: updatedNotes,
+            notes: updatedNotes,
+            updated_at: nowIso,
+            updatedAt: nowIso
+        });
+        if (newBonoData.id) delete newBonoData.id;
+
+        // 3. Crear el nuevo documento primero
+        await db.collection("spa_vouchers").doc(newCode).set(newBonoData);
+
+        // 4. Actualizar referencias en todas las colecciones de reservas
+        const reservationCollections = [
+            'reservas_spa', 'reservas_suite', 'reservas_panacea', 'reservas_vip',
+            'reservas_cabina1', 'reservas_cabina2', 'reservas_cabina3', 'reservas_cabinas',
+            'reservas_peluqueria', 'reservas_restaurante', 'reservas_gimnasio',
+            'reservas_complementos', 'reservas_rest', 'reservas_menu', 'reservas', 'reservas_evento'
+        ];
+        const codeFields = ['bono', 'localizador', 'campoBono', 'referencia', 'codigo_bono', 'bono_id'];
+
+        let updatedReservationsCount = 0;
+        const updateLinkedReservationsInDb = async (targetDb, cols) => {
+            for (const col of cols) {
+                const colRef = targetDb.collection(col);
+                const docsToUpdate = new Map();
+
+                for (const field of codeFields) {
+                    try {
+                        const snap = await colRef.where(field, "==", oldCode).get();
+                        snap.forEach(doc => {
+                            if (!docsToUpdate.has(doc.id)) {
+                                docsToUpdate.set(doc.id, { ref: doc.ref, fields: {} });
+                            }
+                            docsToUpdate.get(doc.id).fields[field] = newCode;
+                        });
+                    } catch (_) {
+                        // Ignorar si la colección/campo no está indexado
+                    }
+                }
+
+                if (docsToUpdate.size > 0) {
+                    const batch = targetDb.batch();
+                    docsToUpdate.forEach(entry => {
+                        batch.update(entry.ref, entry.fields);
+                        updatedReservationsCount++;
+                    });
+                    await batch.commit();
+                }
+            }
+        };
+
+        await updateLinkedReservationsInDb(db, reservationCollections);
+
+        const mesachefDb = typeof window.getMesachefFirestore === 'function' ? window.getMesachefFirestore() : null;
+        if (mesachefDb) {
+            await updateLinkedReservationsInDb(mesachefDb, ['reservas_restaurante']);
+        }
+
+        // 5. Eliminar el documento antiguo en Firestore
+        if (oldDocSnap.exists) {
+            await db.collection("spa_vouchers").doc(oldDocId).delete();
+        }
+
+        // 6. Actualizar IndexedDB local (Dexie)
+        if (window.apiLocal) {
+            try {
+                const localDb = await apiLocal._getDb();
+                if (localDb) {
+                    await localDb.bonos.where('bono').equals(oldCode).delete();
+                }
+                await apiLocal.saveBono({ ...newBonoData, syncStatus: 'synced' });
+                await apiLocal.markSynced('bonos', newCode, newCode);
+            } catch (localErr) {
+                console.warn("[CHANGE-CODE] Error actualizando caché local:", localErr);
+            }
+        }
+
+        // 7. Actualizar state en memoria y UI del modal abierto
+        const idx = state.bonos.findIndex(b => (b.bono || b.codigo) === oldCode);
+        if (idx !== -1) {
+            state.bonos[idx] = { ...state.bonos[idx], ...newBonoData, id: newCode };
+        } else {
+            state.bonos.unshift({ ...newBonoData, id: newCode });
+        }
+        renderBonosFromState();
+
+        if (codeInputEl) codeInputEl.value = newCode;
+        const titleCodeEl = document.getElementById("vm-title-code");
+        if (titleCodeEl) titleCodeEl.textContent = newCode;
+        const notasEl = document.getElementById("vm-notas");
+        if (notasEl) notasEl.value = updatedNotes;
+        if (typeof SpaPaymentControl !== 'undefined') {
+            SpaPaymentControl._currentVoucherId = newCode;
+        }
+        if (typeof renderVoucherHistory === 'function') {
+            renderVoucherHistory(newCode);
+        }
+
+        const msgSuffix = updatedReservationsCount > 0
+            ? ` (${updatedReservationsCount} reserva(s) actualizada(s))`
+            : '';
+        showToast(`✅ Código cambiado de ${oldCode} a ${newCode}${msgSuffix}`, "success");
+    } catch (err) {
+        console.error("[CHANGE-CODE] Error cambiando código de bono:", err);
+        showToast(`❌ Error al cambiar código: ${err.message}`, "error");
+    } finally {
+        if (editBtn) editBtn.disabled = false;
+    }
 };
 
 /**
