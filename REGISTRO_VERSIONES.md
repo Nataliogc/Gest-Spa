@@ -8,8 +8,8 @@ Este documento mantiene el **control de versión única y global** para todo el 
 
 | Parámetro | Valor Actual |
 | :--- | :--- |
-| **Versión Global del Sistema** | **`v2.3.102`** |
-| **Fecha de Última Actualización** | **25/11/2026** |
+| **Versión Global del Sistema** | **`v2.3.103`** |
+| **Fecha de Última Actualización** | **28/11/2026** |
 | **Estado General** | Operativo en Producción |
 
 ---
@@ -47,6 +47,11 @@ Cualquier cambio en los siguientes módulos impacta en la versión global:
 ---
 
 ## 📝 Historial Unificado de Versiones
+
+### [v2.3.103] - 28/11/2026
+- **Tipo:** PATCH
+- **Archivos:** Módulos del sistema
+- **Descripción:** Bonos locales: botón para corregir código o número de tarjeta en Gestionar Bono con migración segura de pagos, caché local y reservas vinculadas.
 
 ### [v2.3.102] - 25/11/2026
 - **Tipo:** PATCH
